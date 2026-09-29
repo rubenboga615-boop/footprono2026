@@ -23,10 +23,10 @@ Documentation :
 - Phase 0 (fondations) ✅ : serveur d'API, configuration, journalisation structurée,
   gestion d'erreurs unique, PostgreSQL + migrations, Redis, Celery, métriques,
   sondes de santé, tests d'intégration, CI, déploiement Docker et scripts Termux.
-- Phase 1 (données) : ingestion football-data + Understat, référentiel des
+- Phase 1 (données) ✅ : ingestion football-data + Understat, référentiel des
   équipes, archivage des fichiers bruts, contrôles de qualité, mise à jour
-  quotidienne, API de lecture. Reste à valider : le téléchargement direct
-  depuis les sources sur le téléphone ou le serveur (voir [docs/DONNEES.md](docs/DONNEES.md)).
+  quotidienne, API de lecture ; téléchargement réel validé sur le téléphone
+  (voir [docs/DONNEES.md](docs/DONNEES.md)).
 
 ## Démarrage sur Termux (natif)
 

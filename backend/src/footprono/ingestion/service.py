@@ -10,10 +10,11 @@ import json
 import logging
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.core.config import Settings
@@ -147,6 +148,9 @@ _HANDLERS: dict[
 }
 
 
+# Âge au-delà duquel une exécution encore « running » est considérée interrompue.
+STALE_RUN_AGE = timedelta(hours=6)
+
 # Pause entre deux téléchargements, pour ne pas surcharger les sources.
 DOWNLOAD_PAUSE_SECONDS = 1.5
 # Après ce nombre d'échecs consécutifs (réseau, blocage), la source est
@@ -174,6 +178,16 @@ async def run_ingestion(
 ) -> dict[str, Any]:
     """Exécute les ingestions demandées puis les contrôles de qualité ; renvoie le rapport."""
     async with factory() as session, session.begin():
+        # Une exécution arrêtée en cours de route (Ctrl+C, redémarrage) resterait
+        # « running » pour toujours : elle est marquée « interrupted ».
+        await session.execute(
+            update(IngestionRun)
+            .where(
+                IngestionRun.status == "running",
+                IngestionRun.started_at < datetime.now(UTC) - STALE_RUN_AGE,
+            )
+            .values(status="interrupted", finished_at=datetime.now(UTC))
+        )
         await loader.sync_reference(session)
         run = IngestionRun(
             source="+".join(r.source.value for r in requests),

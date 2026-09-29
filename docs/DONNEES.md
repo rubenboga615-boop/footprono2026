@@ -86,12 +86,16 @@ Contradictions entre sources relevées (conservées dans le rapport d'ingestion)
 correspondant au score joué et non au score officiel ; le moteur devra les
 exclure de l'entraînement ou les traiter à part.
 
-## Points à confirmer sur le serveur réel
+## Validation du téléchargement réel (téléphone, 29/09/2026)
 
-- Téléchargement direct depuis football-data.co.uk et understat.com : non
-  testable depuis l'environnement de développement (accès réseau bloqué).
-  L'import local a été vérifié sur les fichiers fournis ; le téléchargement doit
-  être validé sur le téléphone ou le serveur.
+`ingest.sh all` sur Termux : 110 fichiers sur 110 téléchargés et chargés
+(football-data et Understat, 5 ligues, 2016-17 → 2026-27). Qualité : 0 erreur,
+2 avertissements — Ligue 1 2019-20 (saison arrêtée, déclarée) et Ligue 1
+2026-27 (xG pour 97,8 % des matchs joués : le match Rennes - PSG en conflit
+entre sources n'a pas de xG rattachés, voir ci-dessus).
+
+## Points à confirmer
+
 - Convention des colonnes de cotes football-data (moment exact de collecte
   des cotes « pré-match ») et fuseau horaire de l'heure de coup d'envoi.
 

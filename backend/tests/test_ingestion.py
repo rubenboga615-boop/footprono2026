@@ -2,7 +2,7 @@
 
 import shutil
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -344,3 +344,16 @@ async def test_blocked_understat_page_is_unavailable_and_not_archived(
     assert report["files"][0]["status"] == "unavailable"
     assert "bloqué" in report["files"][0]["error"]
     assert await count(db_factory, RawFile) == 0
+
+
+async def test_stale_running_run_is_marked_interrupted(db_factory: Factory, tmp_path: Path) -> None:
+    async with db_factory() as session, session.begin():
+        stale = IngestionRun(source="football_data", status="running", parameters={}, report={})
+        stale.started_at = datetime.now(UTC) - timedelta(days=1)
+        session.add(stale)
+    await ingest(db_factory, tmp_path, fd("EPL", 2023))
+    async with db_factory() as session:
+        run = await session.get(IngestionRun, stale.id)
+    assert run is not None
+    assert run.status == "interrupted"
+    assert run.finished_at is not None
