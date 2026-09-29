@@ -8,7 +8,7 @@ set -euo pipefail
 start_postgres
 start_redis
 cd "$BACKEND"
-export FP_TEST_DATABASE_URL="${FP_TEST_DATABASE_URL:-postgresql+asyncpg://$DB_USER:$DB_PASSWORD@127.0.0.1:$(pg_port)/${DB_NAME}_test}"
+export FP_TEST_DATABASE_URL="${FP_TEST_DATABASE_URL:-postgresql+asyncpg://$DB_USER:$DB_PASSWORD@$PG_HOST:$(pg_port)/${DB_NAME}_test}"
 export FP_TEST_REDIS_URL="${FP_TEST_REDIS_URL:-redis://127.0.0.1:$REDIS_PORT/15}"
 
 .venv/bin/ruff check .

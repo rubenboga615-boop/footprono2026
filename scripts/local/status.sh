@@ -4,7 +4,9 @@ set -uo pipefail
 # shellcheck source=common.sh
 . "$(dirname "$0")/common.sh"
 
-if pg_online; then echo "postgresql : actif (port $(pg_port))"; else echo "postgresql : arrêté"; fi
+if [ "$DB_MODE" = external ]; then
+    if pg_isready -q -h "$PG_HOST" -p "$(pg_port)"; then echo "postgresql : actif (externe, $PG_HOST:$(pg_port))"; else echo "postgresql : injoignable (externe, $PG_HOST:$(pg_port))"; fi
+elif pg_online; then echo "postgresql : actif (port $(pg_port))"; else echo "postgresql : arrêté"; fi
 if redis-cli -p "$REDIS_PORT" ping >/dev/null 2>&1; then echo "redis      : actif"; else echo "redis      : arrêté"; fi
 for name in api worker beat; do
     pidfile="$RUN/$name.pid"

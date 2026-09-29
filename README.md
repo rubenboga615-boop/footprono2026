@@ -33,9 +33,25 @@ bash scripts/local/test.sh     # lint, typage, tests
 bash scripts/local/stop.sh     # arrête API/worker/beat (--all : aussi PostgreSQL et Redis)
 ```
 
-Sous Ubuntu dans Termux, lancer `termux-wake-lock` dans Termux (hors Ubuntu)
-pour empêcher Android de mettre le serveur en veille. PostgreSQL est configuré
-avec `dynamic_shared_memory_type = mmap`, requis sous proot.
+### Sur téléphone (Ubuntu dans Termux)
+
+Sous proot, PostgreSQL ne peut pas démarrer (la propriété des fichiers y est
+simulée). Il tourne donc dans **Termux natif** et Ubuntu s'y connecte via
+`127.0.0.1` ; les scripts Ubuntu détectent Android et passent automatiquement
+en mode « PostgreSQL externe ». Redis, l'API et les workers restent dans Ubuntu.
+
+Dans **Termux** (hors Ubuntu) :
+
+```bash
+termux-wake-lock   # empêche Android de mettre le serveur en veille
+bash $PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu/root/footprono2026/scripts/termux-host/postgres.sh setup
+# ensuite, à chaque redémarrage du téléphone : ... postgres.sh start
+```
+
+Puis dans **Ubuntu** : `bash scripts/local/setup.sh` et `bash scripts/local/start.sh`.
+
+Le mode se force avec `FP_DB_MODE=local|external` (hôte et port :
+`FP_PG_HOST`, `FP_PG_PORT`).
 
 API : `http://127.0.0.1:8000/api/v1/health`, documentation interactive :
 `http://127.0.0.1:8000/docs` (désactivée en production).

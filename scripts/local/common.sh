@@ -11,6 +11,22 @@ DB_USER="${FP_DB_USER:-footprono}"
 DB_PASSWORD="${FP_DB_PASSWORD:-footprono}"
 REDIS_PORT="${FP_REDIS_PORT:-6379}"
 
+# Mode de PostgreSQL :
+#   local    : cluster de la distribution, géré par ces scripts ;
+#   external : serveur déjà lancé ailleurs (Termux natif sur téléphone, autre
+#              machine), joint en TCP sur FP_PG_HOST:FP_PG_PORT.
+# Sous Android (Ubuntu dans Termux), PostgreSQL ne peut pas tourner dans proot :
+# le mode external y est choisi automatiquement.
+if [ -n "${FP_DB_MODE:-}" ]; then
+    DB_MODE="$FP_DB_MODE"
+elif uname -r | grep -qi android; then
+    DB_MODE=external
+else
+    DB_MODE=local
+fi
+PG_HOST="${FP_PG_HOST:-127.0.0.1}"
+TERMUX_PG_SCRIPT='bash $PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu/root/footprono2026/scripts/termux-host/postgres.sh'
+
 log() { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31mErreur :\033[0m %s\n' "$*" >&2; exit 1; }
 
@@ -36,10 +52,23 @@ require_debian_like() {
 
 # Version et port du cluster PostgreSQL « main » le plus récent.
 pg_version() { find /usr/lib/postgresql -mindepth 1 -maxdepth 1 -printf '%f\n' | sort -V | tail -1; }
-pg_port() { pg_lsclusters -h | awk -v v="$(pg_version)" '$1 == v && $2 == "main" { print $3 }'; }
+pg_port() {
+    if [ "$DB_MODE" = external ]; then
+        echo "${FP_PG_PORT:-5432}"
+    else
+        pg_lsclusters -h | awk -v v="$(pg_version)" '$1 == v && $2 == "main" { print $3 }'
+    fi
+}
 pg_online() { pg_lsclusters -h | awk -v v="$(pg_version)" '$1 == v && $2 == "main" { print $4 }' | grep -q online; }
 
 start_postgres() {
+    if [ "$DB_MODE" = external ]; then
+        pg_isready -q -h "$PG_HOST" -p "$(pg_port)" || die "PostgreSQL injoignable sur $PG_HOST:$(pg_port).
+Sur téléphone, lance-le dans Termux (hors Ubuntu) :
+    $TERMUX_PG_SCRIPT start
+(première fois : remplacer « start » par « setup »)"
+        return
+    fi
     local version
     version="$(pg_version)"
     [ -n "$version" ] || die "PostgreSQL n'est pas installé (lancer setup.sh)"
