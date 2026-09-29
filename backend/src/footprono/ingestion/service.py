@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -149,6 +150,12 @@ async def _understat_file(
     }
 
 
+# Progression à l'intérieur d'un fichier (téléchargement match par match).
+PROGRESS_EVERY = 25
+_progress: ContextVar[Callable[[str], None]] = ContextVar(
+    "ingestion_progress", default=lambda _message: None
+)
+
 # Transport HTTP d'API-Football : remplaçable dans les tests, jamais en production.
 api_football_transport: httpx.AsyncBaseTransport | None = None
 
@@ -198,12 +205,16 @@ async def _download_api_football(
             params["half"] = "true"
         statistics: dict[int, Any] = {}
         pending = [i for i in items if i["fixture"]["id"] not in done]
-        for item in pending:
+        notify = _progress.get()
+        notify(f"    {len(items)} matchs terminés, {len(pending)} sans statistiques à demander")
+        for n, item in enumerate(pending, start=1):
             if not client.can_spend():
                 break
             fixture_id = item["fixture"]["id"]
             response = await client.get("/fixtures/statistics", {"fixture": fixture_id, **params})
             statistics[fixture_id] = response["response"]
+            if n % PROGRESS_EVERY == 0:
+                notify(f"    {n}/{len(pending)} — quota restant {client.day_remaining}")
         left = len(pending) - len(statistics)
         if left:
             notes.append(
@@ -331,6 +342,7 @@ async def run_ingestion(
     run_id = run.id
 
     notify = progress or (lambda _message: None)
+    _progress.set(notify)
     total = sum(len(r.competitions) * len(r.seasons) for r in requests)
     done = 0
     files: list[FileResult] = []

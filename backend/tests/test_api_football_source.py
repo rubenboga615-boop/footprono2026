@@ -244,8 +244,10 @@ async def test_download_fetches_only_missing_statistics(
     settings = make_settings(raw_data_dir=tmp_path / "raw", api_football_key="k" * 32)
     request = IngestionRequest(DataSource.API_FOOTBALL, ["EPL"], [2024])
 
-    report = await run_ingestion(db_factory, settings, [request])
+    messages: list[str] = []
+    report = await run_ingestion(db_factory, settings, [request], progress=messages.append)
     assert report["files"][0]["status"] == "ok", report["files"][0]
+    assert "    2 matchs terminés, 2 sans statistiques à demander" in messages
     assert [c.split("?")[0] for c in calls] == [
         "/status", "/fixtures", "/fixtures/statistics", "/fixtures/statistics",
     ]  # fmt: skip
