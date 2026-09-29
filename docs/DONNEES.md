@@ -48,8 +48,9 @@ Serie A, Bundesliga et Ligue 1.
 ## API-Football (statistiques par période)
 
 - **Couverture vérifiée** sur les fichiers du collecteur de l'ancien projet
-  (18 ligues, 2016 → 2026) : statistiques présentes pour 98 à 100 % des matchs
-  à partir de 2024-25, absentes avant (voir « Points à confirmer »).
+  (18 ligues, 2016 → 2026) : statistiques par période pour 98 à 100 % des
+  matchs à partir de 2024-25. Avant 2024, API-Football fournit le match complet
+  seulement (vérifié sur un match de 2016) : `ingest.sh api-football --seasons 2016-2023`.
 - **Conventions vérifiées contre football-data** (5 ligues-saisons) : un
   compteur absent vaut 0 (cartons rouges « vides » = 0 dans 99,9 % des cas) ;
   une mesure absente (possession, passes, xG) reste inconnue ; les fautes ne
@@ -137,12 +138,12 @@ entre sources n'a pas de xG rattachés, voir ci-dessus).
 
 ## Points à confirmer
 
-- **Hypothèse** : l'absence de statistiques API-Football avant 2024-25 vient
-  peut-être du paramètre `half=true` utilisé par le collecteur (le découpage
-  par mi-temps n'existe qu'à partir de 2024) et non d'une absence réelle des
-  statistiques du match complet. Coupure nette en 2024 sur les 18 ligues ; à
-  vérifier par une requête sans `half` sur un match de 2016. Le téléchargement
-  de FootProno demande les saisons antérieures à 2024 sans `half`.
+- ~~Hypothèse~~ **Vérifié (29/09/2026)** : l'absence de statistiques API-Football
+  avant 2024-25 dans les fichiers du collecteur venait du paramètre `half=true`.
+  Hull - Leicester (13/08/2016, fixture 17696) : réponse vide avec `half=true`,
+  statistiques du match complet sans. Le téléchargement de FootProno demande les
+  saisons antérieures à 2024 sans `half` : match complet seulement, pas de
+  découpage par mi-temps.
 
 - Convention des colonnes de cotes football-data (moment exact de collecte
   des cotes « pré-match ») et fuseau horaire de l'heure de coup d'envoi.
