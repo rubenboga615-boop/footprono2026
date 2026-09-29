@@ -19,13 +19,21 @@ dependencies = [
 [project.optional-dependencies]
 # Accélérateurs natifs d'uvicorn : utiles sur le serveur, facultatifs sur Termux.
 perf = ["uvloop>=0.21", "httptools>=0.6"]
+# Outils de test et de typage (sans ruff, fourni précompilé par Termux).
+test = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28",
+    "mypy>=1.13",
+    "celery-types>=0.22",
+]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "httpx>=0.28",
-    "ruff>=0.8",
     "mypy>=1.13",
     "celery-types>=0.22",
+    "ruff>=0.8",
 ]
 
 [build-system]

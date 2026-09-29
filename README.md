@@ -32,6 +32,7 @@ peut pas démarrer (propriété des fichiers simulée).
 git clone https://github.com/rubenboga615-boop/footprono2026.git
 cd footprono2026 && git checkout claude/footprono-technical-audit-9gpx2x
 bash scripts/termux/setup.sh    # une fois (idempotent) : paquets, PostgreSQL, Redis, venv, migrations
+bash scripts/termux/setup.sh --dev   # facultatif : + outils de test (pytest, mypy, ruff via pkg)
 bash scripts/termux/start.sh    # PostgreSQL, Redis, API (port 8000), worker, beat
 bash scripts/termux/status.sh   # état des services
 bash scripts/termux/test.sh     # lint, typage, tests
@@ -44,8 +45,10 @@ PostgreSQL dans `$PREFIX/var/lib/footprono/postgresql` (port 5433) et Redis
 modifiables : `FP_PG_PORT`, `FP_REDIS_PORT`, `FP_PORT` (API).
 
 `start.sh` active `termux-wake-lock` pour empêcher Android de mettre le
-serveur en veille. La première installation compile quelques dépendances
-(pydantic-core, asyncpg) et peut prendre plusieurs minutes.
+serveur en veille. PyPI ne fournit pas de paquets précompilés pour Android :
+la première installation compile pydantic-core (Rust) et quelques extensions C,
+ce qui prend plusieurs minutes. Les paquets compilés restent dans le cache de
+pip, une relance ne recompile rien. ruff est installé précompilé via `pkg`.
 
 API : `http://127.0.0.1:8000/api/v1/health`, documentation interactive :
 `http://127.0.0.1:8000/docs` (désactivée en production).
