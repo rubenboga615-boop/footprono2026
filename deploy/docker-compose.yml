@@ -4,7 +4,9 @@
 #   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 #
 # Les migrations sont appliquées par le service « migrate » avant le démarrage
-# de l'API et des workers.
+# de l'API et des workers. Ingestion initiale de l'historique :
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env run --rm migrate footprono-ingest all
+# Ensuite, « beat » met à jour la saison en cours chaque matin.
 
 x-backend: &backend
   build:
@@ -19,6 +21,9 @@ x-backend: &backend
     FP_CORS_ORIGINS: ${FP_CORS_ORIGINS:-[]}
     FP_LOG_LEVEL: ${FP_LOG_LEVEL:-INFO}
     FP_API_FOOTBALL_KEY: ${FP_API_FOOTBALL_KEY:-}
+    FP_RAW_DATA_DIR: /data/raw
+  volumes:
+    - raw-data:/data/raw
   depends_on:
     postgres:
       condition: service_healthy
@@ -101,6 +106,7 @@ services:
       - api
 
 volumes:
+  raw-data:
   postgres-data:
   redis-data:
   caddy-data:

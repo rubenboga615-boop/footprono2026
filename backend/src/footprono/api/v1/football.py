@@ -1,0 +1,215 @@
+"""Lecture des données sportives : compétitions, équipes, matchs, ingestions."""
+
+from datetime import date
+from typing import Annotated, Any
+
+from fastapi import APIRouter, Query
+from sqlalchemy import Select, func, or_, select
+from sqlalchemy.orm import aliased
+
+from footprono.api.deps import SessionDep
+from footprono.core.errors import NotFoundError
+from footprono.football.models import (
+    Competition,
+    IngestionRun,
+    Match,
+    MatchAdvancedStats,
+    MatchOdds,
+    MatchStatus,
+    Season,
+    Team,
+)
+from footprono.football.schemas import (
+    AdvancedStatsOut,
+    CompetitionOut,
+    IngestionRunDetailOut,
+    IngestionRunOut,
+    MatchDetailOut,
+    MatchOut,
+    MatchPage,
+    MatchStatsOut,
+    OddsOut,
+    SeasonOut,
+    TeamOut,
+)
+from footprono.ingestion.quality import run_quality_checks
+
+router = APIRouter(tags=["données"])
+
+_Home = aliased(Team, name="home")
+_Away = aliased(Team, name="away")
+
+
+def _match_select() -> Select[tuple[Match, Team, Team, str, int]]:
+    return (
+        select(Match, _Home, _Away, Competition.code, Season.start_year)
+        .join(Season, Season.id == Match.season_id)
+        .join(Competition, Competition.id == Season.competition_id)
+        .join(_Home, _Home.id == Match.home_team_id)
+        .join(_Away, _Away.id == Match.away_team_id)
+    )
+
+
+def _match_out(match: Match, home: Team, away: Team, code: str, year: int) -> dict[str, Any]:
+    return {
+        "id": match.id,
+        "competition": code,
+        "season": year,
+        "match_date": match.match_date,
+        "kickoff_time": match.kickoff_time,
+        "status": match.status,
+        "home_team": TeamOut.model_validate(home),
+        "away_team": TeamOut.model_validate(away),
+        "home_goals": match.home_goals,
+        "away_goals": match.away_goals,
+    }
+
+
+@router.get("/competitions", response_model=list[CompetitionOut])
+async def list_competitions(session: SessionDep) -> list[CompetitionOut]:
+    competitions = (await session.scalars(select(Competition).order_by(Competition.id))).all()
+    rows = await session.execute(
+        select(
+            Season.competition_id,
+            Season.start_year,
+            func.count(Match.id),
+            func.count(Match.id).filter(Match.status == MatchStatus.FINISHED),
+        )
+        .outerjoin(Match, Match.season_id == Season.id)
+        .group_by(Season.id)
+        .order_by(Season.start_year)
+    )
+    seasons: dict[int, list[SeasonOut]] = {}
+    for comp_id, year, n, finished in rows.tuples():
+        label = f"{year}-{(year + 1) % 100:02d}"
+        seasons.setdefault(comp_id, []).append(
+            SeasonOut(start_year=year, label=label, matches=n, finished=finished)
+        )
+    return [
+        CompetitionOut(
+            code=c.code,
+            name=c.name,
+            country=c.country,
+            n_teams=c.n_teams,
+            seasons=seasons.get(c.id, []),
+        )
+        for c in competitions
+    ]
+
+
+@router.get("/competitions/{code}/seasons/{year}/teams", response_model=list[TeamOut])
+async def list_season_teams(code: str, year: int, session: SessionDep) -> list[Team]:
+    season_id = await session.scalar(
+        select(Season.id)
+        .join(Competition, Competition.id == Season.competition_id)
+        .where(Competition.code == code.upper(), Season.start_year == year)
+    )
+    if season_id is None:
+        raise NotFoundError(f"saison {year} de {code} absente de la base")
+    team_ids = (
+        select(Match.home_team_id)
+        .where(Match.season_id == season_id)
+        .union(select(Match.away_team_id).where(Match.season_id == season_id))
+    )
+    return list(
+        (await session.scalars(select(Team).where(Team.id.in_(team_ids)).order_by(Team.name))).all()
+    )
+
+
+@router.get("/teams/{team_id}", response_model=TeamOut)
+async def get_team(team_id: int, session: SessionDep) -> Team:
+    team = await session.get(Team, team_id)
+    if team is None:
+        raise NotFoundError(f"équipe {team_id} introuvable")
+    return team
+
+
+@router.get("/matches", response_model=MatchPage)
+async def list_matches(
+    session: SessionDep,
+    competition: str | None = None,
+    season: Annotated[int | None, Query(description="année de début de saison")] = None,
+    team_id: int | None = None,
+    status: MatchStatus | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> MatchPage:
+    stmt = _match_select()
+    if competition:
+        stmt = stmt.where(Competition.code == competition.upper())
+    if season is not None:
+        stmt = stmt.where(Season.start_year == season)
+    if team_id is not None:
+        stmt = stmt.where(or_(Match.home_team_id == team_id, Match.away_team_id == team_id))
+    if status is not None:
+        stmt = stmt.where(Match.status == status)
+    if date_from is not None:
+        stmt = stmt.where(Match.match_date >= date_from)
+    if date_to is not None:
+        stmt = stmt.where(Match.match_date <= date_to)
+
+    total = await session.scalar(select(func.count()).select_from(stmt.subquery()))
+    rows = await session.execute(
+        stmt.order_by(Match.match_date, Match.kickoff_time, Match.id).limit(limit).offset(offset)
+    )
+    return MatchPage(
+        items=[MatchOut(**_match_out(*row)) for row in rows.tuples()],
+        total=total or 0,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/matches/{match_id}", response_model=MatchDetailOut)
+async def get_match(match_id: int, session: SessionDep) -> MatchDetailOut:
+    row = (await session.execute(_match_select().where(Match.id == match_id))).tuples().first()
+    if row is None:
+        raise NotFoundError(f"match {match_id} introuvable")
+    match = row[0]
+    advanced = await session.scalars(
+        select(MatchAdvancedStats)
+        .where(MatchAdvancedStats.match_id == match_id)
+        .order_by(MatchAdvancedStats.source, MatchAdvancedStats.team_id)
+    )
+    odds = await session.scalars(
+        select(MatchOdds)
+        .where(MatchOdds.match_id == match_id)
+        .order_by(
+            MatchOdds.market,
+            MatchOdds.line,
+            MatchOdds.timing,
+            MatchOdds.bookmaker,
+            MatchOdds.selection,
+        )
+    )
+    return MatchDetailOut(
+        **_match_out(*row),
+        stats=MatchStatsOut.model_validate(match),
+        advanced_stats=[AdvancedStatsOut.model_validate(a) for a in advanced],
+        odds=[OddsOut.model_validate(o) for o in odds],
+        updated_at=match.updated_at,
+    )
+
+
+@router.get("/ingestion/runs", response_model=list[IngestionRunOut])
+async def list_ingestion_runs(
+    session: SessionDep, limit: Annotated[int, Query(ge=1, le=100)] = 20
+) -> list[IngestionRun]:
+    runs = await session.scalars(select(IngestionRun).order_by(IngestionRun.id.desc()).limit(limit))
+    return list(runs.all())
+
+
+@router.get("/ingestion/runs/{run_id}", response_model=IngestionRunDetailOut)
+async def get_ingestion_run(run_id: int, session: SessionDep) -> IngestionRun:
+    run = await session.get(IngestionRun, run_id)
+    if run is None:
+        raise NotFoundError(f"ingestion {run_id} introuvable")
+    return run
+
+
+@router.get("/data/quality")
+async def data_quality(session: SessionDep) -> dict[str, Any]:
+    """Contrôles de qualité recalculés sur l'état actuel de la base."""
+    return await run_quality_checks(session)

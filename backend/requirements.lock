@@ -9,13 +9,19 @@ annotated-doc==0.0.5
 annotated-types==0.8.0
     # via pydantic
 anyio==4.15.1
-    # via starlette
+    # via
+    #   httpx
+    #   starlette
 asyncpg==0.31.0
     # via footprono (pyproject.toml)
 billiard==4.3.0
     # via celery
 celery==5.6.3
     # via footprono (pyproject.toml)
+certifi==2026.7.22
+    # via
+    #   httpcore
+    #   httpx
 click==8.5.0
     # via
     #   celery
@@ -34,9 +40,17 @@ fastapi==0.141.1
 greenlet==3.5.6
     # via sqlalchemy
 h11==0.16.0
-    # via uvicorn
+    # via
+    #   httpcore
+    #   uvicorn
+httpcore==1.0.9
+    # via httpx
+httpx==0.28.1
+    # via footprono (pyproject.toml)
 idna==3.20
-    # via anyio
+    # via
+    #   anyio
+    #   httpx
 kombu==5.6.2
     # via celery
 mako==1.4.3

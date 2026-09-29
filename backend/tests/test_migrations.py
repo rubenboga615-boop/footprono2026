@@ -27,3 +27,9 @@ def test_upgrade_and_downgrade_roundtrip() -> None:
     command.upgrade(config, "head")
     command.downgrade(config, "base")
     command.upgrade(config, "head")
+
+
+def test_models_match_migrations() -> None:
+    config = _config()
+    command.upgrade(config, "head")
+    command.check(config)  # échoue si un modèle diverge du schéma migré

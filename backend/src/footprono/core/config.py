@@ -8,6 +8,7 @@ une valeur par défaut prévisible.
 
 from enum import StrEnum
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, PostgresDsn, RedisDsn, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -46,6 +47,9 @@ class Settings(BaseSettings):
     secret_key: SecretStr | None = None
     api_football_key: SecretStr | None = None
     cors_origins: list[str] = Field(default_factory=list)
+
+    # Fichiers bruts archivés (football-data, Understat…), nommés par empreinte.
+    raw_data_dir: Path = Path("data/raw")
 
     log_level: str = "INFO"
     log_json: bool = True

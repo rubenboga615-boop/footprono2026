@@ -27,3 +27,9 @@ def test_ping_runs_through_real_broker(celery_test_app: Celery) -> None:
     with start_worker(celery_test_app, perform_ping_check=False, pool="solo"):
         result = celery_test_app.send_task("footprono.ping")
         assert result.get(timeout=10) == {"status": "ok", "version": __version__}
+
+
+def test_current_season_ingestion_is_scheduled(celery_test_app: Celery) -> None:
+    assert "footprono.ingest_current_season" in celery_test_app.tasks
+    schedule = celery_test_app.conf.beat_schedule["ingest-current-season"]
+    assert schedule["task"] == "footprono.ingest_current_season"

@@ -8,7 +8,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN groupadd --system app && useradd --system --gid app --home-dir /app app
+RUN groupadd --system app && useradd --system --gid app --home-dir /app app \
+    && mkdir -p /data/raw && chown app:app /data/raw
 
 COPY requirements.lock ./
 RUN pip install -r requirements.lock && pip install "uvloop>=0.21" "httptools>=0.6"

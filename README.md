@@ -15,13 +15,18 @@ Documentation :
 | [docs/PRINCIPES.md](docs/PRINCIPES.md) | Règles non négociables du projet |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture cible et responsabilités des modules |
 | [docs/FEUILLE_DE_ROUTE.md](docs/FEUILLE_DE_ROUTE.md) | Phases, dépendances et critères de validation |
+| [docs/DONNEES.md](docs/DONNEES.md) | Sources, règles d'ingestion, contrôles de qualité, API de lecture |
 | [docs/AUDIT_ANCIEN_PROJET.md](docs/AUDIT_ANCIEN_PROJET.md) | Conclusions vérifiées de l'audit de l'ancien projet |
 
 ## État actuel
 
-Phase 0 (fondations) : serveur d'API, configuration, journalisation structurée,
-gestion d'erreurs unique, PostgreSQL + migrations, Redis, Celery, métriques,
-sondes de santé, tests d'intégration, CI, déploiement Docker et scripts Termux.
+- Phase 0 (fondations) ✅ : serveur d'API, configuration, journalisation structurée,
+  gestion d'erreurs unique, PostgreSQL + migrations, Redis, Celery, métriques,
+  sondes de santé, tests d'intégration, CI, déploiement Docker et scripts Termux.
+- Phase 1 (données) : ingestion football-data + Understat, référentiel des
+  équipes, archivage des fichiers bruts, contrôles de qualité, mise à jour
+  quotidienne, API de lecture. Reste à valider : le téléchargement direct
+  depuis les sources sur le téléphone ou le serveur (voir [docs/DONNEES.md](docs/DONNEES.md)).
 
 ## Démarrage sur Termux (natif)
 
@@ -36,12 +41,15 @@ bash scripts/termux/setup.sh --dev   # facultatif : + outils de test (pytest, my
 bash scripts/termux/start.sh    # PostgreSQL, Redis, API (port 8000), worker, beat
 bash scripts/termux/status.sh   # état des services
 bash scripts/termux/test.sh     # lint, typage, tests
+bash scripts/termux/ingest.sh all   # télécharge l'historique 2016 → saison en cours, puis contrôle la qualité
+bash scripts/termux/ingest.sh quality   # contrôles de qualité seuls
 bash scripts/termux/stop.sh     # arrête API/worker/beat (--all : aussi PostgreSQL et Redis)
 ```
 
 FootProno utilise **ses propres instances**, isolées des autres projets Termux :
 PostgreSQL dans `$PREFIX/var/lib/footprono/postgresql` (port 5433) et Redis
-(port 6380). Un PostgreSQL ou un Redis existant n'est jamais modifié. Ports
+(port 6380). Les fichiers bruts téléchargés sont archivés dans
+`$PREFIX/var/lib/footprono/raw`. Un PostgreSQL ou un Redis existant n'est jamais modifié. Ports
 modifiables : `FP_PG_PORT`, `FP_REDIS_PORT`, `FP_PORT` (API).
 
 `start.sh` active `termux-wake-lock` pour empêcher Android de mettre le
@@ -63,6 +71,12 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 Services : `postgres`, `redis`, `migrate` (applique les migrations puis s'arrête),
 `api`, `worker`, `beat`, `caddy` (HTTPS automatique).
 
+Historique initial (une fois), ensuite `beat` met à jour la saison en cours chaque matin :
+
+```bash
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env run --rm migrate footprono-ingest all
+```
+
 ## Développement
 
 ```bash
@@ -74,6 +88,9 @@ export FP_TEST_REDIS_URL=redis://127.0.0.1:6379/15
 .venv/bin/pytest
 ```
 
-Les dépendances sont verrouillées dans `backend/requirements.lock` et
-`backend/requirements-dev.lock` (générés par `uv pip compile --universal`
-depuis `pyproject.toml`).
+Les dépendances sont verrouillées dans `backend/requirements.lock`,
+`backend/requirements-test.lock` et `backend/requirements-dev.lock` (générés par
+`uv pip compile --universal` depuis `pyproject.toml`).
+
+Les tests d'ingestion utilisent des copies non modifiées de fichiers réels
+(`backend/tests/fixtures`).

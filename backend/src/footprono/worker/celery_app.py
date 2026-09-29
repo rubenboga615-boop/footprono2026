@@ -4,11 +4,14 @@ Lancement :
     celery -A footprono.worker.celery_app worker --loglevel=INFO
     celery -A footprono.worker.celery_app beat   --loglevel=INFO
 
-Les tâches planifiées (ingestion, prédictions, règlement des paris,
-notifications) seront ajoutées à ``beat_schedule`` dans les phases suivantes.
+Tâches planifiées (UTC) :
+- ``footprono.ingest_current_season`` chaque matin à 06:15 (football-data met
+  à jour ses fichiers dans la nuit qui suit les matchs).
+Prédictions, règlement des paris et notifications viendront dans les phases suivantes.
 """
 
 from celery import Celery
+from celery.schedules import crontab
 
 from footprono.core.config import Settings, get_settings
 
@@ -30,7 +33,12 @@ def create_celery(settings: Settings | None = None) -> Celery:
         task_track_started=True,
         result_expires=3600,
         broker_connection_retry_on_startup=True,
-        beat_schedule={},
+        beat_schedule={
+            "ingest-current-season": {
+                "task": "footprono.ingest_current_season",
+                "schedule": crontab(hour=6, minute=15),
+            },
+        },
     )
     app.autodiscover_tasks(["footprono.worker"], related_name="tasks")
     return app

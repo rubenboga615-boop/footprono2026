@@ -53,9 +53,10 @@ sémaphores POSIX nommés du pool « prefork »).
 | `core/` | Configuration, journalisation JSON, erreurs, middleware, métriques | 0 ✅ |
 | `db/` | Base SQLAlchemy, sessions async, migrations Alembic | 0 ✅ |
 | `cache/` | Client Redis | 0 ✅ |
-| `api/` | Routes HTTP versionnées, dépendances, schémas de réponse | 0 ✅ (santé) |
+| `api/` | Routes HTTP versionnées, dépendances, schémas de réponse | 0 ✅ (santé), 1 (données) |
 | `worker/` | Application Celery, tâches, planification | 0 ✅ |
-| `ingestion/` | Connecteurs sources, normalisation des noms, contrôles qualité, cache et quotas | 1, 3 |
+| `football/` | Modèles ORM et schémas des données sportives (compétitions, matchs, statistiques, cotes) | 1 |
+| `ingestion/` | Connecteurs sources, référentiel des noms, archivage brut, chargement, contrôles qualité, CLI `footprono-ingest` ; API-Football, cache et quotas en phase 3 | 1, 3 |
 | `features/` | Moteur de features unique (état des équipes à l'instant *t*) | 2 |
 | `ml/` | Entraînement, backtest temporel, calibration, registre d'artefacts | 2 |
 | `markets/` | Dérivation des marchés depuis la distribution de scores | 2 |

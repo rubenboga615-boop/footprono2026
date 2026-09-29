@@ -22,6 +22,7 @@ DB_USER="${FP_DB_USER:-footprono}"
 DB_PASSWORD="${FP_DB_PASSWORD:-footprono}"
 REDIS_PORT="${FP_REDIS_PORT:-6380}"
 REDIS_DIR="$FP_DATA/redis"
+RAW_DIR="$FP_DATA/raw"
 
 # Socket PostgreSQL explicite dans $PREFIX/tmp (défaut de Termux) : psql et
 # pg_ctl la trouvent sans dépendre des options de compilation.

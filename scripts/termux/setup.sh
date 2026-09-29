@@ -66,10 +66,13 @@ if [ ! -f .env ]; then
     cp .env.example .env
     log "backend/.env créé à partir de .env.example"
 fi
-# Les adresses de la base et de Redis suivent toujours la configuration des scripts.
+# Les adresses de la base et de Redis, et le dossier des fichiers bruts,
+# suivent toujours la configuration des scripts.
+grep -q '^FP_RAW_DATA_DIR=' .env || echo 'FP_RAW_DATA_DIR=' >> .env
 sed -i \
     -e "s|^FP_DATABASE_URL=.*|FP_DATABASE_URL=postgresql+asyncpg://$DB_USER:$DB_PASSWORD@127.0.0.1:$PG_PORT/$DB_NAME|" \
     -e "s|^FP_REDIS_URL=.*|FP_REDIS_URL=redis://127.0.0.1:$REDIS_PORT/0|" \
+    -e "s|^FP_RAW_DATA_DIR=.*|FP_RAW_DATA_DIR=$RAW_DIR|" \
     .env
 
 log "Migrations"

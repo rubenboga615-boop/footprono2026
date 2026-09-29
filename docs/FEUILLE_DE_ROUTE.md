@@ -6,7 +6,7 @@ précédente soit validée par ses critères (tests automatisés verts).
 | Phase | Objet | Dépend de | Validée quand |
 |---|---|---|---|
 | **0 — Fondations** ✅ | Serveur d'API, config, logs, erreurs, PostgreSQL + migrations, Redis, Celery, métriques, CI, Docker, Termux | — | Lint, typage strict et tests d'intégration verts ; serveur, worker et beat réels opérationnels |
-| **1 — Données** | Ingestion football-data + Understat, référentiel unique des équipes et compétitions, contrôles qualité, horodatage | 0 | Historique complet jusqu'à J-1 pour les 5 ligues, 100 % des équipes reconnues, rapports de qualité sans anomalie bloquante |
+| **1 — Données** (en validation) | Ingestion football-data + Understat, référentiel unique des équipes et compétitions, contrôles qualité, horodatage | 0 | Historique complet jusqu'à J-1 pour les 5 ligues, 100 % des équipes reconnues, rapports de qualité sans anomalie bloquante |
 | **2 — Moteur** | Moteur de features unique, modèle de distribution de scores, marchés dérivés, calibration, backtest temporel | 1 | Bat le taux historique sur des saisons de test jamais vues, calibration validée, cohérence des marchés à 100 %, égalité train/service des vecteurs |
 | **3 — Temps réel** | API-Football (calendrier, compositions, cotes), prédictions quotidiennes stockées et versionnées, analyses | 2 | Vrais matchs du jour, prédictions traçables ; source en panne ⇒ erreur explicite |
 | **4 — Métier** | Résultats, règlement automatique, bookmaker virtuel, coupons, montante, notifications (WebSocket, FCM) | 3 | Parcours pari → résultat → règlement → solde testé de bout en bout |
