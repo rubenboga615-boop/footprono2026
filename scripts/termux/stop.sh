@@ -17,9 +17,8 @@ done
 
 if [ "${1:-}" = "--all" ]; then
     redis-cli -p "$REDIS_PORT" shutdown nosave >/dev/null 2>&1 && echo "redis arrêté" || true
-    if [ "$DB_MODE" = external ]; then
-        echo "postgresql externe : à arrêter là où il tourne ($TERMUX_PG_SCRIPT stop)"
-    elif pg_online; then
-        as_root pg_ctlcluster "$(pg_version)" main stop && echo "postgresql arrêté"
+    if pg_running; then
+        pg_ctl -D "$PGDATA" -m fast stop >/dev/null && echo "postgresql arrêté"
     fi
+    command -v termux-wake-unlock >/dev/null 2>&1 && termux-wake-unlock
 fi

@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 # Démarre la pile complète : PostgreSQL, Redis, API, worker, beat.
-#   bash scripts/local/start.sh
+#   bash scripts/termux/start.sh
 set -euo pipefail
 # shellcheck source=common.sh
 . "$(dirname "$0")/common.sh"
 
 mkdir -p "$RUN"
+# Empêche Android de mettre les processus en veille pendant que le serveur tourne.
+command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock
+
 start_postgres
 start_redis
 load_env
-.venv/bin/alembic upgrade head
+migrate
 
 start() {
     local name="$1"; shift
@@ -22,15 +25,15 @@ start() {
     echo "$name démarré (pid $!, logs : $RUN/$name.log)"
 }
 
-start api .venv/bin/uvicorn --factory footprono.main:create_app --host 0.0.0.0 --port "$PORT"
-# Pool de threads : fonctionne partout, y compris sous proot où les sémaphores
-# POSIX du pool « prefork » ne sont pas garantis. Surcharger avec FP_CELERY_POOL.
-start worker .venv/bin/celery -A footprono.worker.celery_app worker \
-    --pool="${FP_CELERY_POOL:-threads}" --concurrency="${FP_CELERY_CONCURRENCY:-4}" --loglevel=INFO
-start beat .venv/bin/celery -A footprono.worker.celery_app beat \
+start api "$VENV/bin/uvicorn" --factory footprono.main:create_app --host 0.0.0.0 --port "$PORT"
+# Android n'offre pas les sémaphores POSIX nommés du pool « prefork » :
+# le worker utilise un pool de threads.
+start worker "$VENV/bin/celery" -A footprono.worker.celery_app worker \
+    --pool=threads --concurrency="${FP_CELERY_CONCURRENCY:-4}" --loglevel=INFO
+start beat "$VENV/bin/celery" -A footprono.worker.celery_app beat \
     --loglevel=INFO --schedule "$RUN/celerybeat-schedule"
 
-for _ in $(seq 1 15); do
+for _ in $(seq 1 20); do
     if curl -fsS "http://127.0.0.1:$PORT/api/v1/ready" 2>/dev/null; then
         echo
         exit 0

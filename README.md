@@ -6,7 +6,7 @@ Nouveau projet, reconstruit de zéro à partir de l'audit de l'ancienne version
 
 - **Backend** : FastAPI (async), PostgreSQL, Redis, Celery (worker + beat)
 - **Frontend** : Flutter (web + APK Android), client du contrat OpenAPI
-- **Déploiement** : Ubuntu/Debian — y compris Ubuntu dans Termux (proot-distro) pour le développement sur téléphone — et serveur distant via Docker Compose
+- **Déploiement** : Termux natif (développement et tests sur téléphone), serveur distant via Docker Compose
 
 Documentation :
 
@@ -21,37 +21,26 @@ Documentation :
 
 Phase 0 (fondations) : serveur d'API, configuration, journalisation structurée,
 gestion d'erreurs unique, PostgreSQL + migrations, Redis, Celery, métriques,
-sondes de santé, tests d'intégration, CI, déploiement Docker et Termux.
+sondes de santé, tests d'intégration, CI, déploiement Docker et scripts Termux.
 
-## Démarrage local (Ubuntu, y compris Ubuntu dans Termux)
+## Démarrage sur Termux (natif)
 
-```bash
-bash scripts/local/setup.sh    # une fois (idempotent) : paquets, PostgreSQL, Redis, Python 3.12, migrations
-bash scripts/local/start.sh    # PostgreSQL, Redis, API (port 8000), worker, beat
-bash scripts/local/status.sh   # état des services
-bash scripts/local/test.sh     # lint, typage, tests
-bash scripts/local/stop.sh     # arrête API/worker/beat (--all : aussi PostgreSQL et Redis)
-```
-
-### Sur téléphone (Ubuntu dans Termux)
-
-Sous proot, PostgreSQL ne peut pas démarrer (la propriété des fichiers y est
-simulée). Il tourne donc dans **Termux natif** et Ubuntu s'y connecte via
-`127.0.0.1` ; les scripts Ubuntu détectent Android et passent automatiquement
-en mode « PostgreSQL externe ». Redis, l'API et les workers restent dans Ubuntu.
-
-Dans **Termux** (hors Ubuntu) :
+À lancer dans **Termux**, pas dans Ubuntu/proot : sous proot, PostgreSQL ne
+peut pas démarrer (propriété des fichiers simulée).
 
 ```bash
-termux-wake-lock   # empêche Android de mettre le serveur en veille
-bash $PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu/root/footprono2026/scripts/termux-host/postgres.sh setup
-# ensuite, à chaque redémarrage du téléphone : ... postgres.sh start
+git clone https://github.com/rubenboga615-boop/footprono2026.git
+cd footprono2026 && git checkout claude/footprono-technical-audit-9gpx2x
+bash scripts/termux/setup.sh    # une fois (idempotent) : paquets, PostgreSQL, Redis, venv, migrations
+bash scripts/termux/start.sh    # PostgreSQL, Redis, API (port 8000), worker, beat
+bash scripts/termux/status.sh   # état des services
+bash scripts/termux/test.sh     # lint, typage, tests
+bash scripts/termux/stop.sh     # arrête API/worker/beat (--all : aussi PostgreSQL et Redis)
 ```
 
-Puis dans **Ubuntu** : `bash scripts/local/setup.sh` et `bash scripts/local/start.sh`.
-
-Le mode se force avec `FP_DB_MODE=local|external` (hôte et port :
-`FP_PG_HOST`, `FP_PG_PORT`).
+`start.sh` active `termux-wake-lock` pour empêcher Android de mettre le
+serveur en veille. La première installation compile quelques dépendances
+(pydantic-core, asyncpg) et peut prendre plusieurs minutes.
 
 API : `http://127.0.0.1:8000/api/v1/health`, documentation interactive :
 `http://127.0.0.1:8000/docs` (désactivée en production).
