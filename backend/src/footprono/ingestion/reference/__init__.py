@@ -33,7 +33,9 @@ COMPETITIONS_BY_CODE = {c.code: c for c in COMPETITIONS}
 class TeamRef:
     competition: str
     name: str
-    aliases: dict[DataSource, str]
+    # Une source peut avoir changé l'orthographe d'une équipe au fil des saisons
+    # (API-Football : « Bayern München » puis « Bayern Munich ») : plusieurs alias.
+    aliases: dict[DataSource, tuple[str, ...]]
 
 
 @cache
@@ -43,8 +45,8 @@ def load_teams() -> tuple[TeamRef, ...]:
     teams = []
     for row in csv.DictReader(text.splitlines()):
         aliases = {
-            DataSource(source): row[source]
-            for source in ("football_data", "understat")
+            DataSource(source): tuple(row[source].split("|"))
+            for source in ("football_data", "understat", "api_football")
             if row.get(source)
         }
         teams.append(TeamRef(row["competition"], row["name"], aliases))

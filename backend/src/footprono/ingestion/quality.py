@@ -20,6 +20,11 @@ STALE_SCHEDULED_DAYS = 2
 
 MIN_XG_COVERAGE = 0.98
 MIN_ODDS_COVERAGE = 0.98
+MIN_API_STATS_COVERAGE = 0.98
+MIN_CORNER_AGREEMENT = 0.95
+MAX_HALF_MISMATCH_RATE = 0.01
+# Saisons pour lesquelles API-Football fournit les statistiques par mi-temps.
+API_STATS_FIRST_SEASON = 2024
 OVERROUND_RANGE = (1.0, 1.25)
 
 
@@ -57,7 +62,13 @@ _SEASON_SUMMARY = text(
                 WHERE a.match_id = m.id AND a.source = 'understat') = 2) AS n_with_xg,
            count(m.id) FILTER (WHERE m.status = 'finished' AND EXISTS (
                 SELECT 1 FROM match_odds o WHERE o.match_id = m.id AND o.market = '1X2'
-                  AND o.timing = 'pre' AND o.bookmaker = 'B365')) AS n_with_odds
+                  AND o.timing = 'pre' AND o.bookmaker = 'B365')) AS n_with_odds,
+           count(m.id) FILTER (WHERE m.status = 'finished' AND EXISTS (
+                SELECT 1 FROM match_team_stats t WHERE t.match_id = m.id
+                  AND t.source = 'api_football' AND t.period = 'full')) AS n_with_api_stats,
+           count(m.id) FILTER (WHERE m.status = 'finished' AND EXISTS (
+                SELECT 1 FROM match_team_stats t WHERE t.match_id = m.id
+                  AND t.source = 'api_football' AND t.period = 'first_half')) AS n_with_api_halves
     FROM seasons s
     JOIN competitions c ON c.id = s.competition_id
     LEFT JOIN matches m ON m.season_id = s.id
@@ -93,6 +104,31 @@ _DOUBLE_MATCHES = text(
         AND abs(a.match_date - b.match_date) <= 1
     JOIN teams t ON t.id = a.team_id
     ORDER BY a.match_date, t.name
+    """
+)
+
+# Mi-temps incohérentes : 1re + 2e période ≠ match complet (corners, cartons jaunes).
+_HALF_MISMATCHES = text(
+    """
+    SELECT count(*) FROM match_team_stats f
+    JOIN match_team_stats h1 ON h1.match_id = f.match_id AND h1.team_id = f.team_id
+        AND h1.source = f.source AND h1.period = 'first_half'
+    JOIN match_team_stats h2 ON h2.match_id = f.match_id AND h2.team_id = f.team_id
+        AND h2.source = f.source AND h2.period = 'second_half'
+    JOIN matches m ON m.id = f.match_id
+    WHERE m.season_id = :sid AND f.source = 'api_football' AND f.period = 'full'
+      AND (f.corners <> h1.corners + h2.corners
+           OR f.yellow_cards <> h1.yellow_cards + h2.yellow_cards)
+    """
+)
+
+# Accord des corners entre API-Football et football-data (équipe à domicile).
+_CORNER_AGREEMENT = text(
+    """
+    SELECT count(*) AS n, count(*) FILTER (WHERE t.corners = m.home_corners) AS same
+    FROM match_team_stats t JOIN matches m ON m.id = t.match_id
+    WHERE m.season_id = :sid AND t.source = 'api_football' AND t.period = 'full'
+      AND t.team_id = m.home_team_id AND m.home_corners IS NOT NULL
     """
 )
 
@@ -177,6 +213,33 @@ async def run_quality_checks(session: AsyncSession, today: date | None = None) -
             add("warning", "xg", f"xG disponibles pour {xg_cov:.1%} des matchs joués")
         if odds_cov is not None and odds_cov < MIN_ODDS_COVERAGE:
             add("warning", "cotes", f"cotes B365 pré-match pour {odds_cov:.1%} des matchs joués")
+        if year >= API_STATS_FIRST_SEASON and n_finished:
+            api_cov = row["n_with_api_stats"] / n_finished
+            half_cov = row["n_with_api_halves"] / n_finished
+            seasons[-1]["api_stats_coverage"] = round(api_cov, 4)
+            seasons[-1]["api_halves_coverage"] = round(half_cov, 4)
+            if api_cov < MIN_API_STATS_COVERAGE:
+                add(
+                    "warning",
+                    "stats_api",
+                    f"stats API-Football pour {api_cov:.1%} des matchs joués",
+                )
+            elif half_cov < MIN_API_STATS_COVERAGE:
+                add(
+                    "warning", "stats_api", f"découpage par mi-temps pour {half_cov:.1%} des matchs"
+                )
+            if row["n_with_api_halves"]:
+                mismatches = await session.scalar(_HALF_MISMATCHES, {"sid": sid}) or 0
+                if mismatches > MAX_HALF_MISMATCH_RATE * 2 * row["n_with_api_halves"]:
+                    add("warning", "mi_temps", f"{mismatches} lignes où 1re + 2e mi-temps ≠ match")
+            agreement = (await session.execute(_CORNER_AGREEMENT, {"sid": sid})).one()
+            if agreement.n and agreement.same / agreement.n < MIN_CORNER_AGREEMENT:
+                add(
+                    "warning",
+                    "corners",
+                    f"corners API-Football = football-data pour {agreement.same / agreement.n:.1%}"
+                    " des matchs seulement",
+                )
         outliers = await session.scalar(
             _OVERROUND_OUTLIERS, {"sid": sid, "low": OVERROUND_RANGE[0], "high": OVERROUND_RANGE[1]}
         )

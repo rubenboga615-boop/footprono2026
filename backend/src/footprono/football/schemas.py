@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from footprono.football.models import DataSource, MatchStatus, OddsTiming
+from footprono.football.models import DataSource, MatchStatus, OddsTiming, StatPeriod
 
 
 class _Out(BaseModel):
@@ -104,9 +104,37 @@ class OddsOut(_Out):
     price: Decimal
 
 
+class TeamStatsOut(_Out):
+    """Statistiques d'une équipe sur une période (match complet ou mi-temps)."""
+
+    team_id: int
+    source: DataSource
+    period: StatPeriod
+    shots_on_goal: int | None
+    shots_off_goal: int | None
+    total_shots: int | None
+    blocked_shots: int | None
+    shots_inside_box: int | None
+    shots_outside_box: int | None
+    fouls: int | None
+    corners: int | None
+    offsides: int | None
+    possession: Decimal | None
+    yellow_cards: int | None
+    red_cards: int | None
+    goalkeeper_saves: int | None
+    total_passes: int | None
+    passes_accurate: int | None
+    passes_pct: Decimal | None
+    expected_goals: Decimal | None
+    goals_prevented: Decimal | None
+
+
 class MatchDetailOut(MatchOut):
+    api_football_id: int | None
     stats: MatchStatsOut
     advanced_stats: list[AdvancedStatsOut]
+    team_stats: list[TeamStatsOut]
     odds: list[OddsOut]
     updated_at: datetime
 

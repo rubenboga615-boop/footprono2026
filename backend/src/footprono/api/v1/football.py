@@ -16,6 +16,7 @@ from footprono.football.models import (
     MatchAdvancedStats,
     MatchOdds,
     MatchStatus,
+    MatchTeamStats,
     Season,
     Team,
 )
@@ -31,6 +32,7 @@ from footprono.football.schemas import (
     OddsOut,
     SeasonOut,
     TeamOut,
+    TeamStatsOut,
 )
 from footprono.ingestion.quality import run_quality_checks
 
@@ -173,6 +175,11 @@ async def get_match(match_id: int, session: SessionDep) -> MatchDetailOut:
         .where(MatchAdvancedStats.match_id == match_id)
         .order_by(MatchAdvancedStats.source, MatchAdvancedStats.team_id)
     )
+    team_stats = await session.scalars(
+        select(MatchTeamStats)
+        .where(MatchTeamStats.match_id == match_id)
+        .order_by(MatchTeamStats.source, MatchTeamStats.period, MatchTeamStats.team_id)
+    )
     odds = await session.scalars(
         select(MatchOdds)
         .where(MatchOdds.match_id == match_id)
@@ -187,7 +194,9 @@ async def get_match(match_id: int, session: SessionDep) -> MatchDetailOut:
     return MatchDetailOut(
         **_match_out(*row),
         stats=MatchStatsOut.model_validate(match),
+        api_football_id=match.api_football_id,
         advanced_stats=[AdvancedStatsOut.model_validate(a) for a in advanced],
+        team_stats=[TeamStatsOut.model_validate(t) for t in team_stats],
         odds=[OddsOut.model_validate(o) for o in odds],
         updated_at=match.updated_at,
     )

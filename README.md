@@ -27,6 +27,9 @@ Documentation :
   équipes, archivage des fichiers bruts, contrôles de qualité, mise à jour
   quotidienne, API de lecture ; téléchargement réel validé sur le téléphone
   (voir [docs/DONNEES.md](docs/DONNEES.md)).
+- Extension de la phase 1 : statistiques par équipe et par mi-temps
+  d'API-Football (corners, cartons, tirs… depuis 2024-25), import des fichiers
+  du collecteur ou téléchargement avec la clé `FP_API_FOOTBALL_KEY`.
 
 ## Démarrage sur Termux (natif)
 

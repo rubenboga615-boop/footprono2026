@@ -5,6 +5,8 @@ Exemples :
     footprono-ingest football-data --seasons 2024-2025 --competitions EPL,LIGUE_1
     footprono-ingest football-data --from-dir ~/data/football-data
     footprono-ingest understat --from-dir ~/data/understat --seasons 2025
+    footprono-ingest api-football --from-dir ~/ancien-projet/data/raw/apifootball/stats
+    footprono-ingest api-football                         # téléchargement (FP_API_FOOTBALL_KEY)
     footprono-ingest quality
 
 Code de sortie : 0 si tout est bon (avertissements compris), 1 si un fichier a
@@ -27,6 +29,7 @@ from footprono.football.models import DataSource
 from footprono.ingestion.quality import current_season_start, run_quality_checks
 from footprono.ingestion.reference import COMPETITIONS, COMPETITIONS_BY_CODE
 from footprono.ingestion.service import IngestionRequest, run_ingestion
+from footprono.ingestion.sources.api_football import HALF_SPLIT_FIRST_SEASON
 
 FIRST_SEASON = 2016
 
@@ -64,13 +67,17 @@ def build_parser() -> argparse.ArgumentParser:
     for name, help_text in (
         ("football-data", "résultats, statistiques et cotes (football-data.co.uk)"),
         ("understat", "xG et statistiques avancées (understat.com)"),
-        ("all", "football-data puis Understat"),
+        ("api-football", "statistiques par équipe et par mi-temps (API-Football)"),
+        ("all", "football-data, Understat puis API-Football"),
     ):
         cmd = sub.add_parser(name, help=help_text)
         cmd.add_argument(
             "--seasons",
             type=parse_seasons,
-            help=f"années de début de saison (défaut : {FIRST_SEASON} → saison en cours)",
+            help=(
+                f"années de début de saison (défaut : {FIRST_SEASON} → saison en cours ; "
+                f"API-Football : {HALF_SPLIT_FIRST_SEASON} → saison en cours)"
+            ),
         )
         cmd.add_argument(
             "--competitions",
@@ -81,6 +88,9 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "all":
             cmd.add_argument("--football-data-dir", type=Path, help="import local football-data")
             cmd.add_argument("--understat-dir", type=Path, help="import local Understat")
+            cmd.add_argument(
+                "--api-football-dir", type=Path, help="import local API-Football (collecteur)"
+            )
         else:
             cmd.add_argument(
                 "--from-dir", type=Path, help="importer un dossier local au lieu de télécharger"
@@ -91,18 +101,30 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def build_requests(args: argparse.Namespace) -> list[IngestionRequest]:
-    seasons = args.seasons or list(range(FIRST_SEASON, current_season_start() + 1))
+    current = current_season_start()
+    seasons = args.seasons or list(range(FIRST_SEASON, current + 1))
+    # API-Football ne fournit le découpage par mi-temps qu'à partir de 2024 :
+    # sans --seasons explicite, on ne dépense pas de quota sur les saisons antérieures.
+    api_seasons = args.seasons or list(range(HALF_SPLIT_FIRST_SEASON, current + 1))
     if args.command == "football-data":
         return [
             IngestionRequest(DataSource.FOOTBALL_DATA, args.competitions, seasons, args.from_dir)
         ]
     if args.command == "understat":
         return [IngestionRequest(DataSource.UNDERSTAT, args.competitions, seasons, args.from_dir)]
+    if args.command == "api-football":
+        return [
+            IngestionRequest(DataSource.API_FOOTBALL, args.competitions, api_seasons, args.from_dir)
+        ]
+    api_in_all = [y for y in api_seasons if y >= HALF_SPLIT_FIRST_SEASON]
     return [
         IngestionRequest(
             DataSource.FOOTBALL_DATA, args.competitions, seasons, args.football_data_dir
         ),
         IngestionRequest(DataSource.UNDERSTAT, args.competitions, seasons, args.understat_dir),
+        IngestionRequest(
+            DataSource.API_FOOTBALL, args.competitions, api_in_all, args.api_football_dir
+        ),
     ]
 
 

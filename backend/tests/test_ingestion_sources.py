@@ -13,7 +13,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from footprono.football.models import OddsTiming
+from footprono.football.models import DataSource, OddsTiming
 from footprono.ingestion import raw_store
 from footprono.ingestion.cli import build_parser, parse_competitions, parse_seasons
 from footprono.ingestion.quality import current_season_start
@@ -42,9 +42,9 @@ def test_reference_teams_are_consistent() -> None:
     assert len(teams) == 165
     assert {t.competition for t in teams} == codes
     assert len({t.name for t in teams}) == len(teams)
-    for source in ("football_data", "understat"):
-        aliases = [t.aliases[source] for t in teams if source in t.aliases]
-        assert len(aliases) == len(teams), f"alias {source} manquant"
+    for source in ("football_data", "understat", "api_football"):
+        aliases = [a for t in teams for a in t.aliases.get(DataSource(source), ())]
+        assert all(DataSource(source) in t.aliases for t in teams), f"alias {source} manquant"
         assert len(set(aliases)) == len(aliases), f"alias {source} en double"
 
 

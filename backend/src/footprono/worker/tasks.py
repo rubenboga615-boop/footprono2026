@@ -21,7 +21,7 @@ def ping() -> dict[str, str]:
 
 @celery_app.task(name="footprono.ingest_current_season")
 def ingest_current_season() -> dict[str, Any]:
-    """Télécharge la saison en cours (football-data puis Understat) et contrôle la qualité.
+    """Télécharge la saison en cours (football-data, Understat, API-Football), puis contrôle.
 
     Une source indisponible est consignée dans le rapport (statut ``partial``) ;
     aucune donnée de remplacement n'est produite.
@@ -41,6 +41,7 @@ async def _ingest_current_season() -> dict[str, Any]:
             [
                 IngestionRequest(DataSource.FOOTBALL_DATA, competitions, [season]),
                 IngestionRequest(DataSource.UNDERSTAT, competitions, [season]),
+                IngestionRequest(DataSource.API_FOOTBALL, competitions, [season]),
             ],
         )
     finally:

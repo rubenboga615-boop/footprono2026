@@ -25,11 +25,13 @@ from footprono.football.models import (
     MatchAdvancedStats,
     MatchOdds,
     MatchStatus,
+    MatchTeamStats,
     Season,
     Team,
     TeamAlias,
 )
 from footprono.ingestion.reference import COMPETITIONS, INTERRUPTED_SEASONS, load_teams
+from footprono.ingestion.sources.api_football import ApiFixture
 from footprono.ingestion.sources.football_data import FootballDataMatch
 from footprono.ingestion.sources.understat import UnderstatSeason
 
@@ -101,7 +103,8 @@ async def sync_reference(session: AsyncSession) -> None:
     alias_rows = [
         {"team_id": team_ids[team.name], "source": source, "alias": alias}
         for team in load_teams()
-        for source, alias in team.aliases.items()
+        for source, names in team.aliases.items()
+        for alias in names
     ]
     stmt = insert(TeamAlias)
     await session.execute(
@@ -114,7 +117,7 @@ async def sync_reference(session: AsyncSession) -> None:
 
 class TeamResolver:
     def __init__(self, aliases: dict[tuple[DataSource, str], int]) -> None:
-        self._aliases = aliases
+        self.aliases = aliases
 
     @classmethod
     async def load(cls, session: AsyncSession) -> "TeamResolver":
@@ -123,7 +126,7 @@ class TeamResolver:
 
     def resolve_all(self, source: DataSource, names: Iterable[str]) -> dict[str, int]:
         names = set(names)
-        resolved = {n: self._aliases[(source, n)] for n in names if (source, n) in self._aliases}
+        resolved = {n: self.aliases[(source, n)] for n in names if (source, n) in self.aliases}
         missing = names - resolved.keys()
         if missing:
             raise UnknownTeamsError(source, missing)
@@ -441,6 +444,134 @@ async def load_understat(
                     k: stmt.excluded[k]
                     for k in chunk[0]
                     if k not in ("match_id", "team_id", "source")
+                },
+            )
+        )
+        stats.advanced_stats_upserted += len(chunk)
+    return stats
+
+
+class PrerequisiteMissingError(Exception):
+    """Une donnée préalable manque (par exemple la saison football-data)."""
+
+
+async def load_api_football(
+    session: AsyncSession,
+    competition_code: str,
+    start_year: int,
+    fixtures: list[ApiFixture],
+    raw_file_id: int,
+    resolver: TeamResolver,
+) -> LoadStats:
+    """Rattache les matchs API-Football aux matchs en base et charge leurs statistiques.
+
+    - Le match est retrouvé par son affiche dans la saison ; date (±3 jours) et
+      score doivent concorder, sinon l'écart est signalé et rien n'est chargé.
+    - Un match impliquant une équipe étrangère à la saison (barrage de
+      maintien contre une équipe de division inférieure) est ignoré et compté.
+    """
+    stats = LoadStats()
+    sid = await season_id(session, competition_code, start_year)
+    existing = {
+        (row.home_team_id, row.away_team_id): row
+        for row in (await session.execute(select(Match).where(Match.season_id == sid))).scalars()
+    }
+    if not existing:
+        raise PrerequisiteMissingError(
+            f"{competition_code} {start_year} absente de la base : charger football-data d'abord"
+        )
+    season_teams = {t for key in existing for t in key}
+
+    # Noms inconnus : tolérés seulement pour une équipe de barrage (au plus 2 matchs).
+    appearances: dict[str, int] = {}
+    for f in fixtures:
+        for name in (f.home_team, f.away_team):
+            appearances[name] = appearances.get(name, 0) + 1
+    known = {n for n in appearances if (DataSource.API_FOOTBALL, n) in resolver.aliases}
+    unknown = set(appearances) - known
+    blocking = {n for n in unknown if appearances[n] > 2}
+    if blocking:
+        raise UnknownTeamsError(DataSource.API_FOOTBALL, blocking)
+    teams = resolver.resolve_all(DataSource.API_FOOTBALL, known)
+
+    # Une même affiche peut apparaître deux fois (match d'appui ou de barrage entre
+    # deux équipes du championnat) : le match de championnat est celui dont la date
+    # est la plus proche de la base, l'autre est hors championnat.
+    closest: dict[tuple[int, int], int] = {}
+    for f in fixtures:
+        key = (teams.get(f.home_team, -1), teams.get(f.away_team, -1))
+        match = existing.get(key)
+        if match is not None:
+            gap = abs((match.match_date - f.match_date).days)
+            best = closest.get(key)
+            if best is None or gap < best:
+                closest[key] = gap
+
+    playoffs = 0
+    rows: list[dict[str, Any]] = []
+    for f in fixtures:
+        home, away = teams.get(f.home_team), teams.get(f.away_team)
+        if home is None or away is None or home not in season_teams or away not in season_teams:
+            playoffs += 1
+            continue
+        match = existing.get((home, away))
+        if (
+            match is not None
+            and abs((match.match_date - f.match_date).days) > closest[(home, away)]
+        ):
+            playoffs += 1
+            continue
+        if match is None:
+            stats.issues.append(
+                f"match API-Football {f.fixture_id} {f.home_team}-{f.away_team} "
+                f"du {f.match_date} introuvable en base"
+            )
+            continue
+        if abs((match.match_date - f.match_date).days) > 3:
+            stats.issues.append(
+                f"date en désaccord {f.home_team}-{f.away_team} : base {match.match_date}, "
+                f"API-Football {f.match_date} ; statistiques non chargées"
+            )
+            continue
+        if match.status is MatchStatus.FINISHED and (match.home_goals, match.away_goals) != (
+            f.home_goals,
+            f.away_goals,
+        ):
+            stats.issues.append(
+                f"score en désaccord {f.home_team}-{f.away_team} : base "
+                f"{match.home_goals}-{match.away_goals}, "
+                f"API-Football {f.home_goals}-{f.away_goals} ; statistiques non chargées"
+            )
+            continue
+        if match.api_football_id != f.fixture_id:
+            await session.execute(
+                update(Match).where(Match.id == match.id).values(api_football_id=f.fixture_id)
+            )
+            stats.matches_updated += 1
+        for period, (home_stats, away_stats) in f.stats.items():
+            for team_id, values in ((home, home_stats), (away, away_stats)):
+                rows.append(
+                    {
+                        "match_id": match.id,
+                        "team_id": team_id,
+                        "source": DataSource.API_FOOTBALL,
+                        "period": period,
+                        "raw_file_id": raw_file_id,
+                        **values,
+                    }
+                )
+    if playoffs:
+        stats.issues.append(f"{playoffs} matchs hors championnat (barrages) ignorés")
+
+    for chunk in _chunks(rows, 1000):
+        stmt = insert(MatchTeamStats).values(list(chunk))
+        await session.execute(
+            stmt.on_conflict_do_update(
+                index_elements=["match_id", "team_id", "source", "period"],
+                set_={
+                    k: stmt.excluded[k]
+                    for k in chunk[0]
+                    if k not in ("match_id", "team_id", "source", "period")
                 },
             )
         )

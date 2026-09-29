@@ -6,6 +6,7 @@
 |---|---|---|---|
 | [football-data.co.uk](https://www.football-data.co.uk) | Résultats, mi-temps, tirs, corners, fautes, cartons, arbitre, cotes 1X2 et plus/moins 2,5 | Résultats et statistiques de match | CSV `mmz4281/<saison>/<division>.csv` |
 | [Understat](https://understat.com) | xG, npxG, PPDA, deep, xPts ; calendrier des matchs à venir | Statistiques avancées | JSON `getLeagueData/<ligue>/<année>` |
+| [API-Football](https://www.api-football.com) | Statistiques par équipe et **par mi-temps** : tirs (cadrés, contrés, surface), corners, fautes, hors-jeu, possession, cartons, arrêts, passes, xG | Statistiques par période (2024-25 et après) | `/fixtures` puis `/fixtures/statistics?half=true` (clé `FP_API_FOOTBALL_KEY`) |
 
 Saisons couvertes : 2016-17 → saison en cours, pour Premier League, La Liga,
 Serie A, Bundesliga et Ligue 1.
@@ -44,6 +45,34 @@ Serie A, Bundesliga et Ligue 1.
   téléchargeur (qui fonctionnait depuis le téléphone), pause de 1,5 s entre deux
   requêtes, 4 tentatives par fichier. La progression s'affiche fichier par fichier.
 
+## API-Football (statistiques par période)
+
+- **Couverture vérifiée** sur les fichiers du collecteur de l'ancien projet
+  (18 ligues, 2016 → 2026) : statistiques présentes pour 98 à 100 % des matchs
+  à partir de 2024-25, absentes avant (voir « Points à confirmer »).
+- **Conventions vérifiées contre football-data** (5 ligues-saisons) : un
+  compteur absent vaut 0 (cartons rouges « vides » = 0 dans 99,9 % des cas) ;
+  une mesure absente (possession, passes, xG) reste inconnue ; les fautes ne
+  sont jamais fournies par mi-temps. Accord avec football-data : corners 96 à
+  99,9 %, tirs cadrés 96 à 99,9 %, cartons jaunes 91 à 99 % ; 1re + 2e mi-temps
+  = match complet dans 99,85 % des cas.
+- **xG API-Football ≠ xG Understat** : corrélation 0,86 à 0,90 mais plus bas
+  d'environ 0,14 par équipe. Ils sont stockés séparément, jamais mélangés.
+- **Rattachement** : par affiche dans la saison, date (±3 jours) et score
+  concordants. Les barrages (équipe de division inférieure, ou affiche en
+  double à une autre date) sont ignorés et comptés. Un nom d'équipe inconnu
+  qui joue toute la saison rejette le fichier. Les noms API-Football (169, dont
+  4 équipes orthographiées de deux façons selon les saisons) sont dans le
+  référentiel, dérivés automatiquement en appariant les matchs à football-data.
+- **Téléchargement** : seuls les matchs terminés de la saison régulière sans
+  statistiques en base sont demandés. Budget par fichier (`FP_API_FOOTBALL_BUDGET`,
+  1 500) et réserve quotidienne laissée à d'autres usages
+  (`FP_API_FOOTBALL_MIN_REMAINING`, 3 100) ; fenêtre d'une minute respectée.
+  Une clé refusée arrête tout sans relance ; clé absente = source signalée
+  indisponible.
+- API-Football ne dépend que de football-data pour la saison : il se charge
+  après lui (ordre de `all` et de la tâche quotidienne).
+
 ## Contrôles de qualité
 
 Lancés après chaque ingestion (`footprono-ingest quality`, `GET /api/v1/data/quality`).
@@ -61,6 +90,9 @@ Lancés après chaque ingestion (`footprono-ingest quality`, `GET /api/v1/data/q
 | xG pour moins de 98 % des matchs joués | avertissement |
 | Cotes B365 avant match pour moins de 98 % des matchs joués | avertissement |
 | Marge B365 1X2 hors [1,00 ; 1,25] | avertissement |
+| Stats API-Football (ou découpage par mi-temps) pour moins de 98 % des matchs joués, saisons 2024+ | avertissement |
+| 1re + 2e mi-temps ≠ match complet (corners, jaunes) pour plus de 1 % des lignes | avertissement |
+| Corners API-Football = football-data pour moins de 95 % des matchs | avertissement |
 
 ## Résultat de l'import des données fournies (vérifié)
 
@@ -80,11 +112,20 @@ Contradictions entre sources relevées (conservées dans le rapport d'ingestion)
 |---|---|---|---|
 | Sassuolo - Pescara, Serie A 2016-17 | 0-3 | 2-1 | Match perdu sur tapis vert (score officiel ≠ score joué) |
 | Union Berlin - Bochum, Bundesliga 2024-25 | 0-2 | 1-1 | Match perdu sur tapis vert (score officiel ≠ score joué) |
-| Rennes - PSG le 23/08/2026, Ligue 1 2026-27 | Rennes 2-2 PSG | PSG 0-0 Rennes | À confirmer : sources contradictoires sur le lieu et le score |
+| Rennes - PSG le 23/08/2026, Ligue 1 2026-27 | Rennes 2-2 PSG | PSG 0-0 Rennes | **Résolu** : API-Football donne aussi Rennes 2-2 PSG (2-0 à la mi-temps) ; Understat est en erreur |
 
-À traiter en phase 2 : les deux matchs sur tapis vert ont des xG
-correspondant au score joué et non au score officiel ; le moteur devra les
-exclure de l'entraînement ou les traiter à part.
+Contradictions relevées par API-Football (statistiques de ces matchs non chargées) :
+
+| Match | football-data | API-Football | Explication |
+|---|---|---|---|
+| Bastia - Lyon, Ligue 1 2016-17 | 0-3 | 0-0 | Match arrêté à la mi-temps (incidents), perdu sur tapis vert |
+| Hellas Verona - Roma, Serie A 2020-21 | 0-0 | 3-0 | Perdu sur tapis vert par la Roma ; ici football-data garde le score joué |
+| Union Berlin - Bochum, Bundesliga 2024-25 | 0-2 | 1-1 | Perdu sur tapis vert (score officiel ≠ score joué) |
+
+football-data ne suit donc pas une convention unique pour les matchs sur tapis
+vert. À traiter en phase 2 : ces 4 matchs (avec Sassuolo - Pescara) doivent
+être exclus de l'apprentissage des buts, leurs statistiques ne décrivant pas le
+score retenu.
 
 ## Validation du téléchargement réel (téléphone, 29/09/2026)
 
@@ -96,6 +137,13 @@ entre sources n'a pas de xG rattachés, voir ci-dessus).
 
 ## Points à confirmer
 
+- **Hypothèse** : l'absence de statistiques API-Football avant 2024-25 vient
+  peut-être du paramètre `half=true` utilisé par le collecteur (le découpage
+  par mi-temps n'existe qu'à partir de 2024) et non d'une absence réelle des
+  statistiques du match complet. Coupure nette en 2024 sur les 18 ligues ; à
+  vérifier par une requête sans `half` sur un match de 2016. Le téléchargement
+  de FootProno demande les saisons antérieures à 2024 sans `half`.
+
 - Convention des colonnes de cotes football-data (moment exact de collecte
   des cotes « pré-match ») et fuseau horaire de l'heure de coup d'envoi.
 
@@ -106,6 +154,8 @@ footprono-ingest all                                   # téléchargement 2016 �
 footprono-ingest all --seasons 2026                    # saison en cours seulement
 footprono-ingest football-data --from-dir <dossier>    # import local : <dossier>/<2425>/<E0>.csv
 footprono-ingest understat --from-dir <dossier>        # import local : <dossier>/<2024>/<EPL>/{matches,team_matches}.csv
+footprono-ingest api-football                          # téléchargement 2024 → saison en cours (clé requise)
+footprono-ingest api-football --from-dir <dossier>     # fichiers du collecteur : <dossier>/<39>/<2024>.json
 footprono-ingest quality                               # contrôles seuls
 footprono-ingest --json all ...                        # rapport complet en JSON
 ```
@@ -123,7 +173,7 @@ chaque jour à 06:15 UTC (planifiée par `beat`).
 | `GET /api/v1/competitions/{code}/seasons/{année}/teams` | Équipes d'une saison |
 | `GET /api/v1/teams/{id}` | Équipe |
 | `GET /api/v1/matches` | Matchs filtrés (`competition`, `season`, `team_id`, `status`, `date_from`, `date_to`), paginés (`limit` ≤ 500, `offset`) |
-| `GET /api/v1/matches/{id}` | Détail : statistiques, xG, cotes |
+| `GET /api/v1/matches/{id}` | Détail : statistiques, xG, statistiques par équipe et par mi-temps, cotes |
 | `GET /api/v1/ingestion/runs`, `/ingestion/runs/{id}` | Journal des ingestions et rapports |
 | `GET /api/v1/data/quality` | Contrôles de qualité recalculés |
 

@@ -1,166 +1,166 @@
-competition,name,football_data,understat
-BUNDESLIGA,1. FC Köln,FC Koln,FC Cologne
-BUNDESLIGA,1. FC Nürnberg,Nurnberg,Nuernberg
-BUNDESLIGA,Arminia Bielefeld,Bielefeld,Arminia Bielefeld
-BUNDESLIGA,Augsburg,Augsburg,Augsburg
-BUNDESLIGA,Bayer Leverkusen,Leverkusen,Bayer Leverkusen
-BUNDESLIGA,Bayern Munich,Bayern Munich,Bayern Munich
-BUNDESLIGA,Bochum,Bochum,Bochum
-BUNDESLIGA,Borussia Dortmund,Dortmund,Borussia Dortmund
-BUNDESLIGA,Borussia Mönchengladbach,M'gladbach,Borussia M.Gladbach
-BUNDESLIGA,Darmstadt,Darmstadt,Darmstadt
-BUNDESLIGA,Eintracht Frankfurt,Ein Frankfurt,Eintracht Frankfurt
-BUNDESLIGA,Elversberg,Elversberg,Elversberg
-BUNDESLIGA,FC Heidenheim,Heidenheim,FC Heidenheim
-BUNDESLIGA,Fortuna Düsseldorf,Fortuna Dusseldorf,Fortuna Duesseldorf
-BUNDESLIGA,Freiburg,Freiburg,Freiburg
-BUNDESLIGA,Greuther Fürth,Greuther Furth,Greuther Fuerth
-BUNDESLIGA,Hamburger SV,Hamburg,Hamburger SV
-BUNDESLIGA,Hannover 96,Hannover,Hannover 96
-BUNDESLIGA,Hertha Berlin,Hertha,Hertha Berlin
-BUNDESLIGA,Hoffenheim,Hoffenheim,Hoffenheim
-BUNDESLIGA,Holstein Kiel,Holstein Kiel,Holstein Kiel
-BUNDESLIGA,Ingolstadt,Ingolstadt,Ingolstadt
-BUNDESLIGA,Mainz 05,Mainz,Mainz 05
-BUNDESLIGA,Paderborn,Paderborn,Paderborn
-BUNDESLIGA,RB Leipzig,RB Leipzig,RasenBallsport Leipzig
-BUNDESLIGA,Schalke 04,Schalke 04,Schalke 04
-BUNDESLIGA,St. Pauli,St Pauli,St. Pauli
-BUNDESLIGA,Union Berlin,Union Berlin,Union Berlin
-BUNDESLIGA,VfB Stuttgart,Stuttgart,VfB Stuttgart
-BUNDESLIGA,Werder Bremen,Werder Bremen,Werder Bremen
-BUNDESLIGA,Wolfsburg,Wolfsburg,Wolfsburg
-EPL,Arsenal,Arsenal,Arsenal
-EPL,Aston Villa,Aston Villa,Aston Villa
-EPL,Bournemouth,Bournemouth,Bournemouth
-EPL,Brentford,Brentford,Brentford
-EPL,Brighton,Brighton,Brighton
-EPL,Burnley,Burnley,Burnley
-EPL,Cardiff,Cardiff,Cardiff
-EPL,Chelsea,Chelsea,Chelsea
-EPL,Coventry,Coventry,Coventry
-EPL,Crystal Palace,Crystal Palace,Crystal Palace
-EPL,Everton,Everton,Everton
-EPL,Fulham,Fulham,Fulham
-EPL,Huddersfield,Huddersfield,Huddersfield
-EPL,Hull,Hull,Hull
-EPL,Ipswich,Ipswich,Ipswich
-EPL,Leeds,Leeds,Leeds
-EPL,Leicester,Leicester,Leicester
-EPL,Liverpool,Liverpool,Liverpool
-EPL,Luton,Luton,Luton
-EPL,Manchester City,Man City,Manchester City
-EPL,Manchester United,Man United,Manchester United
-EPL,Middlesbrough,Middlesbrough,Middlesbrough
-EPL,Newcastle United,Newcastle,Newcastle United
-EPL,Norwich,Norwich,Norwich
-EPL,Nottingham Forest,Nott'm Forest,Nottingham Forest
-EPL,Sheffield United,Sheffield United,Sheffield United
-EPL,Southampton,Southampton,Southampton
-EPL,Stoke,Stoke,Stoke
-EPL,Sunderland,Sunderland,Sunderland
-EPL,Swansea,Swansea,Swansea
-EPL,Tottenham,Tottenham,Tottenham
-EPL,Watford,Watford,Watford
-EPL,West Bromwich Albion,West Brom,West Bromwich Albion
-EPL,West Ham,West Ham,West Ham
-EPL,Wolverhampton Wanderers,Wolves,Wolverhampton Wanderers
-LA_LIGA,Alaves,Alaves,Alaves
-LA_LIGA,Almeria,Almeria,Almeria
-LA_LIGA,Athletic Club,Ath Bilbao,Athletic Club
-LA_LIGA,Atlético Madrid,Ath Madrid,Atletico Madrid
-LA_LIGA,Barcelona,Barcelona,Barcelona
-LA_LIGA,Cadiz,Cadiz,Cadiz
-LA_LIGA,Celta Vigo,Celta,Celta Vigo
-LA_LIGA,Deportivo La Coruña,La Coruna,Deportivo La Coruna
-LA_LIGA,Eibar,Eibar,Eibar
-LA_LIGA,Elche,Elche,Elche
-LA_LIGA,Espanyol,Espanol,Espanyol
-LA_LIGA,Getafe,Getafe,Getafe
-LA_LIGA,Girona,Girona,Girona
-LA_LIGA,Granada,Granada,Granada
-LA_LIGA,Huesca,Huesca,SD Huesca
-LA_LIGA,Las Palmas,Las Palmas,Las Palmas
-LA_LIGA,Leganes,Leganes,Leganes
-LA_LIGA,Levante,Levante,Levante
-LA_LIGA,Malaga,Malaga,Malaga
-LA_LIGA,Mallorca,Mallorca,Mallorca
-LA_LIGA,Osasuna,Osasuna,Osasuna
-LA_LIGA,Racing Santander,Santander,Racing Santander
-LA_LIGA,Rayo Vallecano,Vallecano,Rayo Vallecano
-LA_LIGA,Real Betis,Betis,Real Betis
-LA_LIGA,Real Madrid,Real Madrid,Real Madrid
-LA_LIGA,Real Oviedo,Oviedo,Real Oviedo
-LA_LIGA,Real Sociedad,Sociedad,Real Sociedad
-LA_LIGA,Real Valladolid,Valladolid,Real Valladolid
-LA_LIGA,Sevilla,Sevilla,Sevilla
-LA_LIGA,Sporting Gijón,Sp Gijon,Sporting Gijon
-LA_LIGA,Valencia,Valencia,Valencia
-LA_LIGA,Villarreal,Villarreal,Villarreal
-LIGUE_1,Ajaccio,Ajaccio,Ajaccio
-LIGUE_1,Amiens,Amiens,Amiens
-LIGUE_1,Angers,Angers,Angers
-LIGUE_1,Auxerre,Auxerre,Auxerre
-LIGUE_1,Bordeaux,Bordeaux,Bordeaux
-LIGUE_1,Brest,Brest,Brest
-LIGUE_1,Caen,Caen,Caen
-LIGUE_1,Clermont Foot 63,Clermont,Clermont Foot
-LIGUE_1,Dijon,Dijon,Dijon
-LIGUE_1,Guingamp,Guingamp,Guingamp
-LIGUE_1,Le Havre,Le Havre,Le Havre
-LIGUE_1,Le Mans,Le Mans,Le Mans
-LIGUE_1,Lens,Lens,Lens
-LIGUE_1,Lille,Lille,Lille
-LIGUE_1,Lorient,Lorient,Lorient
-LIGUE_1,Lyon,Lyon,Lyon
-LIGUE_1,Marseille,Marseille,Marseille
-LIGUE_1,Metz,Metz,Metz
-LIGUE_1,Monaco,Monaco,Monaco
-LIGUE_1,Montpellier,Montpellier,Montpellier
-LIGUE_1,Nancy,Nancy,Nancy
-LIGUE_1,Nantes,Nantes,Nantes
-LIGUE_1,Nice,Nice,Nice
-LIGUE_1,Nimes,Nimes,Nimes
-LIGUE_1,Paris FC,Paris FC,Paris FC
-LIGUE_1,Paris Saint-Germain,Paris SG,Paris Saint Germain
-LIGUE_1,Reims,Reims,Reims
-LIGUE_1,Rennes,Rennes,Rennes
-LIGUE_1,SC Bastia,Bastia,SC Bastia
-LIGUE_1,Saint-Étienne,St Etienne,Saint-Etienne
-LIGUE_1,Strasbourg,Strasbourg,Strasbourg
-LIGUE_1,Toulouse,Toulouse,Toulouse
-LIGUE_1,Troyes,Troyes,Troyes
-SERIE_A,AC Milan,Milan,AC Milan
-SERIE_A,Atalanta,Atalanta,Atalanta
-SERIE_A,Benevento,Benevento,Benevento
-SERIE_A,Bologna,Bologna,Bologna
-SERIE_A,Brescia,Brescia,Brescia
-SERIE_A,Cagliari,Cagliari,Cagliari
-SERIE_A,Chievo,Chievo,Chievo
-SERIE_A,Como,Como,Como
-SERIE_A,Cremonese,Cremonese,Cremonese
-SERIE_A,Crotone,Crotone,Crotone
-SERIE_A,Empoli,Empoli,Empoli
-SERIE_A,Fiorentina,Fiorentina,Fiorentina
-SERIE_A,Frosinone,Frosinone,Frosinone
-SERIE_A,Genoa,Genoa,Genoa
-SERIE_A,Inter,Inter,Inter
-SERIE_A,Juventus,Juventus,Juventus
-SERIE_A,Lazio,Lazio,Lazio
-SERIE_A,Lecce,Lecce,Lecce
-SERIE_A,Monza,Monza,Monza
-SERIE_A,Napoli,Napoli,Napoli
-SERIE_A,Palermo,Palermo,Palermo
-SERIE_A,Parma,Parma,Parma Calcio 1913
-SERIE_A,Pescara,Pescara,Pescara
-SERIE_A,Pisa,Pisa,Pisa
-SERIE_A,Roma,Roma,Roma
-SERIE_A,SPAL,Spal,SPAL 2013
-SERIE_A,Salernitana,Salernitana,Salernitana
-SERIE_A,Sampdoria,Sampdoria,Sampdoria
-SERIE_A,Sassuolo,Sassuolo,Sassuolo
-SERIE_A,Spezia,Spezia,Spezia
-SERIE_A,Torino,Torino,Torino
-SERIE_A,Udinese,Udinese,Udinese
-SERIE_A,Venezia,Venezia,Venezia
-SERIE_A,Verona,Verona,Verona
+competition,name,football_data,understat,api_football
+BUNDESLIGA,1. FC Köln,FC Koln,FC Cologne,1. FC Köln
+BUNDESLIGA,1. FC Nürnberg,Nurnberg,Nuernberg,FC Nurnberg
+BUNDESLIGA,Arminia Bielefeld,Bielefeld,Arminia Bielefeld,Arminia Bielefeld
+BUNDESLIGA,Augsburg,Augsburg,Augsburg,FC Augsburg
+BUNDESLIGA,Bayer Leverkusen,Leverkusen,Bayer Leverkusen,Bayer Leverkusen
+BUNDESLIGA,Bayern Munich,Bayern Munich,Bayern Munich,Bayern Munich|Bayern München
+BUNDESLIGA,Bochum,Bochum,Bochum,VfL Bochum|Vfl Bochum
+BUNDESLIGA,Borussia Dortmund,Dortmund,Borussia Dortmund,Borussia Dortmund
+BUNDESLIGA,Borussia Mönchengladbach,M'gladbach,Borussia M.Gladbach,Borussia Monchengladbach|Borussia Mönchengladbach
+BUNDESLIGA,Darmstadt,Darmstadt,Darmstadt,SV Darmstadt 98
+BUNDESLIGA,Eintracht Frankfurt,Ein Frankfurt,Eintracht Frankfurt,Eintracht Frankfurt
+BUNDESLIGA,Elversberg,Elversberg,Elversberg,SV Elversberg
+BUNDESLIGA,FC Heidenheim,Heidenheim,FC Heidenheim,1. FC Heidenheim|FC Heidenheim
+BUNDESLIGA,Fortuna Düsseldorf,Fortuna Dusseldorf,Fortuna Duesseldorf,Fortuna Dusseldorf
+BUNDESLIGA,Freiburg,Freiburg,Freiburg,SC Freiburg
+BUNDESLIGA,Greuther Fürth,Greuther Furth,Greuther Fuerth,SpVgg Greuther Furth
+BUNDESLIGA,Hamburger SV,Hamburg,Hamburger SV,Hamburger SV
+BUNDESLIGA,Hannover 96,Hannover,Hannover 96,Hannover 96
+BUNDESLIGA,Hertha Berlin,Hertha,Hertha Berlin,Hertha Berlin
+BUNDESLIGA,Hoffenheim,Hoffenheim,Hoffenheim,1899 Hoffenheim
+BUNDESLIGA,Holstein Kiel,Holstein Kiel,Holstein Kiel,Holstein Kiel
+BUNDESLIGA,Ingolstadt,Ingolstadt,Ingolstadt,FC Ingolstadt 04
+BUNDESLIGA,Mainz 05,Mainz,Mainz 05,FSV Mainz 05
+BUNDESLIGA,Paderborn,Paderborn,Paderborn,SC Paderborn 07
+BUNDESLIGA,RB Leipzig,RB Leipzig,RasenBallsport Leipzig,RB Leipzig
+BUNDESLIGA,Schalke 04,Schalke 04,Schalke 04,FC Schalke 04
+BUNDESLIGA,St. Pauli,St Pauli,St. Pauli,FC St. Pauli
+BUNDESLIGA,Union Berlin,Union Berlin,Union Berlin,Union Berlin
+BUNDESLIGA,VfB Stuttgart,Stuttgart,VfB Stuttgart,VfB Stuttgart
+BUNDESLIGA,Werder Bremen,Werder Bremen,Werder Bremen,Werder Bremen
+BUNDESLIGA,Wolfsburg,Wolfsburg,Wolfsburg,VfL Wolfsburg
+EPL,Arsenal,Arsenal,Arsenal,Arsenal
+EPL,Aston Villa,Aston Villa,Aston Villa,Aston Villa
+EPL,Bournemouth,Bournemouth,Bournemouth,Bournemouth
+EPL,Brentford,Brentford,Brentford,Brentford
+EPL,Brighton,Brighton,Brighton,Brighton
+EPL,Burnley,Burnley,Burnley,Burnley
+EPL,Cardiff,Cardiff,Cardiff,Cardiff
+EPL,Chelsea,Chelsea,Chelsea,Chelsea
+EPL,Coventry,Coventry,Coventry,Coventry
+EPL,Crystal Palace,Crystal Palace,Crystal Palace,Crystal Palace
+EPL,Everton,Everton,Everton,Everton
+EPL,Fulham,Fulham,Fulham,Fulham
+EPL,Huddersfield,Huddersfield,Huddersfield,Huddersfield
+EPL,Hull,Hull,Hull,Hull City
+EPL,Ipswich,Ipswich,Ipswich,Ipswich
+EPL,Leeds,Leeds,Leeds,Leeds
+EPL,Leicester,Leicester,Leicester,Leicester
+EPL,Liverpool,Liverpool,Liverpool,Liverpool
+EPL,Luton,Luton,Luton,Luton
+EPL,Manchester City,Man City,Manchester City,Manchester City
+EPL,Manchester United,Man United,Manchester United,Manchester United
+EPL,Middlesbrough,Middlesbrough,Middlesbrough,Middlesbrough
+EPL,Newcastle United,Newcastle,Newcastle United,Newcastle
+EPL,Norwich,Norwich,Norwich,Norwich
+EPL,Nottingham Forest,Nott'm Forest,Nottingham Forest,Nottingham Forest
+EPL,Sheffield United,Sheffield United,Sheffield United,Sheffield Utd
+EPL,Southampton,Southampton,Southampton,Southampton
+EPL,Stoke,Stoke,Stoke,Stoke City
+EPL,Sunderland,Sunderland,Sunderland,Sunderland
+EPL,Swansea,Swansea,Swansea,Swansea
+EPL,Tottenham,Tottenham,Tottenham,Tottenham
+EPL,Watford,Watford,Watford,Watford
+EPL,West Bromwich Albion,West Brom,West Bromwich Albion,West Brom
+EPL,West Ham,West Ham,West Ham,West Ham
+EPL,Wolverhampton Wanderers,Wolves,Wolverhampton Wanderers,Wolves
+LA_LIGA,Alaves,Alaves,Alaves,Alaves
+LA_LIGA,Almeria,Almeria,Almeria,Almeria
+LA_LIGA,Athletic Club,Ath Bilbao,Athletic Club,Athletic Club
+LA_LIGA,Atlético Madrid,Ath Madrid,Atletico Madrid,Atletico Madrid
+LA_LIGA,Barcelona,Barcelona,Barcelona,Barcelona
+LA_LIGA,Cadiz,Cadiz,Cadiz,Cadiz
+LA_LIGA,Celta Vigo,Celta,Celta Vigo,Celta Vigo
+LA_LIGA,Deportivo La Coruña,La Coruna,Deportivo La Coruna,Deportivo La Coruna
+LA_LIGA,Eibar,Eibar,Eibar,Eibar
+LA_LIGA,Elche,Elche,Elche,Elche
+LA_LIGA,Espanyol,Espanol,Espanyol,Espanyol
+LA_LIGA,Getafe,Getafe,Getafe,Getafe
+LA_LIGA,Girona,Girona,Girona,Girona
+LA_LIGA,Granada,Granada,Granada,Granada CF
+LA_LIGA,Huesca,Huesca,SD Huesca,Huesca
+LA_LIGA,Las Palmas,Las Palmas,Las Palmas,Las Palmas
+LA_LIGA,Leganes,Leganes,Leganes,Leganes
+LA_LIGA,Levante,Levante,Levante,Levante
+LA_LIGA,Malaga,Malaga,Malaga,Malaga
+LA_LIGA,Mallorca,Mallorca,Mallorca,Mallorca
+LA_LIGA,Osasuna,Osasuna,Osasuna,Osasuna
+LA_LIGA,Racing Santander,Santander,Racing Santander,Racing Santander
+LA_LIGA,Rayo Vallecano,Vallecano,Rayo Vallecano,Rayo Vallecano
+LA_LIGA,Real Betis,Betis,Real Betis,Real Betis
+LA_LIGA,Real Madrid,Real Madrid,Real Madrid,Real Madrid
+LA_LIGA,Real Oviedo,Oviedo,Real Oviedo,Oviedo
+LA_LIGA,Real Sociedad,Sociedad,Real Sociedad,Real Sociedad
+LA_LIGA,Real Valladolid,Valladolid,Real Valladolid,Valladolid
+LA_LIGA,Sevilla,Sevilla,Sevilla,Sevilla
+LA_LIGA,Sporting Gijón,Sp Gijon,Sporting Gijon,Sporting Gijon
+LA_LIGA,Valencia,Valencia,Valencia,Valencia
+LA_LIGA,Villarreal,Villarreal,Villarreal,Villarreal
+LIGUE_1,Ajaccio,Ajaccio,Ajaccio,Ajaccio
+LIGUE_1,Amiens,Amiens,Amiens,Amiens
+LIGUE_1,Angers,Angers,Angers,Angers
+LIGUE_1,Auxerre,Auxerre,Auxerre,Auxerre
+LIGUE_1,Bordeaux,Bordeaux,Bordeaux,Bordeaux
+LIGUE_1,Brest,Brest,Brest,Stade Brestois 29
+LIGUE_1,Caen,Caen,Caen,Caen
+LIGUE_1,Clermont Foot 63,Clermont,Clermont Foot,Clermont Foot
+LIGUE_1,Dijon,Dijon,Dijon,Dijon
+LIGUE_1,Guingamp,Guingamp,Guingamp,Guingamp
+LIGUE_1,Le Havre,Le Havre,Le Havre,Le Havre
+LIGUE_1,Le Mans,Le Mans,Le Mans,Le Mans
+LIGUE_1,Lens,Lens,Lens,Lens
+LIGUE_1,Lille,Lille,Lille,Lille
+LIGUE_1,Lorient,Lorient,Lorient,Lorient
+LIGUE_1,Lyon,Lyon,Lyon,Lyon
+LIGUE_1,Marseille,Marseille,Marseille,Marseille
+LIGUE_1,Metz,Metz,Metz,Metz
+LIGUE_1,Monaco,Monaco,Monaco,Monaco
+LIGUE_1,Montpellier,Montpellier,Montpellier,Montpellier
+LIGUE_1,Nancy,Nancy,Nancy,Nancy
+LIGUE_1,Nantes,Nantes,Nantes,Nantes
+LIGUE_1,Nice,Nice,Nice,Nice
+LIGUE_1,Nimes,Nimes,Nimes,Nimes
+LIGUE_1,Paris FC,Paris FC,Paris FC,Paris FC
+LIGUE_1,Paris Saint-Germain,Paris SG,Paris Saint Germain,Paris Saint Germain
+LIGUE_1,Reims,Reims,Reims,Reims
+LIGUE_1,Rennes,Rennes,Rennes,Rennes
+LIGUE_1,SC Bastia,Bastia,SC Bastia,SC Bastia
+LIGUE_1,Saint-Étienne,St Etienne,Saint-Etienne,Saint Etienne
+LIGUE_1,Strasbourg,Strasbourg,Strasbourg,Strasbourg
+LIGUE_1,Toulouse,Toulouse,Toulouse,Toulouse
+LIGUE_1,Troyes,Troyes,Troyes,Estac Troyes
+SERIE_A,AC Milan,Milan,AC Milan,AC Milan
+SERIE_A,Atalanta,Atalanta,Atalanta,Atalanta
+SERIE_A,Benevento,Benevento,Benevento,Benevento
+SERIE_A,Bologna,Bologna,Bologna,Bologna
+SERIE_A,Brescia,Brescia,Brescia,Brescia
+SERIE_A,Cagliari,Cagliari,Cagliari,Cagliari
+SERIE_A,Chievo,Chievo,Chievo,Chievo
+SERIE_A,Como,Como,Como,Como
+SERIE_A,Cremonese,Cremonese,Cremonese,Cremonese
+SERIE_A,Crotone,Crotone,Crotone,Crotone
+SERIE_A,Empoli,Empoli,Empoli,Empoli
+SERIE_A,Fiorentina,Fiorentina,Fiorentina,Fiorentina
+SERIE_A,Frosinone,Frosinone,Frosinone,Frosinone
+SERIE_A,Genoa,Genoa,Genoa,Genoa
+SERIE_A,Inter,Inter,Inter,Inter
+SERIE_A,Juventus,Juventus,Juventus,Juventus
+SERIE_A,Lazio,Lazio,Lazio,Lazio
+SERIE_A,Lecce,Lecce,Lecce,Lecce
+SERIE_A,Monza,Monza,Monza,Monza
+SERIE_A,Napoli,Napoli,Napoli,Napoli
+SERIE_A,Palermo,Palermo,Palermo,Palermo
+SERIE_A,Parma,Parma,Parma Calcio 1913,Parma
+SERIE_A,Pescara,Pescara,Pescara,Pescara
+SERIE_A,Pisa,Pisa,Pisa,Pisa
+SERIE_A,Roma,Roma,Roma,AS Roma
+SERIE_A,SPAL,Spal,SPAL 2013,Spal
+SERIE_A,Salernitana,Salernitana,Salernitana,Salernitana
+SERIE_A,Sampdoria,Sampdoria,Sampdoria,Sampdoria
+SERIE_A,Sassuolo,Sassuolo,Sassuolo,Sassuolo
+SERIE_A,Spezia,Spezia,Spezia,Spezia
+SERIE_A,Torino,Torino,Torino,Torino
+SERIE_A,Udinese,Udinese,Udinese,Udinese
+SERIE_A,Venezia,Venezia,Venezia,Venezia
+SERIE_A,Verona,Verona,Verona,Hellas Verona

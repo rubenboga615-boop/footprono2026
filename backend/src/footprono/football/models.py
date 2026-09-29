@@ -46,6 +46,12 @@ class MatchStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class StatPeriod(StrEnum):
+    FULL = "full"
+    FIRST_HALF = "first_half"
+    SECOND_HALF = "second_half"
+
+
 class OddsTiming(StrEnum):
     PRE = "pre"
     CLOSE = "close"
@@ -157,6 +163,8 @@ class Match(Base):
     referee: Mapped[str | None] = mapped_column(String(100))
 
     football_data_file_id: Mapped[int | None] = mapped_column(ForeignKey("raw_files.id"))
+    # Identifiant du match chez API-Football (statistiques, temps réel).
+    api_football_id: Mapped[int | None] = mapped_column(Integer, unique=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -184,6 +192,44 @@ class MatchAdvancedStats(Base):
     deep: Mapped[int | None] = mapped_column(SmallInteger)
     deep_allowed: Mapped[int | None] = mapped_column(SmallInteger)
     xpts: Mapped[Decimal | None] = mapped_column(Numeric(6, 4))
+    raw_file_id: Mapped[int | None] = mapped_column(ForeignKey("raw_files.id"))
+
+
+class MatchTeamStats(Base):
+    """Statistiques d'une équipe dans un match, par période (source : API-Football).
+
+    Les compteurs (tirs, corners, cartons…) absents de la réponse valent 0 —
+    convention d'API-Football vérifiée contre football-data. Les mesures
+    (possession, passes, xG) absentes restent ``NULL``. Les fautes ne sont pas
+    fournies par mi-temps : ``NULL`` pour les périodes ``first_half``/``second_half``.
+    """
+
+    __tablename__ = "match_team_stats"
+    __table_args__ = (UniqueConstraint("match_id", "team_id", "source", "period"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"))
+    source: Mapped[DataSource] = mapped_column(_enum(DataSource, "data_source"))
+    period: Mapped[StatPeriod] = mapped_column(_enum(StatPeriod, "stat_period"))
+    shots_on_goal: Mapped[int | None] = mapped_column(SmallInteger)
+    shots_off_goal: Mapped[int | None] = mapped_column(SmallInteger)
+    total_shots: Mapped[int | None] = mapped_column(SmallInteger)
+    blocked_shots: Mapped[int | None] = mapped_column(SmallInteger)
+    shots_inside_box: Mapped[int | None] = mapped_column(SmallInteger)
+    shots_outside_box: Mapped[int | None] = mapped_column(SmallInteger)
+    fouls: Mapped[int | None] = mapped_column(SmallInteger)
+    corners: Mapped[int | None] = mapped_column(SmallInteger)
+    offsides: Mapped[int | None] = mapped_column(SmallInteger)
+    possession: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    yellow_cards: Mapped[int | None] = mapped_column(SmallInteger)
+    red_cards: Mapped[int | None] = mapped_column(SmallInteger)
+    goalkeeper_saves: Mapped[int | None] = mapped_column(SmallInteger)
+    total_passes: Mapped[int | None] = mapped_column(SmallInteger)
+    passes_accurate: Mapped[int | None] = mapped_column(SmallInteger)
+    passes_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    expected_goals: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    goals_prevented: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     raw_file_id: Mapped[int | None] = mapped_column(ForeignKey("raw_files.id"))
 
 

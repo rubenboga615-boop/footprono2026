@@ -91,6 +91,8 @@ async def test_match_detail(client: AsyncClient) -> None:
 
     assert detail["stats"]["home_shots"] == 14
     assert detail["stats"]["referee"] == "R Jones"
+    # Statistiques API-Football non chargées dans ce test : liste vide, jamais inventée.
+    assert (detail["api_football_id"], detail["team_stats"]) == (None, [])
     assert len(detail["advanced_stats"]) == 2
     home_xg = next(a for a in detail["advanced_stats"] if a["team_id"] == first["home_team"]["id"])
     assert home_xg["xg"] == "2.0427"

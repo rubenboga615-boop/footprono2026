@@ -14,15 +14,25 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import update
+import httpx
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.core.config import Settings
-from footprono.football.models import DataSource, IngestionRun
+from footprono.football.models import (
+    Competition,
+    DataSource,
+    IngestionRun,
+    Match,
+    MatchTeamStats,
+    Season,
+    StatPeriod,
+)
 from footprono.ingestion import loader, raw_store
 from footprono.ingestion.quality import run_quality_checks
 from footprono.ingestion.reference import COMPETITIONS_BY_CODE, CompetitionRef, season_code
-from footprono.ingestion.sources import football_data, understat
+from footprono.ingestion.sources import api_football, football_data, understat
+from footprono.ingestion.sources.common import ParseIssues
 
 logger = logging.getLogger(__name__)
 
@@ -139,12 +149,124 @@ async def _understat_file(
     }
 
 
+# Transport HTTP d'API-Football : remplaçable dans les tests, jamais en production.
+api_football_transport: httpx.AsyncBaseTransport | None = None
+
+
+async def _download_api_football(
+    session: AsyncSession, settings: Settings, comp: CompetitionRef, year: int
+) -> tuple[bytes, list[api_football.ApiFixture], list[str]]:
+    """Liste des matchs terminés, puis statistiques de ceux qui n'en ont pas encore."""
+    if settings.api_football_key is None:
+        raise raw_store.SourceUnavailableError(
+            "FP_API_FOOTBALL_KEY absente : statistiques API-Football non téléchargées",
+            transient=False,
+        )
+    notes: list[str] = []
+    async with api_football.ApiFootballClient(
+        settings.api_football_key.get_secret_value(),
+        budget=settings.api_football_budget,
+        min_remaining=settings.api_football_min_remaining,
+        transport=api_football_transport,
+    ) as client:
+        await client.status()
+        body = await client.get("/fixtures", {"league": comp.api_football_id, "season": year})
+        items = [i for i in body["response"] if api_football.is_finished_league_match(i)]
+        done = set(
+            (
+                await session.scalars(
+                    select(Match.api_football_id)
+                    .join(Season, Season.id == Match.season_id)
+                    .join(Competition, Competition.id == Season.competition_id)
+                    .where(
+                        Competition.code == comp.code,
+                        Season.start_year == year,
+                        Match.api_football_id.is_not(None),
+                        select(MatchTeamStats.id)
+                        .where(
+                            MatchTeamStats.match_id == Match.id,
+                            MatchTeamStats.source == DataSource.API_FOOTBALL,
+                            MatchTeamStats.period == StatPeriod.FULL,
+                        )
+                        .exists(),
+                    )
+                )
+            ).all()
+        )
+        params: dict[str, Any] = {}
+        if year >= api_football.HALF_SPLIT_FIRST_SEASON:
+            params["half"] = "true"
+        statistics: dict[int, Any] = {}
+        pending = [i for i in items if i["fixture"]["id"] not in done]
+        for item in pending:
+            if not client.can_spend():
+                break
+            fixture_id = item["fixture"]["id"]
+            response = await client.get("/fixtures/statistics", {"fixture": fixture_id, **params})
+            statistics[fixture_id] = response["response"]
+        left = len(pending) - len(statistics)
+        if left:
+            notes.append(
+                f"budget API-Football atteint : {left} matchs restent à demander "
+                f"(quota restant {client.day_remaining}, réserve {client.min_remaining})"
+            )
+
+    issues = ParseIssues()
+    fixtures = []
+    for item in items:
+        fixture = api_football.parse_fixture(item)
+        if fixture.fixture_id in statistics:
+            fixture.stats = api_football.parse_statistics(
+                statistics[fixture.fixture_id], item["teams"]["home"]["id"], issues
+            )
+        fixtures.append(fixture)
+    content = json.dumps({"fixtures": body, "statistics": statistics}).encode()
+    return content, fixtures, notes + issues.items
+
+
+async def _api_football_file(
+    session: AsyncSession,
+    settings: Settings,
+    comp: CompetitionRef,
+    year: int,
+    from_dir: Path | None,
+) -> FileResult:
+    if from_dir is None:
+        origin = f"{api_football.BASE_URL}/fixtures?league={comp.api_football_id}&season={year}"
+        content, fixtures, notes = await _download_api_football(session, settings, comp, year)
+        name = f"{comp.api_football_id}/{year}-{datetime.now(UTC):%Y%m%dT%H%M%S}.json"
+    else:
+        # Disposition du collecteur : <dossier>/<id de ligue>/<saison>.json
+        path = from_dir / str(comp.api_football_id) / f"{year}.json"
+        if not path.exists():
+            raise raw_store.SourceUnavailableError(f"{path} : fichier absent", transient=False)
+        origin, content = str(path), path.read_bytes()
+        fixtures, parse_issues = api_football.parse_collector_file(json.loads(content))
+        notes = parse_issues.items
+        name = f"{comp.api_football_id}/{year}.json"
+
+    raw_id = await raw_store.archive(
+        session, settings.raw_data_dir, DataSource.API_FOOTBALL, origin, name, content
+    )
+    resolver = await loader.TeamResolver.load(session)
+    stats = await loader.load_api_football(session, comp.code, year, fixtures, raw_id, resolver)
+    stats.issues[:0] = notes
+    with_stats = sum(1 for f in fixtures if f.stats)
+    return {
+        "origin": origin,
+        "parsed_matches": len(fixtures),
+        "with_stats": with_stats,
+        **stats.as_dict(),
+    }
+
+
 _HANDLERS: dict[
     DataSource,
     Callable[[AsyncSession, Settings, CompetitionRef, int, Path | None], Awaitable[FileResult]],
 ] = {
     DataSource.FOOTBALL_DATA: _football_data_file,
     DataSource.UNDERSTAT: _understat_file,
+    DataSource.API_FOOTBALL: _api_football_file,
 }
 
 
@@ -244,6 +366,8 @@ async def run_ingestion(
                     entry.update(status="unavailable", error=str(exc))
                     if exc.transient:
                         consecutive_failures += 1
+                except loader.PrerequisiteMissingError as exc:
+                    entry.update(status="unavailable", error=str(exc))
                 except loader.UnknownTeamsError as exc:
                     entry.update(status="rejected", error=str(exc))
                 except Exception as exc:
