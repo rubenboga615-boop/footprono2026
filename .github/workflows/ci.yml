@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: footprono
+          POSTGRES_PASSWORD: footprono
+          POSTGRES_DB: footprono_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U footprono" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      FP_TEST_DATABASE_URL: postgresql+asyncpg://footprono:footprono@localhost:5432/footprono_test
+      FP_TEST_REDIS_URL: redis://localhost:6379/15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Installation (versions verrouillées)
+        run: |
+          pip install -r requirements-dev.lock
+          pip install --no-deps -e .
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Typage
+        run: mypy
+      - name: Tests
+        run: pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validation docker compose
+        env:
+          FP_SECRET_KEY: ci
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+          FP_DOMAIN: ci.local
+        run: docker compose -f deploy/docker-compose.yml config -q
+      - name: Construction de l'image backend
+        run: docker build -t footprono-backend:ci backend

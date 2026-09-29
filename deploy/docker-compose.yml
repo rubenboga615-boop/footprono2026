@@ -1,0 +1,107 @@
+# Déploiement serveur de FootProno.
+#
+#   cp deploy/.env.example deploy/.env   # puis remplir les secrets
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+#
+# Les migrations sont appliquées par le service « migrate » avant le démarrage
+# de l'API et des workers.
+
+x-backend: &backend
+  build:
+    context: ../backend
+  image: footprono-backend:${FP_IMAGE_TAG:-latest}
+  restart: unless-stopped
+  environment: &backend-env
+    FP_ENVIRONMENT: production
+    FP_SECRET_KEY: ${FP_SECRET_KEY:?FP_SECRET_KEY est obligatoire}
+    FP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    FP_REDIS_URL: redis://redis:6379/0
+    FP_CORS_ORIGINS: ${FP_CORS_ORIGINS:-[]}
+    FP_LOG_LEVEL: ${FP_LOG_LEVEL:-INFO}
+    FP_API_FOOTBALL_KEY: ${FP_API_FOOTBALL_KEY:-}
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER est obligatoire}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB est obligatoire}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    <<: *backend
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+
+  api:
+    <<: *backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *backend
+    command: ["celery", "-A", "footprono.worker.celery_app", "worker", "--loglevel=INFO"]
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A footprono.worker.celery_app inspect ping -d celery@$$HOSTNAME"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  beat:
+    <<: *backend
+    command: ["celery", "-A", "footprono.worker.celery_app", "beat", "--loglevel=INFO", "--schedule", "/tmp/celerybeat-schedule"]
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      FP_DOMAIN: ${FP_DOMAIN:?FP_DOMAIN est obligatoire}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+
+volumes:
+  postgres-data:
+  redis-data:
+  caddy-data:
+  caddy-config:
