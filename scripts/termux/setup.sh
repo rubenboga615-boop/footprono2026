@@ -9,7 +9,7 @@ set -euo pipefail
 log "Paquets Termux"
 pkg install -y python postgresql redis clang rust binutils libffi openssl git
 
-log "PostgreSQL"
+log "PostgreSQL dédié ($PGDATA, port $PG_PORT)"
 if [ ! -f "$PGDATA/PG_VERSION" ]; then
     mkdir -p "$PGDATA"
     # Socket local sans mot de passe (utilisateur Termux uniquement),
@@ -27,7 +27,7 @@ for db in "$DB_NAME" "${DB_NAME}_test"; do
     fi
 done
 
-log "Redis"
+log "Redis dédié (port $REDIS_PORT)"
 start_redis
 
 log "Environnement Python ($(python --version))"
@@ -44,12 +44,13 @@ export ANDROID_API_LEVEL
 cd "$BACKEND"
 if [ ! -f .env ]; then
     cp .env.example .env
-    sed -i \
-        -e "s|^FP_DATABASE_URL=.*|FP_DATABASE_URL=postgresql+asyncpg://$DB_USER:$DB_PASSWORD@127.0.0.1:$PG_PORT/$DB_NAME|" \
-        -e "s|^FP_REDIS_URL=.*|FP_REDIS_URL=redis://127.0.0.1:$REDIS_PORT/0|" \
-        .env
     log "backend/.env créé à partir de .env.example"
 fi
+# Les adresses de la base et de Redis suivent toujours la configuration des scripts.
+sed -i \
+    -e "s|^FP_DATABASE_URL=.*|FP_DATABASE_URL=postgresql+asyncpg://$DB_USER:$DB_PASSWORD@127.0.0.1:$PG_PORT/$DB_NAME|" \
+    -e "s|^FP_REDIS_URL=.*|FP_REDIS_URL=redis://127.0.0.1:$REDIS_PORT/0|" \
+    .env
 
 log "Migrations"
 load_env

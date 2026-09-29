@@ -38,6 +38,11 @@ bash scripts/termux/test.sh     # lint, typage, tests
 bash scripts/termux/stop.sh     # arrête API/worker/beat (--all : aussi PostgreSQL et Redis)
 ```
 
+FootProno utilise **ses propres instances**, isolées des autres projets Termux :
+PostgreSQL dans `$PREFIX/var/lib/footprono/postgresql` (port 5433) et Redis
+(port 6380). Un PostgreSQL ou un Redis existant n'est jamais modifié. Ports
+modifiables : `FP_PG_PORT`, `FP_REDIS_PORT`, `FP_PORT` (API).
+
 `start.sh` active `termux-wake-lock` pour empêcher Android de mettre le
 serveur en veille. La première installation compile quelques dépendances
 (pydantic-core, asyncpg) et peut prendre plusieurs minutes.
