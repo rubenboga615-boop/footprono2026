@@ -42,9 +42,9 @@ API-Football ────────┘        │                 │
 | `redis` | Broker Celery, cache, limitation de débit, verrous distribués. |
 | `caddy` | Reverse proxy HTTPS (serveur distant uniquement). |
 
-Sur Termux, les mêmes processus tournent en natif (`scripts/termux/`), avec le
-pool de threads Celery (Android ne fournit pas les sémaphores POSIX nommés du
-pool « prefork »).
+En local (Ubuntu, y compris Ubuntu dans Termux via proot-distro), les mêmes
+processus tournent en natif (`scripts/local/`), avec le pool de threads Celery
+(les sémaphores POSIX du pool « prefork » ne sont pas garantis sous proot).
 
 ## Organisation du code backend (`backend/src/footprono`)
 

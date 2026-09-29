@@ -6,7 +6,7 @@ Nouveau projet, reconstruit de zéro à partir de l'audit de l'ancienne version
 
 - **Backend** : FastAPI (async), PostgreSQL, Redis, Celery (worker + beat)
 - **Frontend** : Flutter (web + APK Android), client du contrat OpenAPI
-- **Déploiement** : Termux (développement et tests sur téléphone), serveur distant via Docker Compose
+- **Déploiement** : Ubuntu/Debian — y compris Ubuntu dans Termux (proot-distro) pour le développement sur téléphone — et serveur distant via Docker Compose
 
 Documentation :
 
@@ -23,14 +23,19 @@ Phase 0 (fondations) : serveur d'API, configuration, journalisation structurée,
 gestion d'erreurs unique, PostgreSQL + migrations, Redis, Celery, métriques,
 sondes de santé, tests d'intégration, CI, déploiement Docker et Termux.
 
-## Démarrage sur Termux
+## Démarrage local (Ubuntu, y compris Ubuntu dans Termux)
 
 ```bash
-bash scripts/termux/setup.sh   # une fois : paquets, PostgreSQL, venv, migrations
-bash scripts/termux/start.sh   # PostgreSQL, Redis, API (port 8000), worker, beat
-bash scripts/termux/test.sh    # lint, typage, tests
-bash scripts/termux/stop.sh    # arrête API/worker/beat (--all : aussi PostgreSQL et Redis)
+bash scripts/local/setup.sh    # une fois (idempotent) : paquets, PostgreSQL, Redis, Python 3.12, migrations
+bash scripts/local/start.sh    # PostgreSQL, Redis, API (port 8000), worker, beat
+bash scripts/local/status.sh   # état des services
+bash scripts/local/test.sh     # lint, typage, tests
+bash scripts/local/stop.sh     # arrête API/worker/beat (--all : aussi PostgreSQL et Redis)
 ```
+
+Sous Ubuntu dans Termux, lancer `termux-wake-lock` dans Termux (hors Ubuntu)
+pour empêcher Android de mettre le serveur en veille. PostgreSQL est configuré
+avec `dynamic_shared_memory_type = mmap`, requis sous proot.
 
 API : `http://127.0.0.1:8000/api/v1/health`, documentation interactive :
 `http://127.0.0.1:8000/docs` (désactivée en production).
