@@ -5,6 +5,7 @@ Chaque fichier est traité dans sa propre transaction : l'échec d'un fichier
 annuler les autres. Le rapport complet est enregistré dans ``ingestion_runs``.
 """
 
+import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable, Sequence
@@ -48,11 +49,15 @@ async def _football_data_file(
     division = comp.football_data_division
     if from_dir is None:
         origin = football_data.file_url(code, division)
-        content = await raw_store.download(origin)
+        content = await raw_store.download(origin, headers={"Accept": "text/csv,text/plain,*/*"})
+        if content.lstrip()[:1] == b"<":
+            raise raw_store.SourceUnavailableError(
+                f"{origin} : page HTML reçue au lieu du CSV (accès probablement bloqué)"
+            )
     else:
         path = from_dir / code / f"{division}.csv"
         if not path.exists():
-            raise raw_store.SourceUnavailableError(f"{path} : fichier absent")
+            raise raw_store.SourceUnavailableError(f"{path} : fichier absent", transient=False)
         origin, content = str(path), path.read_bytes()
 
     raw_id = await raw_store.archive(
@@ -88,6 +93,13 @@ async def _understat_file(
                 "Referer": f"https://understat.com/league/{slug}/{year}",
             },
         )
+        try:
+            data = json.loads(content)
+        except ValueError:
+            head = content[:80].decode("utf-8", "replace").replace("\n", " ")
+            raise raw_store.SourceUnavailableError(
+                f"{origin} : réponse non JSON (accès probablement bloqué) : {head!r}"
+            ) from None
         raw_id = await raw_store.archive(
             session,
             settings.raw_data_dir,
@@ -96,12 +108,14 @@ async def _understat_file(
             f"{year}/{slug}.json",
             content,
         )
-        season = understat.parse_league_json(json.loads(content))
+        season = understat.parse_league_json(data)
     else:
         folder = from_dir / str(year) / slug
         matches_path, teams_path = folder / "matches.csv", folder / "team_matches.csv"
         if not (matches_path.exists() and teams_path.exists()):
-            raise raw_store.SourceUnavailableError(f"{folder} : export Understat absent")
+            raise raw_store.SourceUnavailableError(
+                f"{folder} : export Understat absent", transient=False
+            )
         origin = str(folder)
         matches_csv, teams_csv = matches_path.read_bytes(), teams_path.read_bytes()
         raw_id = await raw_store.archive(
@@ -133,10 +147,30 @@ _HANDLERS: dict[
 }
 
 
+# Pause entre deux téléchargements, pour ne pas surcharger les sources.
+DOWNLOAD_PAUSE_SECONDS = 1.5
+# Après ce nombre d'échecs consécutifs (réseau, blocage), la source est
+# considérée injoignable : ses fichiers restants ne sont pas tentés.
+MAX_CONSECUTIVE_FAILURES = 3
+
+Progress = Callable[[str], None]
+
+
+def _describe(entry: FileResult) -> str:
+    if entry["status"] == "ok":
+        return (
+            f"ok — matchs +{entry['matches_inserted']} ~{entry['matches_updated']}, "
+            f"cotes {entry['odds_upserted']}, stats {entry['advanced_stats_upserted']}, "
+            f"anomalies {len(entry['issues'])}"
+        )
+    return f"{entry['status']} — {entry['error']}"
+
+
 async def run_ingestion(
     factory: async_sessionmaker[AsyncSession],
     settings: Settings,
     requests: Sequence[IngestionRequest],
+    progress: Progress | None = None,
 ) -> dict[str, Any]:
     """Exécute les ingestions demandées puis les contrôles de qualité ; renvoie le rapport."""
     async with factory() as session, session.begin():
@@ -160,23 +194,42 @@ async def run_ingestion(
         session.add(run)
     run_id = run.id
 
+    notify = progress or (lambda _message: None)
+    total = sum(len(r.competitions) * len(r.seasons) for r in requests)
+    done = 0
     files: list[FileResult] = []
     for request in requests:
         handler = _HANDLERS[request.source]
+        downloading = request.from_dir is None
+        consecutive_failures = 0
         for code in request.competitions:
             comp = COMPETITIONS_BY_CODE[code]
             for year in request.seasons:
+                done += 1
                 entry: FileResult = {
                     "source": request.source.value,
                     "competition": code,
                     "season": year,
                 }
+                label = f"[{done}/{total}] {request.source.value} {code} {year}"
+                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                    entry.update(
+                        status="unavailable",
+                        error=f"non tenté : source injoignable "
+                        f"({MAX_CONSECUTIVE_FAILURES} échecs consécutifs)",
+                    )
+                    files.append(entry)
+                    notify(f"{label} : {_describe(entry)}")
+                    continue
+                notify(f"{label} …")
                 try:
                     async with factory() as session, session.begin():
                         entry.update(await handler(session, settings, comp, year, request.from_dir))
                     entry["status"] = "ok"
                 except raw_store.SourceUnavailableError as exc:
                     entry.update(status="unavailable", error=str(exc))
+                    if exc.transient:
+                        consecutive_failures += 1
                 except loader.UnknownTeamsError as exc:
                     entry.update(status="rejected", error=str(exc))
                 except Exception as exc:
@@ -185,7 +238,12 @@ async def run_ingestion(
                 logger.info(
                     "ingestion_file", extra={k: v for k, v in entry.items() if k != "issues"}
                 )
+                if entry["status"] != "unavailable":
+                    consecutive_failures = 0
                 files.append(entry)
+                notify(f"{label} : {_describe(entry)}")
+                if downloading:
+                    await asyncio.sleep(DOWNLOAD_PAUSE_SECONDS)
 
     async with factory() as session, session.begin():
         quality = await run_quality_checks(session)

@@ -37,6 +37,12 @@ Serie A, Bundesliga et Ligue 1.
 - **Idempotence** : relancer une ingestion ne crée aucun doublon.
 - **Une source indisponible** donne le statut `unavailable` pour le fichier et
   `partial` pour l'exécution ; aucune donnée de remplacement n'est produite.
+  Après 3 échecs consécutifs (réseau, blocage, page HTML au lieu des données),
+  les fichiers restants de cette source ne sont pas tentés et le rapport le dit.
+  Un fichier absent (404) ne compte pas comme un échec de la source.
+- **Téléchargement** : identité de navigateur et adresses reprises de l'ancien
+  téléchargeur (qui fonctionnait depuis le téléphone), pause de 1,5 s entre deux
+  requêtes, 4 tentatives par fichier. La progression s'affiche fichier par fichier.
 
 ## Contrôles de qualité
 

@@ -1,10 +1,12 @@
 """Ingestion de bout en bout sur un vrai PostgreSQL, à partir de fichiers réels."""
 
 import shutil
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import pytest
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -17,7 +19,7 @@ from footprono.football.models import (
     MatchStatus,
     RawFile,
 )
-from footprono.ingestion import loader
+from footprono.ingestion import loader, raw_store, service
 from footprono.ingestion.quality import run_quality_checks
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.ingestion.sources.common import ParseIssues
@@ -255,3 +257,90 @@ async def test_raw_store_deduplicates_identical_content(
     await ingest(db_factory, tmp_path, fd("EPL", 2024))
     await ingest(db_factory, tmp_path, fd("EPL", 2024, copy_dir))
     assert await count(db_factory, RawFile) == 1
+
+
+# --- Mode téléchargement (réseau remplacé par une fonction contrôlée) -------
+
+
+def _fake_download(monkeypatch: pytest.MonkeyPatch, respond: Callable[[str], bytes]) -> list[str]:
+    calls: list[str] = []
+
+    async def download(url: str, **_: object) -> bytes:
+        calls.append(url)
+        return respond(url)
+
+    monkeypatch.setattr(raw_store, "download", download)
+    monkeypatch.setattr(service, "DOWNLOAD_PAUSE_SECONDS", 0)
+    return calls
+
+
+async def test_download_mode_ingests_and_reports_progress(
+    db_factory: Factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = (FD_DIR / "2425" / "E0.csv").read_bytes()
+    calls = _fake_download(monkeypatch, lambda _url: content)
+    messages: list[str] = []
+
+    report = await run_ingestion(
+        db_factory,
+        make_settings(raw_data_dir=tmp_path),
+        [IngestionRequest(DataSource.FOOTBALL_DATA, ["EPL"], [2024])],
+        progress=messages.append,
+    )
+
+    assert calls == ["https://football-data.co.uk/mmz4281/2425/E0.csv"]
+    assert report["status"] == "ok"
+    assert report["files"][0]["origin"] == calls[0]
+    assert messages[0] == "[1/1] football_data EPL 2024 …"
+    assert messages[1].startswith("[1/1] football_data EPL 2024 : ok — matchs +380")
+
+
+async def test_unreachable_source_is_abandoned_after_consecutive_failures(
+    db_factory: Factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(url: str) -> bytes:
+        raise raw_store.SourceUnavailableError(f"{url} : ConnectError")
+
+    calls = _fake_download(monkeypatch, fail)
+
+    report = await run_ingestion(
+        db_factory,
+        make_settings(raw_data_dir=tmp_path),
+        [IngestionRequest(DataSource.FOOTBALL_DATA, ["EPL"], list(range(2016, 2022)))],
+    )
+
+    assert len(calls) == service.MAX_CONSECUTIVE_FAILURES
+    assert report["status"] == "partial"
+    assert [f["status"] for f in report["files"]] == ["unavailable"] * 6
+    assert all("non tenté" in f["error"] for f in report["files"][3:])
+
+
+async def test_missing_files_do_not_abandon_the_source(
+    db_factory: Factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def not_found(url: str) -> bytes:
+        raise raw_store.SourceUnavailableError(f"{url} : introuvable (404)", transient=False)
+
+    calls = _fake_download(monkeypatch, not_found)
+    await run_ingestion(
+        db_factory,
+        make_settings(raw_data_dir=tmp_path),
+        [IngestionRequest(DataSource.FOOTBALL_DATA, ["EPL"], list(range(2016, 2022)))],
+    )
+    assert len(calls) == 6
+
+
+async def test_blocked_understat_page_is_unavailable_and_not_archived(
+    db_factory: Factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_download(monkeypatch, lambda _url: b"<!DOCTYPE html><title>Just a moment...</title>")
+
+    report = await run_ingestion(
+        db_factory,
+        make_settings(raw_data_dir=tmp_path),
+        [IngestionRequest(DataSource.UNDERSTAT, ["EPL"], [2024])],
+    )
+
+    assert report["files"][0]["status"] == "unavailable"
+    assert "bloqué" in report["files"][0]["error"]
+    assert await count(db_factory, RawFile) == 0

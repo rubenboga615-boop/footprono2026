@@ -17,7 +17,8 @@ from decimal import Decimal
 from footprono.football.models import OddsTiming
 from footprono.ingestion.sources.common import OddsQuote, ParseIssues, to_decimal, to_int
 
-BASE_URL = "https://www.football-data.co.uk/mmz4281"
+# Sans « www » : l'adresse avec « www » redirige (constaté par l'ancien téléchargeur).
+BASE_URL = "https://football-data.co.uk/mmz4281"
 
 # Bookmakers conservés en base. Le fichier brut, archivé tel quel, garde tous
 # les autres : ils peuvent être réintégrés sans nouveau téléchargement.

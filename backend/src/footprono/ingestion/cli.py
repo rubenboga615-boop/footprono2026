@@ -132,6 +132,11 @@ def print_summary(report: dict[str, Any]) -> None:
         )
 
 
+def _print_progress(message: str) -> None:
+    # Sur stderr : la progression reste visible même avec --json sur stdout.
+    print(message, file=sys.stderr, flush=True)
+
+
 async def run(args: argparse.Namespace, settings: Settings) -> int:
     engine = create_engine(settings)
     factory = create_session_factory(engine)
@@ -141,7 +146,9 @@ async def run(args: argparse.Namespace, settings: Settings) -> int:
                 report = await run_quality_checks(session)
             failed = report["errors"] > 0
         else:
-            report = await run_ingestion(factory, settings, build_requests(args))
+            report = await run_ingestion(
+                factory, settings, build_requests(args), progress=_print_progress
+            )
             failed = report["status"] != "ok"
     finally:
         await engine.dispose()

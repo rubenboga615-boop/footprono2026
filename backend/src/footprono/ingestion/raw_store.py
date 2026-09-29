@@ -19,11 +19,24 @@ from footprono.football.models import DataSource, RawFile
 
 logger = logging.getLogger(__name__)
 
-USER_AGENT = "FootProno/0.1 (+https://github.com/rubenboga615-boop/footprono2026)"
+# Identité de navigateur : celle de l'ancien téléchargeur, qui fonctionnait depuis
+# le téléphone ; un agent inhabituel est bloqué par certaines sources (Understat).
+USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/125.0 Safari/537.36"
+)
 
 
 class SourceUnavailableError(Exception):
-    """La source n'a pas pu fournir le fichier (réseau, erreur HTTP, fichier absent)."""
+    """La source n'a pas pu fournir le fichier (réseau, erreur HTTP, fichier absent).
+
+    ``transient`` : l'échec peut venir d'un problème passager ou d'un blocage
+    (réseau, erreur 5xx/403…), par opposition à un fichier qui n'existe pas (404).
+    """
+
+    def __init__(self, message: str, *, transient: bool = True) -> None:
+        super().__init__(message)
+        self.transient = transient
 
 
 async def archive(
@@ -68,7 +81,7 @@ async def download(
     *,
     headers: dict[str, str] | None = None,
     attempts: int = 4,
-    request_timeout: float = 30.0,
+    request_timeout: float = 60.0,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> bytes:
     """Télécharge ``url`` avec relances. 404 → ``SourceUnavailableError`` immédiate."""
@@ -88,7 +101,7 @@ async def download(
                 if response.status_code == 200:
                     return response.content
                 if response.status_code == 404:
-                    raise SourceUnavailableError(f"{url} : introuvable (404)")
+                    raise SourceUnavailableError(f"{url} : introuvable (404)", transient=False)
                 last_error = f"HTTP {response.status_code}"
             logger.warning(
                 "download_retry", extra={"url": url, "attempt": attempt, "error": last_error}
