@@ -12,6 +12,7 @@ from footprono.accounts.models import User
 from footprono.accounts.security import read_access_token
 from footprono.accounts.service import UnauthorizedError
 from footprono.core.config import Settings
+from footprono.core.errors import ForbiddenError
 
 
 def get_app_settings(request: Request) -> Settings:
@@ -62,3 +63,26 @@ async def get_current_user(
 
 
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
+
+
+async def get_optional_user(
+    session: SessionDep,
+    settings: SettingsDep,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+) -> User | None:
+    """Utilisateur connecté s'il y en a un (routes publiques : version gratuite sinon)."""
+    if credentials is None:
+        return None
+    return await get_current_user(session, settings, credentials)
+
+
+OptionalUserDep = Annotated[User | None, Depends(get_optional_user)]
+
+
+async def get_admin_user(user: CurrentUserDep) -> User:
+    if user.role != "admin":
+        raise ForbiddenError("réservé à l'administrateur")
+    return user
+
+
+AdminUserDep = Annotated[User, Depends(get_admin_user)]

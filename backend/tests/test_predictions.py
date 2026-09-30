@@ -87,8 +87,25 @@ async def test_prediction_api(
     assert len(one_x_two) == 3
     for m in one_x_two:
         assert m["fair_odds"] == pytest.approx(1 / m["probability"], rel=1e-3)
+    # Sans compte : version gratuite (1X2, OU, BTTS) ; le reste est signalé, pas caché.
+    assert {m["market"] for m in body["markets"]} == {"1X2", "OU", "BTTS"}
+    assert body["plan"] == "free"
+    assert "AH" in body["locked_markets"]
+    assert body["counts"] is None
     ah = await client.get(f"/api/v1/matches/{upcoming[0]}/prediction", params={"market": "ah"})
+    assert ah.json()["markets"] == []
+    signup = await client.post(
+        "/api/v1/auth/register",
+        json={"phone": "+22997333333", "password": "12345678", "display_name": "Ama",
+              "country": "CI", "adult": True},
+    )  # fmt: skip
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+    ah = await client.get(
+        f"/api/v1/matches/{upcoming[0]}/prediction", params={"market": "ah"}, headers=headers
+    )
     assert {m["market"] for m in ah.json()["markets"]} == {"AH"}
+    assert ah.json()["plan"] == "premium"
+    assert ah.json()["counts"]["corners"]["mean_home"] > 0
 
     listing = await client.get(
         "/api/v1/predictions/upcoming", params={"date_from": "2025-05-18", "date_to": "2025-06-30"}

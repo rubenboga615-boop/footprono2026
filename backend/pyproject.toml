@@ -44,6 +44,7 @@ dev = [
 [project.scripts]
 footprono-ingest = "footprono.ingestion.cli:main"
 footprono-engine = "footprono.engine.cli:main"
+footprono-admin = "footprono.accounts.cli:main"
 
 [build-system]
 requires = ["setuptools>=75"]

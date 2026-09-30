@@ -7,6 +7,7 @@ from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from footprono.accounts.plans import require_premium
 from footprono.api.deps import CurrentUserDep, SessionDep
 from footprono.api.v1.bets import _bet_out
 from footprono.bookmaker import montante, service, suggestions
@@ -68,6 +69,7 @@ async def get_montante(montante_id: int, user: CurrentUserDep, session: SessionD
 
 @router.get("/montantes/{montante_id}/suggestions")
 async def step_suggestions(montante_id: int, user: CurrentUserDep, session: SessionDep) -> Any:
+    require_premium(user, "suggestions de montante")
     m = await _own(session, user, montante_id)
     step = await session.scalar(
         select(MontanteStep).where(

@@ -5,7 +5,8 @@ from typing import Annotated
 from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 
-from footprono.api.deps import CurrentUserDep, SessionDep
+from footprono.accounts.plans import market_allowed
+from footprono.api.deps import CurrentUserDep, OptionalUserDep, SessionDep
 from footprono.bookmaker import service
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.bookmaker.schemas import BetIn, BetOut, BetSelectionOut, OfferOut
@@ -15,15 +16,18 @@ router = APIRouter(tags=["bookmaker virtuel"])
 
 
 @router.get("/matches/{match_id}/offer", response_model=list[OfferOut])
-async def match_offer(match_id: int, session: SessionDep) -> list[OfferOut]:
+async def match_offer(match_id: int, session: SessionDep, user: OptionalUserDep) -> list[OfferOut]:
     """Sélections jouables (cote réelle récente) avec la probabilité du moteur.
 
     Pas de mention « value » : la probabilité du moteur est une information.
+    Version gratuite (ou sans connexion) : marchés 1X2, OU et BTTS seulement.
     """
     offers = await service.match_offer(session, match_id)
     probs = await service.model_probabilities(session, match_id)
     out = []
     for k, o in sorted(offers.items()):
+        if not market_allowed(user, o.market):
+            continue
         p = probs.get(k)
         out.append(
             OfferOut(

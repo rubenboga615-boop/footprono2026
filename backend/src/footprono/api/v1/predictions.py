@@ -10,7 +10,8 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 from sqlalchemy import func, select
 
-from footprono.api.deps import SessionDep
+from footprono.accounts.plans import FREE_MARKETS, is_premium
+from footprono.api.deps import OptionalUserDep, SessionDep
 from footprono.api.v1.football import _match_out, _match_select
 from footprono.core.errors import NotFoundError
 from footprono.engine.markets import Selection
@@ -72,13 +73,18 @@ async def _latest(
 async def get_match_prediction(
     match_id: int,
     session: SessionDep,
+    user: OptionalUserDep,
     market: Annotated[str | None, Query(description="préfixe de marché, ex. 1X2, OU, AH")] = None,
 ) -> PredictionOut:
     found = (await _latest(session, [match_id])).get(match_id)
     if found is None:
         raise NotFoundError(f"aucune prédiction pour le match {match_id}")
     pred, run = found
+    premium = is_premium(user)
     keys = sorted(pred.markets)
+    locked = sorted({k.split("|")[0] for k in keys} - FREE_MARKETS) if not premium else []
+    if not premium:
+        keys = [k for k in keys if k.split("|")[0] in FREE_MARKETS]
     if market:
         keys = [k for k in keys if k.split("|")[0] == market.upper()]
     return PredictionOut(
@@ -89,8 +95,10 @@ async def get_match_prediction(
         created_at=pred.created_at,
         expected_goals=ExpectedGoals(home=pred.lambda_home, away=pred.lambda_away),
         markets=[_selection(k, pred.markets[k]) for k in keys],
-        counts=pred.counts,
-        context=pred.context,
+        counts=pred.counts if premium else None,
+        context=pred.context if premium else None,
+        plan="premium" if premium else "free",
+        locked_markets=locked,
     )
 
 

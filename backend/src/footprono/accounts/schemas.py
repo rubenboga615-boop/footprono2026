@@ -29,6 +29,15 @@ class WalletOut(BaseModel):
     last_refill_at: datetime | None
 
 
+class PlanOut(BaseModel):
+    name: str = Field(description="free ou premium")
+    premium_until: datetime | None
+    days_left: int
+    free_markets: list[str]
+    premium_price: int
+    premium_currency: str
+
+
 class MeOut(BaseModel):
     id: int
     phone: str
@@ -36,6 +45,8 @@ class MeOut(BaseModel):
     country: str
     currency: str
     created_at: datetime
+    role: str
+    plan: PlanOut
     wallet: WalletOut
     virtual_money: bool = True  # argent fictif : rappel pour l'application
 

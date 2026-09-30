@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from footprono.football.schemas import MatchOut
 
@@ -45,8 +45,13 @@ class PredictionOut(BaseModel):
     created_at: datetime
     expected_goals: ExpectedGoals
     markets: list[SelectionOut]
-    counts: dict[str, Any]
-    context: dict[str, Any]
+    # Corners, cartons, tirs et analyse détaillée : Premium (None en version gratuite).
+    counts: dict[str, Any] | None
+    context: dict[str, Any] | None
+    plan: str = Field(description="free ou premium : formule appliquée à cette réponse")
+    locked_markets: list[str] = Field(
+        default_factory=list, description="marchés disponibles en Premium, non inclus ici"
+    )
 
 
 class PredictionSummary(BaseModel):

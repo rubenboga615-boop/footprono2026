@@ -7,9 +7,11 @@ from sqlalchemy import select
 
 from footprono.accounts import service
 from footprono.accounts.models import Wallet, WalletEntry
+from footprono.accounts.plans import plan_info
 from footprono.accounts.schemas import (
     LoginIn,
     MeOut,
+    PlanOut,
     RegisterIn,
     TokenOut,
     WalletEntryOut,
@@ -53,6 +55,8 @@ async def me(user: CurrentUserDep, session: SessionDep) -> MeOut:
         country=user.country,
         currency=user.currency,
         created_at=user.created_at,
+        role=user.role,
+        plan=PlanOut(**plan_info(user)),
         wallet=WalletOut.model_validate(wallet),
     )
 

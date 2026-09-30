@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.accounts import service as accounts
 from footprono.accounts.models import User
+from footprono.accounts.plans import require_market
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.core.errors import AppError, NotFoundError
 from footprono.engine.markets import Selection
@@ -143,6 +144,8 @@ async def place_bet(
             "un combiné ne peut pas réunir deux sélections du même match (elles sont liées) : "
             "utiliser un marché combiné du bookmaker (résultat + les deux marquent…)"
         )
+    for s in selections:
+        require_market(user, s.market, now)
     chosen: list[tuple[SelectionIn, Offer, float | None]] = []
     for s in selections:
         match = await session.get(Match, s.match_id)
