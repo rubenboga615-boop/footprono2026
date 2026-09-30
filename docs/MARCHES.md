@@ -42,6 +42,26 @@ Modèle dédié à la première période (scores à la mi-temps disponibles depu
 « Historique court » : affiché tant que moins de 3 saisons complètes ont été
 testées.
 
+## Données disponibles (vérifié le 30/09/2026, matchs joués 2016-17 → 2026-27)
+
+| Donnée | EPL | Liga | Serie A | Bundesliga | Ligue 1 |
+|---|---|---|---|---|---|
+| Score final et mi-temps | 100 % | 100 % | 100 % | 100 % | 100 % |
+| Corners, cartons, tirs, tirs cadrés | 100 % | 100 % | 100 % | 100 % | 100 % |
+| Arbitre (football-data) | 100 % | 0 % | 0 % | 0 % | 0 % |
+
+À faire pour la phase 2 :
+- **Arbitre** des 4 autres championnats : disponible dans la liste des matchs
+  d'API-Football (`fixture.referee`), environ 55 requêtes pour tout
+  l'historique ; en attendant, le modèle des cartons tourne sans l'arbitre.
+- **Cotes du handicap asiatique** : présentes dans les fichiers football-data
+  archivés, à charger en base.
+- Statistiques par mi-temps : modélisées comme la part de la 1re période dans
+  le total prévu du match, estimée sur 2024-25 et après.
+- Combinés dans un même match : probabilité jointe exacte pour les marchés de
+  buts (même distribution des scores) ; un combiné buts + corners ou cartons
+  n'est pas couvert en V1 (modèles distincts, dépendance non modélisée).
+
 ## Non couverts en V1
 
 - Buteurs, statistiques de joueurs, minute du premier but, penalty : pas de
