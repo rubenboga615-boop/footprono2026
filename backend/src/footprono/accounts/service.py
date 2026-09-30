@@ -7,7 +7,7 @@ from fastapi import status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from footprono.accounts.models import User, Wallet, WalletEntry
+from footprono.accounts.models import SubscriptionEvent, User, Wallet, WalletEntry
 from footprono.accounts.security import hash_password, verify_password
 from footprono.core.config import Settings
 from footprono.core.errors import AppError
@@ -24,6 +24,8 @@ COUNTRIES: dict[str, tuple[str, str]] = {
     "TG": ("Togo", "XOF"),
 }
 MIN_PASSWORD = 8
+# Premium offert à l'inscription (décision du 30/09/2026), puis version gratuite.
+TRIAL_DAYS = 7
 _PHONE = re.compile(r"^\+[1-9]\d{7,14}$")
 
 
@@ -73,15 +75,24 @@ async def register(
     if await session.scalar(select(User.id).where(User.phone == phone)) is not None:
         raise ConflictError("un compte existe déjà avec ce numéro")
     currency = COUNTRIES[country][1]
+    trial_end = datetime.now(UTC) + timedelta(days=TRIAL_DAYS)
     user = User(
         phone=phone,
         password_hash=hash_password(password),
         display_name=display_name.strip()[:40],
         country=country,
         currency=currency,
+        role="user",
+        premium_until=trial_end,
     )
     session.add(user)
     await session.flush()
+    session.add(
+        SubscriptionEvent(
+            user_id=user.id, kind="trial", days=TRIAL_DAYS, premium_until=trial_end,
+            note="essai Premium offert à l'inscription",
+        )
+    )  # fmt: skip
     session.add(Wallet(user_id=user.id, currency=currency, balance=0))
     await session.flush()
     await move(session, user.id, settings.starting_balance, "opening", note="solde de départ")
