@@ -60,7 +60,10 @@ def test_reference_teams_are_consistent() -> None:
         ("P>2.5", ("PS", "OU", Decimal("2.5"), OddsTiming.PRE, "over")),
         ("AvgC<2.5", ("Avg", "OU", Decimal("2.5"), OddsTiming.CLOSE, "under")),
         ("AHh", None),
-        ("B365AHH", None),
+        ("BbAHh", None),
+        ("B365AHH", ("B365", "AH", None, OddsTiming.PRE, "home")),
+        ("PCAHA", ("PS", "AH", None, OddsTiming.CLOSE, "away")),
+        ("BbMxAHH", ("BbMx", "AH", None, OddsTiming.PRE, "home")),
         ("HomeTeam", None),
     ],
 )
@@ -80,11 +83,23 @@ def test_parse_real_football_data_file() -> None:
     assert (first.match_date, first.kickoff_time) == (date(2024, 8, 16), time(20, 0))
     assert (first.home_goals, first.away_goals, first.home_goals_ht) == (1, 0, 0)
     assert first.referee == "R Jones"
-    b365 = {(q.timing, q.selection): q.price for q in first.odds if q.bookmaker == "B365"}
+    b365 = {
+        (q.timing, q.selection): q.price
+        for q in first.odds
+        if q.bookmaker == "B365" and q.market == "1X2"
+    }
     assert b365[(OddsTiming.PRE, "home")] == Decimal("1.6")
-    # Seuls les bookmakers retenus sont conservés, jamais le handicap asiatique.
+    # Seuls les bookmakers retenus sont conservés.
     assert {q.bookmaker for q in first.odds} <= set(football_data.KEPT_BOOKMAKERS)
-    assert {q.market for q in first.odds} == {"1X2", "OU"}
+    assert {q.market for q in first.odds} == {"1X2", "OU", "AH"}
+    # Man United contre Fulham : handicap -1 avant match, -0,75 à la clôture.
+    ah = {
+        (q.timing, q.selection): (q.line, q.price)
+        for q in first.odds
+        if q.bookmaker == "B365" and q.market == "AH"
+    }
+    assert ah[(OddsTiming.PRE, "home")] == (Decimal("-1"), Decimal("2.05"))
+    assert ah[(OddsTiming.CLOSE, "home")] == (Decimal("-0.75"), Decimal("1.86"))
 
 
 def test_parse_rejects_invalid_prices_and_reports_them() -> None:

@@ -165,6 +165,9 @@ class Match(Base):
     football_data_file_id: Mapped[int | None] = mapped_column(ForeignKey("raw_files.id"))
     # Identifiant du match chez API-Football (statistiques, temps réel).
     api_football_id: Mapped[int | None] = mapped_column(Integer, unique=True)
+    # Arbitre selon API-Football (« Prénom Nom », pays retiré) : disponible pour
+    # les 5 championnats, contrairement à ``referee`` (football-data, EPL seulement).
+    api_referee: Mapped[str | None] = mapped_column(String(100))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

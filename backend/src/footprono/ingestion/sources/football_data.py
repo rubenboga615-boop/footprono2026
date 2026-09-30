@@ -38,9 +38,15 @@ _BOOKMAKER_ALIASES = {"P": "PS"}
 _BK = "|".join(sorted((re.escape(b) for b in _ALL_BOOKMAKERS), key=len, reverse=True))
 _RE_1X2 = re.compile(rf"^(?P<bk>{_BK})(?P<close>C?)(?P<sel>[HDA])$")
 _RE_OU25 = re.compile(rf"^(?P<bk>{_BK})(?P<close>C?)(?P<sel>[<>])2\.5$")
+# Handicap asiatique : la ligne (handicap de l'équipe à domicile) est dans une
+# colonne à part, propre à chaque match : AHh (avant match, 2019-20 et après),
+# BbAHh (avant match, jusqu'en 2018-19), AHCh (clôture).
+_RE_AH = re.compile(rf"^(?P<bk>{_BK})(?P<close>C?)AH(?P<sel>[HA])$")
+_AH_LINE_COLUMNS = {OddsTiming.PRE: ("AHh", "BbAHh"), OddsTiming.CLOSE: ("AHCh",)}
 
 _SELECTIONS_1X2 = {"H": "home", "D": "draw", "A": "away"}
 _SELECTIONS_OU = {">": "over", "<": "under"}
+_SELECTIONS_AH = {"H": "home", "A": "away"}
 
 _STAT_COLUMNS = {
     "home_shots": "HS", "away_shots": "AS",
@@ -75,11 +81,18 @@ class FootballDataMatch:
         return self.home_goals is not None and self.away_goals is not None
 
 
-def classify_odds_column(column: str) -> tuple[str, str, Decimal, OddsTiming, str] | None:
-    """Colonne de cote → (bookmaker, marché, ligne, moment, sélection), ou None."""
+def classify_odds_column(
+    column: str,
+) -> tuple[str, str, Decimal | None, OddsTiming, str] | None:
+    """Colonne de cote → (bookmaker, marché, ligne, moment, sélection), ou None.
+
+    Pour le handicap asiatique, la ligne vaut ``None`` : elle se lit dans la
+    colonne de ligne du même match (``AHh``, ``BbAHh`` ou ``AHCh``).
+    """
     for regex, market, line, selections in (
         (_RE_1X2, "1X2", Decimal(0), _SELECTIONS_1X2),
         (_RE_OU25, "OU", Decimal("2.5"), _SELECTIONS_OU),
+        (_RE_AH, "AH", None, _SELECTIONS_AH),
     ):
         m = regex.match(column)
         if m:
@@ -146,10 +159,19 @@ def parse_csv(
             issues.add(f"ligne {line_no} ignorée : {exc}")
             continue
 
+        ah_lines = {
+            timing: next((v for c in cols if (v := to_decimal(row.get(c))) is not None), None)
+            for timing, cols in _AH_LINE_COLUMNS.items()
+        }
         for col, (bookmaker, market, line, timing, selection) in odds_columns.items():
             price = to_decimal(row.get(col))
             if price is None:
                 continue
+            if line is None:
+                line = ah_lines[timing]
+                if line is None:
+                    issues.add(f"ligne {line_no} : cote {col} sans ligne de handicap, ignorée")
+                    continue
             if price <= 1:
                 issues.add(f"ligne {line_no} : cote {col}={price} invalide (≤ 1) ignorée")
                 continue

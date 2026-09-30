@@ -88,6 +88,19 @@ def test_parse_raw_statistics_orders_teams_by_home_id() -> None:
     assert StatPeriod.SECOND_HALF not in stats
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("Anthony Taylor, England", "Anthony Taylor"),
+        ("C. Turpin", "C. Turpin"),
+        (None, None),
+        ("", None),
+    ],
+)
+def test_normalize_referee(raw: str | None, expected: str | None) -> None:
+    assert api_football.normalize_referee(raw) == expected
+
+
 def test_only_regular_season_finished_matches_are_kept() -> None:
     def item(status: str, round_: str) -> dict[str, Any]:
         return {"fixture": {"status": {"short": status}}, "league": {"round": round_}}
@@ -219,7 +232,12 @@ def _api_transport(
 
 def _raw_fixture(fid: int, home: str, away: str, day: str, hg: int, ag: int) -> dict[str, Any]:
     return {
-        "fixture": {"id": fid, "date": f"{day}T19:00:00+00:00", "status": {"short": "FT"}},
+        "fixture": {
+            "id": fid,
+            "date": f"{day}T19:00:00+00:00",
+            "status": {"short": "FT"},
+            "referee": "Anthony Taylor, England",
+        },
         "league": {"round": "Regular Season - 1"},
         "teams": {
             "home": {"id": fid * 10, "name": home},
@@ -254,6 +272,15 @@ async def test_download_fetches_only_missing_statistics(
     assert all("half=true" in c for c in calls[2:])
     assert await _count(db_factory) == 12  # 2 matchs x 2 équipes x 3 périodes
     assert await _count(db_factory, MatchTeamStats.yellow_cards == 0) == 12
+    async with db_factory() as session:
+        referees = set(
+            (
+                await session.scalars(
+                    select(Match.api_referee).where(Match.api_referee.is_not(None))
+                )
+            ).all()
+        )
+    assert referees == {"Anthony Taylor"}
 
     calls.clear()
     await run_ingestion(db_factory, settings, [request])

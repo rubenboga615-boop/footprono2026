@@ -543,10 +543,13 @@ async def load_api_football(
                 f"API-Football {f.home_goals}-{f.away_goals} ; statistiques non chargées"
             )
             continue
+        changes: dict[str, Any] = {}
         if match.api_football_id != f.fixture_id:
-            await session.execute(
-                update(Match).where(Match.id == match.id).values(api_football_id=f.fixture_id)
-            )
+            changes["api_football_id"] = f.fixture_id
+        if f.referee and match.api_referee != f.referee:
+            changes["api_referee"] = f.referee
+        if changes:
+            await session.execute(update(Match).where(Match.id == match.id).values(**changes))
             stats.matches_updated += 1
         for period, (home_stats, away_stats) in f.stats.items():
             for team_id, values in ((home, home_stats), (away, away_stats)):

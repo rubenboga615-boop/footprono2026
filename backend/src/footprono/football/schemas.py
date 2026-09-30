@@ -76,6 +76,7 @@ class MatchStatsOut(_Out):
     home_red_cards: int | None
     away_red_cards: int | None
     referee: str | None
+    api_referee: str | None
 
 
 class AdvancedStatsOut(_Out):

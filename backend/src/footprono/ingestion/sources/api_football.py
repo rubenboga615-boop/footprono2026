@@ -94,6 +94,7 @@ class ApiFixture:
     away_goals: int | None
     home_goals_ht: int | None
     away_goals_ht: int | None
+    referee: str | None = None
     # Période → (statistiques domicile, statistiques extérieur). Vide si le
     # service n'a pas de statistiques pour ce match.
     stats: dict[StatPeriod, tuple[TeamStats, TeamStats]] = field(default_factory=dict)
@@ -173,10 +174,17 @@ def parse_collector_file(data: Any) -> tuple[list[ApiFixture], ParseIssues]:
 # --- Réponses brutes de l'API --------------------------------------------------
 
 
+def normalize_referee(value: Any) -> str | None:
+    """« Anthony Taylor, England » → « Anthony Taylor » ; vide → None."""
+    name = str(value or "").split(",")[0].strip()
+    return name or None
+
+
 def parse_fixture(item: dict[str, Any]) -> ApiFixture:
     """Un élément de ``/fixtures`` (sans statistiques)."""
     halftime = item.get("score", {}).get("halftime") or {}
     return ApiFixture(
+        referee=normalize_referee(item["fixture"].get("referee")),
         fixture_id=int(item["fixture"]["id"]),
         match_date=date.fromisoformat(item["fixture"]["date"][:10]),
         home_team=item["teams"]["home"]["name"],
