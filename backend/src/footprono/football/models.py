@@ -172,6 +172,14 @@ class Match(Base):
     # (« NS » à venir, « PST » reporté, « FT » terminé…).
     kickoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     api_status: Mapped[str | None] = mapped_column(String(8))
+    # Suivi en direct (API-Football) : minute et score pendant le match.
+    live_minute: Mapped[int | None] = mapped_column(SmallInteger)
+    live_home_goals: Mapped[int | None] = mapped_column(SmallInteger)
+    live_away_goals: Mapped[int | None] = mapped_column(SmallInteger)
+    live_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Origine du score final : « api_football » (dès le coup de sifflet, provisoire),
+    # « understat », puis « football_data » (confirmé, source de référence).
+    result_source: Mapped[str | None] = mapped_column(String(16))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

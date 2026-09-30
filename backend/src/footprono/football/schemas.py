@@ -57,6 +57,13 @@ class MatchOut(_Out):
     away_team: TeamOut
     home_goals: int | None
     away_goals: int | None
+    result_source: str | None = Field(
+        default=None,
+        description="api_football : provisoire dès la fin ; football_data : confirmé",
+    )
+    live_minute: int | None = None
+    live_home_goals: int | None = None
+    live_away_goals: int | None = None
 
 
 class BookmakerOddsOut(BaseModel):

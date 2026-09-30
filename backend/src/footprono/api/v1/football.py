@@ -36,6 +36,7 @@ from footprono.football.schemas import (
     TeamOut,
     TeamStatsOut,
 )
+from footprono.ingestion.live import LIVE_STATUSES
 from footprono.ingestion.quality import run_quality_checks
 from footprono.ingestion.sources.api_football_odds import REFERENCE_ONLY, map_bet
 
@@ -69,6 +70,10 @@ def _match_out(match: Match, home: Team, away: Team, code: str, year: int) -> di
         "away_team": TeamOut.model_validate(away),
         "home_goals": match.home_goals,
         "away_goals": match.away_goals,
+        "result_source": match.result_source,
+        "live_minute": match.live_minute,
+        "live_home_goals": match.live_home_goals,
+        "live_away_goals": match.live_away_goals,
     }
 
 
@@ -167,6 +172,17 @@ async def list_matches(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/live", response_model=list[MatchOut])
+async def list_live(session: SessionDep) -> list[MatchOut]:
+    """Matchs en cours selon le dernier passage du suivi en direct."""
+    rows = await session.execute(
+        _match_select()
+        .where(Match.status == MatchStatus.SCHEDULED, Match.api_status.in_(LIVE_STATUSES))
+        .order_by(Match.kickoff_at, Match.id)
+    )
+    return [MatchOut(**_match_out(*row)) for row in rows.tuples()]
 
 
 @router.get("/matches/{match_id}", response_model=MatchDetailOut)

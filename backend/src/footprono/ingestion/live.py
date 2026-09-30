@@ -1,28 +1,51 @@
-"""Données du jour depuis API-Football : cotes des matchs à venir.
+"""Données du jour depuis API-Football : cotes des matchs à venir, suivi en direct.
 
-Les cotes sont relevées pour les bookmakers de ``Settings.odds_bookmakers``
-(noms API-Football, retrouvés par ``/odds/bookmakers``). Un bookmaker absent
-du service est signalé dans le rapport, jamais remplacé par un autre en silence.
+Cotes : relevées pour les bookmakers de ``Settings.odds_bookmakers`` (noms
+API-Football, retrouvés par ``/odds/bookmakers``). Un bookmaker absent du
+service est signalé dans le rapport, jamais remplacé par un autre en silence.
+
+Direct (``follow_live``) : pendant les matchs, minute et score ; dès la fin,
+score final et mi-temps (provisoires, ``result_source = api_football``) puis
+statistiques par période. football-data confirme le lendemain et remplace le
+score s'il diffère (écart signalé par le chargement football-data).
 """
 
 import json
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.core.config import Settings
-from footprono.football.models import BookmakerOdds, DataSource, Match
+from footprono.football.models import (
+    BookmakerOdds,
+    DataSource,
+    Match,
+    MatchStatus,
+    MatchTeamStats,
+    StatPeriod,
+)
 from footprono.ingestion import raw_store, service
 from footprono.ingestion.quality import current_season_start
 from footprono.ingestion.reference import COMPETITIONS
 from footprono.ingestion.sources import api_football
 from footprono.ingestion.sources.api_football_odds import OddsQuote, map_bet, parse_odds_page
+from footprono.ingestion.sources.common import ParseIssues
 
 MAX_PAGES = 10  # sécurité : 10 matchs par page, une journée en tient deux au plus
+
+# Fenêtre de suivi : du coup d'envoi (moins une marge) à 3 h 30 après.
+LIVE_BEFORE = timedelta(minutes=5)
+LIVE_AFTER = timedelta(hours=3, minutes=30)
+# Statistiques encore absentes à la fin : redemandées jusqu'à 8 h après le coup d'envoi.
+STATS_RETRY_UNTIL = timedelta(hours=8)
+IDS_PER_REQUEST = 20  # limite de /fixtures?ids=
+# Statuts API-Football d'un match en cours (mi-temps et interruptions comprises).
+LIVE_STATUSES = frozenset({"1H", "HT", "2H", "ET", "BT", "P", "LIVE", "SUSP", "INT"})
 
 
 def _noop(_message: str) -> None:
@@ -143,6 +166,158 @@ async def collect_odds(
         changed=added,
         unmapped_bets=unmapped,
     )
+    return report
+
+
+async def follow_live(
+    session: AsyncSession,
+    settings: Settings,
+    now: datetime | None = None,
+    progress: Callable[[str], None] = _noop,
+) -> dict[str, Any]:
+    """Met à jour les matchs en cours ; termine ceux qui sont finis, avec leurs statistiques.
+
+    Sans match dans sa fenêtre, ne fait aucune requête (appelable toutes les
+    2 minutes).
+    """
+    now = now or datetime.now(UTC)
+    has_stats = (
+        select(MatchTeamStats.id)
+        .where(
+            MatchTeamStats.match_id == Match.id,
+            MatchTeamStats.source == DataSource.API_FOOTBALL,
+            MatchTeamStats.period == StatPeriod.FULL,
+        )
+        .exists()
+    )
+    candidates = list(
+        (
+            await session.scalars(
+                select(Match).where(
+                    Match.api_football_id.is_not(None),
+                    or_(
+                        (Match.status == MatchStatus.SCHEDULED)
+                        & Match.kickoff_at.between(now - LIVE_AFTER, now + LIVE_BEFORE),
+                        (Match.status == MatchStatus.FINISHED)
+                        & (Match.result_source == "api_football")
+                        & (Match.kickoff_at >= now - STATS_RETRY_UNTIL)
+                        & ~has_stats,
+                    ),
+                )
+            )
+        ).all()
+    )
+    if not candidates:
+        return {"status": "idle", "requests": 0}
+    if settings.api_football_key is None:
+        return {"status": "unavailable", "error": "FP_API_FOOTBALL_KEY absente"}
+
+    by_fixture = {int(m.api_football_id): m for m in candidates if m.api_football_id is not None}
+    report: dict[str, Any] = {"status": "ok", "live": 0, "finished": [], "stats": 0, "issues": []}
+    items: list[dict[str, Any]] = []
+    statistics: dict[int, list[dict[str, Any]]] = {}
+    async with api_football.ApiFootballClient(
+        settings.api_football_key.get_secret_value(),
+        budget=settings.api_football_budget,
+        min_remaining=settings.api_football_min_remaining,
+        transport=service.api_football_transport,
+    ) as client:
+        await client.status()
+        ids = sorted(by_fixture)
+        for start in range(0, len(ids), IDS_PER_REQUEST):
+            chunk = ids[start : start + IDS_PER_REQUEST]
+            body = await client.get("/fixtures", {"ids": "-".join(map(str, chunk))})
+            items.extend(body["response"])
+        for item in items:
+            fixture = api_football.parse_fixture(item)
+            match = by_fixture.get(fixture.fixture_id)
+            if match is None or not fixture.finished:
+                continue
+            if not client.can_spend():
+                report["issues"].append("quota atteint : statistiques redemandées plus tard")
+                break
+            body = await client.get(
+                "/fixtures/statistics", {"fixture": fixture.fixture_id, "half": "true"}
+            )
+            statistics[fixture.fixture_id] = body["response"]
+        report["requests"] = client.used
+
+    raw_id = await raw_store.archive(
+        session,
+        settings.raw_data_dir,
+        DataSource.API_FOOTBALL,
+        f"{api_football.BASE_URL}/fixtures?ids=",
+        f"live/{now:%Y%m%dT%H%M%S}.json",
+        json.dumps({"fixtures": items, "statistics": statistics}).encode(),
+    )
+    for item in items:
+        fixture = api_football.parse_fixture(item)
+        match = by_fixture.get(fixture.fixture_id)
+        if match is None:
+            continue
+        label = f"{fixture.home_team}-{fixture.away_team}"
+        if match.status is MatchStatus.SCHEDULED:
+            values: dict[str, Any] = {"api_status": fixture.status, "live_updated_at": now}
+            if fixture.status in LIVE_STATUSES or fixture.finished:
+                values.update(
+                    live_minute=item["fixture"]["status"].get("elapsed"),
+                    live_home_goals=fixture.home_goals,
+                    live_away_goals=fixture.away_goals,
+                )
+                report["live"] += 0 if fixture.finished else 1
+            if (
+                fixture.finished
+                and fixture.home_goals is not None
+                and fixture.away_goals is not None
+            ):
+                values.update(
+                    status=MatchStatus.FINISHED,
+                    home_goals=fixture.home_goals,
+                    away_goals=fixture.away_goals,
+                    home_goals_ht=fixture.home_goals_ht,
+                    away_goals_ht=fixture.away_goals_ht,
+                    result_source="api_football",
+                )
+                report["finished"].append(f"{label} {fixture.home_goals}-{fixture.away_goals}")
+                progress(f"terminé : {label} {fixture.home_goals}-{fixture.away_goals}")
+            await session.execute(update(Match).where(Match.id == match.id).values(**values))
+        response = statistics.get(fixture.fixture_id)
+        if response is None:
+            continue
+        issues = ParseIssues()
+        periods = api_football.parse_statistics(response, item["teams"]["home"]["id"], issues)
+        report["issues"].extend(issues.items)
+        if not periods:
+            report["issues"].append(f"{label} : statistiques pas encore publiées")
+            continue
+        rows = [
+            {
+                "match_id": match.id,
+                "team_id": team_id,
+                "source": DataSource.API_FOOTBALL,
+                "period": period,
+                "raw_file_id": raw_id,
+                **values_,
+            }
+            for period, (home_stats, away_stats) in periods.items()
+            for team_id, values_ in (
+                (match.home_team_id, home_stats),
+                (match.away_team_id, away_stats),
+            )
+        ]
+        stmt = insert(MatchTeamStats).values(rows)
+        await session.execute(
+            stmt.on_conflict_do_update(
+                index_elements=["match_id", "team_id", "source", "period"],
+                set_={
+                    k: stmt.excluded[k]
+                    for k in rows[0]
+                    if k not in ("match_id", "team_id", "source", "period")
+                },
+            )
+        )
+        report["stats"] += 1
+    await session.commit()
     return report
 
 

@@ -73,6 +73,25 @@ async def _collect_odds() -> dict[str, Any]:
     return {k: v for k, v in report.items() if k != "unmapped_bets"}
 
 
+@celery_app.task(name="footprono.follow_live")
+def follow_live() -> dict[str, Any]:
+    """Score en direct, puis résultat et statistiques dès la fin des matchs.
+
+    Sans match en cours, ne fait aucune requête : planifiable toutes les 2 minutes.
+    """
+    return asyncio.run(_follow_live())
+
+
+async def _follow_live() -> dict[str, Any]:
+    settings = get_settings()
+    engine = create_engine(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            return await live.follow_live(session, settings)
+    finally:
+        await engine.dispose()
+
+
 @celery_app.task(name="footprono.predict_upcoming")
 def predict_upcoming() -> dict[str, Any]:
     """Prédit les matchs des 10 prochains jours et enregistre les prédictions."""

@@ -27,7 +27,7 @@ from typing import Any
 from footprono.core.config import Settings, get_settings
 from footprono.db.session import create_engine, create_session_factory
 from footprono.football.models import DataSource
-from footprono.ingestion.live import collect_odds
+from footprono.ingestion.live import collect_odds, follow_live
 from footprono.ingestion.quality import current_season_start, run_quality_checks
 from footprono.ingestion.reference import COMPETITIONS, COMPETITIONS_BY_CODE
 from footprono.ingestion.service import IngestionRequest, run_ingestion
@@ -99,6 +99,7 @@ def build_parser() -> argparse.ArgumentParser:
             )
     sub.add_parser("quality", help="contrôles de qualité sur les données en base")
     sub.add_parser("odds", help="cotes des bookmakers pour les matchs à venir (API-Football)")
+    sub.add_parser("live", help="matchs en cours : score, puis résultat et statistiques")
     parser.add_argument("--json", action="store_true", help="afficher le rapport complet en JSON")
     return parser
 
@@ -184,6 +185,11 @@ async def run(args: argparse.Namespace, settings: Settings) -> int:
     engine = create_engine(settings)
     factory = create_session_factory(engine)
     try:
+        if args.command == "live":
+            async with factory() as session:
+                report = await follow_live(session, settings, progress=_print_progress)
+            print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
+            return 0 if report["status"] in ("ok", "idle") else 1
         if args.command == "odds":
             async with factory() as session:
                 report = await collect_odds(session, settings, progress=_print_progress)

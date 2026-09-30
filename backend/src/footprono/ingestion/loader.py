@@ -153,6 +153,44 @@ async def season_id(session: AsyncSession, competition_code: str, start_year: in
     return sid
 
 
+async def _reconcile_results(
+    session: AsyncSession, sid: int, rows: list[dict[str, Any]], stats: LoadStats
+) -> list[dict[str, Any]]:
+    """football-data face aux scores déjà en base.
+
+    - Un score provisoire (API-Football, dès la fin du match) qui diffère du
+      score football-data est signalé ; football-data, source de référence,
+      le remplace.
+    - Une ligne football-data sans résultat ne remet jamais « à venir » un
+      match déjà terminé en base.
+    """
+    finished = {
+        (m.home_team_id, m.away_team_id): m
+        for m in (
+            await session.scalars(
+                select(Match).where(Match.season_id == sid, Match.status == MatchStatus.FINISHED)
+            )
+        ).all()
+    }
+    kept = []
+    for row in rows:
+        current = finished.get((row["home_team_id"], row["away_team_id"]))
+        if current is not None and row["status"] is not MatchStatus.FINISHED:
+            continue
+        if (
+            current is not None
+            and current.result_source == "api_football"
+            and (current.home_goals, current.away_goals) != (row["home_goals"], row["away_goals"])
+        ):
+            stats.issues.append(
+                f"score provisoire API-Football {current.home_goals}-{current.away_goals} "
+                f"corrigé par football-data {row['home_goals']}-{row['away_goals']} "
+                f"(match {current.id})"
+            )
+        kept.append(row)
+    return kept
+
+
 async def load_football_data(
     session: AsyncSession,
     competition_code: str,
@@ -189,9 +227,11 @@ async def load_football_data(
                 "away_goals_ht": m.away_goals_ht,
                 "referee": m.referee,
                 "football_data_file_id": raw_file_id,
+                "result_source": "football_data" if m.finished else None,
                 **m.stats,
             }
         )
+    rows = await _reconcile_results(session, sid, rows, stats)
     if not rows:
         return stats
     await _drop_contradicted_fixtures(session, sid, rows, stats)
@@ -359,6 +399,7 @@ async def load_understat(
             "status": status,
             "home_goals": m.home_goals if finished else None,
             "away_goals": m.away_goals if finished else None,
+            "result_source": "understat" if finished else None,
         }
         current = existing.get(key)
         if current is not None and not finished and current.kickoff_at is not None:

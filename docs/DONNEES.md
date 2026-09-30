@@ -89,6 +89,17 @@ Serie A, Bundesliga et Ligue 1.
   certain ; le handicap asiatique attend une vérification sur cotes réelles.
   Un bookmaker absent du service est signalé, jamais remplacé en silence.
   Coût : 2 requêtes par championnat et par bookmaker environ (≈ 30 par relevé).
+- **Suivi en direct** (`footprono-ingest live`, tâche `follow_live` toutes les
+  2 minutes) : pour les matchs dans leur fenêtre (coup d'envoi − 5 min à
+  + 3 h 30), une requête `/fixtures?ids=` (20 matchs par requête) met à jour
+  statut, minute et score (`live_*`). Dès la fin : score final et mi-temps
+  enregistrés comme **provisoires** (`result_source = api_football`), puis
+  `/fixtures/statistics?half=true` (corners, cartons, tirs par période),
+  redemandées jusqu'à 8 h après le coup d'envoi si pas encore publiées.
+  Aucune requête sans match en cours. Le lendemain, football-data confirme
+  (`result_source = football_data`) ; un score provisoire différent est
+  signalé dans le rapport d'ingestion puis remplacé, et une ligne
+  football-data sans résultat ne remet jamais « à venir » un match joué.
 - API-Football ne dépend que de football-data pour la saison : il se charge
   après lui (ordre de `all` et de la tâche quotidienne).
 
