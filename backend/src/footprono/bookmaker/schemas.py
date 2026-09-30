@@ -44,6 +44,10 @@ class BetSelectionOut(BaseModel):
     bookmaker: str
     model_probability: float | None
     result: str
+    # Pour l'affichage (renseignés par l'API) : équipes et coup d'envoi du match.
+    home_team: str | None = None
+    away_team: str | None = None
+    kickoff_at: datetime | None = None
 
 
 class BetOut(BaseModel):

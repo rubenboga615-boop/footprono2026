@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
@@ -60,6 +62,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         resolver=RouteResolver(lambda: [*app.openapi()["paths"], "/metrics"]),
     )
     app.include_router(api_router, prefix=settings.api_prefix)
+
+    if settings.web_app_dir is not None:
+        if not (settings.web_app_dir / "index.html").is_file():
+            raise RuntimeError(f"FP_WEB_APP_DIR : index.html absent de {settings.web_app_dir}")
+        app.mount("/app", StaticFiles(directory=settings.web_app_dir, html=True), name="app")
+
+        @app.get("/", include_in_schema=False)
+        async def home() -> RedirectResponse:
+            return RedirectResponse("/app/")
 
     @app.get("/metrics", include_in_schema=False)
     async def metrics() -> Response:

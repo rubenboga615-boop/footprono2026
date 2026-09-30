@@ -10,7 +10,7 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, PostgresDsn, RedisDsn, SecretStr, model_validator
+from pydantic import Field, PostgresDsn, RedisDsn, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _MIN_SECRET_LENGTH = 32
@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # API-Football). Pinnacle sert de référence interne, il n'est pas affiché.
     odds_bookmakers: list[str] = Field(default_factory=lambda: ["1xBet", "Bet365", "Pinnacle"])
     cors_origins: list[str] = Field(default_factory=list)
+    # Version web de l'application (dossier « build/web » de Flutter, construit
+    # avec --base-href /app/) : servie sur /app, à la même adresse que l'API.
+    web_app_dir: Path | None = None
 
     # Comptes et bookmaker virtuel (argent fictif, montants entiers en devise).
     access_token_days: int = Field(default=30, ge=1)
@@ -72,6 +75,12 @@ class Settings(BaseSettings):
 
     # Délai maximal d'une vérification de dépendance (base, Redis) dans /ready.
     readiness_timeout_seconds: float = Field(default=2.0, gt=0)
+
+    @field_validator("web_app_dir", mode="before")
+    @classmethod
+    def _empty_is_none(cls, value: object) -> object:
+        # « FP_WEB_APP_DIR= » (vide) dans .env : pas de version web.
+        return None if isinstance(value, str) and not value.strip() else value
 
     @model_validator(mode="after")
     def _check_production(self) -> "Settings":

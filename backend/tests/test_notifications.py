@@ -112,3 +112,10 @@ async def test_websocket_relays_published_notifications(
             return dict(json.loads(ws.receive_text()))
 
     assert (await asyncio.to_thread(run)) == {"title": "Test"}
+
+
+def test_uvicorn_has_a_websocket_implementation() -> None:
+    """Sans wsproto (ou websockets), uvicorn répond 404 au WebSocket /ws."""
+    import importlib.util
+
+    assert importlib.util.find_spec("wsproto") or importlib.util.find_spec("websockets")

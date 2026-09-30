@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, status
 from sqlalchemy import select
+from sqlalchemy.orm import aliased
 
 from footprono.accounts.plans import market_allowed
 from footprono.api.deps import CurrentUserDep, OptionalUserDep, SessionDep
@@ -11,6 +12,7 @@ from footprono.bookmaker import service
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.bookmaker.schemas import BetIn, BetOut, BetSelectionOut, OfferOut
 from footprono.core.errors import NotFoundError
+from footprono.football.models import Match, Team
 
 router = APIRouter(tags=["bookmaker virtuel"])
 
@@ -46,9 +48,25 @@ async def match_offer(match_id: int, session: SessionDep, user: OptionalUserDep)
 
 
 async def _bet_out(session: SessionDep, bet: Bet) -> BetOut:
-    selections = await session.scalars(
-        select(BetSelection).where(BetSelection.bet_id == bet.id).order_by(BetSelection.id)
+    selections = list(
+        await session.scalars(
+            select(BetSelection).where(BetSelection.bet_id == bet.id).order_by(BetSelection.id)
+        )
     )
+    home, away = aliased(Team), aliased(Team)
+    rows = await session.execute(
+        select(Match.id, home.name, away.name, Match.kickoff_at)
+        .join(home, home.id == Match.home_team_id)
+        .join(away, away.id == Match.away_team_id)
+        .where(Match.id.in_([s.match_id for s in selections]))
+    )
+    info = {mid: (h, a, k) for mid, h, a, k in rows.tuples()}
+    out = []
+    for s in selections:
+        item = BetSelectionOut.model_validate(s)
+        if s.match_id in info:
+            item.home_team, item.away_team, item.kickoff_at = info[s.match_id]
+        out.append(item)
     return BetOut(
         id=bet.id,
         kind=bet.kind,
@@ -62,7 +80,7 @@ async def _bet_out(session: SessionDep, bet: Bet) -> BetOut:
         placed_at=bet.placed_at,
         settled_at=bet.settled_at,
         montante_step_id=bet.montante_step_id,
-        selections=[BetSelectionOut.model_validate(s) for s in selections],
+        selections=out,
     )
 
 

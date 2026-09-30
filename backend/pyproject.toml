@@ -15,6 +15,9 @@ dependencies = [
     "celery[redis]>=5.4,<6.0",
     "prometheus-client>=0.21,<1.0",
     "httpx>=0.28,<1.0",
+    # WebSocket des notifications en direct (uvicorn) : pur Python, rien à
+    # compiler sur Termux.
+    "wsproto>=1.2,<2.0",
     # Moteur de prédiction. Sur Termux : fournis précompilés par pkg
     # (python-numpy, python-scipy), jamais compilés par pip.
     "numpy>=2.0,<3.0",

@@ -104,6 +104,8 @@ async def test_place_single_and_combo(
     body = single.json()
     assert (body["kind"], body["total_odds"], body["potential_payout"]) == ("single", "1.850", 9250)
     assert body["selections"][0]["bookmaker"] == "1xBet"
+    assert body["selections"][0]["home_team"]
+    assert body["selections"][0]["away_team"]
 
     combo = await client.post(
         "/api/v1/bets",
