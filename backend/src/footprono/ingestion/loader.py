@@ -31,7 +31,7 @@ from footprono.football.models import (
     TeamAlias,
 )
 from footprono.ingestion.reference import COMPETITIONS, INTERRUPTED_SEASONS, load_teams
-from footprono.ingestion.sources.api_football import ApiFixture
+from footprono.ingestion.sources.api_football import UNPLAYED_STATUSES, ApiFixture
 from footprono.ingestion.sources.football_data import FootballDataMatch
 from footprono.ingestion.sources.understat import UnderstatSeason
 
@@ -361,6 +361,9 @@ async def load_understat(
             "away_goals": m.away_goals if finished else None,
         }
         current = existing.get(key)
+        if current is not None and not finished and current.kickoff_at is not None:
+            # Calendrier API-Football connu : plus à jour que celui d'Understat.
+            del values["match_date"]
         if current is None:
             new_rows.append(
                 {
@@ -455,6 +458,45 @@ class PrerequisiteMissingError(Exception):
     """Une donnée préalable manque (par exemple la saison football-data)."""
 
 
+def _api_changes(match: Match, f: ApiFixture) -> dict[str, Any]:
+    """Champs API-Football à mettre à jour (identifiant, arbitre, heure, statut)."""
+    changes: dict[str, Any] = {}
+    for column, value in (
+        ("api_football_id", f.fixture_id),
+        ("api_referee", f.referee),
+        ("kickoff_at", f.kickoff),
+        ("api_status", f.status or None),
+    ):
+        if value is not None and getattr(match, column) != value:
+            changes[column] = value
+    return changes
+
+
+async def _update_upcoming(
+    session: AsyncSession, match: Match, f: ApiFixture, stats: LoadStats
+) -> int:
+    """Match pas encore terminé chez API-Football : calendrier et arbitre seulement.
+
+    API-Football est la source la plus à jour pour les dates (reports, horaires
+    télévisés) : un match à venir prend sa date, sauf s'il est reporté sans
+    nouvelle date. Renvoie 1 si la date a changé.
+    """
+    if match.status is MatchStatus.FINISHED:
+        stats.issues.append(
+            f"{f.home_team}-{f.away_team} terminé en base mais « {f.status} » chez "
+            f"API-Football ; ignoré"
+        )
+        return 0
+    changes = _api_changes(match, f)
+    moved = f.status not in UNPLAYED_STATUSES and match.match_date != f.match_date
+    if moved:
+        changes["match_date"] = f.match_date
+    if changes:
+        await session.execute(update(Match).where(Match.id == match.id).values(**changes))
+        stats.matches_updated += 1
+    return int(moved)
+
+
 async def load_api_football(
     session: AsyncSession,
     competition_code: str,
@@ -507,7 +549,7 @@ async def load_api_football(
             if best is None or gap < best:
                 closest[key] = gap
 
-    playoffs = 0
+    playoffs = rescheduled = 0
     rows: list[dict[str, Any]] = []
     for f in fixtures:
         home, away = teams.get(f.home_team), teams.get(f.away_team)
@@ -527,6 +569,9 @@ async def load_api_football(
                 f"du {f.match_date} introuvable en base"
             )
             continue
+        if not f.finished:
+            rescheduled += await _update_upcoming(session, match, f, stats)
+            continue
         if abs((match.match_date - f.match_date).days) > 3:
             stats.issues.append(
                 f"date en désaccord {f.home_team}-{f.away_team} : base {match.match_date}, "
@@ -543,11 +588,7 @@ async def load_api_football(
                 f"API-Football {f.home_goals}-{f.away_goals} ; statistiques non chargées"
             )
             continue
-        changes: dict[str, Any] = {}
-        if match.api_football_id != f.fixture_id:
-            changes["api_football_id"] = f.fixture_id
-        if f.referee and match.api_referee != f.referee:
-            changes["api_referee"] = f.referee
+        changes = _api_changes(match, f)
         if changes:
             await session.execute(update(Match).where(Match.id == match.id).values(**changes))
             stats.matches_updated += 1
@@ -565,6 +606,8 @@ async def load_api_football(
                 )
     if playoffs:
         stats.issues.append(f"{playoffs} matchs hors championnat (barrages) ignorés")
+    if rescheduled:
+        stats.issues.append(f"{rescheduled} matchs à venir déplacés à la date d'API-Football")
 
     for chunk in _chunks(rows, 1000):
         stmt = insert(MatchTeamStats).values(list(chunk))

@@ -72,6 +72,13 @@ Serie A, Bundesliga et Ligue 1.
   l'ancien archiveur de cotes partageait la clé) ; fenêtre d'une minute respectée.
   Une clé refusée arrête tout sans relance ; clé absente = source signalée
   indisponible.
+- **Calendrier à venir** (phase 3) : la liste de la saison, déjà téléchargée
+  pour les statistiques, sert aussi aux matchs non joués, sans requête de
+  plus : coup d'envoi exact en UTC (`kickoff_at`), statut API-Football
+  (`api_status` : NS à venir, PST reporté, CANC annulé…) et arbitre désigné.
+  Un match à venir prend la date d'API-Football (reports, horaires télévisés),
+  sauf s'il est reporté sans nouvelle date ; Understat ne l'écrase plus
+  ensuite. Un match reporté, annulé ou arrêté n'est pas prédit.
 - API-Football ne dépend que de football-data pour la saison : il se charge
   après lui (ordre de `all` et de la tâche quotidienne).
 

@@ -46,7 +46,13 @@ class MatchOut(_Out):
     kickoff_time: time | None = Field(
         description="heure publiée par football-data (fuseau à confirmer)"
     )
+    kickoff_at: datetime | None = Field(
+        default=None, description="coup d'envoi exact (UTC) selon API-Football"
+    )
     status: MatchStatus
+    api_status: str | None = Field(
+        default=None, description="statut API-Football : NS à venir, PST reporté, FT terminé…"
+    )
     home_team: TeamOut
     away_team: TeamOut
     home_goals: int | None

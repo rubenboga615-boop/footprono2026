@@ -18,7 +18,7 @@ Conventions d'API-Football, vérifiées sur 5 ligues-saisons contre football-dat
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -80,6 +80,9 @@ HALF_SPLIT_FIRST_SEASON = 2024
 MINUTE_WINDOW_GUARD = 30
 
 FINISHED_STATUSES = frozenset({"FT", "AET", "PEN"})
+# Match à venir qui ne se jouera pas à la date prévue : reporté, annulé,
+# arrêté, suspendu, interrompu. Pas de prédiction tant que c'est le cas.
+UNPLAYED_STATUSES = frozenset({"PST", "CANC", "ABD", "SUSP", "INT"})
 
 TeamStats = dict[str, int | Decimal | None]
 
@@ -98,6 +101,15 @@ class ApiFixture:
     # Période → (statistiques domicile, statistiques extérieur). Vide si le
     # service n'a pas de statistiques pour ce match.
     stats: dict[StatPeriod, tuple[TeamStats, TeamStats]] = field(default_factory=dict)
+    # Coup d'envoi exact (UTC) et statut API-Football (« NS » à venir, « FT »
+    # terminé, « PST » reporté…). Les fichiers du collecteur ne contiennent que
+    # des matchs terminés.
+    kickoff: datetime | None = None
+    status: str = "FT"
+
+    @property
+    def finished(self) -> bool:
+        return self.status in FINISHED_STATUSES
 
 
 def _to_decimal(value: Any) -> Decimal | None:
@@ -183,10 +195,14 @@ def normalize_referee(value: Any) -> str | None:
 def parse_fixture(item: dict[str, Any]) -> ApiFixture:
     """Un élément de ``/fixtures`` (sans statistiques)."""
     halftime = item.get("score", {}).get("halftime") or {}
+    kickoff = datetime.fromisoformat(item["fixture"]["date"])
+    kickoff = (kickoff if kickoff.tzinfo else kickoff.replace(tzinfo=UTC)).astimezone(UTC)
     return ApiFixture(
         referee=normalize_referee(item["fixture"].get("referee")),
         fixture_id=int(item["fixture"]["id"]),
-        match_date=date.fromisoformat(item["fixture"]["date"][:10]),
+        kickoff=kickoff,
+        status=str(item["fixture"].get("status", {}).get("short") or ""),
+        match_date=kickoff.date(),
         home_team=item["teams"]["home"]["name"],
         away_team=item["teams"]["away"]["name"],
         home_goals=item["goals"]["home"],
@@ -196,10 +212,14 @@ def parse_fixture(item: dict[str, Any]) -> ApiFixture:
     )
 
 
+def is_league_match(item: dict[str, Any]) -> bool:
+    """Match de la saison régulière, joué ou non (les barrages sont exclus)."""
+    return str(item.get("league", {}).get("round", "")).startswith("Regular Season")
+
+
 def is_finished_league_match(item: dict[str, Any]) -> bool:
-    """Match terminé de la saison régulière (les barrages sont exclus)."""
-    finished = item["fixture"]["status"]["short"] in FINISHED_STATUSES
-    return finished and str(item.get("league", {}).get("round", "")).startswith("Regular Season")
+    """Match terminé de la saison régulière."""
+    return is_league_match(item) and item["fixture"]["status"]["short"] in FINISHED_STATUSES
 
 
 def parse_statistics(

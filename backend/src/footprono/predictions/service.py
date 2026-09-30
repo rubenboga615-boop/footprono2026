@@ -12,6 +12,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 import numpy as np
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.engine import ENGINE_VERSION
@@ -31,6 +32,8 @@ from footprono.engine.goals import GoalsConfig, fit_goals
 from footprono.engine.history import History, load_history
 from footprono.engine.markets import Selection, derive_markets
 from footprono.engine.scores import score_distribution
+from footprono.football.models import Match
+from footprono.ingestion.sources.api_football import UNPLAYED_STATUSES
 from footprono.predictions.models import MatchPrediction, PredictionRun
 
 DEFAULT_DAYS_AHEAD = 10
@@ -138,11 +141,15 @@ async def predict_upcoming(
     hist = await load_history(session)
     day = np.datetime64(as_of, "D")
     end = day + np.timedelta64(days_ahead, "D")
-    upcoming = np.where(~hist.finished & ~hist.excluded & (hist.date >= day) & (hist.date <= end))[
-        0
-    ]
+    window = ~hist.finished & ~hist.excluded & (hist.date >= day) & (hist.date <= end)
+    # Reportés, annulés ou arrêtés selon API-Football : pas de prédiction.
+    unplayed = set(
+        await session.scalars(select(Match.id).where(Match.api_status.in_(UNPLAYED_STATUSES)))
+    )
+    skipped = window & np.isin(hist.match_id, list(unplayed))
+    upcoming = np.where(window & ~skipped)[0]
     competitions = sorted({str(c) for c in hist.competition[upcoming]})
-    report: dict[str, Any] = {"competitions": {}, "errors": []}
+    report: dict[str, Any] = {"competitions": {}, "errors": [], "postponed": int(skipped.sum())}
     notify(f"{len(upcoming)} matchs à prédire ({', '.join(competitions) or 'aucun'})")
     if len(upcoming):
         ctx = build_context(hist)

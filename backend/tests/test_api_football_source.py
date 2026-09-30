@@ -6,17 +6,27 @@ de fichiers réels produits par le collecteur de l'ancien projet.
 
 import json
 from collections.abc import Callable
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import aliased
 
-from footprono.football.models import DataSource, Match, MatchTeamStats, StatPeriod
+from footprono.football.models import (
+    DataSource,
+    Match,
+    MatchStatus,
+    MatchTeamStats,
+    StatPeriod,
+    Team,
+)
 from footprono.ingestion import service
+from footprono.ingestion.reference import load_teams
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.ingestion.sources import api_football
 from footprono.ingestion.sources.common import ParseIssues
@@ -27,6 +37,8 @@ FIXTURES = Path(__file__).parent / "fixtures"
 API_DIR = FIXTURES / "api-football"
 
 Factory = async_sessionmaker[AsyncSession]
+Home = aliased(Team)
+Away = aliased(Team)
 
 
 def _read(league: int, season: int) -> Any:
@@ -286,6 +298,74 @@ async def test_download_fetches_only_missing_statistics(
     await run_ingestion(db_factory, settings, [request])
     # Déjà complets : seule la liste des matchs est redemandée.
     assert [c.split("?")[0] for c in calls] == ["/status", "/fixtures"]
+
+
+async def test_download_updates_upcoming_calendar(
+    db_factory: Factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Matchs à venir : heure exacte, statut, arbitre, report ; aucune statistique demandée."""
+    await _ingest(db_factory, tmp_path, _fd("EPL", 2024))
+    api_names = {
+        t.name: t.aliases[DataSource.API_FOOTBALL][0]
+        for t in load_teams()
+        if t.competition == "EPL" and t.aliases.get(DataSource.API_FOOTBALL)
+    }
+    async with db_factory() as session:
+        last_day = await session.scalar(select(func.max(Match.match_date)))
+        await session.execute(
+            update(Match)
+            .where(Match.match_date == last_day)
+            .values(status=MatchStatus.SCHEDULED, home_goals=None, away_goals=None)
+        )
+        await session.commit()
+        pairs = (
+            (
+                await session.execute(
+                    select(Match.id, Home.name, Away.name)
+                    .join(Home, Home.id == Match.home_team_id)
+                    .join(Away, Away.id == Match.away_team_id)
+                    .where(Match.match_date == last_day)
+                    .order_by(Match.id)
+                    .limit(2)
+                )
+            )
+            .tuples()
+            .all()
+        )
+    (moved_id, h1, a1), (postponed_id, h2, a2) = pairs
+    moved = _raw_fixture(11, api_names[h1], api_names[a1], "2025-05-27", 0, 0)
+    moved["fixture"]["status"]["short"] = "NS"
+    moved["goals"] = {"home": None, "away": None}
+    postponed = _raw_fixture(12, api_names[h2], api_names[a2], "2025-06-10", 0, 0)
+    postponed["fixture"]["status"]["short"] = "PST"
+    postponed["fixture"]["referee"] = None
+    calls: list[str] = []
+    monkeypatch.setattr(
+        service, "api_football_transport", _api_transport([moved, postponed], calls)
+    )
+    monkeypatch.setattr(api_football.ApiFootballClient, "__init__", _fast_init)
+    settings = make_settings(raw_data_dir=tmp_path / "raw", api_football_key="k" * 32)
+    report = await run_ingestion(
+        db_factory, settings, [IngestionRequest(DataSource.API_FOOTBALL, ["EPL"], [2024])]
+    )
+    entry = report["files"][0]
+    assert entry["status"] == "ok", entry
+    assert "1 matchs à venir déplacés à la date d'API-Football" in entry["issues"]
+    assert [c.split("?")[0] for c in calls] == ["/status", "/fixtures"]  # pas de statistiques
+    async with db_factory() as session:
+        m1 = await session.get(Match, moved_id)
+        m2 = await session.get(Match, postponed_id)
+    assert m1 is not None
+    assert m2 is not None
+    assert (m1.status, m1.api_status, m1.match_date) == (
+        MatchStatus.SCHEDULED,
+        "NS",
+        date(2025, 5, 27),
+    )
+    assert m1.kickoff_at == datetime(2025, 5, 27, 19, tzinfo=UTC)
+    assert m1.api_referee == "Anthony Taylor"
+    # Reporté sans nouvelle date : la date n'est pas déplacée, le statut le signale.
+    assert (m2.api_status, m2.match_date) == ("PST", last_day)
 
 
 _original_init = api_football.ApiFootballClient.__init__

@@ -168,6 +168,10 @@ class Match(Base):
     # Arbitre selon API-Football (« Prénom Nom », pays retiré) : disponible pour
     # les 5 championnats, contrairement à ``referee`` (football-data, EPL seulement).
     api_referee: Mapped[str | None] = mapped_column(String(100))
+    # Coup d'envoi exact selon API-Football (UTC) et statut du match chez elle
+    # (« NS » à venir, « PST » reporté, « FT » terminé…).
+    kickoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    api_status: Mapped[str | None] = mapped_column(String(8))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

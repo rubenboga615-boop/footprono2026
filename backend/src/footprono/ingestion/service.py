@@ -163,7 +163,7 @@ api_football_transport: httpx.AsyncBaseTransport | None = None
 async def _download_api_football(
     session: AsyncSession, settings: Settings, comp: CompetitionRef, year: int
 ) -> tuple[bytes, list[api_football.ApiFixture], list[str]]:
-    """Liste des matchs terminés, puis statistiques de ceux qui n'en ont pas encore."""
+    """Liste des matchs de la saison, puis statistiques des terminés qui n'en ont pas."""
     if settings.api_football_key is None:
         raise raw_store.SourceUnavailableError(
             "FP_API_FOOTBALL_KEY absente : statistiques API-Football non téléchargées",
@@ -178,7 +178,8 @@ async def _download_api_football(
     ) as client:
         await client.status()
         body = await client.get("/fixtures", {"league": comp.api_football_id, "season": year})
-        items = [i for i in body["response"] if api_football.is_finished_league_match(i)]
+        league = [i for i in body["response"] if api_football.is_league_match(i)]
+        items = [i for i in league if api_football.is_finished_league_match(i)]
         done = set(
             (
                 await session.scalars(
@@ -224,7 +225,9 @@ async def _download_api_football(
 
     issues = ParseIssues()
     fixtures = []
-    for item in items:
+    # Matchs terminés (avec statistiques) et à venir (heure, statut, arbitre) :
+    # la liste de la saison est déjà téléchargée, aucune requête de plus.
+    for item in league:
         fixture = api_football.parse_fixture(item)
         if fixture.fixture_id in statistics:
             fixture.stats = api_football.parse_statistics(
