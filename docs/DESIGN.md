@@ -42,9 +42,36 @@ version web et à l'administration).
   observée, par marché.
 - Paiement de l'abonnement : Mobile Money.
 
+## Pays et devise (décidé le 30/09/2026)
+
+- Lancement en **Afrique de l'Ouest** ; devise par défaut **franc CFA (XOF)**,
+  affiché « F CFA », sans centimes, espace insécable entre les milliers
+  (`150 582 F CFA`).
+- Pays choisi à l'inscription (Bénin, Burkina Faso, Côte d'Ivoire,
+  Guinée-Bissau, Mali, Niger, Sénégal, Togo au lancement) : il fixe la devise
+  des montants, du bookmaker virtuel et du prix de l'abonnement. D'autres
+  devises (XAF, etc.) pourront être ajoutées ; côté serveur, les montants sont
+  stockés en entiers dans l'unité de la devise avec son code ISO 4217.
+
+## Montante (validée le 30/09/2026)
+
+1. Tableau par palier : mise, cote, gain ; gain final mis en avant.
+2. Plan réglable : mise de départ, nombre de paliers (4 à 8), cote visée par palier.
+3. Probabilités honnêtes : probabilité du modèle pour chaque pari, chance
+   cumulée d'aller au bout selon le modèle **et** selon les cotes, somme
+   encaissable à tout moment.
+4. « Encaisser » à n'importe quel palier ; option « sécuriser X % de chaque gain ».
+5. Calcul exact au franc près (arrondi inférieur, comme un bookmaker) ; si la
+   cote réelle du pari diffère de la cote prévue, l'application prévient et
+   recalcule la suite du plan.
+
+Exemple de référence (6 paliers, départ 5 000 F CFA, cotes 1,60 → 1,90) :
+gain final exact 150 582 F CFA ; chance d'aller au bout selon les cotes 3,3 %
+avant marge du bookmaker (environ 2,5 % avec une marge de 5 % par pari).
+
 ## Écrans maquettés
 
 Connexion, Inscription, Matchs du jour, Détail du match (probabilités),
 Analyse du match (forme, points clés, moyennes, confrontations, compositions),
-Coupon, Montante, Bookmaker virtuel, Fiabilité du modèle, Notifications,
+Coupon, Montante (écran défilant), Bookmaker virtuel, Fiabilité du modèle, Notifications,
 Profil et abonnement.
