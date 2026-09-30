@@ -5,6 +5,7 @@ from typing import Any
 
 from footprono import __version__
 from footprono.bookmaker import settlement
+from footprono.cache.redis import create_redis
 from footprono.core.config import get_settings
 from footprono.db.session import create_engine, create_session_factory
 from footprono.football.models import DataSource
@@ -48,8 +49,12 @@ async def _ingest_current_season() -> dict[str, Any]:
             ],
         )
         # Scores confirmés par football-data : paris récents revus si un score a changé.
-        async with create_session_factory(engine)() as session:
-            bets = await settlement.settle_bets(session)
+        redis = create_redis(settings)
+        try:
+            async with create_session_factory(engine)() as session:
+                bets = await settlement.settle_bets(session, redis=redis)
+        finally:
+            await redis.aclose()
     finally:
         await engine.dispose()
     return {
@@ -99,8 +104,12 @@ async def _follow_live() -> dict[str, Any]:
         async with create_session_factory(engine)() as session:
             report = await live.follow_live(session, settings)
         # Règlement juste après : un pari est payé dès la fin de son match.
-        async with create_session_factory(engine)() as session:
-            report["bets"] = await settlement.settle_bets(session)
+        redis = create_redis(settings)
+        try:
+            async with create_session_factory(engine)() as session:
+                report["bets"] = await settlement.settle_bets(session, redis=redis)
+        finally:
+            await redis.aclose()
         return report
     finally:
         await engine.dispose()

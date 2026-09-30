@@ -16,6 +16,7 @@ Documentation :
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture cible et responsabilités des modules |
 | [docs/FEUILLE_DE_ROUTE.md](docs/FEUILLE_DE_ROUTE.md) | Phases, dépendances et critères de validation |
 | [docs/MOTEUR.md](docs/MOTEUR.md) | Moteur de prédiction : méthode, réglages, résultats mesurés |
+| [docs/BOOKMAKER.md](docs/BOOKMAKER.md) | Comptes, bookmaker virtuel, règlement, montante, notifications (phase 4) |
 | [docs/MARCHES.md](docs/MARCHES.md) | Marchés couverts par le moteur et leur vérification |
 | [docs/DESIGN.md](docs/DESIGN.md) | Direction visuelle retenue (verre violet), couleurs, typographie, écrans |
 | [docs/DONNEES.md](docs/DONNEES.md) | Sources, règles d'ingestion, contrôles de qualité, API de lecture |

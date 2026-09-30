@@ -24,6 +24,7 @@ from footprono.bookmaker import service
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.bookmaker.montante_models import Montante, MontanteStep
 from footprono.core.errors import AppError, NotFoundError
+from footprono.notifications import service as notifications
 
 MIN_STEPS, MAX_STEPS = 4, 8
 DEFAULT_START_STAKE = 5_000
@@ -140,23 +141,42 @@ async def on_bet_settled(session: AsyncSession, bet: Bet) -> None:
         return
     now = datetime.now(UTC)
     outcome, payout = bet.outcome, bet.payout or 0
+    data = {"montante_id": montante.id, "step": step.number, "bet_id": bet.id}
+
+    def tell(kind: str, title: str, body: str) -> None:
+        notifications.add(session, montante.user_id, kind, title, body, data)
+
     if outcome == "lost":
         step.result = "lost"
         montante.status, montante.closed_at = "lost", now
+        tell("montante_lost", "Montante perdue", f"Palier {step.number} perdu : montante arrêtée.")
         return
     if outcome == "push":
         # Remboursé : le palier est rejoué avec la même mise.
         step.bet_id, step.result = None, "pending"
         montante.next_stake = payout
+        tell(
+            "montante_step", f"Palier {step.number} remboursé",
+            f"Le palier {step.number} est à rejouer avec la même mise.",
+        )  # fmt: skip
         return
     step.result = "won" if outcome == "won" else "partial"
     steps = await _steps(session, montante.id)
     if step.number == len(steps):
         montante.status, montante.closed_at = "completed", now
         montante.next_stake = payout
+        tell(
+            "montante_completed", "Montante réussie !",
+            f"Dernier palier gagné : {notifications.money(payout, montante.currency)}.",
+        )  # fmt: skip
         return
     montante.current_step = step.number + 1
     montante.next_stake = rolled_stake(payout, montante.secure_pct)
+    tell(
+        "montante_step", f"Palier {step.number} validé",
+        f"Mise du palier {montante.current_step} : "
+        f"{notifications.money(montante.next_stake, montante.currency)}.",
+    )  # fmt: skip
 
 
 async def cash_out(session: AsyncSession, user: User, montante_id: int) -> Montante:

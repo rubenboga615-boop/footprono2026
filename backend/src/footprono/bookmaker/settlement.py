@@ -19,6 +19,7 @@ from decimal import Decimal
 from typing import Any
 
 import numpy as np
+from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,6 +38,7 @@ from footprono.football.models import (
     StatPeriod,
 )
 from footprono.ingestion.sources.api_football import UNPLAYED_STATUSES
+from footprono.notifications import service as notifications
 
 HALF_TIME_MARKETS = ("HT_", "HTFT", "HIGHEST_HALF")
 COUNT_PREFIXES = {
@@ -195,8 +197,34 @@ def bet_outcome(stake: int, grades: list[Grade]) -> tuple[str, int]:
     return "partial", payout
 
 
-async def settle_bets(session: AsyncSession, now: datetime | None = None) -> dict[str, Any]:
-    """Règle les paris ouverts dont le résultat est connu ; revoit les règlements récents."""
+_TITLES = {
+    "won": "Pari gagné",
+    "lost": "Pari perdu",
+    "push": "Pari remboursé",
+    "partial": "Pari réglé en partie",
+}
+
+
+def _notify_settled(session: AsyncSession, bet: Bet) -> None:
+    outcome = bet.outcome or "lost"
+    if outcome == "lost":
+        body = f"Pari n°{bet.id} perdu (mise {notifications.money(bet.stake, bet.currency)})."
+    else:
+        gain = notifications.money(bet.payout or 0, bet.currency)
+        body = f"Pari n°{bet.id} : {gain} crédités sur votre solde."
+    notifications.add(
+        session, bet.user_id, "bet_settled", _TITLES[outcome], body,
+        {"bet_id": bet.id, "outcome": outcome, "payout": bet.payout},
+    )  # fmt: skip
+
+
+async def settle_bets(
+    session: AsyncSession, now: datetime | None = None, redis: Redis | None = None
+) -> dict[str, Any]:
+    """Règle les paris ouverts dont le résultat est connu ; revoit les règlements récents.
+
+    Les notifications sont diffusées (``redis``) une fois le règlement validé.
+    """
     now = now or datetime.now(UTC)
     report: dict[str, Any] = {"settled": 0, "resettled": 0, "pending": 0}
     open_bets = (await session.scalars(select(Bet).where(Bet.status == "open"))).all()
@@ -226,12 +254,14 @@ async def settle_bets(session: AsyncSession, now: datetime | None = None) -> dic
                 await accounts.move(
                     session, bet.user_id, payout, "payout", bet_id=bet.id, note=f"pari {bet.id}"
                 )
+            _notify_settled(session, bet)
             await montante.on_bet_settled(session, bet)
             report["settled"] += 1
         elif (outcome, payout) != (bet.outcome, bet.payout):
             await _correct(session, bet, outcome, payout, now)
             report["resettled"] += 1
     await session.commit()
+    report["notified"] = await notifications.publish_pending(session, redis)
     return report
 
 
@@ -252,5 +282,11 @@ async def _correct(
         note += f" ; {delta - applied} non repris (solde insuffisant)"
     if applied:
         await accounts.move(session, bet.user_id, applied, "correction", bet_id=bet.id, note=note)
+    notifications.add(
+        session, bet.user_id, "bet_corrected", "Score corrigé",
+        f"Pari n°{bet.id} réglé à nouveau : {_TITLES[outcome].lower()} "
+        f"({notifications.money(applied, bet.currency)} sur votre solde).",
+        {"bet_id": bet.id, "outcome": outcome, "payout": payout, "delta": applied},
+    )  # fmt: skip
     bet.outcome, bet.payout, bet.settled_at = outcome, payout, now
     bet.settlements += 1

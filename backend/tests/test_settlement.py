@@ -139,7 +139,7 @@ async def test_bet_to_balance_end_to_end(
     await _finish(db_factory, world["m1"], (2, 0), "api_football")
     async with db_factory() as session:
         report = await settle_bets(session)
-    assert report == {"settled": 2, "resettled": 0, "pending": 0}
+    assert report == {"settled": 2, "resettled": 0, "pending": 0, "notified": 0}
     async with db_factory() as session:
         s = await session.get(Bet, single["id"])
         c = await session.get(Bet, combo["id"])
