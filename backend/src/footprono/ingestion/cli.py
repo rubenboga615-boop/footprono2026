@@ -8,6 +8,7 @@ Exemples :
     footprono-ingest api-football --from-dir ~/ancien-projet/data/raw/apifootball/stats
     footprono-ingest api-football                         # téléchargement (FP_API_FOOTBALL_KEY)
     footprono-ingest quality
+    footprono-ingest odds                                 # cotes des matchs à venir
 
 Code de sortie : 0 si tout est bon (avertissements compris), 1 si un fichier a
 échoué ou si les contrôles de qualité relèvent une erreur, 2 pour un argument
@@ -26,6 +27,7 @@ from typing import Any
 from footprono.core.config import Settings, get_settings
 from footprono.db.session import create_engine, create_session_factory
 from footprono.football.models import DataSource
+from footprono.ingestion.live import collect_odds
 from footprono.ingestion.quality import current_season_start, run_quality_checks
 from footprono.ingestion.reference import COMPETITIONS, COMPETITIONS_BY_CODE
 from footprono.ingestion.service import IngestionRequest, run_ingestion
@@ -96,6 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
                 "--from-dir", type=Path, help="importer un dossier local au lieu de télécharger"
             )
     sub.add_parser("quality", help="contrôles de qualité sur les données en base")
+    sub.add_parser("odds", help="cotes des bookmakers pour les matchs à venir (API-Football)")
     parser.add_argument("--json", action="store_true", help="afficher le rapport complet en JSON")
     return parser
 
@@ -154,6 +157,24 @@ def print_summary(report: dict[str, Any]) -> None:
         )
 
 
+def print_odds_summary(report: dict[str, Any]) -> None:
+    if report["status"] == "unavailable":
+        print(f"Cotes : indisponibles — {report['error']}")
+        return
+    print(
+        f"Cotes : {report['status']} — {report['matches']} matchs, {report['quotes']} cotes "
+        f"relevées, {report['changed']} nouvelles ou modifiées ({report['requests']} requêtes)"
+    )
+    for book, n in sorted(report["bookmakers"].items()):
+        print(f"  {book} : {n}")
+    for issue in report["issues"]:
+        print(f"  attention : {issue}")
+    if report["unmapped_bets"]:
+        print("  paris gardés tels quels, pas encore traduits en marchés du moteur :")
+        for bet in report["unmapped_bets"]:
+            print(f"    - {bet}")
+
+
 def _print_progress(message: str) -> None:
     # Sur stderr : la progression reste visible même avec --json sur stdout.
     print(message, file=sys.stderr, flush=True)
@@ -163,7 +184,14 @@ async def run(args: argparse.Namespace, settings: Settings) -> int:
     engine = create_engine(settings)
     factory = create_session_factory(engine)
     try:
-        if args.command == "quality":
+        if args.command == "odds":
+            async with factory() as session:
+                report = await collect_odds(session, settings, progress=_print_progress)
+            if not args.json:
+                print_odds_summary(report)
+                return 0 if report["status"] == "ok" else 1
+            failed = report["status"] != "ok"
+        elif args.command == "quality":
             async with factory() as session:
                 report = await run_quality_checks(session)
             failed = report["errors"] > 0

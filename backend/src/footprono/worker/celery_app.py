@@ -7,6 +7,7 @@ Lancement :
 Tâches planifiées (UTC) :
 - ``footprono.ingest_current_season`` chaque matin à 06:15 (football-data met
   à jour ses fichiers dans la nuit qui suit les matchs).
+- ``footprono.collect_odds`` à 07:30 et 16:30 : cotes des bookmakers des matchs à venir.
 - ``footprono.predict_upcoming`` à 07:45 (après l'ingestion) et à 16:45 (nouveaux
   calendriers, arbitres désignés) : prédictions des 10 prochains jours.
 Règlement des paris et notifications viendront dans les phases suivantes.
@@ -39,6 +40,10 @@ def create_celery(settings: Settings | None = None) -> Celery:
             "ingest-current-season": {
                 "task": "footprono.ingest_current_season",
                 "schedule": crontab(hour=6, minute=15),
+            },
+            "collect-odds": {
+                "task": "footprono.collect_odds",
+                "schedule": crontab(hour="7,16", minute=30),
             },
             "predict-upcoming": {
                 "task": "footprono.predict_upcoming",

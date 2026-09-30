@@ -59,6 +59,20 @@ class MatchOut(_Out):
     away_goals: int | None
 
 
+class BookmakerOddsOut(BaseModel):
+    """Dernière cote relevée ; ``market`` est vide si le pari n'est pas encore traduit."""
+
+    bookmaker: str
+    bet: str
+    value: str
+    price: Decimal
+    market: str | None
+    line: str | None
+    selection: str | None
+    fetched_at: datetime
+    source_updated_at: datetime | None
+
+
 class MatchPage(BaseModel):
     items: list[MatchOut]
     total: int

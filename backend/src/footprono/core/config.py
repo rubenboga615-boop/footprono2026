@@ -48,9 +48,12 @@ class Settings(BaseSettings):
     api_football_key: SecretStr | None = None
     # Requêtes API-Football au plus par fichier (une ligue, une saison) téléchargé.
     api_football_budget: int = Field(default=1500, ge=1)
-    # Requêtes quotidiennes laissées à d'autres usages (archivage des cotes en
-    # direct : une cote non capturée est perdue, une statistique se redemande).
+    # Marge quotidienne de sécurité : la collecte s'arrête sous ce nombre de
+    # requêtes restantes (garde de quoi suivre les matchs en direct).
     api_football_min_remaining: int = Field(default=200, ge=0)
+    # Bookmakers dont les cotes des matchs à venir sont collectées (noms
+    # API-Football). Pinnacle sert de référence interne, il n'est pas affiché.
+    odds_bookmakers: list[str] = Field(default_factory=lambda: ["1xBet", "Bet365", "Pinnacle"])
     cors_origins: list[str] = Field(default_factory=list)
 
     # Fichiers bruts archivés (football-data, Understat…), nommés par empreinte.

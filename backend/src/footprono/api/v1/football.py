@@ -10,6 +10,7 @@ from sqlalchemy.orm import aliased
 from footprono.api.deps import SessionDep
 from footprono.core.errors import NotFoundError
 from footprono.football.models import (
+    BookmakerOdds,
     Competition,
     IngestionRun,
     Match,
@@ -22,6 +23,7 @@ from footprono.football.models import (
 )
 from footprono.football.schemas import (
     AdvancedStatsOut,
+    BookmakerOddsOut,
     CompetitionOut,
     IngestionRunDetailOut,
     IngestionRunOut,
@@ -35,6 +37,7 @@ from footprono.football.schemas import (
     TeamStatsOut,
 )
 from footprono.ingestion.quality import run_quality_checks
+from footprono.ingestion.sources.api_football_odds import REFERENCE_ONLY, map_bet
 
 router = APIRouter(tags=["données"])
 
@@ -202,6 +205,47 @@ async def get_match(match_id: int, session: SessionDep) -> MatchDetailOut:
         odds=[OddsOut.model_validate(o) for o in odds],
         updated_at=match.updated_at,
     )
+
+
+@router.get("/matches/{match_id}/bookmaker-odds", response_model=list[BookmakerOddsOut])
+async def get_bookmaker_odds(
+    match_id: int,
+    session: SessionDep,
+    include_reference: Annotated[
+        bool, Query(description="inclure les bookmakers de référence interne (Pinnacle)")
+    ] = False,
+) -> list[BookmakerOddsOut]:
+    """Dernière cote de chaque bookmaker pour ce match (pas de comparaison « value »)."""
+    last = (
+        select(func.max(BookmakerOdds.id))
+        .where(BookmakerOdds.match_id == match_id)
+        .group_by(BookmakerOdds.bookmaker, BookmakerOdds.bet, BookmakerOdds.value)
+    )
+    rows = await session.scalars(
+        select(BookmakerOdds)
+        .where(BookmakerOdds.id.in_(last))
+        .order_by(BookmakerOdds.bookmaker, BookmakerOdds.bet, BookmakerOdds.value)
+    )
+    out = []
+    for o in rows:
+        if o.bookmaker in REFERENCE_ONLY and not include_reference:
+            continue
+        mapped = map_bet(o.bet, o.value)
+        market, line, selection = mapped if mapped else (None, None, None)
+        out.append(
+            BookmakerOddsOut(
+                bookmaker=o.bookmaker,
+                bet=o.bet,
+                value=o.value,
+                price=o.price,
+                market=market,
+                line=line or None,
+                selection=selection,
+                fetched_at=o.fetched_at,
+                source_updated_at=o.source_updated_at,
+            )
+        )
+    return out
 
 
 @router.get("/ingestion/runs", response_model=list[IngestionRunOut])

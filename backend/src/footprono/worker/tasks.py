@@ -7,6 +7,7 @@ from footprono import __version__
 from footprono.core.config import get_settings
 from footprono.db.session import create_engine, create_session_factory
 from footprono.football.models import DataSource
+from footprono.ingestion import live
 from footprono.ingestion.quality import current_season_start
 from footprono.ingestion.reference import COMPETITIONS
 from footprono.ingestion.service import IngestionRequest, run_ingestion
@@ -53,6 +54,23 @@ async def _ingest_current_season() -> dict[str, Any]:
         "files": {f"{f['source']}:{f['competition']}": f["status"] for f in report["files"]},
         "quality_errors": report["quality"]["errors"],
     }
+
+
+@celery_app.task(name="footprono.collect_odds")
+def collect_odds() -> dict[str, Any]:
+    """Relève les cotes des bookmakers pour les matchs à venir."""
+    return asyncio.run(_collect_odds())
+
+
+async def _collect_odds() -> dict[str, Any]:
+    settings = get_settings()
+    engine = create_engine(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            report = await live.collect_odds(session, settings)
+    finally:
+        await engine.dispose()
+    return {k: v for k, v in report.items() if k != "unmapped_bets"}
 
 
 @celery_app.task(name="footprono.predict_upcoming")

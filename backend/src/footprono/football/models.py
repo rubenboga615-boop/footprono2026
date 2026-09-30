@@ -263,6 +263,27 @@ class MatchOdds(Base):
     price: Mapped[Decimal] = mapped_column(Numeric(8, 3))
 
 
+class BookmakerOdds(Base):
+    """Cote d'un match à venir, relevée chez API-Football, telle que publiée.
+
+    Une ligne n'est ajoutée que si la cote a changé depuis le relevé précédent :
+    l'historique des mouvements est conservé, jamais écrasé.
+    """
+
+    __tablename__ = "bookmaker_odds"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Dernière mise à jour annoncée par API-Football pour ce match.
+    source_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    bookmaker: Mapped[str] = mapped_column(String(32))
+    bet: Mapped[str] = mapped_column(String(64))
+    value: Mapped[str] = mapped_column(String(64))
+    price: Mapped[Decimal] = mapped_column(Numeric(8, 3))
+    raw_file_id: Mapped[int | None] = mapped_column(ForeignKey("raw_files.id"))
+
+
 class IngestionRun(Base):
     """Journal d'une exécution d'ingestion, avec son rapport de qualité."""
 

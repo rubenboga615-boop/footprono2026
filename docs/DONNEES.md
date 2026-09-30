@@ -79,6 +79,16 @@ Serie A, Bundesliga et Ligue 1.
   Un match à venir prend la date d'API-Football (reports, horaires télévisés),
   sauf s'il est reporté sans nouvelle date ; Understat ne l'écrase plus
   ensuite. Un match reporté, annulé ou arrêté n'est pas prédit.
+- **Cotes des matchs à venir** (`footprono-ingest odds`, tâche `collect_odds`
+  à 07:30 et 16:30 UTC) : bookmakers de `FP_ODDS_BOOKMAKERS` (défaut 1xBet,
+  Bet365, Pinnacle ; Pinnacle sert de référence interne et n'est pas
+  affiché). Table `bookmaker_odds` : chaque cote gardée telle que publiée
+  (nom du pari, libellé), une ligne ajoutée seulement quand la cote change,
+  historique jamais écrasé ; réponse brute archivée. Traduction vers les
+  marchés du moteur à la lecture (`map_bet`) pour les paris dont le sens est
+  certain ; le handicap asiatique attend une vérification sur cotes réelles.
+  Un bookmaker absent du service est signalé, jamais remplacé en silence.
+  Coût : 2 requêtes par championnat et par bookmaker environ (≈ 30 par relevé).
 - API-Football ne dépend que de football-data pour la saison : il se charge
   après lui (ordre de `all` et de la tâche quotidienne).
 
