@@ -292,6 +292,24 @@ class BookmakerOdds(Base):
     raw_file_id: Mapped[int | None] = mapped_column(ForeignKey("raw_files.id"))
 
 
+class MatchTeamSheet(Base):
+    """Compositions (``lineups``) ou blessés et suspendus (``injuries``) d'un match.
+
+    Réponse API-Football conservée telle quelle, dernière version connue avant
+    le match. Affichage seulement : le moteur ne s'en sert pas tant qu'un modèle
+    de la valeur des joueurs n'a pas prouvé son apport sur des saisons de test.
+    """
+
+    __tablename__ = "match_team_sheets"
+    __table_args__ = (UniqueConstraint("match_id", "kind"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(16))
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[list[Any]] = mapped_column(JSONB)
+
+
 class IngestionRun(Base):
     """Journal d'une exécution d'ingestion, avec son rapport de qualité."""
 

@@ -17,6 +17,7 @@ from footprono.football.models import (
     MatchAdvancedStats,
     MatchOdds,
     MatchStatus,
+    MatchTeamSheet,
     MatchTeamStats,
     Season,
     Team,
@@ -262,6 +263,16 @@ async def get_bookmaker_odds(
             )
         )
     return out
+
+
+@router.get("/matches/{match_id}/team-sheets")
+async def get_team_sheets(match_id: int, session: SessionDep) -> dict[str, Any]:
+    """Compositions et blessés publiés par API-Football (à titre d'information :
+    le moteur ne les utilise pas)."""
+    sheets = await session.scalars(
+        select(MatchTeamSheet).where(MatchTeamSheet.match_id == match_id)
+    )
+    return {s.kind: {"fetched_at": s.fetched_at, "data": s.payload} for s in sheets}
 
 
 @router.get("/ingestion/runs", response_model=list[IngestionRunOut])

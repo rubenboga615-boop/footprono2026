@@ -26,6 +26,7 @@ from footprono.football.models import (
     DataSource,
     Match,
     MatchStatus,
+    MatchTeamSheet,
     MatchTeamStats,
     StatPeriod,
 )
@@ -44,6 +45,7 @@ LIVE_AFTER = timedelta(hours=3, minutes=30)
 # Statistiques encore absentes à la fin : redemandées jusqu'à 8 h après le coup d'envoi.
 STATS_RETRY_UNTIL = timedelta(hours=8)
 IDS_PER_REQUEST = 20  # limite de /fixtures?ids=
+LINEUPS_BEFORE = timedelta(minutes=75)
 # Statuts API-Football d'un match en cours (mi-temps et interruptions comprises).
 LIVE_STATUSES = frozenset({"1H", "HT", "2H", "ET", "BT", "P", "LIVE", "SUSP", "INT"})
 
@@ -190,20 +192,31 @@ async def follow_live(
         )
         .exists()
     )
+    has_lineups = (
+        select(MatchTeamSheet.id)
+        .where(MatchTeamSheet.match_id == Match.id, MatchTeamSheet.kind == "lineups")
+        .exists()
+    )
+    windows = [
+        (Match.status == MatchStatus.SCHEDULED)
+        & Match.kickoff_at.between(now - LIVE_AFTER, now + LIVE_BEFORE),
+        (Match.status == MatchStatus.FINISHED)
+        & (Match.result_source == "api_football")
+        & (Match.kickoff_at >= now - STATS_RETRY_UNTIL)
+        & ~has_stats,
+    ]
+    if now.minute % 10 < 2:
+        # Compositions publiées ~1 h avant : matchs de l'heure qui vient, un passage
+        # sur cinq (toutes les 10 minutes) tant qu'elles manquent.
+        windows.append(
+            (Match.status == MatchStatus.SCHEDULED)
+            & Match.kickoff_at.between(now, now + LINEUPS_BEFORE)
+            & ~has_lineups
+        )
     candidates = list(
         (
             await session.scalars(
-                select(Match).where(
-                    Match.api_football_id.is_not(None),
-                    or_(
-                        (Match.status == MatchStatus.SCHEDULED)
-                        & Match.kickoff_at.between(now - LIVE_AFTER, now + LIVE_BEFORE),
-                        (Match.status == MatchStatus.FINISHED)
-                        & (Match.result_source == "api_football")
-                        & (Match.kickoff_at >= now - STATS_RETRY_UNTIL)
-                        & ~has_stats,
-                    ),
-                )
+                select(Match).where(Match.api_football_id.is_not(None), or_(*windows))
             )
         ).all()
     )
@@ -256,6 +269,10 @@ async def follow_live(
         if match is None:
             continue
         label = f"{fixture.home_team}-{fixture.away_team}"
+        lineups = item.get("lineups")
+        if isinstance(lineups, list) and lineups:
+            await save_team_sheet(session, match.id, "lineups", lineups, now)
+            report["lineups"] = report.get("lineups", 0) + 1
         if match.status is MatchStatus.SCHEDULED:
             values: dict[str, Any] = {"api_status": fixture.status, "live_updated_at": now}
             if fixture.status in LIVE_STATUSES or fixture.finished:
@@ -319,6 +336,67 @@ async def follow_live(
         report["stats"] += 1
     await session.commit()
     return report
+
+
+async def save_team_sheet(
+    session: AsyncSession, match_id: int, kind: str, payload: list[Any], fetched_at: datetime
+) -> None:
+    """Enregistre la dernière version (compositions ou blessés) d'un match."""
+    stmt = insert(MatchTeamSheet).values(
+        match_id=match_id, kind=kind, payload=payload, fetched_at=fetched_at
+    )
+    await session.execute(
+        stmt.on_conflict_do_update(
+            index_elements=["match_id", "kind"],
+            set_={"payload": stmt.excluded.payload, "fetched_at": stmt.excluded.fetched_at},
+        )
+    )
+
+
+async def collect_injuries(
+    session: AsyncSession, settings: Settings, today: datetime | None = None
+) -> dict[str, Any]:
+    """Blessés et suspendus des matchs d'aujourd'hui et de demain (1 requête par
+    championnat et par jour), rattachés aux matchs par leur identifiant API-Football."""
+    if settings.api_football_key is None:
+        return {"status": "unavailable", "error": "FP_API_FOOTBALL_KEY absente"}
+    now = today or datetime.now(UTC)
+    season = current_season_start()
+    by_fixture: dict[int, list[Any]] = {}
+    async with api_football.ApiFootballClient(
+        settings.api_football_key.get_secret_value(),
+        budget=settings.api_football_budget,
+        min_remaining=settings.api_football_min_remaining,
+        transport=service.api_football_transport,
+    ) as client:
+        await client.status()
+        for comp in COMPETITIONS:
+            for day in (now.date(), now.date() + timedelta(days=1)):
+                if not client.can_spend():
+                    break
+                body = await client.get(
+                    "/injuries",
+                    {"league": comp.api_football_id, "season": season, "date": day.isoformat()},
+                )
+                for entry in body["response"]:
+                    fixture_id = (entry.get("fixture") or {}).get("id")
+                    if fixture_id is not None:
+                        by_fixture.setdefault(int(fixture_id), []).append(entry)
+        used = client.used
+    rows = await session.execute(
+        select(Match.api_football_id, Match.id).where(Match.api_football_id.in_(by_fixture))
+    )
+    matches = {int(f): m for f, m in rows.tuples() if f is not None}
+    for fixture_id, entries in by_fixture.items():
+        if fixture_id in matches:
+            await save_team_sheet(session, matches[fixture_id], "injuries", entries, now)
+    await session.commit()
+    return {
+        "status": "ok",
+        "requests": used,
+        "matches": len(set(by_fixture) & set(matches)),
+        "unknown_fixtures": len(set(by_fixture) - set(matches)),
+    }
 
 
 async def _latest_prices(

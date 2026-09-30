@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.football.models import DataSource, Match, MatchStatus, MatchTeamStats
 from footprono.ingestion import service
-from footprono.ingestion.live import follow_live
+from footprono.ingestion.live import collect_injuries, follow_live
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.ingestion.sources import api_football
 
@@ -21,6 +21,7 @@ from .conftest import make_settings
 FIXTURES = Path(__file__).parent / "fixtures"
 Factory = async_sessionmaker[AsyncSession]
 NOW = datetime(2025, 5, 25, 17, 0, tzinfo=UTC)
+INJURY_DAY = ("39", "2025-05-25")
 
 
 def _item(fid: int, status: str, elapsed: int, goals: tuple[int, int], ht: tuple[int, int] | None):
@@ -48,12 +49,19 @@ def _transport(calls: list[str]) -> httpx.MockTransport:
             body: Any = {"response": {"requests": {"current": 1, "limit_day": 7500}}}
         elif request.url.path == "/fixtures":
             assert request.url.params["ids"] == "7000-7001"
+            playing = _item(7000, "2H", 67, (1, 0), (1, 0))
+            playing["lineups"] = [{"team": {"id": 1}, "formation": "4-3-3", "startXI": []}]
+            body = {"response": [playing, _item(7001, "FT", 90, (9, 9), (4, 4))]}
+        elif request.url.path == "/injuries":
             body = {
                 "response": [
-                    _item(7000, "2H", 67, (1, 0), (1, 0)),
-                    _item(7001, "FT", 90, (9, 9), (4, 4)),
+                    {"player": {"name": "X", "type": "Missing Fixture", "reason": "Knee"},
+                     "team": {"id": 1}, "fixture": {"id": fid}}
+                    for fid in (7000, 424242)
                 ]
-            }
+                if (request.url.params["league"], request.url.params["date"]) == INJURY_DAY
+                else []
+            }  # fmt: skip
         else:
             assert request.url.params["fixture"] == "7001"
             body = {
@@ -142,6 +150,17 @@ async def test_follow_live_updates_score_then_finishes(
     live = await client.get("/api/v1/live")
     assert [m["id"] for m in live.json()] == [ids[0]]
     assert live.json()[0]["live_minute"] == 67
+
+    # Compositions : incluses dans la réponse du direct, aucune requête de plus.
+    assert report["lineups"] == 1
+    async with db_factory() as session:
+        injuries = await collect_injuries(session, settings, today=NOW)
+    assert injuries["status"] == "ok"
+    assert injuries["requests"] == 10  # 5 championnats x (aujourd'hui, demain)
+    assert (injuries["matches"], injuries["unknown_fixtures"]) == (1, 1)
+    sheets = (await client.get(f"/api/v1/matches/{ids[0]}/team-sheets")).json()
+    assert sheets["lineups"]["data"][0]["formation"] == "4-3-3"
+    assert sheets["injuries"]["data"][0]["player"]["reason"] == "Knee"
 
     # Le lendemain, football-data confirme : le score provisoire différent est signalé
     # et remplacé ; le match joué n'est jamais remis « à venir ».

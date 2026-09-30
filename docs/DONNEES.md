@@ -100,6 +100,14 @@ Serie A, Bundesliga et Ligue 1.
   (`result_source = football_data`) ; un score provisoire différent est
   signalé dans le rapport d'ingestion puis remplacé, et une ligne
   football-data sans résultat ne remet jamais « à venir » un match joué.
+- **Compositions et blessés** (table `match_team_sheets`, dernière version
+  conservée telle que publiée) : les compositions arrivent avec la réponse du
+  suivi en direct (matchs de l'heure qui vient, un passage toutes les
+  10 minutes tant qu'elles manquent), les blessés et suspendus avec la tâche
+  des cotes (`/injuries`, 1 requête par championnat pour aujourd'hui et
+  demain). **Affichage seulement** : le moteur ne s'en sert pas tant qu'un
+  modèle de la valeur des joueurs n'a pas prouvé son apport en backtest.
+  API : `GET /matches/{id}/team-sheets`.
 - API-Football ne dépend que de football-data pour la saison : il se charge
   après lui (ordre de `all` et de la tâche quotidienne).
 

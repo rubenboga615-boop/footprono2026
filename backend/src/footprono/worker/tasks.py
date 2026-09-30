@@ -58,7 +58,7 @@ async def _ingest_current_season() -> dict[str, Any]:
 
 @celery_app.task(name="footprono.collect_odds")
 def collect_odds() -> dict[str, Any]:
-    """Relève les cotes des bookmakers pour les matchs à venir."""
+    """Cotes des matchs à venir, puis blessés et suspendus du jour et du lendemain."""
     return asyncio.run(_collect_odds())
 
 
@@ -68,9 +68,14 @@ async def _collect_odds() -> dict[str, Any]:
     try:
         async with create_session_factory(engine)() as session:
             report = await live.collect_odds(session, settings)
+        async with create_session_factory(engine)() as session:
+            injuries = await live.collect_injuries(session, settings)
     finally:
         await engine.dispose()
-    return {k: v for k, v in report.items() if k != "unmapped_bets"}
+    return {
+        "odds": {k: v for k, v in report.items() if k != "unmapped_bets"},
+        "injuries": injuries,
+    }
 
 
 @celery_app.task(name="footprono.follow_live")
