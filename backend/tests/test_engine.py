@@ -193,3 +193,100 @@ def test_awarded_matches_use_reference_names() -> None:
     for comp, _season, home, away in AWARDED_MATCHES:
         assert (comp, home) in names
         assert (comp, away) in names
+
+
+# --- Contexte et correction -----------------------------------------------------
+
+
+def test_context_uses_only_previous_days() -> None:
+    from footprono.engine.context import build_context
+
+    hist, _ = synthetic_history(seasons=2)
+    ctx = build_context(hist)
+    first_day = hist.date == hist.date.min()
+    assert (ctx.points[0][first_day] == 0).all()
+    assert (ctx.progress[first_day] == 0).all()
+    # Changer les résultats d'un jour ne change pas le contexte de ce jour-là.
+    day = np.unique(hist.date)[40]
+    altered = hist.subset(np.ones(len(hist), dtype=bool))
+    altered.hg[altered.date >= day] = 7.0
+    other = build_context(altered)
+    same = hist.date <= day
+    assert (other.points[0][same] == ctx.points[0][same]).all()
+    for name in ctx.team:
+        assert (other.team[name][0][same] == ctx.team[name][0][same]).all()
+    # Classement : points cohérents avec les résultats de la saison.
+    s0 = np.where(hist.season == hist.season.min())[0]
+    last = s0[hist.date[s0] == hist.date[s0].max()][0]
+    team = int(hist.home[last])
+    before = s0[hist.date[s0] < hist.date[last]]
+    pts = 0
+    for i in before:
+        for side, t in enumerate((hist.home[i], hist.away[i])):
+            if t == team:
+                gf, ga = (hist.hg[i], hist.ag[i]) if side == 0 else (hist.ag[i], hist.hg[i])
+                pts += 3 if gf > ga else (1 if gf == ga else 0)
+    assert ctx.points[0][last] == pts
+
+
+def test_dead_rubber_detection() -> None:
+    from footprono.engine.context import _enjeu, _Table
+
+    teams = list(range(1, 21))
+    table = _Table()
+    for t in teams:
+        table.played[t] = 36  # 2 journées restantes sur 38
+        table.points[t] = 100 - 4 * t  # 4 points d'écart entre chaque place
+    stakes = _enjeu(table, teams, 38, 36 / 38)
+    # 10e : à 16 points du 6e et 28 du 17e → plus rien à jouer.
+    assert stakes[10][0] == 1.0
+    # 17e (dernier maintenu) : à 4 points du 18e, 2 matchs à jouer → enjeu.
+    assert stakes[17] == (0.0, 0.0, 1.0)
+    # En début de saison, personne n'est « sans enjeu ».
+    early = _Table()
+    for t in teams:
+        early.played[t] = 5
+        early.points[t] = 15 - (t % 5)
+    assert all(v[0] == 0.0 for v in _enjeu(early, teams, 38, 0.1).values())
+
+
+def test_correction_recovers_known_stretch_and_keeps_markets_coherent() -> None:
+    from footprono.engine.context import MatchContext
+    from footprono.engine.correction import fit_correction
+
+    rng = np.random.default_rng(3)
+    n = 20000
+    lam_h, lam_a = rng.uniform(0.6, 2.4, n), rng.uniform(0.5, 2.0, n)
+    dead_h = (rng.random(n) < 0.1).astype(float)
+    d = np.log(lam_h) - np.log(lam_a)
+    # Réalité : favoris plus forts que prévu (s = 0,1), équipe sans enjeu concède +20 %.
+    true_h = lam_h * np.exp(0.1 * d)
+    true_a = lam_a * np.exp(-0.1 * d + 0.2 * dead_h)
+    ctx = MatchContext(progress=np.zeros(n), team={"dead": (dead_h, np.zeros(n))})
+    rows = np.arange(n)
+    corr = fit_correction(
+        lam_h, lam_a, rng.poisson(true_h), rng.poisson(true_a), ctx, rows, ("dead",)
+    )
+    assert corr.coef["stretch"] == pytest.approx(0.1, abs=0.03)
+    assert corr.coef["dead_concede"] == pytest.approx(0.2, abs=0.06)
+    new_h, new_a = corr.apply(lam_h[:3], lam_a[:3], ctx, rows[:3])
+    m = derive_markets(score_distribution(float(new_h[0]), float(new_a[0]), -0.05, 0.45, 0.45))
+    assert sum(m[f"1X2||{r}"].win for r in ("home", "draw", "away")) == pytest.approx(1.0)
+
+
+def test_corrected_backtest_is_causal() -> None:
+    from footprono.engine.backtest import apply_correction
+    from footprono.engine.context import build_context
+
+    hist, _ = synthetic_history(seasons=5)
+    cfg = BacktestConfig(["TEST"], [2017, 2018, 2019, 2020], GoalsConfig(365, xg_weight=0))
+    pred = run_backtest(hist, cfg)
+    out = apply_correction(hist, pred, build_context(hist), ("dead",))
+    assert set(out.season) == {2019, 2020}
+    # Changer les résultats de 2020 ne change pas les prévisions corrigées de 2019.
+    altered = hist.subset(np.ones(len(hist), dtype=bool))
+    altered.hg[altered.season == 2020] = 5.0
+    pred2 = run_backtest(altered, cfg)
+    out2 = apply_correction(altered, pred2, build_context(altered), ("dead",))
+    keep = np.array(out.season) == 2019
+    assert np.array(out2.model_1x2)[keep] == pytest.approx(np.array(out.model_1x2)[keep])

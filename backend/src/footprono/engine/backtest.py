@@ -18,12 +18,14 @@ Mesures : log loss (plus bas = mieux), score de Brier, RPS pour le 1X2
 
 import itertools
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
+from footprono.engine.context import MatchContext
+from footprono.engine.correction import fit_correction
 from footprono.engine.goals import GoalsConfig, fit_goals, training_mask
 from footprono.engine.history import History
 from footprono.engine.scores import score_distribution
@@ -45,6 +47,7 @@ class Predictions:
     """Une ligne par match testé."""
 
     match_id: list[int] = field(default_factory=list)
+    row: list[int] = field(default_factory=list)  # indice du match dans l'historique
     competition: list[str] = field(default_factory=list)
     season: list[int] = field(default_factory=list)
     model_1x2: list[FloatArray] = field(default_factory=list)
@@ -58,11 +61,23 @@ class Predictions:
     outcome_btts: list[int] = field(default_factory=list)
     model_ht: list[FloatArray] = field(default_factory=list)
     naive_ht: list[FloatArray] = field(default_factory=list)
-    outcome_ht: list[int] = field(default_factory=list)
-    ht_competition: list[str] = field(default_factory=list)
+    outcome_ht: list[int] = field(default_factory=list)  # -1 : score à la mi-temps absent
     market_close_1x2: list[FloatArray] = field(default_factory=list)
     market_pre_1x2: list[FloatArray] = field(default_factory=list)
     market_close_ou25: list[float] = field(default_factory=list)
+    # Paramètres de la loi des scores, pour recalculer les marchés après correction.
+    lam_h: list[float] = field(default_factory=list)
+    lam_a: list[float] = field(default_factory=list)
+    rho: list[float] = field(default_factory=list)
+    share_h: list[float] = field(default_factory=list)
+    share_a: list[float] = field(default_factory=list)
+
+    def select(self, keep: NDArray[np.bool_]) -> "Predictions":
+        out = Predictions()
+        for f in fields(self):
+            values = getattr(self, f.name)
+            setattr(out, f.name, [v for v, k in zip(values, keep, strict=True) if k])
+        return out
 
 
 def _result(h: float, a: float) -> int:
@@ -75,6 +90,30 @@ def _implied(odds: FloatArray) -> FloatArray:
         return np.full(len(odds), np.nan)
     inv = 1 / odds
     return np.asarray(inv / inv.sum(), dtype=np.float64)
+
+
+@dataclass(frozen=True)
+class MatchProbabilities:
+    p1x2: FloatArray
+    ht_1x2: FloatArray
+    ou25: float
+    btts: float
+
+
+def match_probabilities(
+    lam_h: float, lam_a: float, rho: float, share_h: float, share_a: float
+) -> MatchProbabilities:
+    """Probabilités des marchés évalués, tirées de la même loi des scores."""
+    dist = score_distribution(lam_h, lam_a, rho, share_h, share_a)
+    ft, ht = dist.full_time, dist.half_time
+    h, a = np.indices(ft.shape)
+    hh, ha = np.indices(ht.shape)
+    return MatchProbabilities(
+        p1x2=np.array([ft[h > a].sum(), ft[h == a].sum(), ft[h < a].sum()]),
+        ht_1x2=np.array([ht[hh > ha].sum(), ht[hh == ha].sum(), ht[hh < ha].sum()]),
+        ou25=float(ft[h + a > 2.5].sum()),
+        btts=float(ft[(h > 0) & (a > 0)].sum()),
+    )
 
 
 def run_backtest(hist: History, cfg: BacktestConfig) -> Predictions:
@@ -100,37 +139,74 @@ def run_backtest(hist: History, cfg: BacktestConfig) -> Predictions:
                 naive = _naive_rates(hist, comp, day, cfg.goals)
             assert model is not None
             lam_h, lam_a = model.rates(int(hist.home[i]), int(hist.away[i]))
-            dist = score_distribution(
+            probs = match_probabilities(
                 lam_h, lam_a, model.rho, model.ht_share_home, model.ht_share_away
             )
-            ft, ht = dist.full_time, dist.half_time
-            h, a = np.indices(ft.shape)
-            hh, ha = np.indices(ht.shape)
-            p1x2 = np.array([ft[h > a].sum(), ft[h == a].sum(), ft[h < a].sum()])
-            pht = np.array([ht[hh > ha].sum(), ht[hh == ha].sum(), ht[hh < ha].sum()])
 
             hg, ag = hist.hg[i], hist.ag[i]
             out.match_id.append(int(hist.match_id[i]))
+            out.row.append(int(i))
+            out.lam_h.append(lam_h)
+            out.lam_a.append(lam_a)
+            out.rho.append(model.rho)
+            out.share_h.append(model.ht_share_home)
+            out.share_a.append(model.ht_share_away)
             out.competition.append(comp)
             out.season.append(int(hist.season[i]))
-            out.model_1x2.append(p1x2)
+            out.model_1x2.append(probs.p1x2)
             out.naive_1x2.append(naive["1x2"])
             out.outcome_1x2.append(_result(hg, ag))
-            out.model_ou25.append(float(ft[h + a > 2.5].sum()))
+            out.model_ou25.append(probs.ou25)
             out.naive_ou25.append(naive["ou25"])
             out.outcome_ou25.append(int(hg + ag > 2.5))
-            out.model_btts.append(float(ft[(h > 0) & (a > 0)].sum()))
+            out.model_btts.append(probs.btts)
             out.naive_btts.append(naive["btts"])
             out.outcome_btts.append(int(hg > 0 and ag > 0))
-            if not (np.isnan(hist.hht[i]) or np.isnan(hist.aht[i])):
-                out.model_ht.append(pht)
-                out.naive_ht.append(naive["ht"])
-                out.outcome_ht.append(_result(hist.hht[i], hist.aht[i]))
-                out.ht_competition.append(comp)
+            out.model_ht.append(probs.ht_1x2)
+            out.naive_ht.append(naive["ht"])
+            has_ht = not (np.isnan(hist.hht[i]) or np.isnan(hist.aht[i]))
+            out.outcome_ht.append(_result(hist.hht[i], hist.aht[i]) if has_ht else -1)
             out.market_close_1x2.append(_implied(hist.odds["close_1x2"][i]))
             out.market_pre_1x2.append(_implied(hist.odds["pre_1x2"][i]))
             close_ou = _implied(hist.odds["close_ou25"][i])
             out.market_close_ou25.append(float(close_ou[0]))
+    return out
+
+
+def apply_correction(
+    hist: History,
+    pred: Predictions,
+    ctx: MatchContext,
+    features: Sequence[str],
+    min_train_seasons: int = 2,
+) -> Predictions:
+    """Corrige chaque saison avec une correction apprise sur les saisons précédentes.
+
+    La correction de la saison S n'est estimée qu'avec les prévisions hors
+    échantillon des saisons antérieures à S (causalité). Les saisons qui n'ont
+    pas assez de saisons antérieures sont retirées.
+    """
+    season = np.array(pred.season)
+    rows = np.array(pred.row, dtype=np.int64)
+    lam_h, lam_a = np.array(pred.lam_h), np.array(pred.lam_a)
+    first = season.min() + min_train_seasons
+    out = pred.select(season >= first)
+    out_season = np.array(out.season)
+    for s in sorted(set(out.season)):
+        train, target = season < s, season == s
+        corr = fit_correction(
+            lam_h[train], lam_a[train], hist.hg[rows[train]], hist.ag[rows[train]],
+            ctx, rows[train], features,
+        )  # fmt: skip
+        new_h, new_a = corr.apply(lam_h[target], lam_a[target], ctx, rows[target])
+        # Même ordre des matchs dans ``pred`` (saison == s) et dans ``out``.
+        for k, lh, la in zip(np.where(out_season == s)[0], new_h, new_a, strict=True):
+            probs = match_probabilities(
+                float(lh), float(la), out.rho[k], out.share_h[k], out.share_a[k]
+            )
+            out.lam_h[k], out.lam_a[k] = float(lh), float(la)
+            out.model_1x2[k], out.model_ht[k] = probs.p1x2, probs.ht_1x2
+            out.model_ou25[k], out.model_btts[k] = probs.ou25, probs.btts
     return out
 
 
@@ -241,11 +317,11 @@ def summarize(pred: Predictions, competition: str | None = None) -> dict[str, An
         },
         "calibration_1x2": calibration(model, y),
     }
-    hidx = np.array([competition is None or c == competition for c in pred.ht_competition])
+    yh = np.array(pred.outcome_ht)[idx]
+    hidx = yh >= 0
     if hidx.any():
-        yh = np.array(pred.outcome_ht)[hidx]
         report["ht_1x2"] = {
-            "model": trio(np.array(pred.model_ht)[hidx], yh),
-            "naive": trio(np.array(pred.naive_ht)[hidx], yh),
+            "model": trio(np.array(pred.model_ht)[idx][hidx], yh[hidx]),
+            "naive": trio(np.array(pred.naive_ht)[idx][hidx], yh[hidx]),
         }
     return report

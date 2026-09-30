@@ -24,7 +24,8 @@ Code : `backend/src/footprono/engine/` (indépendant du serveur web et de Celery
 3. **Distribution des scores** (`scores.py`) : loi jointe (score à la
    mi-temps, score final) dont la marge « score final » est exactement la loi
    Dixon-Coles. Tous les marchés en découlent (principe n° 5).
-4. **Marchés** (`markets.py`) : tous les marchés des groupes 1 et 2 de
+4. **Couche de correction** (`context.py`, `correction.py`) : voir plus bas.
+5. **Marchés** (`markets.py`) : tous les marchés des groupes 1 et 2 de
    `MARCHES.md`, avec les issues de règlement (gagné, demi-gagné, remboursé,
    demi-perdu, perdu) et la cote juste. Cohérence testée automatiquement.
 
@@ -34,49 +35,88 @@ Choisis sur les saisons de **validation** 2019-20 → 2021-22, jamais sur les
 saisons de test : demi-vie 180 j, poids des xG 0,7, pénalité 2, a priori des
 promus activé (`footprono-engine backtest --seasons 2019-2021 …`).
 
+## Couche de correction : contexte du match (vérifié le 30/09/2026)
+
+Au-dessus de Dixon-Coles, une correction ajuste les buts attendus avant de
+passer par la même loi des scores (les marchés restent cohérents) :
+
+- **calibration** : écarte légèrement favoris et outsiders (le modèle brut
+  était trop prudent sur les matchs déséquilibrés) ;
+- **indicateurs de contexte**, tous **dérivés** des résultats déjà en base et
+  connus avant le match : classement, avancement de la saison, enjeu, repos,
+  dynamique, réussite (définitions dans `context.py`).
+
+La correction de la saison S est apprise uniquement sur les prévisions hors
+échantillon des saisons antérieures à S.
+
+**Sélection des indicateurs** sur les saisons de validation 2019-20 → 2021-22
+(5 376 matchs), un indicateur à la fois contre la calibration seule. Gain =
+baisse de la log loss (positif = mieux), ± 2 erreurs types :
+
+| Ajout | 1X2 | +2,5 buts | Les deux marquent | Décision |
+|---|---|---|---|---|
+| Calibration seule (contre le modèle brut) | +0,0005 ± 0,0005 | +0,0001 ± 0,0002 | 0,0000 ± 0,0001 | retenue |
+| Sans enjeu (ne peut plus franchir aucune ligne) | +0,0008 ± 0,0008 | +0,0007 ± 0,0008 | +0,0005 ± 0,0006 | **retenu** |
+| Lutte pour le maintien | +0,0002 ± 0,0006 | 0,0000 ± 0,0002 | −0,0001 ± 0,0001 | rejeté |
+| Lutte pour le titre / la 4e place | −0,0001 ± 0,0002 | +0,0001 ± 0,0002 | −0,0001 ± 0,0002 | rejeté |
+| Repos (jours depuis le dernier match) | −0,0001 ± 0,0002 | −0,0001 ± 0,0001 | −0,0001 ± 0,0001 | rejeté |
+| Dynamique (5 derniers − 20 derniers, xG) | −0,0001 ± 0,0010 | +0,0001 ± 0,0003 | 0,0000 ± 0,0002 | rejeté |
+| Réussite (buts − xG sur la saison) | −0,0002 ± 0,0004 | −0,0001 ± 0,0002 | 0,0000 ± 0,0001 | rejeté |
+
+Effet estimé de « sans enjeu » : l'équipe concède environ **17 % de buts en
+plus** (stable d'un apprentissage à l'autre). Une variante avec une constante
+et l'avancement de la saison a aussi été essayée : rejetée, une constante figée
+suit mal les ruptures (saisons sans public) alors que le modèle des buts
+réestime déjà l'avantage du terrain chaque semaine.
+
+Conclusion honnête : le contexte apporte peu, comme attendu (le niveau des
+équipes, bien estimé, explique déjà l'essentiel). Les gains sont petits mais
+réels sur les matchs de fin de saison concernés.
+
 ## Résultats sur les saisons de test 2022-23 → 2025-26 (vérifié le 30/09/2026)
 
-7 081 matchs, jamais vus pendant le réglage. Chaque match est prédit avec les
-seuls matchs joués avant lui (modèle réestimé chaque semaine).
-Log loss : plus bas = meilleur.
+7 081 matchs, jamais vus pendant le réglage ni la sélection. Chaque match est
+prédit avec les seuls matchs joués avant lui (modèle réestimé chaque semaine,
+correction apprise sur les saisons antérieures). Log loss : plus bas = meilleur.
 
 | Championnat | Matchs | 1X2 modèle | 1X2 référence naïve | 1X2 cotes de clôture |
 |---|---|---|---|---|
-| Premier League | 1 520 | 0,9764 | 1,0696 | 0,9605 |
-| Liga | 1 520 | 0,9734 | 1,0633 | 0,9595 |
-| Serie A | 1 520 | 0,9869 | 1,0872 | 0,9670 |
-| Bundesliga | 1 223 | 0,9867 | 1,0753 | 0,9691 |
-| Ligue 1 | 1 298 | 0,9961 | 1,0700 | 0,9784 |
-| **Total** | **7 081** | **0,9834** | **1,0731** | **0,9665** |
+| Premier League | 1 520 | 0,9746 | 1,0696 | 0,9605 |
+| Liga | 1 520 | 0,9716 | 1,0633 | 0,9595 |
+| Serie A | 1 520 | 0,9865 | 1,0872 | 0,9670 |
+| Bundesliga | 1 223 | 0,9870 | 1,0753 | 0,9691 |
+| Ligue 1 | 1 298 | 0,9969 | 1,0700 | 0,9784 |
+| **Total** | **7 081** | **0,9827** | **1,0731** | **0,9665** |
+
+Sans correction (Dixon-Coles brut) : 0,9834.
 
 | Marché | Modèle | Référence naïve | Cotes de clôture |
 |---|---|---|---|
-| 1X2 (RPS) | 0,1992 | 0,2302 | — |
-| Plus/moins 2,5 buts | 0,6769 | 0,6873 | 0,6677 |
-| Résultat à la mi-temps | 1,0355 | 1,0820 | — |
-| Les deux équipes marquent | 0,6848 | 0,6884 | — |
+| 1X2 (RPS) | 0,1990 | 0,2302 | — |
+| Plus/moins 2,5 buts | 0,6768 | 0,6873 | 0,6677 |
+| Résultat à la mi-temps | 1,0353 | 1,0820 | — |
+| Les deux équipes marquent | 0,6844 | 0,6884 | — |
 
 Calibration 1X2 (probabilité annoncée → fréquence observée) :
 
-| Tranche | Matchs × issues | Annoncé | Observé |
-|---|---|---|---|
-| 0,0-0,1 | 436 | 0,075 | 0,067 |
-| 0,1-0,2 | 2 897 | 0,160 | 0,144 |
-| 0,2-0,3 | 8 554 | 0,250 | 0,255 |
-| 0,3-0,4 | 3 287 | 0,346 | 0,332 |
-| 0,4-0,5 | 2 543 | 0,448 | 0,453 |
-| 0,5-0,6 | 1 849 | 0,546 | 0,555 |
-| 0,6-0,7 | 1 069 | 0,646 | 0,659 |
-| 0,7-0,8 | 468 | 0,741 | 0,761 |
-| 0,8-0,9 | 132 | 0,837 | 0,886 |
+| Tranche | Matchs × issues | Annoncé | Observé | Avant correction |
+|---|---|---|---|---|
+| 0,0-0,1 | 549 | 0,074 | 0,060 | 0,075 → 0,067 |
+| 0,1-0,2 | 3 040 | 0,160 | 0,153 | 0,160 → 0,144 |
+| 0,2-0,3 | 8 366 | 0,250 | 0,256 | 0,250 → 0,255 |
+| 0,3-0,4 | 3 164 | 0,346 | 0,335 | 0,346 → 0,332 |
+| 0,4-0,5 | 2 498 | 0,448 | 0,447 | 0,448 → 0,453 |
+| 0,5-0,6 | 1 832 | 0,547 | 0,550 | 0,546 → 0,555 |
+| 0,6-0,7 | 1 076 | 0,647 | 0,648 | 0,646 → 0,659 |
+| 0,7-0,8 | 538 | 0,742 | 0,764 | 0,741 → 0,761 |
+| 0,8-0,9 | 168 | 0,840 | 0,851 | 0,837 → 0,886 |
 
 ## Lecture
 
 - Le modèle **bat nettement la référence naïve** sur tous les championnats
-  (principe n° 6) et il est **bien calibré** au centre ; il est un peu trop
-  prudent aux extrémités (les grands favoris gagnent un peu plus souvent
-  qu'annoncé).
-- Il reste **derrière les cotes de clôture** (0,9834 contre 0,9665) : c'est
+  (principe n° 6) et il est **bien calibré**, y compris désormais pour les
+  grands favoris.
+- Il reste **derrière les cotes de clôture** (0,9827 contre 0,9665) : c'est
   attendu, le marché de clôture intègre les compositions, blessures et
   informations de dernière minute que le modèle n'a pas. Conformément au
   principe n° 4, aucune « value » n'est affichée.
@@ -85,10 +125,12 @@ Calibration 1X2 (probabilité annoncée → fréquence observée) :
 
 ## Suite de la phase 2
 
-1. Correction de calibration (réglée sur les saisons de validation).
-2. Modèles des corners, cartons (avec l'arbitre dès qu'il est en base) et tirs.
-3. Évaluation du handicap asiatique face aux cotes.
-4. Enregistrement des prédictions (version du modèle, date), route d'API et
+1. ~~Correction de calibration~~ et ~~indicateurs de contexte~~ (fait).
+2. Tirs Understat avec leur minute : périodes de 15 minutes, marchés
+   mi-temps.
+3. Modèles des corners, cartons (avec l'arbitre) et tirs.
+4. Évaluation du handicap asiatique face aux cotes.
+5. Enregistrement des prédictions (version du modèle, date), route d'API et
    tâche quotidienne.
 
 ## Commandes
@@ -96,5 +138,7 @@ Calibration 1X2 (probabilité annoncée → fréquence observée) :
 ```bash
 footprono-engine backtest                                   # saisons de test 2022-2025
 footprono-engine backtest --seasons 2019-2021 --grid        # comparaison de réglages
+footprono-engine backtest --no-correction                   # Dixon-Coles brut
+footprono-engine features                                   # gain de chaque indicateur
 bash scripts/termux/engine.sh backtest                      # sur le téléphone
 ```

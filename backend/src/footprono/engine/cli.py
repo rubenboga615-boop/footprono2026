@@ -3,6 +3,7 @@
 footprono-engine backtest --seasons 2022-2025
 footprono-engine backtest --seasons 2022-2025 --half-life 365 --xg-weight 0.5
 footprono-engine backtest --seasons 2022-2025 --grid    # compare plusieurs réglages
+footprono-engine features --seasons 2019-2021           # teste chaque indicateur de contexte
 """
 
 import argparse
@@ -14,13 +15,26 @@ import time
 from collections.abc import Sequence
 from typing import Any
 
+import numpy as np
+from numpy.typing import NDArray
+
 from footprono.core.config import get_settings
 from footprono.db.session import create_engine, create_session_factory
-from footprono.engine.backtest import BacktestConfig, run_backtest, summarize
+from footprono.engine.backtest import (
+    BacktestConfig,
+    Predictions,
+    apply_correction,
+    run_backtest,
+    summarize,
+)
+from footprono.engine.context import TEAM_FEATURES, build_context
+from footprono.engine.correction import DEFAULT_FEATURES
 from footprono.engine.goals import GoalsConfig
 from footprono.engine.history import History, load_history
 from footprono.ingestion.cli import parse_competitions, parse_seasons
 from footprono.ingestion.reference import COMPETITIONS
+
+FloatArray = NDArray[np.float64]
 
 
 async def _load() -> History:
@@ -51,13 +65,38 @@ def _line(label: str, r: dict[str, Any]) -> str:
     )
 
 
+def predict(
+    hist: History,
+    competitions: Sequence[str],
+    seasons: Sequence[int],
+    goals: GoalsConfig,
+    features: Sequence[str] | None,
+) -> Predictions:
+    """Prévisions hors échantillon ; ``features`` None = modèle des buts brut.
+
+    Avec correction, le modèle des buts est aussi rejoué sur les saisons
+    antérieures : la correction de chaque saison apprend sur elles.
+    """
+    if features is None:
+        return run_backtest(hist, BacktestConfig(competitions, seasons, goals))
+    first = int(hist.season.min()) + 1
+    cfg = BacktestConfig(competitions, list(range(first, max(seasons) + 1)), goals)
+    pred = run_backtest(hist, cfg)
+    pred = apply_correction(hist, pred, build_context(hist), features)
+    return pred.select(np.isin(pred.season, list(seasons)))
+
+
 def backtest(
     hist: History, args: argparse.Namespace, goals: GoalsConfig, verbose: bool
 ) -> dict[str, Any]:
-    cfg = BacktestConfig(competitions=args.competitions, seasons=args.seasons, goals=goals)
     started = time.monotonic()
-    pred = run_backtest(hist, cfg)
-    report: dict[str, Any] = {"config": goals.__dict__, "overall": summarize(pred)}
+    features = None if args.no_correction else args.features
+    pred = predict(hist, args.competitions, args.seasons, goals, features)
+    report: dict[str, Any] = {
+        "config": goals.__dict__,
+        "correction": features,
+        "overall": summarize(pred),
+    }
     report["by_competition"] = {c: summarize(pred, c) for c in args.competitions}
     report["seconds"] = round(time.monotonic() - started, 1)
     if verbose and not args.json:
@@ -79,6 +118,35 @@ def backtest(
     return report
 
 
+def _losses(pred: Predictions) -> FloatArray:
+    """Pertes par match : log loss 1X2, +2,5 buts, les deux marquent."""
+    n = len(pred.match_id)
+    p1 = np.array(pred.model_1x2)[np.arange(n), np.array(pred.outcome_1x2)]
+    yo, yb = np.array(pred.outcome_ou25), np.array(pred.outcome_btts)
+    po, pb = np.array(pred.model_ou25), np.array(pred.model_btts)
+    return -np.log(np.stack([p1, np.where(yo == 1, po, 1 - po), np.where(yb == 1, pb, 1 - pb)]))
+
+
+def features_study(hist: History, args: argparse.Namespace) -> None:
+    """Gain de chaque indicateur, un par un, contre la calibration seule.
+
+    Gain = baisse moyenne de la log loss (positif = mieux) ± 2 erreurs types
+    (comparaison appariée, match par match).
+    """
+    base = _losses(predict(hist, args.competitions, args.seasons, GoalsConfig(), None))
+    calib = _losses(predict(hist, args.competitions, args.seasons, GoalsConfig(), ()))
+    rows: list[tuple[str, FloatArray]] = [("calibration", base - calib)]
+    for f in TEAM_FEATURES:
+        new = _losses(predict(hist, args.competitions, args.seasons, GoalsConfig(), (f,)))
+        rows.append((f"+ {f}", calib - new))
+    print(f"{len(base[0])} matchs ; gain de log loss (positif = mieux) ± 2 erreurs types")
+    print(f"{'':<16}{'1X2':>18}{'+2,5 buts':>18}{'deux marquent':>18}")
+    for label, d in rows:
+        se = 2 * d.std(axis=1) / np.sqrt(d.shape[1])
+        cells = "".join(f"{m:>+10.4f} ±{e:.4f}" for m, e in zip(d.mean(axis=1), se, strict=True))
+        print(f"{label:<16}{cells}")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="footprono-engine")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -92,10 +160,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     bt.add_argument("--ridge", type=float, default=GoalsConfig.ridge)
     bt.add_argument("--no-promoted-prior", action="store_true")
     bt.add_argument("--grid", action="store_true", help="compare plusieurs réglages")
+    bt.add_argument("--no-correction", action="store_true", help="modèle des buts brut")
+    bt.add_argument(
+        "--features",
+        type=lambda v: tuple(x for x in v.split(",") if x),
+        default=DEFAULT_FEATURES,
+        help=f"indicateurs de contexte ({', '.join(TEAM_FEATURES)})",
+    )
     bt.add_argument("--json", action="store_true")
+    fs = sub.add_parser("features", help="gain de chaque indicateur de contexte")
+    fs.add_argument("--seasons", type=parse_seasons, default=parse_seasons("2019-2021"))
+    fs.add_argument(
+        "--competitions", type=parse_competitions, default=[c.code for c in COMPETITIONS]
+    )
     args = parser.parse_args(argv)
 
     hist = asyncio.run(_load())
+    if args.command == "features":
+        features_study(hist, args)
+        return 0
     if not args.grid:
         goals = GoalsConfig(
             half_life_days=args.half_life,
