@@ -11,7 +11,9 @@ DEV=0
 [ "${1:-}" = "--dev" ] && DEV=1
 
 log "Paquets Termux"
-PACKAGES=(python postgresql redis clang rust binutils libffi openssl git)
+# numpy et scipy (moteur de prédiction) sont fournis précompilés par Termux :
+# pip ne sait pas les compiler raisonnablement sur téléphone (Fortran, BLAS).
+PACKAGES=(python python-numpy python-scipy postgresql redis clang rust binutils libffi openssl git)
 # ruff (vérification du code) est fourni précompilé par Termux : le compiler
 # avec pip prendrait des heures sur téléphone.
 [ "$DEV" = 1 ] && PACKAGES+=(ruff)
@@ -42,6 +44,8 @@ log "Environnement Python ($(python --version))"
 if [ ! -x "$VENV/bin/python" ]; then
     python -m venv "$VENV"
 fi
+# Le venv voit les paquets Python de Termux (numpy, scipy précompilés).
+sed -i 's/^include-system-site-packages = false/include-system-site-packages = true/' "$VENV/pyvenv.cfg"
 # Aucun paquet précompilé n'existe pour Android sur PyPI : pip compile
 # pydantic-core (Rust), asyncpg, greenlet et markupsafe (C). Les paquets
 # compilés sont gardés dans le cache de pip : une relance ne recompile rien.
@@ -58,8 +62,12 @@ else
 fi
 log "Installation des dépendances ($(basename "$LOCK"))"
 log "La première fois, la compilation de pydantic-core (Rust) prend plusieurs minutes : c'est normal."
-"$VENV/bin/pip" install -r "$LOCK"
+mkdir -p "$RUN"
+grep -vE '^(numpy|scipy)==' "$LOCK" > "$RUN/requirements-termux.txt"
+"$VENV/bin/pip" install -r "$RUN/requirements-termux.txt"
 "$VENV/bin/pip" install --no-deps -e "$BACKEND"
+"$VENV/bin/python" -c "import numpy, scipy; print('numpy', numpy.__version__, '· scipy', scipy.__version__)" \
+    || die "numpy ou scipy introuvable : pkg install python-numpy python-scipy"
 
 cd "$BACKEND"
 if [ ! -f .env ]; then

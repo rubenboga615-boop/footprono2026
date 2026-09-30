@@ -62,3 +62,16 @@ def season_code(start_year: int) -> str:
 # (jamais « à venir ») et le contrôle de complétude en tient compte.
 _COVID_LIGUE_1 = "championnat arrêté en mars 2020 (COVID-19), classement figé après 28 journées"
 INTERRUPTED_SEASONS: dict[tuple[str, int], str] = {("LIGUE_1", 2019): _COVID_LIGUE_1}
+
+
+# Matchs perdus sur tapis vert : le score officiel n'est pas le score joué, et
+# les sources ne suivent pas la même convention. Exclus de l'apprentissage.
+# (compétition, saison, domicile, extérieur) avec les noms du référentiel.
+AWARDED_MATCHES: frozenset[tuple[str, int, str, str]] = frozenset(
+    {
+        ("SERIE_A", 2016, "Sassuolo", "Pescara"),
+        ("SERIE_A", 2020, "Verona", "Roma"),
+        ("BUNDESLIGA", 2024, "Union Berlin", "Bochum"),
+        ("LIGUE_1", 2016, "SC Bastia", "Lyon"),
+    }
+)

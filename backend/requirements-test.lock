@@ -71,6 +71,10 @@ mypy==2.3.1
     # via footprono (pyproject.toml)
 mypy-extensions==1.1.0
     # via mypy
+numpy==2.5.3
+    # via
+    #   footprono (pyproject.toml)
+    #   scipy
 packaging==26.3
     # via
     #   kombu
@@ -110,6 +114,8 @@ redis==5.3.1
     # via
     #   footprono (pyproject.toml)
     #   kombu
+scipy==1.18.1
+    # via footprono (pyproject.toml)
 six==1.17.0
     # via python-dateutil
 sqlalchemy==2.0.54
