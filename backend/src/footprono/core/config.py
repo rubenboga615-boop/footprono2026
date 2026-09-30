@@ -56,6 +56,14 @@ class Settings(BaseSettings):
     odds_bookmakers: list[str] = Field(default_factory=lambda: ["1xBet", "Bet365", "Pinnacle"])
     cors_origins: list[str] = Field(default_factory=list)
 
+    # Comptes et bookmaker virtuel (argent fictif, montants entiers en devise).
+    access_token_days: int = Field(default=30, ge=1)
+    starting_balance: int = Field(default=100_000, ge=0)
+    # Rechargement gratuit : jusqu'au solde de départ, si le solde est sous ce
+    # seuil, au plus une fois par intervalle.
+    refill_below: int = Field(default=1_000, ge=0)
+    refill_interval_days: int = Field(default=7, ge=1)
+
     # Fichiers bruts archivés (football-data, Understat…), nommés par empreinte.
     raw_data_dir: Path = Path("data/raw")
 

@@ -82,6 +82,14 @@ sed -i \
     -e "s|^FP_REDIS_URL=.*|FP_REDIS_URL=redis://127.0.0.1:$REDIS_PORT/0|" \
     -e "s|^FP_RAW_DATA_DIR=.*|FP_RAW_DATA_DIR=$RAW_DIR|" \
     .env
+# Clé secrète des jetons de connexion : générée une fois, jamais remplacée ensuite
+# (la changer déconnecterait tous les utilisateurs).
+if ! grep -qE '^FP_SECRET_KEY=.{32,}' .env; then
+    secret=$("$VENV/bin/python" -c "import secrets; print(secrets.token_urlsafe(48))")
+    grep -q '^FP_SECRET_KEY=' .env || echo 'FP_SECRET_KEY=' >> .env
+    sed -i "s|^FP_SECRET_KEY=.*|FP_SECRET_KEY=$secret|" .env
+    log "FP_SECRET_KEY générée"
+fi
 
 log "Migrations"
 load_env

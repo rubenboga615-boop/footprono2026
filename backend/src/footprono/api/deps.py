@@ -4,9 +4,13 @@ from collections.abc import AsyncIterator
 from typing import Annotated
 
 from fastapi import Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from footprono.accounts.models import User
+from footprono.accounts.security import read_access_token
+from footprono.accounts.service import UnauthorizedError
 from footprono.core.config import Settings
 
 
@@ -38,3 +42,23 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
 
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+_bearer = HTTPBearer(auto_error=False)
+
+
+async def get_current_user(
+    session: SessionDep,
+    settings: SettingsDep,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+) -> User:
+    """Utilisateur du jeton « Authorization: Bearer … » ; 401 sinon."""
+    if credentials is None:
+        raise UnauthorizedError("connexion requise")
+    user_id = read_access_token(credentials.credentials, settings)
+    user = await session.get(User, user_id) if user_id is not None else None
+    if user is None or not user.is_active:
+        raise UnauthorizedError("session expirée ou invalide : se reconnecter")
+    return user
+
+
+CurrentUserDep = Annotated[User, Depends(get_current_user)]

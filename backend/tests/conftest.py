@@ -35,6 +35,7 @@ def make_settings(**overrides: object) -> Settings:
         "redis_url": TEST_REDIS_URL,
         "log_json": True,
         "readiness_timeout_seconds": 1.0,
+        "secret_key": "clé-de-test-uniquement-" + "x" * 32,
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # type: ignore[call-arg]
@@ -63,7 +64,7 @@ async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
 
 _DATA_TABLES = (
     "match_odds, match_advanced_stats, matches, seasons, team_aliases, teams, "
-    "competitions, raw_files, ingestion_runs, match_predictions, prediction_runs"
+    "competitions, raw_files, ingestion_runs, match_predictions, prediction_runs, users"
 )
 
 
