@@ -30,11 +30,16 @@ from footprono.football.models import (
     MatchTeamStats,
     StatPeriod,
 )
-from footprono.ingestion import raw_store, service
+from footprono.ingestion import loader, raw_store, service
 from footprono.ingestion.quality import current_season_start
-from footprono.ingestion.reference import COMPETITIONS
+from footprono.ingestion.reference import COMPETITIONS, COMPETITIONS_BY_CODE
 from footprono.ingestion.sources import api_football
-from footprono.ingestion.sources.api_football_odds import OddsQuote, map_bet, parse_odds_page
+from footprono.ingestion.sources.api_football_odds import (
+    OddsQuote,
+    handicap_diagnostics,
+    map_bet,
+    parse_odds_page,
+)
 from footprono.ingestion.sources.common import ParseIssues
 
 MAX_PAGES = 10  # sécurité : 10 matchs par page, une journée en tient deux au plus
@@ -90,6 +95,14 @@ async def collect_odds(
         transport=service.api_football_transport,
     ) as client:
         await client.status()
+        # Calendrier de la saison (1 requête par championnat) : relie les matchs à
+        # venir à leur identifiant API-Football avant d'y rattacher les cotes.
+        calendars = {
+            comp.code: await client.get(
+                "/fixtures", {"league": comp.api_football_id, "season": season}
+            )
+            for comp in COMPETITIONS
+        }
         books, missing = await _bookmaker_ids(client, settings.odds_bookmakers)
         for name in missing:
             report["issues"].append(f"bookmaker « {name} » absent d'API-Football : non relevé")
@@ -117,6 +130,7 @@ async def collect_odds(
                 progress(f"{comp.code} {name} : {len(quotes)} cotes relevées au total")
         report["requests"] = client.used
 
+    report["calendar"] = await _sync_calendars(session, settings, season, calendars, fetched_at)
     by_fixture = {q.fixture_id for q in quotes}
     rows = await session.execute(
         select(Match.api_football_id, Match.id).where(Match.api_football_id.in_(by_fixture))
@@ -174,6 +188,7 @@ async def collect_odds(
         bet: {"partial": bet in mapped, "values": sorted(v)[:12]}
         for bet, v in sorted(values.items())
     }
+    report["handicap_check"] = handicap_diagnostics(quotes)
     report.update(
         matches=len(matches),
         quotes=len(quotes),
@@ -181,6 +196,43 @@ async def collect_odds(
         unmapped_bets=unmapped,
     )
     return report
+
+
+async def _sync_calendars(
+    session: AsyncSession,
+    settings: Settings,
+    season: int,
+    calendars: dict[str, dict[str, Any]],
+    fetched_at: datetime,
+) -> dict[str, Any]:
+    """Charge le calendrier de chaque championnat (identifiants, heures, statuts, arbitres)."""
+    resolver = await loader.TeamResolver.load(session)
+    out: dict[str, Any] = {}
+    for code, body in calendars.items():
+        comp = COMPETITIONS_BY_CODE[code]
+        fixtures = [
+            api_football.parse_fixture(i)
+            for i in body["response"]
+            if api_football.is_league_match(i)
+        ]
+        raw_id = await raw_store.archive(
+            session,
+            settings.raw_data_dir,
+            DataSource.API_FOOTBALL,
+            f"{api_football.BASE_URL}/fixtures?league={comp.api_football_id}&season={season}",
+            f"{comp.api_football_id}/calendar-{fetched_at:%Y%m%dT%H%M%S}.json",
+            json.dumps(body).encode(),
+        )
+        try:
+            stats = await loader.load_api_football(
+                session, code, season, fixtures, raw_id, resolver
+            )
+        except (loader.PrerequisiteMissingError, loader.UnknownTeamsError) as exc:
+            out[code] = {"error": str(exc)}
+            continue
+        out[code] = {"updated": stats.matches_updated, "issues": stats.issues}
+    await session.commit()
+    return out
 
 
 async def follow_live(

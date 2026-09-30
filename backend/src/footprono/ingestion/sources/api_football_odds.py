@@ -66,6 +66,61 @@ def parse_odds_page(body: dict[str, Any]) -> tuple[list[OddsQuote], int, int]:
     return quotes, int(paging.get("current", 1)), int(paging.get("total", 1))
 
 
+def _signed(value: str, side: str) -> float | None:
+    """« Home -0.75 » → -0.75 si ``side`` = « Home »."""
+    name, _, line = value.partition(" ")
+    if name != side:
+        return None
+    try:
+        return float(line)
+    except ValueError:
+        return None
+
+
+def handicap_diagnostics(quotes: list[OddsQuote]) -> dict[str, Any]:
+    """Sens des lignes de handicap chez API-Football, établi sur les cotes réelles.
+
+    Pour chaque cote « Home L », on cherche la cote extérieure associée selon
+    deux conventions : « Away -L » (chaque équipe avec son propre handicap) ou
+    « Away L » (la ligne du domicile répétée). La bonne convention donne une
+    marge du bookmaker (somme des inverses des cotes) régulière, entre 1 et
+    1,12 ; la mauvaise, des valeurs dispersées. Même principe pour le handicap
+    européen (3 issues).
+    """
+    books: dict[tuple[int, str, str], dict[str, float]] = {}
+    for q in quotes:
+        if q.bet in ("Asian Handicap", "Handicap Result"):
+            books.setdefault((q.fixture_id, q.bookmaker, q.bet), {})[q.value] = float(q.price)
+    stats: dict[str, dict[str, list[float]]] = {
+        "Asian Handicap": {"own": [], "home_line": []},
+        "Handicap Result": {"own": [], "home_line": []},
+    }
+    for (_fixture, _book, bet), prices in books.items():
+        for value, home_price in prices.items():
+            line = _signed(value, "Home")
+            if line is None:
+                continue
+            for convention, away_line in (("own", -line + 0.0), ("home_line", line)):
+                away = prices.get(f"Away {away_line:+g}") or prices.get(f"Away {away_line:g}")
+                if away is None:
+                    continue
+                total = 1 / home_price + 1 / away
+                if bet == "Handicap Result":
+                    draw = prices.get(f"Draw {line:+g}") or prices.get(f"Draw {line:g}")
+                    if draw is None:
+                        continue
+                    total += 1 / draw
+                stats[bet][convention].append(total)
+    out: dict[str, Any] = {}
+    for bet, by_convention in stats.items():
+        out[bet] = {}
+        for convention, totals in by_convention.items():
+            if totals:
+                ok = sum(1.0 <= t <= 1.12 for t in totals) / len(totals)
+                out[bet][convention] = {"pairs": len(totals), "share_plausible": round(ok, 3)}
+    return out
+
+
 _SIDES = {"Home": "home", "Draw": "draw", "Away": "away"}
 _DOUBLE = {"Home/Draw": "1X", "Draw/Away": "X2", "Home/Away": "12"}
 _HALF = {"1st Half": "first", "2nd Half": "second", "Draw": "equal"}
@@ -109,6 +164,42 @@ def map_bet(bet: str, value: str) -> tuple[str, str, str] | None:
         home, _, away = value.partition(":")
         if home.isdigit() and away.isdigit() and int(home) <= 5 and int(away) <= 5:
             return "CS", "", f"{int(home)}-{int(away)}"
+        return None
+    if bet in ("Clean Sheet - Home", "Clean Sheet - Away") and value in ("Yes", "No"):
+        side = "home" if bet.endswith("Home") else "away"
+        return "CLEAN_SHEET", "", side if value == "Yes" else f"{side}_no"
+    if bet == "Win To Nil" and value in ("Home", "Away"):
+        return "WIN_TO_NIL", "", _SIDES[value]
+    if bet == "Results/Both Teams Score":
+        result, _, both = value.partition("/")
+        if result in _SIDES and both in ("Yes", "No"):
+            return "1X2_BTTS", "", f"{_SIDES[result]}/{both.lower()}"
+        return None
+    if bet == "Result/Total Goals":
+        result, _, total = value.partition("/")
+        parsed = _over_under(total)
+        if result in _SIDES and parsed is not None:
+            return "1X2_OU", parsed[0], f"{_SIDES[result]}/{parsed[1]}"
+        return None
+    if bet == "Total Goals/Both Teams To Score":
+        # « o/yes 2.5 » : plus de 2,5 buts et les deux équipes marquent.
+        combo, _, line = value.partition(" ")
+        total, _, both = combo.partition("/")
+        sides = {"o": "over", "u": "under"}
+        try:
+            line_key = f"{float(line):g}"
+        except ValueError:
+            return None
+        if total in sides and both in ("yes", "no"):
+            return "OU_BTTS", line_key, f"{sides[total]}/{both}"
+        return None
+    if bet == "Winning Margin":
+        # « 1 by 2 » : l'équipe 1 (domicile) gagne de 2 buts ; « 2 by 4+ » : extérieur, 4 ou plus.
+        # « Draw » et « Score Draw » : sens exact à confirmer, non traduits.
+        team, _, rest = value.partition(" by ")
+        winner = {"1": "home", "2": "away"}.get(team)
+        if winner and rest in ("1", "2", "3", "4+"):
+            return "MARGIN", "", f"{winner}+{rest.rstrip('+')}"
         return None
     over_under_markets = {
         "Goals Over/Under": "OU",

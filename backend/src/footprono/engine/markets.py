@@ -26,7 +26,7 @@ TEAM_OU_LINES = (0.5, 1.5, 2.5, 3.5)
 HT_OU_LINES = (0.5, 1.5, 2.5)
 AH_LINES = tuple(x / 4 for x in range(-12, 13))  # -3 à +3 par quart de but
 EH_LINES = (-2, -1, 1, 2)
-COMBO_OU_LINES = (1.5, 2.5, 3.5)
+COMBO_OU_LINES = (1.5, 2.5, 3.5, 4.5)
 EXACT_MAX = 5
 
 
@@ -123,13 +123,16 @@ def derive_markets(dist: ScoreDistribution) -> dict[str, Selection]:
 
     put("CLEAN_SHEET", "", "home", p(a == 0))
     put("CLEAN_SHEET", "", "away", p(h == 0))
+    put("CLEAN_SHEET", "", "home_no", p(a > 0))
+    put("CLEAN_SHEET", "", "away_no", p(h > 0))
     put("WIN_TO_NIL", "", "home", p((h > a) & (a == 0)))
     put("WIN_TO_NIL", "", "away", p((a > h) & (h == 0)))
-    for k in (1, 2):
+    # Écart de buts : 1, 2, 3 exactement, puis 4 ou plus.
+    for k in (1, 2, 3):
         put("MARGIN", "", f"home+{k}", p(h - a == k))
         put("MARGIN", "", f"away+{k}", p(a - h == k))
-    put("MARGIN", "", "home+3", p(h - a >= 3))
-    put("MARGIN", "", "away+3", p(a - h >= 3))
+    put("MARGIN", "", "home+4", p(h - a >= 4))
+    put("MARGIN", "", "away+4", p(a - h >= 4))
     put("MARGIN", "", "draw", draw)
     even = p(total % 2 == 0)
     put("ODD_EVEN", "", "even", even)
@@ -150,6 +153,10 @@ def derive_markets(dist: ScoreDistribution) -> dict[str, Selection]:
             put("1X2_OU", _line_key(line), f"{res}/under", p(rmask & (total < line)))
         put("1X2_BTTS", "", f"{res}/yes", p(rmask & both))
         put("1X2_BTTS", "", f"{res}/no", p(rmask & ~both))
+    for line in COMBO_OU_LINES:
+        for side, tmask in (("over", total > line), ("under", total < line)):
+            put("OU_BTTS", _line_key(line), f"{side}/yes", p(tmask & both))
+            put("OU_BTTS", _line_key(line), f"{side}/no", p(tmask & ~both))
 
     # Mi-temps.
     hh, ha = (np.asarray(x, dtype=np.int64) for x in np.indices(ht.shape))

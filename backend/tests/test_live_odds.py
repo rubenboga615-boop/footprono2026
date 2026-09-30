@@ -15,7 +15,12 @@ from footprono.ingestion import service
 from footprono.ingestion.live import collect_odds
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.ingestion.sources import api_football
-from footprono.ingestion.sources.api_football_odds import map_bet, parse_odds_page
+from footprono.ingestion.sources.api_football_odds import (
+    OddsQuote,
+    handicap_diagnostics,
+    map_bet,
+    parse_odds_page,
+)
 
 from .conftest import make_settings
 
@@ -38,12 +43,38 @@ Factory = async_sessionmaker[AsyncSession]
         ("Corners Over Under", "Over 9.5", ("CORNERS_OU", "9.5", "over")),
         ("Total - Away", "Over 1.5", ("TEAM_OU_AWAY", "1.5", "over")),
         ("Highest Scoring Half", "2nd Half", ("HIGHEST_HALF", "", "second")),
+        ("Clean Sheet - Away", "No", ("CLEAN_SHEET", "", "away_no")),
+        ("Win To Nil", "Home", ("WIN_TO_NIL", "", "home")),
+        ("Results/Both Teams Score", "Draw/No", ("1X2_BTTS", "", "draw/no")),
+        ("Result/Total Goals", "Away/Over 4.5", ("1X2_OU", "4.5", "away/over")),
+        ("Total Goals/Both Teams To Score", "o/yes 2.5", ("OU_BTTS", "2.5", "over/yes")),
+        ("Winning Margin", "2 by 4+", ("MARGIN", "", "away+4")),
+        ("Winning Margin", "1 by 1", ("MARGIN", "", "home+1")),
+        ("Winning Margin", "Score Draw", None),
         ("Asian Handicap", "Home -0.5", None),  # sens de la ligne à vérifier : non traduit
         ("Goals Over/Under", "Over", None),
     ],
 )
 def test_map_bet(bet: str, value: str, expected: tuple[str, str, str] | None) -> None:
     assert map_bet(bet, value) == expected
+
+
+def test_handicap_diagnostics_finds_the_convention() -> None:
+    def q(bet: str, value: str, price: str) -> OddsQuote:
+        return OddsQuote(1, "Pinnacle", bet, value, Decimal(price), None)
+
+    quotes = [
+        # Chaque équipe avec son propre handicap : Home -0.5 ↔ Away +0.5.
+        q("Asian Handicap", "Home -0.5", "1.90"),
+        q("Asian Handicap", "Away +0.5", "1.98"),
+        q("Asian Handicap", "Home +0.5", "1.40"),
+        q("Asian Handicap", "Away -0.5", "3.00"),
+        q("Asian Handicap", "Home +0", "1.60"),
+        q("Asian Handicap", "Away +0", "2.40"),
+    ]
+    check = handicap_diagnostics(quotes)["Asian Handicap"]
+    assert check["own"] == {"pairs": 3, "share_plausible": 1.0}
+    assert check["home_line"]["share_plausible"] < 1.0
 
 
 def _odds_item(fixture_id: int, book: str, home: str) -> dict[str, Any]:

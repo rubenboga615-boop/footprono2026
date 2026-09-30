@@ -167,8 +167,19 @@ def print_odds_summary(report: dict[str, Any]) -> None:
         f"Cotes : {report['status']} — {report['matches']} matchs, {report['quotes']} cotes "
         f"relevées, {report['changed']} nouvelles ou modifiées ({report['requests']} requêtes)"
     )
+    for code, info in report.get("calendar", {}).items():
+        if "error" in info:
+            print(f"  calendrier {code} : {info['error']}")
+        else:
+            print(f"  calendrier {code} : {info['updated']} matchs mis à jour")
     for book, n in sorted(report["bookmakers"].items()):
         print(f"  {book} : {n}")
+    for bet, conventions in report.get("handicap_check", {}).items():
+        for convention, c in conventions.items():
+            print(
+                f"  vérification {bet} [{convention}] : {c['pairs']} paires, "
+                f"{100 * c['share_plausible']:.0f} % cohérentes"
+            )
     for issue in report["issues"]:
         print(f"  attention : {issue}")
     if report["unmapped_bets"]:

@@ -72,7 +72,15 @@ def test_markets_are_mathematically_coherent(dist) -> None:  # type: ignore[no-u
     assert m["AH|0|home"] == m["DNB||home"]
     ah = m["AH|-0.25|home"]
     assert (ah.win, ah.half_loss) == pytest.approx((home, draw))
-    assert w("EH|-1|home") == pytest.approx(w("MARGIN||home+2") + w("MARGIN||home+3"))
+    assert w("EH|-1|home") == pytest.approx(
+        w("MARGIN||home+2") + w("MARGIN||home+3") + w("MARGIN||home+4")
+    )
+    margins = [k for k in m if k.startswith("MARGIN|")]
+    assert sum(w(k) for k in margins) == pytest.approx(1.0)
+    assert w("CLEAN_SHEET||home") + w("CLEAN_SHEET||home_no") == pytest.approx(1.0)
+    ou_btts = sum(w(f"OU_BTTS|2.5|{t}/{b}") for t in ("over", "under") for b in ("yes", "no"))
+    assert ou_btts == pytest.approx(1.0)
+    assert w("OU_BTTS|2.5|over/yes") + w("OU_BTTS|2.5|under/yes") == pytest.approx(w("BTTS||yes"))
     for line in AH_LINES:
         s = m[f"AH|{line:g}|home"]
         assert s.win + s.half_win + s.push + s.half_loss + s.loss == pytest.approx(1.0)
