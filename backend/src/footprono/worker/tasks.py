@@ -4,6 +4,7 @@ import asyncio
 from typing import Any
 
 from footprono import __version__
+from footprono.bookmaker import settlement
 from footprono.core.config import get_settings
 from footprono.db.session import create_engine, create_session_factory
 from footprono.football.models import DataSource
@@ -46,9 +47,13 @@ async def _ingest_current_season() -> dict[str, Any]:
                 IngestionRequest(DataSource.API_FOOTBALL, competitions, [season]),
             ],
         )
+        # Scores confirmés par football-data : paris récents revus si un score a changé.
+        async with create_session_factory(engine)() as session:
+            bets = await settlement.settle_bets(session)
     finally:
         await engine.dispose()
     return {
+        "bets": bets,
         "run_id": report["run_id"],
         "status": report["status"],
         "files": {f"{f['source']}:{f['competition']}": f["status"] for f in report["files"]},
@@ -92,7 +97,11 @@ async def _follow_live() -> dict[str, Any]:
     engine = create_engine(settings)
     try:
         async with create_session_factory(engine)() as session:
-            return await live.follow_live(session, settings)
+            report = await live.follow_live(session, settings)
+        # Règlement juste après : un pari est payé dès la fin de son match.
+        async with create_session_factory(engine)() as session:
+            report["bets"] = await settlement.settle_bets(session)
+        return report
     finally:
         await engine.dispose()
 
