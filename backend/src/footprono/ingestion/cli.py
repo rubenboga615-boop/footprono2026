@@ -172,9 +172,18 @@ def print_odds_summary(report: dict[str, Any]) -> None:
     for issue in report["issues"]:
         print(f"  attention : {issue}")
     if report["unmapped_bets"]:
-        print("  paris gardés tels quels, pas encore traduits en marchés du moteur :")
-        for bet in report["unmapped_bets"]:
-            print(f"    - {bet}")
+        print("  paris gardés tels quels, pas (ou pas entièrement) traduits en marchés du moteur :")
+        # Marchés de joueurs : hors périmètre validé (docs/MARCHES.md), seulement comptés.
+        players = ("Scorer", "Player", "Goal Method", "Penalty", "Own Goal", "RTG")
+        skipped = 0
+        for bet, info in report["unmapped_bets"].items():
+            if any(word in bet for word in players):
+                skipped += 1
+                continue
+            partial = " (en partie traduit)" if info["partial"] else ""
+            print(f"    - {bet}{partial} : {' | '.join(info['values'])}")
+        if skipped:
+            print(f"    ({skipped} paris sur les joueurs, hors périmètre, non affichés)")
 
 
 def _print_progress(message: str) -> None:

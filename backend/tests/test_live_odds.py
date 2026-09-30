@@ -138,7 +138,7 @@ async def test_collect_odds_keeps_only_changes(
     assert first["changed"] == 8  # 2 matchs x 4 cotes valides
     assert "bookmaker « Pinnacle » absent d'API-Football : non relevé" in first["issues"]
     assert "1 matchs API-Football inconnus en base : ignorés" in first["issues"]
-    assert first["unmapped_bets"] == ["Player to Score"]
+    assert first["unmapped_bets"] == {"Player to Score": {"partial": False, "values": ["X"]}}
     # 5 championnats x 2 bookmakers trouvés = 10 pages, + la liste des bookmakers.
     assert calls.count("/odds") == 10
 

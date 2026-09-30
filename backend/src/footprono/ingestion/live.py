@@ -161,7 +161,19 @@ async def collect_odds(
         added += 1
         report["bookmakers"][q.bookmaker] = report["bookmakers"].get(q.bookmaker, 0) + 1
     await session.commit()
-    unmapped = sorted({q.bet for q in quotes if map_bet(q.bet, q.value) is None})
+    # Paris dont au moins une sélection n'est pas traduite, avec quelques libellés
+    # réels (pour compléter la traduction) et s'ils sont traduits en partie.
+    values: dict[str, set[str]] = {}
+    mapped: set[str] = set()
+    for q in quotes:
+        if map_bet(q.bet, q.value) is None:
+            values.setdefault(q.bet, set()).add(q.value)
+        else:
+            mapped.add(q.bet)
+    unmapped = {
+        bet: {"partial": bet in mapped, "values": sorted(v)[:12]}
+        for bet, v in sorted(values.items())
+    }
     report.update(
         matches=len(matches),
         quotes=len(quotes),
