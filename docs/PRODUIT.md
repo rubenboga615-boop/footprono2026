@@ -54,9 +54,29 @@ bash scripts/termux/admin.sh stats
 | `POST /admin/users/{id}/premium/revoke` | retirer Premium |
 | `POST /admin/users/{id}/active` | désactiver / réactiver un compte |
 
+## Page publique de fiabilité (`GET /reliability`, gratuite, sans connexion)
+
+Code : `backend/src/footprono/predictions/reliability.py`.
+
+- **Seules les prédictions enregistrées avant le coup d'envoi comptent**
+  (sans heure connue : avant minuit UTC du jour du match), la dernière pour
+  chaque match. Elles ne sont jamais modifiées ni recalculées après coup.
+- **Toutes comptent** : aucun match n'est écarté parce que la prédiction était
+  mauvaise.
+- Marchés : 1X2, plus/moins de 2,5 buts, les deux marquent. Pour chacun :
+  log loss, Brier, issue la plus probable trouvée (et probabilité annoncée
+  en moyenne pour elle), fréquences observées, **calibration** (probabilité
+  annoncée par tranche de 10 % → fréquence observée).
+- Références : fréquences observées sur le même échantillon (avantagée, car
+  connue après coup) et **cotes de clôture** des bookmakers quand elles
+  existent (elles font en général mieux que le moteur ; c'est affiché).
+- Par championnat, et les derniers matchs avec la prédiction et le résultat.
+- **Moins de 200 matchs : averti « échantillon trop petit pour conclure »**.
+- Les chiffres du backtest (7 081 matchs, saisons 2022-2026) sont donnés à
+  part, présentés comme une simulation et non comme des prédictions publiées.
+- Filtres : `?competition=EPL`, `?since=2026-08-01`, `?recent=20`.
+
 ## Reste à faire en phase 5
 
-- Page publique de fiabilité (prédictions faites avant les matchs contre les
-  résultats, calibration par marché).
 - Application Flutter (web + APK) construite par GitHub Actions.
 - Notifications téléphone fermé (Firebase), dès qu'un projet Firebase existe.

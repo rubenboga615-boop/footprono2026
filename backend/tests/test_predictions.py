@@ -1,11 +1,12 @@
 """Prédictions enregistrées et API, sur une saison réelle dont la fin est « à venir »."""
 
-from datetime import date
+import math
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.engine import ENGINE_VERSION
@@ -123,3 +124,68 @@ async def test_prediction_api(
     runs = await client.get("/api/v1/predictions/runs")
     assert runs.status_code == 200
     assert runs.json()[0]["status"] == "ok"
+
+
+async def test_reliability_counts_only_predictions_made_before_kickoff(
+    db_factory: async_sessionmaker[AsyncSession], upcoming: list[int], client: AsyncClient
+) -> None:
+    empty = (await client.get("/api/v1/reliability")).json()
+    assert empty["matches"] == 0
+    assert empty["warning"] is not None
+    assert empty["backtest"]["matches"] == 7081
+
+    async with db_factory() as session:
+        await predict_upcoming(session, AS_OF, days_ahead=30)
+        scores = [(2, 1), (1, 1), (0, 2), (3, 0)]
+        ids = sorted(upcoming)
+        for i, mid in enumerate(ids):
+            hg, ag = scores[i % len(scores)]
+            await session.execute(
+                update(Match)
+                .where(Match.id == mid)
+                .values(status=MatchStatus.FINISHED, home_goals=hg, away_goals=ag)
+            )
+        # Prédictions « faites la veille », sauf une enregistrée après le match : exclue.
+        await session.execute(
+            text(
+                "UPDATE match_predictions mp SET created_at = "
+                "(m.match_date - 1)::timestamp AT TIME ZONE 'UTC' "
+                "FROM matches m WHERE m.id = mp.match_id"
+            )
+        )
+        await session.execute(
+            update(MatchPrediction)
+            .where(MatchPrediction.match_id == ids[0])
+            .values(created_at=datetime.now(UTC))
+        )
+        await session.commit()
+        preds = {
+            p.match_id: p
+            for p in await session.scalars(
+                select(MatchPrediction).where(MatchPrediction.match_id != ids[0])
+            )
+        }
+
+    report = (await client.get("/api/v1/reliability", params={"competition": "epl"})).json()
+    n = len(ids) - 1
+    assert report["matches"] == n
+    assert report["enough_data"] is False
+    assert "trop petit" in report["warning"]
+    one_x_two = next(m for m in report["markets"] if m["market"] == "1X2")
+    # log loss recalculée à la main sur les prédictions stockées
+    expected = 0.0
+    for i, mid in enumerate(ids[1:], start=1):
+        hg, ag = scores[i % len(scores)]
+        key = "home" if hg > ag else ("draw" if hg == ag else "away")
+        expected -= math.log(preds[mid].markets[f"1X2||{key}"][0])
+    assert one_x_two["log_loss"] == pytest.approx(expected / n, abs=1e-4)
+    assert sum(b["count"] for b in one_x_two["calibration"]) == 3 * n
+    assert sum(one_x_two["observed_frequencies"].values()) == pytest.approx(1, abs=1e-3)
+    assert len(report["recent"]) == min(20, n)
+    assert ids[0] not in {r["match_id"] for r in report["recent"]}
+    # les cotes de clôture de football-data servent de référence
+    versus = {v["market"]: v for v in report["versus_closing_odds"]}
+    assert versus["1X2"]["matches"] == n
+
+    other = (await client.get("/api/v1/reliability", params={"competition": "L1"})).json()
+    assert other["matches"] == 0

@@ -5,7 +5,7 @@ annoncer une « value » (principe n° 4, docs/MOTEUR.md).
 """
 
 from datetime import UTC, date, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
 from sqlalchemy import func, select
@@ -18,6 +18,7 @@ from footprono.engine.markets import Selection
 from footprono.football.models import Competition, Match, MatchStatus
 from footprono.football.schemas import MatchOut
 from footprono.predictions.models import MatchPrediction, PredictionRun
+from footprono.predictions.reliability import reliability_report
 from footprono.predictions.schemas import (
     ExpectedGoals,
     PredictionOut,
@@ -157,3 +158,19 @@ async def list_prediction_runs(
         select(PredictionRun).order_by(PredictionRun.id.desc()).limit(limit)
     )
     return list(runs.all())
+
+
+@router.get("/reliability")
+async def reliability(
+    session: SessionDep,
+    competition: str | None = None,
+    since: Annotated[date | None, Query(description="matchs joués à partir de cette date")] = None,
+    recent: Annotated[int, Query(ge=0, le=100)] = 20,
+) -> dict[str, Any]:
+    """Fiabilité publique : prédictions faites avant les matchs face aux résultats (gratuit)."""
+    return await reliability_report(
+        session,
+        competition=competition.upper() if competition else None,
+        since=since,
+        recent=recent,
+    )
