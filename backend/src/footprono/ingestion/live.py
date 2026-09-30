@@ -152,18 +152,22 @@ async def collect_odds(
         )
     latest = await _latest_prices(session, list(matches.values()))
     added = 0
+    still_offered: list[int] = []
     for q in quotes:
         match_id = matches.get(q.fixture_id)
         if match_id is None:
             continue
         key = (match_id, q.bookmaker, q.bet, q.value)
-        if latest.get(key) == q.price:
+        previous = latest.get(key)
+        if previous is not None and previous[1] == q.price:
+            still_offered.append(previous[0])  # inchangée : seulement « vue » à nouveau
             continue
-        latest[key] = q.price
+        latest[key] = (0, q.price)
         session.add(
             BookmakerOdds(
                 match_id=match_id,
                 fetched_at=fetched_at,
+                last_seen_at=fetched_at,
                 source_updated_at=q.updated_at,
                 bookmaker=q.bookmaker,
                 bet=q.bet,
@@ -174,6 +178,12 @@ async def collect_odds(
         )
         added += 1
         report["bookmakers"][q.bookmaker] = report["bookmakers"].get(q.bookmaker, 0) + 1
+    for start in range(0, len(still_offered), 5000):
+        await session.execute(
+            update(BookmakerOdds)
+            .where(BookmakerOdds.id.in_(still_offered[start : start + 5000]))
+            .values(last_seen_at=fetched_at)
+        )
     await session.commit()
     # Paris dont au moins une sélection n'est pas traduite, avec quelques libellés
     # réels (pour compléter la traduction) et s'ils sont traduits en partie.
@@ -465,8 +475,8 @@ async def collect_injuries(
 
 async def _latest_prices(
     session: AsyncSession, match_ids: list[int]
-) -> dict[tuple[int, str, str, str], Decimal]:
-    """Dernière cote enregistrée par (match, bookmaker, pari, sélection)."""
+) -> dict[tuple[int, str, str, str], tuple[int, Decimal]]:
+    """Dernière cote enregistrée (identifiant, prix) par (match, bookmaker, pari, sélection)."""
     if not match_ids:
         return {}
     last = (
@@ -489,7 +499,8 @@ async def _latest_prices(
             BookmakerOdds.bookmaker,
             BookmakerOdds.bet,
             BookmakerOdds.value,
+            BookmakerOdds.id,
             BookmakerOdds.price,
         ).join(last, last.c.id == BookmakerOdds.id)
     )
-    return {(m, b, bet, v): p for m, b, bet, v, p in rows.tuples()}
+    return {(m, b, bet, v): (i, p) for m, b, bet, v, i, p in rows.tuples()}

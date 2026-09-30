@@ -7,13 +7,13 @@ from .conftest import make_settings
 
 
 def test_development_defaults_are_valid() -> None:
-    settings = make_settings(environment=Environment.DEVELOPMENT)
+    settings = make_settings(environment=Environment.DEVELOPMENT, secret_key=None)
     assert settings.secret_key is None
 
 
 def test_production_requires_secret_key() -> None:
     with pytest.raises(ValidationError, match="FP_SECRET_KEY"):
-        make_settings(environment=Environment.PRODUCTION)
+        make_settings(environment=Environment.PRODUCTION, secret_key=None)
 
 
 def test_production_rejects_short_secret_key() -> None:

@@ -283,6 +283,9 @@ class BookmakerOdds(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Dernier relevé où cette cote était encore proposée (inchangée) : une cote
+    # absente du relevé suivant a été retirée par le bookmaker.
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     # Dernière mise à jour annoncée par API-Football pour ce match.
     source_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     bookmaker: Mapped[str] = mapped_column(String(32))
