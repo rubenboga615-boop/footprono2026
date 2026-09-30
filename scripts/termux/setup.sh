@@ -27,15 +27,24 @@ if [ ! -f "$PGDATA/PG_VERSION" ]; then
     initdb -D "$PGDATA" --auth-local=trust --auth-host=scram-sha-256 -E UTF8
 fi
 start_postgres
-psql_admin() { psql -d postgres -v ON_ERROR_STOP=1 -qtA "$@"; }
-if [ "$(psql_admin -c "SELECT 1 FROM pg_roles WHERE rolname = '$DB_USER'")" != "1" ]; then
-    psql_admin -c "CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASSWORD' CREATEDB"
-fi
-for db in "$DB_NAME" "${DB_NAME}_test"; do
-    if [ "$(psql_admin -c "SELECT 1 FROM pg_database WHERE datname = '$db'")" != "1" ]; then
-        psql_admin -c "CREATE DATABASE $db OWNER $DB_USER"
+# Le rôle et les bases existent déjà si l'application s'y connecte (TCP, avec
+# mot de passe) : rien à créer, et la socket locale n'est pas nécessaire.
+app_db_ok() { PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U "$DB_USER" -d "$1" -qtAc "SELECT 1" >/dev/null 2>&1; }
+if app_db_ok "$DB_NAME" && app_db_ok "${DB_NAME}_test"; then
+    echo "rôle $DB_USER et bases déjà en place"
+else
+    [ -S "$PG_SOCKET_DIR/.s.PGSQL.$PG_PORT" ] || die "socket PostgreSQL absente ($PG_SOCKET_DIR/.s.PGSQL.$PG_PORT) alors que le serveur tourne.
+Redémarrer PostgreSQL puis relancer : bash scripts/termux/stop.sh --all && bash scripts/termux/setup.sh"
+    psql_admin() { psql -d postgres -v ON_ERROR_STOP=1 -qtA "$@"; }
+    if [ "$(psql_admin -c "SELECT 1 FROM pg_roles WHERE rolname = '$DB_USER'")" != "1" ]; then
+        psql_admin -c "CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASSWORD' CREATEDB"
     fi
-done
+    for db in "$DB_NAME" "${DB_NAME}_test"; do
+        if [ "$(psql_admin -c "SELECT 1 FROM pg_database WHERE datname = '$db'")" != "1" ]; then
+            psql_admin -c "CREATE DATABASE $db OWNER $DB_USER"
+        fi
+    done
+fi
 
 log "Redis dédié (port $REDIS_PORT)"
 start_redis
