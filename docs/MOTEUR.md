@@ -73,6 +73,17 @@ Conclusion honnête : le contexte apporte peu, comme attendu (le niveau des
 équipes, bien estimé, explique déjà l'essentiel). Les gains sont petits mais
 réels sur les matchs de fin de saison concernés.
 
+### Profil « équipe qui démarre fort » : testé, rejeté
+
+Part des buts marqués et encaissés en 1re période propre à chaque équipe
+(pondérée dans le temps, rétrécie vers celle du championnat), sur 12 457
+matchs 2019-2025 : la log loss du résultat à la mi-temps **se dégrade**
+(−0,0011 ± 0,0013 sans rétrécissement, −0,0004 ± 0,0010 avec). Ce profil est
+surtout du bruit ; la part du championnat est conservée. En conséquence, la
+collecte des tirs Understat minute par minute (≈ 18 000 pages, plusieurs
+heures) n'est pas lancée : elle servirait surtout ce profil. Elle pourra
+servir au direct (phase 3).
+
 ## Résultats sur les saisons de test 2022-23 → 2025-26 (vérifié le 30/09/2026)
 
 7 081 matchs, jamais vus pendant le réglage ni la sélection. Chaque match est
@@ -111,6 +122,45 @@ Calibration 1X2 (probabilité annoncée → fréquence observée) :
 | 0,7-0,8 | 538 | 0,742 | 0,764 | 0,741 → 0,761 |
 | 0,8-0,9 | 168 | 0,840 | 0,851 | 0,837 → 0,886 |
 
+## Corners, cartons et tirs (`counts.py`, vérifié le 30/09/2026)
+
+Même principe que les buts : pour chaque statistique, niveau « pour » et
+« contre » de chaque équipe et avantage du terrain, pondérés dans le temps
+(demi-vie 180 jours), pénalisés, avec les seuls matchs antérieurs. Dispersion
+par une loi binomiale négative (les cartons varient plus qu'une loi de
+Poisson ; les corners non). Données : football-data, 100 % des matchs depuis
+2016-17.
+
+Réglages choisis sur la validation 2019-20 → 2021-22 (pénalité 60 pour
+corners et tirs, 30 pour les cartons). Saisons de test 2022-23 → 2025-26,
+7 081 matchs, log loss (plus bas = mieux) :
+
+| Statistique | Total exact : modèle | naïf | Plus/moins | modèle | naïf |
+|---|---|---|---|---|---|
+| Corners | 2,6106 | 2,6635 | 9,5 | 0,6840 | 0,6909 |
+| Cartons (jaunes + rouges) | 2,1884 | 2,2573 | 4,5 | 0,6603 | 0,6799 |
+| Tirs | 3,1456 | 3,2328 | 24,5 | 0,6634 | 0,6929 |
+| Tirs cadrés | 2,5165 | 2,6005 | 8,5 | 0,6728 | 0,6940 |
+
+Référence naïve : distribution des totaux du championnat sur la même
+fenêtre. Calibration du plus/moins correcte (écarts de 1 à 4 points par
+tranche) ; les cartons sont un peu trop annoncés au-dessus de 50 %.
+Aucune cote corners/cartons dans nos sources : pas de comparaison au marché.
+
+**Arbitre** (Premier League seulement pour l'instant : football-data ne donne
+l'arbitre que pour elle) : facteur observé / attendu, rétréci vers 1 avec
+10 matchs fictifs. Validation : log loss du total des cartons 2,0079 → 1,9944
+(net gain). Test 2022-2025 : 2,1322 → 2,1341 (nul). Conservé, à réévaluer
+quand API-Football aura rempli l'arbitre des 5 championnats. Les noms
+d'arbitre API-Football sont préférés (ce sont ceux connus avant le match) ;
+tant qu'ils manquent, le nom football-data est utilisé.
+
+Marchés produits : total, par équipe, « le plus de » (1X2) pour corners,
+cartons, tirs et tirs cadrés ; handicap corners ; points de cartons (jaune 10,
+rouge 25 ; un 2e jaune suivi du rouge compte 35 ici, 25 chez certains
+bookmakers). Par mi-temps : pas encore (historique API-Football depuis
+2024-25 seulement).
+
 ## Lecture
 
 - Le modèle **bat nettement la référence naïve** sur tous les championnats
@@ -126,9 +176,10 @@ Calibration 1X2 (probabilité annoncée → fréquence observée) :
 ## Suite de la phase 2
 
 1. ~~Correction de calibration~~ et ~~indicateurs de contexte~~ (fait).
-2. Tirs Understat avec leur minute : périodes de 15 minutes, marchés
-   mi-temps.
-3. Modèles des corners, cartons (avec l'arbitre) et tirs.
+2. ~~Parts de mi-temps par équipe~~ (testé, rejeté ; collecte des tirs
+   Understat reportée).
+3. ~~Corners, cartons (avec l'arbitre) et tirs~~ (fait ; par mi-temps
+   quand l'historique API-Football sera suffisant).
 4. Évaluation du handicap asiatique face aux cotes.
 5. Enregistrement des prédictions (version du modèle, date), route d'API et
    tâche quotidienne.
@@ -140,5 +191,6 @@ footprono-engine backtest                                   # saisons de test 20
 footprono-engine backtest --seasons 2019-2021 --grid        # comparaison de réglages
 footprono-engine backtest --no-correction                   # Dixon-Coles brut
 footprono-engine features                                   # gain de chaque indicateur
+footprono-engine counts                                     # corners, cartons, tirs
 bash scripts/termux/engine.sh backtest                      # sur le téléphone
 ```

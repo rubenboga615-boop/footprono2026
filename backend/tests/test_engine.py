@@ -104,9 +104,18 @@ def synthetic_history(
             lh = np.exp(0.25 + 0.25 + strength[h] - strength[a])
             la = np.exp(0.25 + strength[a] - strength[h])
             hg, ag = rng.poisson(lh), rng.poisson(la)
+            # Corners : équipes fortes en obtiennent plus ; cartons : l'arbitre 0 est sévère.
+            ref = int(rng.integers(0, 8))
+            severity = 1.6 if ref == 0 else 1.0
             rows.append(
-                (2016 + s, d, h + 1, a + 1, hg, ag, rng.binomial(hg, 0.45), rng.binomial(ag, 0.45))
-            )
+                (
+                    2016 + s, d, h + 1, a + 1, hg, ag,
+                    rng.binomial(hg, 0.45), rng.binomial(ag, 0.45),
+                    rng.poisson(np.exp(1.65 + 0.8 * (strength[h] - strength[a]))),
+                    rng.poisson(np.exp(1.55 + 0.8 * (strength[a] - strength[h]))),
+                    rng.poisson(1.9 * severity), rng.poisson(2.1 * severity), ref,
+                )
+            )  # fmt: skip
     n = len(rows)
     hist = History(
         match_id=np.arange(1, n + 1, dtype=np.int64),
@@ -127,6 +136,18 @@ def synthetic_history(
             k: np.full((n, 3 if "1x2" in k else 2), np.nan)
             for k in ("pre_1x2", "close_1x2", "pre_ou25", "close_ou25")
         },
+        stats={
+            "corners": (
+                np.array([r[8] for r in rows], dtype=np.float64),
+                np.array([r[9] for r in rows], dtype=np.float64),
+            ),
+            "yellow_cards": (
+                np.array([r[10] for r in rows], dtype=np.float64),
+                np.array([r[11] for r in rows], dtype=np.float64),
+            ),
+            "red_cards": (np.zeros(n), np.zeros(n)),
+        },
+        referee=np.array([f"ref{r[12]}" for r in rows], dtype=np.str_),
     )
     order = np.argsort(hist.date, kind="stable")
     return hist.subset(order), strength
@@ -290,3 +311,75 @@ def test_corrected_backtest_is_causal() -> None:
     out2 = apply_correction(altered, pred2, build_context(altered), ("dead",))
     keep = np.array(out.season) == 2019
     assert np.array(out2.model_1x2)[keep] == pytest.approx(np.array(out.model_1x2)[keep])
+
+
+# --- Corners, cartons, tirs -----------------------------------------------------
+
+
+def test_counts_model_learns_teams_and_referee() -> None:
+    from footprono.engine.counts import CountsConfig, fit_counts
+
+    hist, strength = synthetic_history(seasons=4)
+    as_of = hist.date.max() + np.timedelta64(1, "D")
+    corners = fit_counts(hist, "TEST", "corners", as_of, CountsConfig(half_life_days=365))
+    fitted = [corners.attack[corners.team_index[t + 1]] for t in range(len(strength))]
+    assert np.corrcoef(fitted, strength)[0, 1] > 0.9
+    assert corners.size == 1000.0  # données de Poisson : pas de surdispersion
+    cards = fit_counts(hist, "TEST", "cards", as_of, CountsConfig(half_life_days=365))
+    assert cards.referee_factor["ref0"] > 1.3
+    assert all(0.8 < f < 1.15 for r, f in cards.referee_factor.items() if r != "ref0")
+    mh, ma = cards.means(1, 2, "ref0")
+    assert (mh, ma) > cards.means(1, 2, "ref3")
+    assert cards.means(1, 2, "arbitre inconnu") == cards.means(1, 2)
+
+
+def test_counts_model_ignores_the_future() -> None:
+    from footprono.engine.counts import CountsConfig, fit_counts
+
+    hist, _ = synthetic_history()
+    as_of = np.datetime64("2018-01-15")
+    ref = fit_counts(hist, "TEST", "corners", as_of, CountsConfig())
+    altered = hist.subset(np.ones(len(hist), dtype=bool))
+    altered.stats["corners"][0][altered.date >= as_of] = 25.0
+    assert fit_counts(altered, "TEST", "corners", as_of, CountsConfig()).attack == pytest.approx(
+        ref.attack
+    )
+
+
+def test_count_markets_are_coherent() -> None:
+    from footprono.engine.counts import (
+        CountsModel,
+        booking_points_markets,
+        count_markets,
+        total_pmf,
+    )
+
+    model = CountsModel("cards", "TEST", 0.0, 0.0, {}, np.zeros(0), np.zeros(0), size=6.0)
+    joint = model.joint(2.1, 2.4)
+    assert joint.sum() == pytest.approx(1.0)
+    m = count_markets("cards", joint)
+    assert m["CARDS_OU|4.5|over"].win + m["CARDS_OU|4.5|under"].win == pytest.approx(1.0)
+    assert m["CARDS_OU|2.5|over"].win > m["CARDS_OU|4.5|over"].win
+    assert sum(m[f"CARDS_1X2||{s}"].win for s in ("home", "draw", "away")) == pytest.approx(1.0)
+    # Binomiale négative : plus dispersée que Poisson à même moyenne.
+    poisson_model = CountsModel("cards", "TEST", 0.0, 0.0, {}, np.zeros(0), np.zeros(0), 1000.0)
+    tail = total_pmf(joint)[9:].sum()
+    assert tail > total_pmf(poisson_model.joint(2.1, 2.4))[9:].sum()
+    corners = count_markets("corners", CountsModel(
+        "corners", "TEST", 0.0, 0.0, {}, np.zeros(0), np.zeros(0), 1000.0
+    ).joint(5.5, 4.2))  # fmt: skip
+    assert corners["CORNERS_AH|-0.5|home"].win == pytest.approx(corners["CORNERS_1X2||home"].win)
+    bp = booking_points_markets(total_pmf(joint), np.array([0.85, 0.13, 0.02]))
+    assert bp["BOOKING_POINTS_OU|45.5|over"].win + bp["BOOKING_POINTS_OU|45.5|under"].win == (
+        pytest.approx(1.0)
+    )
+
+
+def test_counts_backtest_beats_naive() -> None:
+    from footprono.engine.backtest import counts_backtest
+    from footprono.engine.counts import CountsConfig
+
+    hist, _ = synthetic_history(seasons=5)
+    r = counts_backtest(hist, ["TEST"], [2019, 2020], "corners", CountsConfig(365, ridge=5))
+    assert r["n"] > 200
+    assert r["total_log_loss"]["model"] < r["total_log_loss"]["naive"]

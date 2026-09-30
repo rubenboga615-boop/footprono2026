@@ -26,6 +26,13 @@ from numpy.typing import NDArray
 
 from footprono.engine.context import MatchContext
 from footprono.engine.correction import fit_correction
+from footprono.engine.counts import (
+    TOTAL_LINES,
+    CountsConfig,
+    count_values,
+    fit_counts,
+    total_pmf,
+)
 from footprono.engine.goals import GoalsConfig, fit_goals, training_mask
 from footprono.engine.history import History
 from footprono.engine.scores import score_distribution
@@ -227,6 +234,76 @@ def _naive_rates(
     }
 
 
+# Ligne de référence pour évaluer le plus/moins (proche de la médiane).
+EVAL_LINE = {"corners": 9.5, "cards": 4.5, "shots": 24.5, "shots_on_target": 8.5}
+
+
+def counts_backtest(
+    hist: History,
+    competitions: Sequence[str],
+    seasons: Sequence[int],
+    stat: str,
+    cfg: CountsConfig,
+    refit_every_days: int = 7,
+) -> dict[str, Any]:
+    """Évaluation stricte dans le temps d'une statistique (corners, cartons…).
+
+    Référence naïve : distribution des totaux observée dans le championnat sur
+    la fenêtre d'apprentissage. Mesures : log loss du total exact et du
+    plus/moins à la ligne ``EVAL_LINE``.
+    """
+    yh, ya = count_values(hist, stat)
+    line = EVAL_LINE.get(stat, TOTAL_LINES.get(stat, (0.5,))[0])
+    model_total, naive_total, model_ou, naive_ou, outcome_ou = [], [], [], [], []
+    for comp in competitions:
+        test = np.where(
+            (hist.competition == comp)
+            & np.isin(hist.season, list(seasons))
+            & hist.finished
+            & ~hist.excluded
+            & ~np.isnan(yh)
+            & ~np.isnan(ya)
+        )[0]
+        test = test[np.argsort(hist.date[test], kind="stable")]
+        fitted_on: np.datetime64 | None = None
+        model = None
+        naive = np.zeros(1)
+        for i in test:
+            day = hist.date[i]
+            if fitted_on is None or day >= fitted_on + np.timedelta64(refit_every_days, "D"):
+                model = fit_counts(hist, comp, stat, day, cfg)
+                fitted_on = day
+                m = training_mask(hist, comp, day, GoalsConfig(window_days=cfg.window_days))
+                m &= ~np.isnan(yh) & ~np.isnan(ya)
+                counts = np.bincount((yh[m] + ya[m]).astype(np.int64), minlength=120)
+                naive = (counts + 0.5) / (counts + 0.5).sum()
+            assert model is not None
+            ref = str(hist.referee[i]) if len(hist.referee) else ""
+            mh, ma = model.means(int(hist.home[i]), int(hist.away[i]), ref)
+            pmf = total_pmf(model.joint(mh, ma))
+            total = int(yh[i] + ya[i])
+            model_total.append(pmf[total] if total < len(pmf) else EPS)
+            naive_total.append(naive[total] if total < len(naive) else EPS)
+            model_ou.append(float(pmf[np.arange(len(pmf)) > line].sum()))
+            naive_ou.append(float(naive[np.arange(len(naive)) > line].sum()))
+            outcome_ou.append(int(total > line))
+    y = np.array(outcome_ou, dtype=np.int64)
+    return {
+        "stat": stat,
+        "n": len(y),
+        "line": line,
+        "total_log_loss": {
+            "model": float(-np.mean(np.log(np.clip(model_total, EPS, 1)))),
+            "naive": float(-np.mean(np.log(np.clip(naive_total, EPS, 1)))),
+        },
+        "ou_log_loss": {
+            "model": log_loss_binary(np.array(model_ou), y),
+            "naive": log_loss_binary(np.array(naive_ou), y),
+        },
+        "ou_calibration": calibration_binary(np.array(model_ou), y),
+    }
+
+
 # ---------------------------------------------------------------- mesures
 
 
@@ -270,6 +347,26 @@ def calibration(p: FloatArray, y: NDArray[np.int64], bins: int = 10) -> list[dic
                     "n": int(sel.sum()),
                     "announced": float(probs[sel].mean()),
                     "observed": float(hits[sel].mean()),
+                }
+            )
+    return rows
+
+
+def calibration_binary(
+    p: FloatArray, y: NDArray[np.int64], bins: int = 10
+) -> list[dict[str, float]]:
+    edges = np.linspace(0, 1, bins + 1)
+    rows = []
+    for lo, hi in itertools.pairwise(edges):
+        sel = (p >= lo) & ((p < hi) if hi < 1 else (p <= hi))
+        if sel.sum() >= 20:
+            rows.append(
+                {
+                    "from": float(lo),
+                    "to": float(hi),
+                    "n": int(sel.sum()),
+                    "announced": float(p[sel].mean()),
+                    "observed": float(y[sel].mean()),
                 }
             )
     return rows

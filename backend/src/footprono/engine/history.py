@@ -14,6 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.ingestion.reference import AWARDED_MATCHES
 
+# Statistiques de match : colonne (domicile) de la requête, extérieur = suivante.
+STATS = {
+    "corners": 15, "yellow_cards": 17, "red_cards": 19, "shots": 21,
+    "shots_on_target": 23, "fouls": 25,
+}  # fmt: skip
+
 # Ordre de préférence des bookmakers pour la référence « marché ».
 MARKET_BOOKMAKERS = ("PS", "Avg", "BbAv", "B365")
 
@@ -39,6 +45,10 @@ class History:
     axg: FloatArray
     # Cotes de référence (préférence MARKET_BOOKMAKERS), ``nan`` si absentes.
     odds: dict[str, FloatArray] = field(default_factory=dict)
+    # Statistiques de match (football-data) : nom -> (domicile, extérieur), voir STATS.
+    stats: dict[str, tuple[FloatArray, FloatArray]] = field(default_factory=dict)
+    # Arbitre : API-Football si connu (même écriture partout), sinon football-data.
+    referee: NDArray[np.str_] = field(default_factory=lambda: np.array([], dtype=np.str_))
 
     def __len__(self) -> int:
         return len(self.match_id)
@@ -53,6 +63,8 @@ class History:
                 )
             },
             odds={k: v[mask] for k, v in self.odds.items()},
+            stats={k: (h[mask], a[mask]) for k, (h, a) in self.stats.items()},
+            referee=self.referee[mask] if len(self.referee) else self.referee,
         )  # fmt: skip
 
 
@@ -61,7 +73,11 @@ _MATCHES = text(
     SELECT m.id, c.code, s.start_year, m.match_date, m.home_team_id, m.away_team_id,
            m.status::text, m.home_goals, m.away_goals, m.home_goals_ht, m.away_goals_ht,
            h.name, a.name,
-           xh.xg AS hxg, xa.xg AS axg
+           xh.xg AS hxg, xa.xg AS axg,
+           m.home_corners, m.away_corners, m.home_yellow_cards, m.away_yellow_cards,
+           m.home_red_cards, m.away_red_cards, m.home_shots, m.away_shots,
+           m.home_shots_on_target, m.away_shots_on_target, m.home_fouls, m.away_fouls,
+           m.api_referee, m.referee
     FROM matches m
     JOIN seasons s ON s.id = m.season_id
     JOIN competitions c ON c.id = s.competition_id
@@ -115,6 +131,17 @@ async def load_history(session: AsyncSession) -> History:
         aht=np.array([_nan(r[10]) for r in rows]),
         hxg=np.array([_nan(r[13]) for r in rows]),
         axg=np.array([_nan(r[14]) for r in rows]),
+        stats={
+            name: (
+                np.array([_nan(r[col]) for r in rows]),
+                np.array([_nan(r[col + 1]) for r in rows]),
+            )
+            for name, col in STATS.items()
+        },
+        referee=np.array(
+            [f"api:{r[27]}" if r[27] else (f"fd:{r[28]}" if r[28] else "") for r in rows],
+            dtype=np.str_,
+        ),
     )
     index = {int(mid): i for i, mid in enumerate(ids)}
     widths = {"1x2": 3, "ou25": 2}

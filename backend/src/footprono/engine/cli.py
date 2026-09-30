@@ -4,6 +4,7 @@ footprono-engine backtest --seasons 2022-2025
 footprono-engine backtest --seasons 2022-2025 --half-life 365 --xg-weight 0.5
 footprono-engine backtest --seasons 2022-2025 --grid    # compare plusieurs réglages
 footprono-engine features --seasons 2019-2021           # teste chaque indicateur de contexte
+footprono-engine counts                                 # corners, cartons, tirs
 """
 
 import argparse
@@ -24,11 +25,13 @@ from footprono.engine.backtest import (
     BacktestConfig,
     Predictions,
     apply_correction,
+    counts_backtest,
     run_backtest,
     summarize,
 )
 from footprono.engine.context import TEAM_FEATURES, build_context
 from footprono.engine.correction import DEFAULT_FEATURES
+from footprono.engine.counts import counts_config
 from footprono.engine.goals import GoalsConfig
 from footprono.engine.history import History, load_history
 from footprono.ingestion.cli import parse_competitions, parse_seasons
@@ -147,6 +150,23 @@ def features_study(hist: History, args: argparse.Namespace) -> None:
         print(f"{label:<16}{cells}")
 
 
+EVALUATED_COUNTS = ("corners", "cards", "shots", "shots_on_target")
+
+
+def counts_report(hist: History, args: argparse.Namespace) -> None:
+    for stat in args.stats:
+        r = counts_backtest(hist, args.competitions, args.seasons, stat, counts_config(stat))
+        t, ou = r["total_log_loss"], r["ou_log_loss"]
+        print(
+            f"{stat:<16} {r['n']:>5}  total exact {t['model']:.4f} (naïf {t['naive']:.4f})  "
+            f"plus/moins {r['line']:g} {ou['model']:.4f} (naïf {ou['naive']:.4f})",
+            flush=True,
+        )
+        for row in r["ou_calibration"]:
+            span = f"{row['from']:.1f}-{row['to']:.1f}"
+            print(f"    {span}  n={row['n']:>5}  {row['announced']:.3f} → {row['observed']:.3f}")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="footprono-engine")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -173,11 +193,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     fs.add_argument(
         "--competitions", type=parse_competitions, default=[c.code for c in COMPETITIONS]
     )
+    cs = sub.add_parser("counts", help="corners, cartons et tirs")
+    cs.add_argument("--seasons", type=parse_seasons, default=parse_seasons("2022-2025"))
+    cs.add_argument(
+        "--competitions", type=parse_competitions, default=[c.code for c in COMPETITIONS]
+    )
+    cs.add_argument(
+        "--stats",
+        type=lambda v: tuple(x for x in v.split(",") if x),
+        default=EVALUATED_COUNTS,
+        help=f"parmi {', '.join(EVALUATED_COUNTS)}",
+    )
     args = parser.parse_args(argv)
 
     hist = asyncio.run(_load())
     if args.command == "features":
         features_study(hist, args)
+        return 0
+    if args.command == "counts":
+        counts_report(hist, args)
         return 0
     if not args.grid:
         goals = GoalsConfig(

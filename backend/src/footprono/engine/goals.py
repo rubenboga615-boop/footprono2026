@@ -90,6 +90,44 @@ def _dc_log_tau(
     return np.log(np.clip(tau, 1e-10, None))
 
 
+def fit_ratings(
+    hi: NDArray[np.int64],
+    ai: NDArray[np.int64],
+    yh: FloatArray,
+    ya: FloatArray,
+    w: FloatArray,
+    n: int,
+    ridge: float,
+    prior_att: FloatArray,
+    prior_def: FloatArray,
+) -> FloatArray:
+    """Vraisemblance de Poisson pondérée, pénalisée vers un a priori.
+
+    Renvoie ``[mu, domicile, attaque (n), défense (n)]``. Sert aux buts comme
+    aux corners, cartons et tirs (``counts.py``).
+    """
+
+    def nll(theta: FloatArray) -> tuple[float, FloatArray]:
+        mu, home = theta[0], theta[1]
+        att, dfn = theta[2 : 2 + n], theta[2 + n :]
+        lh = np.exp(mu + home + att[hi] + dfn[ai])
+        la = np.exp(mu + att[ai] + dfn[hi])
+        ll = np.sum(w * (yh * np.log(lh) - lh + ya * np.log(la) - la))
+        pen = 0.5 * ridge * (np.sum((att - prior_att) ** 2) + np.sum((dfn - prior_def) ** 2))
+        rh, ra = w * (lh - yh), w * (la - ya)
+        g = np.empty_like(theta)
+        g[0] = rh.sum() + ra.sum()
+        g[1] = rh.sum()
+        g[2 : 2 + n] = np.bincount(hi, rh, n) + np.bincount(ai, ra, n) + ridge * (att - prior_att)
+        g[2 + n :] = np.bincount(ai, rh, n) + np.bincount(hi, ra, n) + ridge * (dfn - prior_def)
+        return float(-ll + pen), g
+
+    x0 = np.zeros(2 + 2 * n)
+    x0[0] = np.log(max(np.average(yh + ya, weights=w) / 2, 0.1))
+    res = minimize(nll, x0, jac=True, method="L-BFGS-B")
+    return np.asarray(res.x, dtype=np.float64)
+
+
 def training_mask(
     hist: History, competition: str, as_of: np.datetime64, cfg: GoalsConfig
 ) -> NDArray[np.bool_]:
@@ -127,8 +165,8 @@ def fit_goals(
 
     teams = np.unique(np.concatenate([h, a]))
     index = {int(t): k for k, t in enumerate(teams)}
-    hi = np.array([index[int(t)] for t in h])
-    ai = np.array([index[int(t)] for t in a])
+    hi = np.array([index[int(t)] for t in h], dtype=np.int64)
+    ai = np.array([index[int(t)] for t in a], dtype=np.int64)
     n = len(teams)
 
     # Équipes sans match avant la saison en cours (promus) : a priori propre.
@@ -141,31 +179,7 @@ def fit_goals(
     newcomers = ~seen_before
 
     def solve(prior_att: FloatArray, prior_def: FloatArray) -> FloatArray:
-        def nll(theta: FloatArray) -> tuple[float, FloatArray]:
-            mu, home = theta[0], theta[1]
-            att, dfn = theta[2 : 2 + n], theta[2 + n :]
-            lh = np.exp(mu + home + att[hi] + dfn[ai])
-            la = np.exp(mu + att[ai] + dfn[hi])
-            ll = np.sum(w * (yh * np.log(lh) - lh + ya * np.log(la) - la))
-            pen = (
-                0.5 * cfg.ridge * (np.sum((att - prior_att) ** 2) + np.sum((dfn - prior_def) ** 2))
-            )
-            rh, ra = w * (lh - yh), w * (la - ya)
-            g = np.empty_like(theta)
-            g[0] = rh.sum() + ra.sum()
-            g[1] = rh.sum()
-            g[2 : 2 + n] = (
-                np.bincount(hi, rh, n) + np.bincount(ai, ra, n) + cfg.ridge * (att - prior_att)
-            )
-            g[2 + n :] = (
-                np.bincount(ai, rh, n) + np.bincount(hi, ra, n) + cfg.ridge * (dfn - prior_def)
-            )
-            return float(-ll + pen), g
-
-        x0 = np.zeros(2 + 2 * n)
-        x0[0] = np.log(max(np.average(yh + ya, weights=w) / 2, 0.1))
-        res = minimize(nll, x0, jac=True, method="L-BFGS-B")
-        return np.asarray(res.x, dtype=np.float64)
+        return fit_ratings(hi, ai, yh, ya, w, n, cfg.ridge, prior_att, prior_def)
 
     zeros = np.zeros(n)
     theta = solve(zeros, zeros)
