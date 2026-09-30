@@ -15,6 +15,7 @@ Documentation :
 | [docs/PRINCIPES.md](docs/PRINCIPES.md) | Règles non négociables du projet |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture cible et responsabilités des modules |
 | [docs/FEUILLE_DE_ROUTE.md](docs/FEUILLE_DE_ROUTE.md) | Phases, dépendances et critères de validation |
+| [docs/MARCHES.md](docs/MARCHES.md) | Marchés couverts par le moteur et leur vérification |
 | [docs/DESIGN.md](docs/DESIGN.md) | Direction visuelle retenue (verre violet), couleurs, typographie, écrans |
 | [docs/DONNEES.md](docs/DONNEES.md) | Sources, règles d'ingestion, contrôles de qualité, API de lecture |
 | [docs/AUDIT_ANCIEN_PROJET.md](docs/AUDIT_ANCIEN_PROJET.md) | Conclusions vérifiées de l'audit de l'ancien projet |
