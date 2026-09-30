@@ -56,14 +56,17 @@ version web et à l'administration).
 ## Montante (validée le 30/09/2026)
 
 1. Tableau par palier : mise, cote, gain ; gain final mis en avant.
-2. Plan réglable : mise de départ, nombre de paliers (4 à 8), cote visée par palier.
-3. Probabilités honnêtes : probabilité du modèle pour chaque pari, chance
+2. **Mise de départ libre** (5 000 F CFA par défaut, raccourcis 1 000 / 5 000 /
+   10 000 / 25 000) et nombre de paliers réglable (4 à 8).
+3. **Plage de cotes par palier** (par exemple 1,55 – 1,65) au lieu d'une cote
+   imposée : tout pari dans la plage convient ; hors plage, l'application
+   prévient. Les gains se calculent avec la cote réellement jouée ; pour les
+   paliers à venir, mise et gain sont affichés en fourchette (minimum – maximum).
+4. Probabilités honnêtes : probabilité du modèle pour chaque pari, chance
    cumulée d'aller au bout selon le modèle **et** selon les cotes, somme
    encaissable à tout moment.
-4. « Encaisser » à n'importe quel palier ; option « sécuriser X % de chaque gain ».
-5. Calcul exact au franc près (arrondi inférieur, comme un bookmaker) ; si la
-   cote réelle du pari diffère de la cote prévue, l'application prévient et
-   recalcule la suite du plan.
+5. « Encaisser » à n'importe quel palier ; option « sécuriser X % de chaque gain ».
+6. Calcul exact au franc près (arrondi inférieur, comme un bookmaker).
 
 Exemple de référence (6 paliers, départ 5 000 F CFA, cotes 1,60 → 1,90) :
 gain final exact 150 582 F CFA ; chance d'aller au bout selon les cotes 3,3 %
