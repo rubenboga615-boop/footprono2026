@@ -142,13 +142,24 @@ def features_study(hist: History, args: argparse.Namespace) -> None:
     Gain = baisse moyenne de la log loss (positif = mieux) ± 2 erreurs types
     (comparaison appariée, match par match).
     """
-    base = _losses(predict(hist, args.competitions, args.seasons, GoalsConfig(), None))
-    calib = _losses(predict(hist, args.competitions, args.seasons, GoalsConfig(), ()))
+    # Le modèle des buts ne dépend pas des indicateurs : calculé une seule fois.
+    first = int(hist.season.min()) + 1
+    cfg = BacktestConfig(
+        args.competitions, list(range(first, max(args.seasons) + 1)), GoalsConfig(),
+        progress=_progress,
+    )  # fmt: skip
+    raw = run_backtest(hist, cfg)
+    ctx = build_context(hist)
+
+    def losses(features: Sequence[str] | None) -> FloatArray:
+        pred = raw if features is None else apply_correction(hist, raw, ctx, features)
+        return _losses(pred.select(np.isin(pred.season, list(args.seasons))))
+
+    base, calib = losses(None), losses(())
     rows: list[tuple[str, FloatArray]] = [("calibration", base - calib)]
     for f in TEAM_FEATURES:
         _progress(f"indicateur {f}")
-        new = _losses(predict(hist, args.competitions, args.seasons, GoalsConfig(), (f,)))
-        rows.append((f"+ {f}", calib - new))
+        rows.append((f"+ {f}", calib - losses((f,))))
     print(f"{len(base[0])} matchs ; gain de log loss (positif = mieux) ± 2 erreurs types")
     print(f"{'':<16}{'1X2':>18}{'+2,5 buts':>18}{'deux marquent':>18}")
     for label, d in rows:
