@@ -180,35 +180,32 @@ async def _download_api_football(
         body = await client.get("/fixtures", {"league": comp.api_football_id, "season": year})
         league = [i for i in body["response"] if api_football.is_league_match(i)]
         items = [i for i in league if api_football.is_finished_league_match(i)]
-        done = set(
-            (
-                await session.scalars(
-                    select(Match.api_football_id)
-                    .join(Season, Season.id == Match.season_id)
-                    .join(Competition, Competition.id == Season.competition_id)
-                    .where(
-                        Competition.code == comp.code,
-                        Season.start_year == year,
-                        Match.api_football_id.is_not(None),
-                        select(MatchTeamStats.id)
-                        .where(
-                            MatchTeamStats.match_id == Match.id,
-                            MatchTeamStats.source == DataSource.API_FOOTBALL,
-                            MatchTeamStats.period == StatPeriod.FULL,
-                        )
-                        .exists(),
-                    )
+        # Lecture dans une session courte, fermée avant les téléchargements : une
+        # transaction ouverte (et ses verrous) pendant de longues minutes ferait
+        # attendre les migrations et les autres tâches jusqu'à la fin du fichier.
+        with_stats = (
+            select(Match.api_football_id)
+            .join(Season, Season.id == Match.season_id)
+            .join(Competition, Competition.id == Season.competition_id)
+            .where(
+                Competition.code == comp.code,
+                Season.start_year == year,
+                Match.api_football_id.is_not(None),
+                select(MatchTeamStats.id)
+                .where(
+                    MatchTeamStats.match_id == Match.id,
+                    MatchTeamStats.source == DataSource.API_FOOTBALL,
+                    MatchTeamStats.period == StatPeriod.FULL,
                 )
-            ).all()
+                .exists(),
+            )
         )
+        async with AsyncSession(session.bind) as reader:
+            done = set((await reader.scalars(with_stats)).all())
         params: dict[str, Any] = {}
         if year >= api_football.HALF_SPLIT_FIRST_SEASON:
             params["half"] = "true"
         statistics: dict[int, Any] = {}
-        # Fin de la lecture : ne pas garder une transaction (et ses verrous) ouverte
-        # pendant les minutes de téléchargement ; une migration ou une autre
-        # tâche attendrait sinon la fin du fichier.
-        await session.commit()
         pending = [i for i in items if i["fixture"]["id"] not in done]
         notify = _progress.get()
         notify(f"    {len(items)} matchs terminés, {len(pending)} sans statistiques à demander")
