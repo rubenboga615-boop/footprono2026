@@ -51,7 +51,14 @@ Factory = async_sessionmaker[AsyncSession]
         ("Winning Margin", "2 by 4+", ("MARGIN", "", "away+4")),
         ("Winning Margin", "1 by 1", ("MARGIN", "", "home+1")),
         ("Winning Margin", "Score Draw", None),
-        ("Asian Handicap", "Home -0.5", None),  # sens de la ligne à vérifier : non traduit
+        # Ligne du domicile pour les deux côtés (vérifié sur cotes réelles).
+        ("Asian Handicap", "Home -0.75", ("AH", "-0.75", "home")),
+        ("Asian Handicap", "Away -0.75", ("AH", "-0.75", "away")),
+        ("Asian Handicap", "Away +0", ("AH", "0", "away")),
+        ("Asian Handicap", "Home -3.5", None),
+        ("Handicap Result", "Draw -1", ("EH", "-1", "draw")),
+        ("Handicap Result", "Away +2", ("EH", "2", "away")),
+        ("Handicap Result", "Away -5", None),
         ("Goals Over/Under", "Over", None),
     ],
 )

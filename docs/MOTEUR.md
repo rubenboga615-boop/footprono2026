@@ -84,6 +84,22 @@ collecte des tirs Understat minute par minute (≈ 18 000 pages, plusieurs
 heures) n'est pas lancée : elle servirait surtout ce profil. Elle pourra
 servir au direct (phase 3).
 
+### Mi-temps la plus prolifique : pas mieux que les fréquences
+
+Test 2022-2025 (7 081 matchs) : log loss 1,0709 contre 1,0700 pour les
+fréquences observées (1re 29 %, 2e 45 %, égalité 26 %). Les probabilités
+varient très peu d'un match à l'autre ; elles sont justes en moyenne, avec une
+légère surestimation de la 1re période en 2023-24 et après (part réelle des
+buts en 1re période tombée de 45,2 % à 43,6 %, probablement avec
+l'allongement des temps additionnels ; le modèle suit avec retard).
+
+Corrections essayées, toutes **rejetées** car elles dégradent la validation
+2019-2021 (et le test) : réduire la part de 1re période de 2 à 6 %, estimer
+cette part avec une mémoire plus courte (demi-vie 60, 90, 120 jours au lieu de
+180). Décision : marché conservé (coupons, règlement), **exclu des
+suggestions automatiques de la montante**, car le moteur n'y apporte rien de
+plus que les fréquences.
+
 ## Résultats sur les saisons de test 2022-23 → 2025-26 (vérifié le 30/09/2026)
 
 7 081 matchs, jamais vus pendant le réglage ni la sélection. Chaque match est

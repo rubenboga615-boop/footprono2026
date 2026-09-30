@@ -5,9 +5,14 @@ sélection d'API-Football) ; la traduction vers les marchés du moteur
 (``marché|ligne|sélection``) se fait à la lecture par ``map_bet``. Une erreur
 de traduction se corrige donc sans perte de données.
 
-Seuls les paris dont la signification est certaine sont traduits. Le
-handicap asiatique ne l'est pas encore : le sens de sa ligne dans les libellés
-d'API-Football reste à vérifier sur des cotes réelles.
+Seuls les paris dont la signification est certaine sont traduits.
+
+Handicaps : la ligne est **toujours celle du domicile**, pour les deux (ou
+trois) sélections — « Away -0.5 » est le côté extérieur du handicap domicile
+moins 0,5. Vérifié le 30/09/2026 sur 2 308 paires de cotes réelles (100 %
+cohérentes, contre 12 % pour l'autre lecture ; handicap européen : 287
+triplets, 100 % contre 0 %) avec ``handicap_diagnostics``. C'est aussi la
+convention des clés du moteur (``AH|ligne domicile|away``).
 """
 
 from dataclasses import dataclass
@@ -192,6 +197,18 @@ def map_bet(bet: str, value: str) -> tuple[str, str, str] | None:
             return None
         if total in sides and both in ("yes", "no"):
             return "OU_BTTS", line_key, f"{sides[total]}/{both}"
+        return None
+    if bet in ("Asian Handicap", "Handicap Result"):
+        name, _, raw_line = value.partition(" ")
+        try:
+            hcp = float(raw_line) + 0.0  # « -0 » → 0
+        except ValueError:
+            return None
+        quarter = abs(hcp) <= 3 and (hcp * 4).is_integer()
+        if bet == "Asian Handicap" and name in ("Home", "Away") and quarter:
+            return "AH", f"{hcp:g}", _SIDES[name]
+        if bet == "Handicap Result" and name in _SIDES and hcp in (-3, -2, -1, 1, 2, 3):
+            return "EH", f"{hcp:g}", _SIDES[name]
         return None
     if bet == "Winning Margin":
         # « 1 by 2 » : l'équipe 1 (domicile) gagne de 2 buts ; « 2 by 4+ » : extérieur, 4 ou plus.

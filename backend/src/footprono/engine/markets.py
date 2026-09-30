@@ -25,7 +25,7 @@ OU_LINES = (0.5, 1.5, 2.5, 3.5, 4.5, 5.5)
 TEAM_OU_LINES = (0.5, 1.5, 2.5, 3.5)
 HT_OU_LINES = (0.5, 1.5, 2.5)
 AH_LINES = tuple(x / 4 for x in range(-12, 13))  # -3 à +3 par quart de but
-EH_LINES = (-2, -1, 1, 2)
+EH_LINES = (-3, -2, -1, 1, 2, 3)
 COMBO_OU_LINES = (1.5, 2.5, 3.5, 4.5)
 EXACT_MAX = 5
 
