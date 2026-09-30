@@ -205,6 +205,10 @@ async def _download_api_football(
         if year >= api_football.HALF_SPLIT_FIRST_SEASON:
             params["half"] = "true"
         statistics: dict[int, Any] = {}
+        # Fin de la lecture : ne pas garder une transaction (et ses verrous) ouverte
+        # pendant les minutes de téléchargement ; une migration ou une autre
+        # tâche attendrait sinon la fin du fichier.
+        await session.commit()
         pending = [i for i in items if i["fixture"]["id"] not in done]
         notify = _progress.get()
         notify(f"    {len(items)} matchs terminés, {len(pending)} sans statistiques à demander")
