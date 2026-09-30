@@ -67,8 +67,9 @@ Serie A, Bundesliga et Ligue 1.
   référentiel, dérivés automatiquement en appariant les matchs à football-data.
 - **Téléchargement** : seuls les matchs terminés de la saison régulière sans
   statistiques en base sont demandés. Budget par fichier (`FP_API_FOOTBALL_BUDGET`,
-  1 500) et réserve quotidienne laissée à d'autres usages
-  (`FP_API_FOOTBALL_MIN_REMAINING`, 3 100) ; fenêtre d'une minute respectée.
+  1 500) et petite réserve quotidienne de sécurité
+  (`FP_API_FOOTBALL_MIN_REMAINING`, 200 ; elle était de 3 100 tant que
+  l'ancien archiveur de cotes partageait la clé) ; fenêtre d'une minute respectée.
   Une clé refusée arrête tout sans relance ; clé absente = source signalée
   indisponible.
 - API-Football ne dépend que de football-data pour la saison : il se charge

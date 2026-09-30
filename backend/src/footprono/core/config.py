@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     api_football_budget: int = Field(default=1500, ge=1)
     # Requêtes quotidiennes laissées à d'autres usages (archivage des cotes en
     # direct : une cote non capturée est perdue, une statistique se redemande).
-    api_football_min_remaining: int = Field(default=3100, ge=0)
+    api_football_min_remaining: int = Field(default=200, ge=0)
     cors_origins: list[str] = Field(default_factory=list)
 
     # Fichiers bruts archivés (football-data, Understat…), nommés par empreinte.
