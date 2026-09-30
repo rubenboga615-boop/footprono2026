@@ -35,7 +35,8 @@ from footprono.engine.counts import (
 )
 from footprono.engine.goals import GoalsConfig, fit_goals, training_mask
 from footprono.engine.history import History
-from footprono.engine.scores import score_distribution
+from footprono.engine.markets import asian_handicap
+from footprono.engine.scores import dixon_coles_matrix, score_distribution
 
 FloatArray = NDArray[np.float64]
 EPS = 1e-12
@@ -305,6 +306,83 @@ def counts_backtest(
             "naive": log_loss_binary(np.array(naive_ou), y),
         },
         "ou_calibration": calibration_binary(np.array(model_ou), y),
+    }
+
+
+def _ah_settlement(margin: float, line: float) -> list[tuple[float, float]]:
+    """Règlement du pari « domicile » : (part de la mise, résultat) par demi-ligne.
+
+    Résultat : 1 gagné, 0 perdu, 0,5 remboursé. Ligne au quart = moitié de la
+    mise sur chaque ligne voisine.
+    """
+    parts = [line - 0.25, line + 0.25] if (line * 4) % 2 == 1 else [line]
+    share = 1 / len(parts)
+    return [(share, 1.0 if margin + p > 0 else (0.0 if margin + p < 0 else 0.5)) for p in parts]
+
+
+AH_THRESHOLDS = (0.0, 0.03, 0.05, 0.10)
+
+
+def ah_evaluation(hist: History, pred: Predictions, timing: str = "close") -> dict[str, Any]:
+    """Handicap asiatique : modèle contre cotes, à la ligne proposée par le bookmaker.
+
+    - Log loss pondérée sur le règlement réel (remboursement = poids 0,
+      demi-gain / demi-perte = poids 1/2), en probabilité « équivalente ».
+    - Simulation de mise fixe : on joue le côté dont l'espérance, selon le
+      modèle et à la **vraie cote** (marge comprise), dépasse un seuil.
+      Mesure honnête de la valeur ; pas une recommandation.
+    """
+    odds = hist.odds.get(f"{timing}_ah")
+    if odds is None:
+        return {"n": 0}
+    p_model, p_market, labels, weights = [], [], [], []
+    bets: dict[float, list[float]] = {t: [] for t in AH_THRESHOLDS}
+    for k, i in enumerate(pred.row):
+        line, price_h, price_a = odds[i]
+        if np.isnan(line) or np.isnan(price_h) or np.isnan(price_a):
+            continue
+        ft = dixon_coles_matrix(pred.lam_h[k], pred.lam_a[k], pred.rho[k])
+        h, a = (np.asarray(x, dtype=np.int64) for x in np.indices(ft.shape))
+        home = asian_handicap(ft, h - a, float(line))
+        away = asian_handicap(ft, a - h, -float(line))
+        inv_h, inv_a = 1 / price_h, 1 / price_a
+        settle = _ah_settlement(float(hist.hg[i] - hist.ag[i]), float(line))
+        for share, result in settle:
+            if result != 0.5:
+                p_model.append(home.effective_probability)
+                p_market.append(inv_h / (inv_h + inv_a))
+                labels.append(result)
+                weights.append(share)
+        ev_h, ev_a = home.expected_return(price_h), away.expected_return(price_a)
+        side_ev, price, sign = (ev_h, price_h, 1.0) if ev_h >= ev_a else (ev_a, price_a, -1.0)
+        profit = 0.0
+        for share, result in settle:
+            won = result if sign > 0 else 1 - result
+            profit += share * ((price - 1) if won == 1 else (-1.0 if won == 0 else 0.0))
+        for t in AH_THRESHOLDS:
+            if side_ev > t:
+                bets[t].append(profit)
+    if not labels:
+        return {"n": 0}
+    y, w = np.array(labels), np.array(weights)
+
+    def wll(p: list[float]) -> float:
+        q = np.clip(np.array(p), EPS, 1 - EPS)
+        return float(-np.sum(w * (y * np.log(q) + (1 - y) * np.log(1 - q))) / w.sum())
+
+    return {
+        "timing": timing,
+        "n": len({r for r in pred.row if not np.isnan(odds[r][0])}),
+        "log_loss": {"model": wll(p_model), "market": wll(p_market)},
+        "betting": [
+            {
+                "threshold": t,
+                "bets": len(v),
+                "roi": float(np.mean(v)) if v else None,
+                "roi_se": float(np.std(v) / np.sqrt(len(v))) if len(v) > 1 else None,
+            }
+            for t, v in bets.items()
+        ],
     }
 
 

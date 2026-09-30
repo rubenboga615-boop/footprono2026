@@ -4,6 +4,7 @@
 #   bash scripts/termux/engine.sh backtest --seasons 2024-2025 --competitions LIGUE_1
 #   bash scripts/termux/engine.sh features                     # gain de chaque indicateur de contexte
 #   bash scripts/termux/engine.sh counts                       # corners, cartons, tirs
+#   bash scripts/termux/engine.sh ah                           # handicap asiatique contre les cotes
 # Options : bash scripts/termux/engine.sh backtest --help
 set -euo pipefail
 # shellcheck source=common.sh

@@ -5,6 +5,7 @@ footprono-engine backtest --seasons 2022-2025 --half-life 365 --xg-weight 0.5
 footprono-engine backtest --seasons 2022-2025 --grid    # compare plusieurs réglages
 footprono-engine features --seasons 2019-2021           # teste chaque indicateur de contexte
 footprono-engine counts                                 # corners, cartons, tirs
+footprono-engine ah                                     # handicap asiatique contre les cotes
 """
 
 import argparse
@@ -24,6 +25,7 @@ from footprono.db.session import create_engine, create_session_factory
 from footprono.engine.backtest import (
     BacktestConfig,
     Predictions,
+    ah_evaluation,
     apply_correction,
     counts_backtest,
     run_backtest,
@@ -186,6 +188,29 @@ def counts_report(hist: History, args: argparse.Namespace) -> None:
             print(f"    {span}  n={row['n']:>5}  {row['announced']:.3f} → {row['observed']:.3f}")
 
 
+def ah_report(hist: History, args: argparse.Namespace) -> None:
+    pred = predict(hist, args.competitions, args.seasons, GoalsConfig(), DEFAULT_FEATURES)
+    for timing, label in (("pre", "cotes d'avant-match"), ("close", "cotes de clôture")):
+        r = ah_evaluation(hist, pred, timing)
+        if not r["n"]:
+            print(f"{label} : aucune cote de handicap asiatique")
+            continue
+        ll = r["log_loss"]
+        print(
+            f"{label} : {r['n']} matchs, log loss à la ligne du bookmaker "
+            f"modèle {ll['model']:.4f}, marché {ll['market']:.4f} (pile ou face 0,6931)"
+        )
+        for b in r["betting"]:
+            roi = (
+                "  -  "
+                if b["roi"] is None
+                else f"{100 * b['roi']:+.1f} % ± {200 * b['roi_se']:.1f}"
+            )
+            print(
+                f"    espérance modèle > {100 * b['threshold']:.0f} % : {b['bets']:>5} paris, {roi}"
+            )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="footprono-engine")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -223,6 +248,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=EVALUATED_COUNTS,
         help=f"parmi {', '.join(EVALUATED_COUNTS)}",
     )
+    ah = sub.add_parser("ah", help="handicap asiatique contre les cotes des bookmakers")
+    ah.add_argument("--seasons", type=parse_seasons, default=parse_seasons("2022-2025"))
+    ah.add_argument(
+        "--competitions", type=parse_competitions, default=[c.code for c in COMPETITIONS]
+    )
     args = parser.parse_args(argv)
 
     print("Chargement de l'historique…", file=sys.stderr, flush=True)
@@ -230,6 +260,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"{len(hist)} matchs chargés ; calcul en cours.", file=sys.stderr, flush=True)
     if args.command == "features":
         features_study(hist, args)
+        return 0
+    if args.command == "ah":
+        ah_report(hist, args)
         return 0
     if args.command == "counts":
         counts_report(hist, args)

@@ -383,3 +383,34 @@ def test_counts_backtest_beats_naive() -> None:
     r = counts_backtest(hist, ["TEST"], [2019, 2020], "corners", CountsConfig(365, ridge=5))
     assert r["n"] > 200
     assert r["total_log_loss"]["model"] < r["total_log_loss"]["naive"]
+
+
+# --- Handicap asiatique face aux cotes ------------------------------------------
+
+
+def test_ah_settlement_and_effective_probability() -> None:
+    from footprono.engine.backtest import _ah_settlement
+
+    assert _ah_settlement(1, -0.5) == [(1.0, 1.0)]
+    assert _ah_settlement(0, 0.0) == [(1.0, 0.5)]  # remboursé
+    # -0,75 et victoire d'un but : moitié remboursée (-1), moitié gagnée (-0,5).
+    assert _ah_settlement(1, -0.75) == [(0.5, 0.5), (0.5, 1.0)]
+    s = Selection(win=0.4, half_win=0.1, push=0.1, half_loss=0.1)
+    assert 1 / s.effective_probability == pytest.approx(s.fair_odds)
+    assert s.expected_return(s.fair_odds) == pytest.approx(0.0)
+
+
+def test_ah_evaluation_against_even_market() -> None:
+    from footprono.engine.backtest import ah_evaluation
+
+    hist, _ = synthetic_history(seasons=4)
+    n = len(hist)
+    hist.odds["close_ah"] = np.column_stack([np.full(n, -0.25), np.full(n, 1.9), np.full(n, 1.9)])
+    pred = run_backtest(hist, BacktestConfig(["TEST"], [2019], GoalsConfig(365, xg_weight=0)))
+    r = ah_evaluation(hist, pred, "close")
+    assert r["n"] == len(pred.match_id)
+    # Marché à 50/50 partout : log loss exactement ln 2.
+    assert r["log_loss"]["market"] == pytest.approx(np.log(2))
+    # Le modèle connaît les forces réelles : il fait mieux que pile ou face.
+    assert r["log_loss"]["model"] < np.log(2)
+    assert r["betting"][0]["bets"] > 0

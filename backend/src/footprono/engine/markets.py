@@ -42,6 +42,17 @@ class Selection:
         return max(0.0, 1.0 - self.win - self.half_win - self.push - self.half_loss)
 
     @property
+    def effective_probability(self) -> float:
+        """Probabilité « équivalente » : 1 / cote juste (remboursements neutralisés)."""
+        gain = self.win + self.half_win / 2
+        lost = self.loss + self.half_loss / 2
+        return gain / (gain + lost) if gain + lost > 0 else 0.5
+
+    def expected_return(self, price: float) -> float:
+        """Gain moyen pour 1 misé à la cote ``price`` (0 = neutre)."""
+        return (self.win + self.half_win / 2) * (price - 1) - self.loss - self.half_loss / 2
+
+    @property
     def fair_odds(self) -> float | None:
         """Cote d'espérance nulle ; None si la sélection ne peut pas gagner."""
         gain = self.win + self.half_win / 2
@@ -54,7 +65,7 @@ def _line_key(x: float) -> str:
     return f"{x:g}"
 
 
-def _handicap(ft: FloatArray, margin: IntArray, line: float) -> Selection:
+def asian_handicap(ft: FloatArray, margin: IntArray, line: float) -> Selection:
     """Handicap asiatique ; ``margin`` = buts de l'équipe choisie - buts adverses."""
     if (line * 4) % 2 == 1:  # quart de but : moitié de la mise sur chaque ligne voisine
         lo, hi = margin + line - 0.25, margin + line + 0.25
@@ -125,8 +136,8 @@ def derive_markets(dist: ScoreDistribution) -> dict[str, Selection]:
     put("ODD_EVEN", "", "odd", 1 - even)
 
     for line in AH_LINES:
-        put("AH", _line_key(line), "home", _handicap(ft, h - a, line))
-        put("AH", _line_key(line), "away", _handicap(ft, a - h, -line))
+        put("AH", _line_key(line), "home", asian_handicap(ft, h - a, line))
+        put("AH", _line_key(line), "away", asian_handicap(ft, a - h, -line))
     for eh in EH_LINES:  # handicap européen (3 issues)
         put("EH", _line_key(eh), "home", p(h + eh > a))
         put("EH", _line_key(eh), "draw", p(h + eh == a))

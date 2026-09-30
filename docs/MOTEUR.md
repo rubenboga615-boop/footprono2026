@@ -161,6 +161,37 @@ rouge 25 ; un 2e jaune suivi du rouge compte 35 ici, 25 chez certains
 bookmakers). Par mi-temps : pas encore (historique API-Football depuis
 2024-25 seulement).
 
+## Handicap asiatique face aux cotes (`footprono-engine ah`, vérifié le 30/09/2026)
+
+À la ligne proposée par le bookmaker (Pinnacle en priorité, sinon moyenne du
+marché), saisons de test 2022-23 → 2025-26, 7 081 matchs. Log loss pondérée
+sur le règlement réel (remboursement ignoré, demi-gain et demi-perte comptés
+pour moitié), en probabilité « équivalente » (1 / cote juste) :
+
+| | Modèle | Marché (marge retirée) | Pile ou face |
+|---|---|---|---|
+| Cotes d'avant-match | 0,7037 | 0,6919 | 0,6931 |
+| Cotes de clôture | 0,7057 | 0,6920 | 0,6931 |
+
+Simulation de mise fixe (on joue le côté dont l'espérance calculée par le
+modèle, à la vraie cote, dépasse le seuil ; ± 2 erreurs types) :
+
+| Espérance du modèle | Paris (clôture) | Rendement clôture | Rendement avant-match |
+|---|---|---|---|
+| > 0 % | 5 914 | −3,5 % ± 2,3 | −5,1 % ± 2,4 |
+| > 5 % | 3 625 | −4,8 % ± 3,0 | −5,3 % ± 3,1 |
+| > 10 % | 2 043 | −6,3 % ± 4,0 | −7,3 % ± 4,4 |
+
+**Lecture honnête** : à la ligne du bookmaker, le modèle fait *moins bien que
+pile ou face*. Le bookmaker place sa ligne là où les deux côtés se valent ; le
+modèle s'en écarte en moyenne de 6,6 points de probabilité, et ces écarts
+sont surtout ses propres erreurs (il ignore compositions, blessures,
+informations de dernière minute). Plus le modèle croit tenir une « value »,
+plus on perd. Confirmation du principe n° 4 : **aucune value n'est affichée**
+face aux cotes ; les cotes justes du modèle servent à expliquer une
+probabilité, pas à battre le bookmaker. Même validation 2019-2021 : modèle
+0,7028, marché 0,6927 (clôture).
+
 ## Lecture
 
 - Le modèle **bat nettement la référence naïve** sur tous les championnats
@@ -180,7 +211,8 @@ bookmakers). Par mi-temps : pas encore (historique API-Football depuis
    Understat reportée).
 3. ~~Corners, cartons (avec l'arbitre) et tirs~~ (fait ; par mi-temps
    quand l'historique API-Football sera suffisant).
-4. Évaluation du handicap asiatique face aux cotes.
+4. ~~Évaluation du handicap asiatique face aux cotes~~ (fait : le marché
+   est nettement meilleur à sa propre ligne).
 5. Enregistrement des prédictions (version du modèle, date), route d'API et
    tâche quotidienne.
 
@@ -192,5 +224,6 @@ footprono-engine backtest --seasons 2019-2021 --grid        # comparaison de ré
 footprono-engine backtest --no-correction                   # Dixon-Coles brut
 footprono-engine features                                   # gain de chaque indicateur
 footprono-engine counts                                     # corners, cartons, tirs
+footprono-engine ah                                         # handicap asiatique contre les cotes
 bash scripts/termux/engine.sh backtest                      # sur le téléphone
 ```

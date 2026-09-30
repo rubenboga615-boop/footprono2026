@@ -95,13 +95,16 @@ _ODDS = text(
     """
     SELECT match_id, bookmaker, market, line, timing::text, selection, price
     FROM match_odds
-    WHERE bookmaker = ANY(:books) AND (market = '1X2' OR (market = 'OU' AND line = 2.5))
+    WHERE bookmaker = ANY(:books)
+      AND (market IN ('1X2', 'AH') OR (market = 'OU' AND line = 2.5))
     """
 )
 
 _ODDS_SLOTS = {
     ("1X2", "home"): ("1x2", 0), ("1X2", "draw"): ("1x2", 1), ("1X2", "away"): ("1x2", 2),
     ("OU", "over"): ("ou25", 0), ("OU", "under"): ("ou25", 1),
+    # Handicap asiatique : colonne 0 = ligne (vue du domicile), 1-2 = cotes.
+    ("AH", "home"): ("ah", 1), ("AH", "away"): ("ah", 2),
 }  # fmt: skip
 
 
@@ -144,14 +147,15 @@ async def load_history(session: AsyncSession) -> History:
         ),
     )
     index = {int(mid): i for i, mid in enumerate(ids)}
-    widths = {"1x2": 3, "ou25": 2}
+    widths = {"1x2": 3, "ou25": 2, "ah": 3}
     for timing in ("pre", "close"):
         for key, width in widths.items():
             hist.odds[f"{timing}_{key}"] = np.full((n, width), np.nan)
     # Un même bookmaker pour toutes les issues d'un marché (jamais de mélange),
     # le premier de MARKET_BOOKMAKERS qui les cote toutes.
     quotes: dict[tuple[int, str, str], dict[str, dict[int, float]]] = {}
-    for mid, book, market, _line, timing, selection, price in (
+    lines: dict[tuple[int, str, str], set[float]] = {}
+    for mid, book, market, line, timing, selection, price in (
         await session.execute(_ODDS, {"books": list(MARKET_BOOKMAKERS)})
     ).all():
         slot = _ODDS_SLOTS.get((market, selection))
@@ -160,9 +164,17 @@ async def load_history(session: AsyncSession) -> History:
             continue
         key, col = slot
         quotes.setdefault((i, timing, key), {}).setdefault(book, {})[col] = float(price)
+        if key == "ah":
+            lines.setdefault((i, timing, book), set()).add(float(line))
     for (i, timing, key), books in quotes.items():
         for book in MARKET_BOOKMAKERS:
-            prices = books.get(book, {})
+            prices = dict(books.get(book, {}))
+            if key == "ah":
+                # Les deux côtés cotés sur une seule et même ligne, sinon ignoré.
+                book_lines = lines.get((i, timing, book), set())
+                if len(prices) != 2 or len(book_lines) != 1:
+                    continue
+                prices[0] = next(iter(book_lines))
             if len(prices) == widths[key]:
                 for col, price in prices.items():
                     hist.odds[f"{timing}_{key}"][i, col] = price
