@@ -78,5 +78,6 @@ Code : `backend/src/footprono/predictions/reliability.py`.
 
 ## Reste à faire en phase 5
 
-- Application Flutter (web + APK) construite par GitHub Actions.
+- Application Flutter : faite (voir `APPLICATION.md`) ; reste à valider sur
+  le téléphone.
 - Notifications téléphone fermé (Firebase), dès qu'un projet Firebase existe.
