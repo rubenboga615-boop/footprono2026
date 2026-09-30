@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.accounts import service as accounts
 from footprono.accounts.models import Wallet
+from footprono.bookmaker import montante
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.engine.counts import booking_points_markets, count_markets
 from footprono.engine.markets import Selection, derive_markets
@@ -225,6 +226,7 @@ async def settle_bets(session: AsyncSession, now: datetime | None = None) -> dic
                 await accounts.move(
                     session, bet.user_id, payout, "payout", bet_id=bet.id, note=f"pari {bet.id}"
                 )
+            await montante.on_bet_settled(session, bet)
             report["settled"] += 1
         elif (outcome, payout) != (bet.outcome, bet.payout):
             await _correct(session, bet, outcome, payout, now)
