@@ -15,6 +15,7 @@ import json
 import sys
 import time
 from collections.abc import Sequence
+from datetime import date
 from typing import Any
 
 import numpy as np
@@ -38,8 +39,24 @@ from footprono.engine.goals import GoalsConfig
 from footprono.engine.history import History, load_history
 from footprono.ingestion.cli import parse_competitions, parse_seasons
 from footprono.ingestion.reference import COMPETITIONS
+from footprono.predictions.service import predict_upcoming
 
 FloatArray = NDArray[np.float64]
+
+
+async def _predict(as_of: date | None, days: int) -> int:
+    engine = create_engine(get_settings())
+    try:
+        async with create_session_factory(engine)() as session:
+            run = await predict_upcoming(session, as_of, days, progress=_progress)
+    finally:
+        await engine.dispose()
+    print(f"Exécution {run.id} ({run.engine_version}) : {run.status}")
+    for comp, info in run.report.get("competitions", {}).items():
+        print(f"  {comp} : {info['matches']} matchs")
+    for error in run.report.get("errors", []):
+        print(f"  erreur : {error}")
+    return 0 if run.status == "ok" else 1
 
 
 async def _load() -> History:
@@ -253,7 +270,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     ah.add_argument(
         "--competitions", type=parse_competitions, default=[c.code for c in COMPETITIONS]
     )
+    pr = sub.add_parser("predict", help="prédit et enregistre les matchs à venir")
+    pr.add_argument("--days", type=int, default=10, help="horizon en jours (défaut 10)")
+    pr.add_argument("--as-of", type=date.fromisoformat, default=None, help="AAAA-MM-JJ")
     args = parser.parse_args(argv)
+
+    if args.command == "predict":
+        return asyncio.run(_predict(args.as_of, args.days))
 
     print("Chargement de l'historique…", file=sys.stderr, flush=True)
     hist = asyncio.run(_load())

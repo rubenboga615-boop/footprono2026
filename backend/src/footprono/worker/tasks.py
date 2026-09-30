@@ -10,6 +10,7 @@ from footprono.football.models import DataSource
 from footprono.ingestion.quality import current_season_start
 from footprono.ingestion.reference import COMPETITIONS
 from footprono.ingestion.service import IngestionRequest, run_ingestion
+from footprono.predictions import service as prediction_service
 from footprono.worker.celery_app import celery_app
 
 
@@ -52,3 +53,19 @@ async def _ingest_current_season() -> dict[str, Any]:
         "files": {f"{f['source']}:{f['competition']}": f["status"] for f in report["files"]},
         "quality_errors": report["quality"]["errors"],
     }
+
+
+@celery_app.task(name="footprono.predict_upcoming")
+def predict_upcoming() -> dict[str, Any]:
+    """Prédit les matchs des 10 prochains jours et enregistre les prédictions."""
+    return asyncio.run(_predict_upcoming())
+
+
+async def _predict_upcoming() -> dict[str, Any]:
+    engine = create_engine(get_settings())
+    try:
+        async with create_session_factory(engine)() as session:
+            run = await prediction_service.predict_upcoming(session)
+            return {"run_id": run.id, "status": run.status, "report": run.report}
+    finally:
+        await engine.dispose()

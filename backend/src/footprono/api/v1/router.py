@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 
-from footprono.api.v1 import football, health
+from footprono.api.v1 import football, health, predictions
 
 api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(football.router)
+api_router.include_router(predictions.router)

@@ -1,4 +1,4 @@
-# Moteur de prédiction (phase 2)
+# Moteur de prédiction (phase 2, terminée)
 
 Code : `backend/src/footprono/engine/` (indépendant du serveur web et de Celery).
 
@@ -213,8 +213,39 @@ probabilité, pas à battre le bookmaker. Même validation 2019-2021 : modèle
    quand l'historique API-Football sera suffisant).
 4. ~~Évaluation du handicap asiatique face aux cotes~~ (fait : le marché
    est nettement meilleur à sa propre ligne).
-5. Enregistrement des prédictions (version du modèle, date), route d'API et
-   tâche quotidienne.
+5. ~~Enregistrement des prédictions, route d'API et tâche quotidienne~~
+   (fait, voir ci-dessous).
+
+## Prédictions enregistrées
+
+`footprono-engine predict` (et la tâche Celery `footprono.predict_upcoming`,
+chaque jour à 07:45 et 16:45 UTC) prédit les matchs non joués des 10
+prochains jours, avec le même code que le backtest :
+
+- modèle des buts estimé avec les matchs joués avant le jour J ;
+- correction (calibration + « sans enjeu ») apprise sur toutes les
+  prévisions hors échantillon des saisons passées ;
+- corners, cartons, tirs, tirs cadrés, jaunes et rouges (points de cartons),
+  avec l'arbitre quand il est connu.
+
+Chaque exécution (`prediction_runs`) garde la version du moteur
+(`ENGINE_VERSION`, actuellement 2.0), ses réglages et les coefficients de
+correction ; chaque prédiction (`match_predictions`) garde les buts attendus,
+tous les marchés (gagné, demi-gagné, remboursé, demi-perdu), les moyennes
+corners/cartons/tirs et le contexte (classement, points, enjeu). Rien n'est
+écrasé : on saura toujours ce qui avait été annoncé **avant** chaque match,
+base de la future page publique de fiabilité.
+
+API :
+
+| Route | Contenu |
+|---|---|
+| `GET /api/v1/predictions/upcoming` | matchs à venir avec 1X2, +2,5 buts, les deux marquent (probabilité et cote juste) |
+| `GET /api/v1/matches/{id}/prediction?market=AH` | dernière prédiction complète d'un match (filtre de marché facultatif) |
+| `GET /api/v1/predictions/runs` | exécutions du moteur, réglages et rapport |
+
+Durée : environ 30 s ici, quelques minutes sur le téléphone (l'essentiel est
+l'apprentissage de la correction).
 
 ## Commandes
 
@@ -225,5 +256,6 @@ footprono-engine backtest --no-correction                   # Dixon-Coles brut
 footprono-engine features                                   # gain de chaque indicateur
 footprono-engine counts                                     # corners, cartons, tirs
 footprono-engine ah                                         # handicap asiatique contre les cotes
+footprono-engine predict                                    # prédit et enregistre les 10 prochains jours
 bash scripts/termux/engine.sh backtest                      # sur le téléphone
 ```

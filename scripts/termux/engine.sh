@@ -5,6 +5,7 @@
 #   bash scripts/termux/engine.sh features                     # gain de chaque indicateur de contexte
 #   bash scripts/termux/engine.sh counts                       # corners, cartons, tirs
 #   bash scripts/termux/engine.sh ah                           # handicap asiatique contre les cotes
+#   bash scripts/termux/engine.sh predict                      # prédit et enregistre les 10 prochains jours
 # Options : bash scripts/termux/engine.sh backtest --help
 set -euo pipefail
 # shellcheck source=common.sh
