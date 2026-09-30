@@ -3,6 +3,8 @@
 import asyncio
 from typing import Any
 
+from celery.signals import worker_ready
+
 from footprono import __version__
 from footprono.bookmaker import settlement
 from footprono.cache.redis import create_redis
@@ -82,6 +84,8 @@ async def _collect_odds() -> dict[str, Any]:
             injuries = await live.collect_injuries(session, settings)
     finally:
         await engine.dispose()
+    # Le calendrier vient d'être synchronisé : nouveaux matchs prédits sans attendre.
+    predict_if_needed.delay()
     return {
         "odds": {k: v for k, v in report.items() if k != "unmapped_bets"},
         "injuries": injuries,
@@ -121,11 +125,34 @@ def predict_upcoming() -> dict[str, Any]:
     return asyncio.run(_predict_upcoming())
 
 
-async def _predict_upcoming() -> dict[str, Any]:
+async def _predict_upcoming(only_if_needed: bool = False) -> dict[str, Any]:
     engine = create_engine(get_settings())
     try:
         async with create_session_factory(engine)() as session:
+            reason = await prediction_service.prediction_needed(session)
+            if only_if_needed and reason is None:
+                return {"status": "skipped", "reason": "prédictions à jour"}
             run = await prediction_service.predict_upcoming(session)
-            return {"run_id": run.id, "status": run.status, "report": run.report}
+            report = {k: v for k, v in run.report.items() if k != "window"}
+            return {"run_id": run.id, "status": run.status, "reason": reason, "report": report}
     finally:
         await engine.dispose()
+
+
+@celery_app.task(name="footprono.predict_if_needed")
+def predict_if_needed() -> dict[str, Any]:
+    """Prédit seulement si nécessaire (prédictions de plus de 12 h, ou nouveaux matchs).
+
+    Lancée au démarrage du worker, toutes les heures et après chaque collecte des
+    cotes et du calendrier : un serveur éteint aux heures fixes rattrape son retard.
+    """
+    return asyncio.run(_predict_upcoming(only_if_needed=True))
+
+
+@worker_ready.connect
+def _catch_up_on_start(sender: Any = None, **_: Any) -> None:
+    # Téléphone éteint aux heures prévues : le retard est rattrapé au démarrage.
+    # Seulement pour le worker de l'application (pas les workers de test).
+    if getattr(sender, "app", None) is not celery_app:
+        return
+    predict_if_needed.apply_async(countdown=30)

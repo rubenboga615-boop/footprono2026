@@ -12,6 +12,9 @@ Tâches planifiées (UTC) :
 - ``footprono.collect_odds`` à 07:30 et 16:30 : cotes des bookmakers des matchs à venir.
 - ``footprono.predict_upcoming`` à 07:45 (après l'ingestion) et à 16:45 (nouveaux
   calendriers, arbitres désignés) : prédictions des 10 prochains jours.
+- ``footprono.predict_if_needed`` au démarrage du worker, toutes les heures (:10)
+  et après chaque collecte des cotes : prédit seulement si la dernière exécution
+  a plus de 12 h ou si de nouveaux matchs sont arrivés au calendrier.
 Règlement des paris et notifications viendront dans les phases suivantes.
 """
 
@@ -56,6 +59,13 @@ def create_celery(settings: Settings | None = None) -> Celery:
             "predict-upcoming": {
                 "task": "footprono.predict_upcoming",
                 "schedule": crontab(hour="7,16", minute=45),
+            },
+            # Rattrapage : ne calcule que si les prédictions ont plus de 12 h ou
+            # si de nouveaux matchs sont arrivés (sinon une simple requête).
+            "predict-if-needed": {
+                "task": "footprono.predict_if_needed",
+                "schedule": crontab(minute=10),
+                "options": {"expires": 3000},
             },
         },
     )

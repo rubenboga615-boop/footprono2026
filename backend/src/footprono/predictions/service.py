@@ -8,7 +8,7 @@ d'historique est signalé dans le rapport, pas prédit.
 """
 
 from collections.abc import Callable
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import numpy as np
@@ -32,11 +32,13 @@ from footprono.engine.goals import GoalsConfig, fit_goals
 from footprono.engine.history import History, load_history
 from footprono.engine.markets import Selection, derive_markets
 from footprono.engine.scores import score_distribution
-from footprono.football.models import Match
+from footprono.football.models import Match, MatchStatus
 from footprono.ingestion.sources.api_football import UNPLAYED_STATUSES
 from footprono.predictions.models import MatchPrediction, PredictionRun
 
 DEFAULT_DAYS_AHEAD = 10
+# Au-delà, les prédictions sont refaites (résultats, calendrier, arbitres ont pu changer).
+STALE_AFTER = timedelta(hours=12)
 PREDICTED_COUNTS = ("corners", "cards", "shots", "shots_on_target", "yellow_cards", "red_cards")
 
 
@@ -149,7 +151,14 @@ async def predict_upcoming(
     skipped = window & np.isin(hist.match_id, list(unplayed))
     upcoming = np.where(window & ~skipped)[0]
     competitions = sorted({str(c) for c in hist.competition[upcoming]})
-    report: dict[str, Any] = {"competitions": {}, "errors": [], "postponed": int(skipped.sum())}
+    report: dict[str, Any] = {
+        "competitions": {},
+        "errors": [],
+        "postponed": int(skipped.sum()),
+        # Matchs examinés (prédits ou écartés) : un match à venir absent de cette
+        # liste est nouveau et déclenche une nouvelle exécution (prediction_needed).
+        "window": [int(x) for x in hist.match_id[window]],
+    }
     notify(f"{len(upcoming)} matchs à prédire ({', '.join(competitions) or 'aucun'})")
     if len(upcoming):
         ctx = build_context(hist)
@@ -184,3 +193,45 @@ async def predict_upcoming(
     run.finished_at = datetime.now(UTC)
     await session.commit()
     return run
+
+
+async def prediction_needed(
+    session: AsyncSession, now: datetime | None = None, days_ahead: int = DEFAULT_DAYS_AHEAD
+) -> str | None:
+    """Raison de relancer les prédictions, ou None si elles sont à jour.
+
+    - aucune exécution réussie, ou la dernière a plus de ``STALE_AFTER`` ;
+    - un match à venir (fenêtre de ``days_ahead`` jours, non reporté) sans
+      prédiction et jamais examiné par la dernière exécution : ajouté au
+      calendrier depuis. Un match examiné mais non prédit (erreur signalée
+      dans le rapport) ne relance pas le calcul en boucle.
+    """
+    now = now or datetime.now(UTC)
+    last = await session.scalar(
+        select(PredictionRun)
+        .where(PredictionRun.status.in_(("ok", "partial")), PredictionRun.finished_at.is_not(None))
+        .order_by(PredictionRun.id.desc())
+        .limit(1)
+    )
+    if last is None or last.finished_at is None:
+        return "aucune prédiction enregistrée"
+    if now - last.finished_at > STALE_AFTER:
+        return f"dernière prédiction du {last.finished_at:%d/%m %H:%M} UTC (plus de 12 h)"
+    today = now.date()
+    predicted = (
+        select(MatchPrediction.match_id).where(MatchPrediction.match_id == Match.id).exists()
+    )
+    upcoming = await session.scalars(
+        select(Match.id).where(
+            Match.status == MatchStatus.SCHEDULED,
+            Match.match_date >= today,
+            Match.match_date <= today + timedelta(days=days_ahead),
+            (Match.api_status.is_(None)) | (Match.api_status.not_in(UNPLAYED_STATUSES)),
+            ~predicted,
+        )
+    )
+    seen = set(last.report.get("window", []))
+    new = [m for m in upcoming.all() if m not in seen]
+    if new:
+        return f"{len(new)} match(s) à venir sans prédiction"
+    return None

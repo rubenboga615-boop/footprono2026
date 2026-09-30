@@ -244,6 +244,15 @@ prochains jours, avec le même code que le backtest :
 - corners, cartons, tirs, tirs cadrés, jaunes et rouges (points de cartons),
   avec l'arbitre quand il est connu.
 
+Horaires (UTC) : 07:45 après les résultats de la nuit (06:15) et les cotes et
+le calendrier (07:30) ; 16:45 avant les matchs du soir (arbitres désignés,
+matchs ajoutés dans la journée). Rattrapage (`footprono.predict_if_needed`) :
+au démarrage du worker, toutes les heures et après chaque collecte des cotes,
+le calcul est relancé si la dernière exécution a plus de 12 h (serveur éteint
+aux heures prévues) ou si un match à venir n'a jamais été examiné (ajouté au
+calendrier depuis). Un match examiné mais non prédit (erreur au rapport) ne
+relance pas le calcul en boucle.
+
 Chaque exécution (`prediction_runs`) garde la version du moteur
 (`ENGINE_VERSION`, actuellement 2.0), ses réglages et les coefficients de
 correction ; chaque prédiction (`match_predictions`) garde les buts attendus,

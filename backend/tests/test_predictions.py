@@ -1,19 +1,19 @@
 """Prédictions enregistrées et API, sur une saison réelle dont la fin est « à venir »."""
 
 import math
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select, text, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.engine import ENGINE_VERSION
 from footprono.football.models import DataSource, Match, MatchStatus
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.predictions.models import MatchPrediction
-from footprono.predictions.service import predict_upcoming
+from footprono.predictions.service import predict_upcoming, prediction_needed
 
 from .conftest import make_settings
 
@@ -189,3 +189,33 @@ async def test_reliability_counts_only_predictions_made_before_kickoff(
 
     other = (await client.get("/api/v1/reliability", params={"competition": "L1"})).json()
     assert other["matches"] == 0
+
+
+async def test_prediction_needed_catches_up_after_downtime_and_new_fixtures(
+    db_factory: async_sessionmaker[AsyncSession], upcoming: list[int]
+) -> None:
+    now = datetime(2025, 5, 18, 12, tzinfo=UTC)
+    async with db_factory() as session:
+        assert await prediction_needed(session, now=now) == "aucune prédiction enregistrée"
+        run = await predict_upcoming(session, AS_OF, days_ahead=30)
+        assert run.finished_at is not None
+        ran_at = run.finished_at
+        assert set(run.report["window"]) == set(upcoming)
+        # À jour : rien à refaire (fenêtre de 30 jours comme l'exécution). Les matchs
+        # du jeu de test datent de 2025 : « maintenant » est placé à cette date.
+        assert await prediction_needed(session, now=now, days_ahead=30) is None
+        # Serveur éteint plus de 12 h : on relance.
+        stale = await prediction_needed(session, now=ran_at + timedelta(hours=13), days_ahead=30)
+        assert stale is not None
+        assert "plus de 12 h" in stale
+        # Un match arrivé au calendrier depuis (jamais examiné) : on relance.
+        newcomer = upcoming[0]
+        await session.execute(delete(MatchPrediction).where(MatchPrediction.match_id == newcomer))
+        run.report = {**run.report, "window": [m for m in upcoming if m != newcomer]}
+        await session.commit()
+        reason = await prediction_needed(session, now=now, days_ahead=30)
+        assert reason == "1 match(s) à venir sans prédiction"
+        # Examiné mais non prédit (erreur signalée) : pas de relance en boucle.
+        run.report = {**run.report, "window": upcoming}
+        await session.commit()
+        assert await prediction_needed(session, now=now, days_ahead=30) is None

@@ -33,3 +33,9 @@ def test_current_season_ingestion_is_scheduled(celery_test_app: Celery) -> None:
     assert "footprono.ingest_current_season" in celery_test_app.tasks
     schedule = celery_test_app.conf.beat_schedule["ingest-current-season"]
     assert schedule["task"] == "footprono.ingest_current_season"
+
+
+def test_prediction_catch_up_is_scheduled(celery_test_app: Celery) -> None:
+    assert "footprono.predict_if_needed" in celery_test_app.tasks
+    schedule = celery_test_app.conf.beat_schedule["predict-if-needed"]
+    assert schedule["task"] == "footprono.predict_if_needed"
