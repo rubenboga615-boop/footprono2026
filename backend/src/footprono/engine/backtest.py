@@ -17,7 +17,7 @@ Mesures : log loss (plus bas = mieux), score de Brier, RPS pour le 1X2
 """
 
 import itertools
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, fields
 from typing import Any
 
@@ -47,6 +47,8 @@ class BacktestConfig:
     seasons: Sequence[int]
     goals: GoalsConfig = field(default_factory=GoalsConfig)
     refit_every_days: int = 7
+    # Appelé à la fin de chaque championnat (suivi de la progression).
+    progress: Callable[[str], None] | None = None
 
 
 @dataclass
@@ -177,6 +179,8 @@ def run_backtest(hist: History, cfg: BacktestConfig) -> Predictions:
             out.market_pre_1x2.append(_implied(hist.odds["pre_1x2"][i]))
             close_ou = _implied(hist.odds["close_ou25"][i])
             out.market_close_ou25.append(float(close_ou[0]))
+        if cfg.progress is not None:
+            cfg.progress(f"{comp} : {len(test)} matchs prédits")
     return out
 
 

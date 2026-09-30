@@ -49,6 +49,10 @@ async def _load() -> History:
         await engine.dispose()
 
 
+def _progress(message: str) -> None:
+    print(f"  … {message}", file=sys.stderr, flush=True)
+
+
 def _fmt(value: float | None) -> str:
     return "  -   " if value is None else f"{value:.4f}"
 
@@ -81,9 +85,11 @@ def predict(
     antérieures : la correction de chaque saison apprend sur elles.
     """
     if features is None:
-        return run_backtest(hist, BacktestConfig(competitions, seasons, goals))
+        return run_backtest(hist, BacktestConfig(competitions, seasons, goals, progress=_progress))
     first = int(hist.season.min()) + 1
-    cfg = BacktestConfig(competitions, list(range(first, max(seasons) + 1)), goals)
+    cfg = BacktestConfig(
+        competitions, list(range(first, max(seasons) + 1)), goals, progress=_progress
+    )
     pred = run_backtest(hist, cfg)
     pred = apply_correction(hist, pred, build_context(hist), features)
     return pred.select(np.isin(pred.season, list(seasons)))
@@ -140,6 +146,7 @@ def features_study(hist: History, args: argparse.Namespace) -> None:
     calib = _losses(predict(hist, args.competitions, args.seasons, GoalsConfig(), ()))
     rows: list[tuple[str, FloatArray]] = [("calibration", base - calib)]
     for f in TEAM_FEATURES:
+        _progress(f"indicateur {f}")
         new = _losses(predict(hist, args.competitions, args.seasons, GoalsConfig(), (f,)))
         rows.append((f"+ {f}", calib - new))
     print(f"{len(base[0])} matchs ; gain de log loss (positif = mieux) ± 2 erreurs types")
@@ -155,6 +162,7 @@ EVALUATED_COUNTS = ("corners", "cards", "shots", "shots_on_target")
 
 def counts_report(hist: History, args: argparse.Namespace) -> None:
     for stat in args.stats:
+        _progress(f"{stat}…")
         r = counts_backtest(hist, args.competitions, args.seasons, stat, counts_config(stat))
         t, ou = r["total_log_loss"], r["ou_log_loss"]
         print(
@@ -206,7 +214,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    print("Chargement de l'historique…", file=sys.stderr, flush=True)
     hist = asyncio.run(_load())
+    print(f"{len(hist)} matchs chargés ; calcul en cours.", file=sys.stderr, flush=True)
     if args.command == "features":
         features_study(hist, args)
         return 0
