@@ -67,6 +67,25 @@ version web et à l'administration).
    encaissable à tout moment.
 5. « Encaisser » à n'importe quel palier ; option « sécuriser X % de chaque gain ».
 6. Calcul exact au franc près (arrondi inférieur, comme un bookmaker).
+7. **Pari de chaque palier : suggestions automatiques + choix manuel.** L'écran
+   « Pari du palier » propose les 3 paris (simple ou combiné de 2 à 3
+   sélections) dont la cote totale est dans la plage, classés par probabilité du
+   modèle, avec l'écart entre la probabilité du modèle et celle déduite de la
+   cote ; un pari moins probable que sa cote est signalé « déconseillé ».
+   « Composer moi-même » ouvre le Coupon en mode palier (1 à 3 sélections,
+   contrôle de la plage). Rien n'est joué sans validation de l'utilisateur.
+   Les combinés dans un même match sont calculés à partir de la même
+   distribution de scores (événements liés). Nécessite les cotes d'avant-match
+   (API-Football, phase 3).
+
+## Rôle de chaque écran
+
+- **Coupon** : composer UN pari (une ou plusieurs sélections), miser, valider.
+  Si une montante est en cours : une ligne « Utiliser pour le palier N », avec
+  contrôle de la plage de cote.
+- **Montante** : suivre une SÉRIE de paris enchaînés (plan, chances, encaisser).
+- **Bookmaker virtuel** : solde et historique de tous les paris, chacun étiqueté
+  (simple, coupon, montante · palier N).
 
 Exemple de référence (6 paliers, départ 5 000 F CFA, cotes 1,60 → 1,90) :
 gain final exact 150 582 F CFA ; chance d'aller au bout selon les cotes 3,3 %
@@ -76,5 +95,5 @@ avant marge du bookmaker (environ 2,5 % avec une marge de 5 % par pari).
 
 Connexion, Inscription, Matchs du jour, Détail du match (probabilités),
 Analyse du match (forme, points clés, moyennes, confrontations, compositions),
-Coupon, Montante (écran défilant), Bookmaker virtuel, Fiabilité du modèle, Notifications,
+Coupon, Montante (écran défilant), Pari du palier (suggestions), Bookmaker virtuel, Fiabilité du modèle, Notifications,
 Profil et abonnement.
