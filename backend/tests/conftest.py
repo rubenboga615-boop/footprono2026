@@ -36,6 +36,11 @@ def make_settings(**overrides: object) -> Settings:
         "log_json": True,
         "readiness_timeout_seconds": 1.0,
         "secret_key": "clé-de-test-uniquement-" + "x" * 32,
+        # Pas de limite de tentatives (compteurs Redis partagés entre les tests) ;
+        # testée à part (test_accounts).
+        "login_failures_per_phone": 0,
+        "login_failures_per_ip": 0,
+        "registrations_per_ip": 0,
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # type: ignore[call-arg]

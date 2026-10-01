@@ -1,9 +1,11 @@
 """Comptes et portefeuille fictif."""
 
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
+from redis.asyncio import Redis
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -11,8 +13,9 @@ from footprono.accounts import service
 from footprono.accounts.models import Wallet
 from footprono.accounts.security import hash_password, verify_password
 from footprono.core.errors import AppError
+from footprono.main import create_app
 
-from .conftest import make_settings
+from .conftest import TEST_REDIS_URL, make_settings
 
 SIGNUP = {
     "phone": "+229 97 00 00 01",
@@ -147,3 +150,53 @@ async def test_change_password(client: AsyncClient) -> None:
     assert old.status_code == 401
     new = await client.post("/api/v1/auth/login", json={"phone": phone, "password": "nouveau-mdp"})
     assert new.status_code == 200
+
+
+@pytest.fixture
+async def limited_client(db_engine: object) -> AsyncIterator[AsyncClient]:
+    """API avec limites de tentatives basses, compteurs remis à zéro."""
+    redis = Redis.from_url(TEST_REDIS_URL, decode_responses=True)
+    keys = [k async for k in redis.scan_iter("ratelimit:*")]
+    if keys:
+        await redis.delete(*keys)
+    await redis.aclose()
+    settings = make_settings(
+        login_failures_per_phone=3, login_failures_per_ip=100, registrations_per_ip=2
+    )
+    application = create_app(settings)
+    async with application.router.lifespan_context(application):
+        transport = ASGITransport(app=application, raise_app_exceptions=False)
+        async with AsyncClient(transport=transport, base_url="http://test") as http:
+            yield http
+
+
+async def test_login_blocked_after_repeated_failures(limited_client: AsyncClient) -> None:
+    created = await limited_client.post("/api/v1/auth/register", json=SIGNUP)
+    assert created.status_code == 201
+    good = {"phone": SIGNUP["phone"], "password": SIGNUP["password"]}
+    # Les connexions réussies ne comptent pas.
+    for _ in range(5):
+        assert (await limited_client.post("/api/v1/auth/login", json=good)).status_code == 200
+    # 3 échecs (numéro écrit de deux façons : même compteur), puis blocage même
+    # avec le bon mot de passe.
+    for phone in ("+229 97 00 00 01", "+22997000001", "+229 97000001"):
+        bad = await limited_client.post(
+            "/api/v1/auth/login", json={"phone": phone, "password": "mauvais-mot"}
+        )
+        assert bad.status_code == 401
+    blocked = await limited_client.post("/api/v1/auth/login", json=good)
+    assert blocked.status_code == 429
+    assert blocked.json()["error"]["code"] == "too_many_attempts"
+    assert blocked.json()["error"]["details"]["retry_after_seconds"] > 0
+
+
+async def test_registrations_limited_per_address(limited_client: AsyncClient) -> None:
+    for n in (2, 3):
+        r = await limited_client.post(
+            "/api/v1/auth/register", json={**SIGNUP, "phone": f"+2299700000{n}"}
+        )
+        assert r.status_code == 201
+    third = await limited_client.post(
+        "/api/v1/auth/register", json={**SIGNUP, "phone": "+22997000004"}
+    )
+    assert third.status_code == 429

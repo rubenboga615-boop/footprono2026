@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Request, status
 from sqlalchemy import select
 
 from footprono.accounts import service
@@ -19,13 +19,36 @@ from footprono.accounts.schemas import (
     WalletOut,
 )
 from footprono.accounts.security import create_access_token
-from footprono.api.deps import CurrentUserDep, SessionDep, SettingsDep
+from footprono.accounts.service import UnauthorizedError
+from footprono.api.deps import CurrentUserDep, RedisDep, SessionDep, SettingsDep
+from footprono.core import ratelimit
+from footprono.core.errors import AppError
 
 router = APIRouter(tags=["comptes"])
 
 
+LOGIN_WINDOW = 15 * 60
+REGISTER_WINDOW = 60 * 60
+
+
+def _client_ip(request: Request) -> str:
+    # Derrière Caddy, uvicorn (--proxy-headers) remplace l'adresse par celle du client.
+    return request.client.host if request.client else "inconnue"
+
+
 @router.post("/auth/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
-async def register(body: RegisterIn, session: SessionDep, settings: SettingsDep) -> TokenOut:
+async def register(
+    body: RegisterIn,
+    request: Request,
+    session: SessionDep,
+    settings: SettingsDep,
+    redis: RedisDep,
+) -> TokenOut:
+    ip = _client_ip(request)
+    if settings.registrations_per_ip:
+        await ratelimit.check(
+            redis, "register-ip", ip, settings.registrations_per_ip, REGISTER_WINDOW
+        )
     user = await service.register(
         session,
         settings,
@@ -37,12 +60,39 @@ async def register(body: RegisterIn, session: SessionDep, settings: SettingsDep)
     )
     token = create_access_token(user.id, settings)
     await session.commit()
+    if settings.registrations_per_ip:
+        await ratelimit.hit(redis, "register-ip", ip, REGISTER_WINDOW)
     return TokenOut(access_token=token)
 
 
 @router.post("/auth/login", response_model=TokenOut)
-async def login(body: LoginIn, session: SessionDep, settings: SettingsDep) -> TokenOut:
-    user = await service.authenticate(session, body.phone, body.password)
+async def login(
+    body: LoginIn,
+    request: Request,
+    session: SessionDep,
+    settings: SettingsDep,
+    redis: RedisDep,
+) -> TokenOut:
+    """Trop d'échecs pour un numéro (ou une adresse) : connexion refusée 15 minutes."""
+    ip = _client_ip(request)
+    try:  # « +229 97… » et « +22997… » : un seul compteur
+        phone = service.normalize_phone(body.phone)
+    except AppError:
+        phone = body.phone.strip()
+    limits = [
+        ("login-phone", phone, settings.login_failures_per_phone),
+        ("login-ip", ip, settings.login_failures_per_ip),
+    ]
+    for scope, ident, limit in limits:
+        if limit:
+            await ratelimit.check(redis, scope, ident, limit, LOGIN_WINDOW)
+    try:
+        user = await service.authenticate(session, body.phone, body.password)
+    except UnauthorizedError:
+        for scope, ident, limit in limits:
+            if limit:
+                await ratelimit.hit(redis, scope, ident, LOGIN_WINDOW)
+        raise
     return TokenOut(access_token=create_access_token(user.id, settings))
 
 

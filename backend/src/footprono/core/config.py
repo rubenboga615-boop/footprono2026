@@ -70,6 +70,12 @@ class Settings(BaseSettings):
     refill_below: int = Field(default=1_000, ge=0)
     refill_interval_days: int = Field(default=7, ge=1)
 
+    # Tentatives : échecs de connexion par numéro et par adresse IP (15 min),
+    # inscriptions par adresse IP (1 h). 0 : pas de limite (tests).
+    login_failures_per_phone: int = Field(default=10, ge=0)
+    login_failures_per_ip: int = Field(default=50, ge=0)
+    registrations_per_ip: int = Field(default=10, ge=0)
+
     # Fichiers bruts archivés (football-data, Understat…), nommés par empreinte.
     raw_data_dir: Path = Path("data/raw")
 
