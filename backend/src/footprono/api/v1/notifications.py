@@ -11,9 +11,9 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from redis.asyncio import Redis
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from footprono.accounts.models import User
@@ -21,7 +21,7 @@ from footprono.accounts.security import read_access_token
 from footprono.api.deps import CurrentUserDep, SessionDep
 from footprono.core.config import Settings
 from footprono.core.errors import NotFoundError
-from footprono.notifications.models import Notification
+from footprono.notifications.models import Notification, PushDevice
 from footprono.notifications.service import channel
 
 router = APIRouter(tags=["notifications"])
@@ -71,6 +71,40 @@ async def mark_all_read(user: CurrentUserDep, session: SessionDep) -> None:
         update(Notification)
         .where(Notification.user_id == user.id, Notification.read_at.is_(None))
         .values(read_at=datetime.now(UTC))
+    )
+    await session.commit()
+
+
+class DeviceIn(BaseModel):
+    token: str = Field(min_length=20, max_length=512)
+    platform: str = Field(default="android", pattern="^(android|ios|web)$")
+
+
+class DeviceTokenIn(BaseModel):
+    token: str = Field(min_length=1, max_length=512)
+
+
+@router.post("/me/devices", status_code=status.HTTP_204_NO_CONTENT)
+async def register_device(body: DeviceIn, user: CurrentUserDep, session: SessionDep) -> None:
+    """Enregistre le téléphone (jeton Firebase) pour les notifications push.
+
+    Un jeton déjà connu passe au compte connecté : un téléphone ne reçoit que les
+    notifications du compte ouvert dessus.
+    """
+    device = await session.scalar(select(PushDevice).where(PushDevice.token == body.token))
+    if device is None:
+        session.add(PushDevice(user_id=user.id, token=body.token, platform=body.platform))
+    else:
+        device.user_id, device.platform = user.id, body.platform
+        device.last_seen_at = datetime.now(UTC)
+    await session.commit()
+
+
+@router.post("/me/devices/remove", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_device(body: DeviceTokenIn, user: CurrentUserDep, session: SessionDep) -> None:
+    """Déconnexion : le téléphone ne reçoit plus les notifications de ce compte."""
+    await session.execute(
+        delete(PushDevice).where(PushDevice.token == body.token, PushDevice.user_id == user.id)
     )
     await session.commit()
 

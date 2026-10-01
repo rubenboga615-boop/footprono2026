@@ -6,23 +6,28 @@ import 'package:flutter/semantics.dart';
 import 'package:provider/provider.dart';
 
 import 'api/client.dart';
+import 'push.dart';
 import 'screens/auth_screen.dart';
 import 'screens/bookmaker_screen.dart';
 import 'screens/coupon_screen.dart';
 import 'screens/matches_screen.dart';
 import 'screens/montante_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/profile_screen.dart';
 import 'state/app_state.dart';
 import 'theme.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   // Tests de bout en bout (navigateur) : l'arbre d'accessibilité est activé
   // pour que les boutons et champs soient trouvés par leur libellé.
   if (kIsWeb && Uri.base.queryParameters.containsKey('e2e')) {
-    WidgetsFlutterBinding.ensureInitialized();
     SemanticsBinding.instance.ensureSemantics();
   }
-  final state = AppState(api: ApiClient(baseUrl: defaultServer()));
+  final state = AppState(
+    api: ApiClient(baseUrl: defaultServer()),
+    push: await FirebasePush.start(),
+  );
   runApp(FootPronoApp(state: state));
   state.init();
 }
@@ -79,6 +84,30 @@ class HomeShellState extends State<HomeShell> {
   // Coupon, Montante et Bookmaker sont rechargés à chaque visite (paris
   // placés ou réglés entre-temps) ; la liste des matchs garde ses filtres.
   final _generation = List.filled(5, 0);
+  late final AppState _state = context.read<AppState>();
+  int _openedSeen = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _state.notificationOpened.addListener(_openNotifications);
+    // Application lancée en touchant une notification.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openNotifications());
+  }
+
+  @override
+  void dispose() {
+    _state.notificationOpened.removeListener(_openNotifications);
+    super.dispose();
+  }
+
+  /// Notification touchée : écran des notifications.
+  void _openNotifications() {
+    final n = _state.notificationOpened.value;
+    if (!mounted || n == _openedSeen) return;
+    _openedSeen = n;
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+  }
 
   void go(int i) {
     if (i == index) return;

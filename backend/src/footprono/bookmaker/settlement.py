@@ -16,7 +16,7 @@ import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from redis.asyncio import Redis
@@ -39,6 +39,9 @@ from footprono.football.models import (
 )
 from footprono.ingestion.sources.api_football import UNPLAYED_STATUSES
 from footprono.notifications import service as notifications
+
+if TYPE_CHECKING:
+    from footprono.notifications.push import FcmSender
 
 HALF_TIME_MARKETS = ("HT_", "HTFT", "HIGHEST_HALF")
 COUNT_PREFIXES = {
@@ -219,7 +222,10 @@ def _notify_settled(session: AsyncSession, bet: Bet) -> None:
 
 
 async def settle_bets(
-    session: AsyncSession, now: datetime | None = None, redis: Redis | None = None
+    session: AsyncSession,
+    now: datetime | None = None,
+    redis: Redis | None = None,
+    push: "FcmSender | None" = None,
 ) -> dict[str, Any]:
     """Règle les paris ouverts dont le résultat est connu ; revoit les règlements récents.
 
@@ -261,7 +267,7 @@ async def settle_bets(
             await _correct(session, bet, outcome, payout, now)
             report["resettled"] += 1
     await session.commit()
-    report["notified"] = await notifications.publish_pending(session, redis)
+    report["notified"] = await notifications.publish_pending(session, redis, push)
     return report
 
 

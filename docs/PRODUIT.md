@@ -80,4 +80,5 @@ Code : `backend/src/footprono/predictions/reliability.py`.
 
 - Application Flutter : faite (voir `APPLICATION.md`) ; reste à valider sur
   le téléphone.
-- Notifications téléphone fermé (Firebase), dès qu'un projet Firebase existe.
+- Notifications téléphone fermé (Firebase) : faites ; reste à installer la
+  clé du compte de service sur le serveur et à valider sur le téléphone.

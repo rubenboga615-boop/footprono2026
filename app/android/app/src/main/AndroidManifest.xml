@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Serveur FootProno (API et notifications en direct). -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Notifications push (Android 13 et plus : autorisation demandée à la connexion). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- HTTP en clair autorisé : le serveur Termux du téléphone (127.0.0.1)
          n'a pas de certificat. À retirer quand le serveur distant sera en HTTPS. -->
     <application
@@ -30,6 +32,16 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Notifications push (Firebase) : icône, couleur et canal par défaut. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_footprono" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/fp_violet" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="footprono" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

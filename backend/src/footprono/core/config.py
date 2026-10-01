@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     # Version web de l'application (dossier « build/web » de Flutter, construit
     # avec --base-href /app/) : servie sur /app, à la même adresse que l'API.
     web_app_dir: Path | None = None
+    # Clé du compte de service Firebase (JSON, secret) : notifications sur le
+    # téléphone fermé. Vide : pas de notifications push.
+    fcm_credentials_file: Path | None = None
 
     # Comptes et bookmaker virtuel (argent fictif, montants entiers en devise).
     access_token_days: int = Field(default=30, ge=1)
@@ -76,10 +79,10 @@ class Settings(BaseSettings):
     # Délai maximal d'une vérification de dépendance (base, Redis) dans /ready.
     readiness_timeout_seconds: float = Field(default=2.0, gt=0)
 
-    @field_validator("web_app_dir", mode="before")
+    @field_validator("web_app_dir", "fcm_credentials_file", mode="before")
     @classmethod
     def _empty_is_none(cls, value: object) -> object:
-        # « FP_WEB_APP_DIR= » (vide) dans .env : pas de version web.
+        # « FP_WEB_APP_DIR= » (vide) dans .env : pas de version web (idem pour la clé Firebase).
         return None if isinstance(value, str) and not value.strip() else value
 
     @model_validator(mode="after")

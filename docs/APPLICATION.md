@@ -69,9 +69,27 @@ Règles respectées dans l'application :
 - Argent fictif rappelé sur le bookmaker, le coupon et le profil.
 - Marchés Premium signalés (verrou), jamais masqués en silence.
 
+## Notifications push (téléphone fermé)
+
+Projet Firebase « footprono-56616 », application Android `com.footprono.footprono`.
+
+- À la connexion, l'application demande l'autorisation d'afficher des
+  notifications (Android 13 et plus) et enregistre le téléphone
+  (`POST /me/devices`) ; à la déconnexion, il est retiré.
+- Le serveur envoie chaque notification (pari réglé, palier de montante…) en
+  direct dans l'application **et** sur les téléphones enregistrés (Firebase
+  Cloud Messaging, API HTTP v1), canal Android « Paris et montantes ».
+- Toucher la notification ouvre l'écran des notifications.
+- Côté serveur : clé du compte de service, secrète, hors du dépôt
+  (`FP_FCM_CREDENTIALS_FILE`). Sur Termux :
+  `bash scripts/termux/install-firebase.sh ~/storage/downloads/<clé>.json`,
+  redémarrer, puis `bash scripts/termux/admin.sh push-test <numéro>`.
+- Sans clé, rien n'est envoyé et `/admin/stats` l'indique (`push.enabled`) ;
+  les notifications restent visibles dans l'application.
+- Version web : pas de notifications push (Android seulement).
+
 ## Pas encore disponible
 
-- Notifications téléphone fermé (Firebase) : il faut créer le projet Firebase.
 - Paiement Mobile Money (phase 6) ; Premium est activé par l'administrateur.
 - Vérification du numéro par SMS.
 

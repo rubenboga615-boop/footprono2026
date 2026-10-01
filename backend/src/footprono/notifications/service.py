@@ -6,18 +6,21 @@ transaction (canal Redis ``notifications:<utilisateur>``, relayé par le
 WebSocket de l'API). Une notification n'est jamais diffusée pour une
 opération annulée.
 
-Notifications sur le téléphone fermé (Firebase Cloud Messaging) : pas encore
-activées, elles demandent un projet Firebase et sa clé (phase 5).
+Notifications sur le téléphone fermé : envoyées aussi par Firebase Cloud
+Messaging quand un expéditeur est fourni (``push``, voir ``push.py``).
 """
 
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.notifications.models import Notification
+
+if TYPE_CHECKING:
+    from footprono.notifications.push import FcmSender
 
 logger = logging.getLogger(__name__)
 _PENDING = "pending_notifications"
@@ -49,11 +52,26 @@ def add(
     return note
 
 
-async def publish_pending(session: AsyncSession, redis: Redis | None) -> int:
+async def publish_pending(
+    session: AsyncSession, redis: Redis | None, push: "FcmSender | None" = None
+) -> int:
     """Diffuse les notifications de la transaction validée ; renvoie leur nombre."""
     pending: list[Notification] = session.info.pop(_PENDING, [])
-    if redis is None or not pending:
+    if not pending or (redis is None and push is None):
         return 0
+    if redis is not None:
+        await _publish_live(redis, pending)
+    # Puis sur les téléphones (après le direct, plus rapide).
+    if push is not None:
+        try:
+            result = await push.send_notifications(session, pending)
+            logger.info("push_sent", extra=result.as_dict())
+        except Exception:  # Firebase injoignable : la notification reste en base et en direct
+            logger.exception("push_failed")
+    return len(pending)
+
+
+async def _publish_live(redis: Redis, pending: list[Notification]) -> None:
     for note in pending:
         payload = {
             "id": note.id,
@@ -67,4 +85,3 @@ async def publish_pending(session: AsyncSession, redis: Redis | None) -> int:
             await redis.publish(channel(note.user_id), json.dumps(payload, default=str))
         except Exception:  # la notification reste en base : visible à la prochaine ouverture
             logger.warning("notification_publish_failed", extra={"id": note.id})
-    return len(pending)

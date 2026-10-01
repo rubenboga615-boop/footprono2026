@@ -18,6 +18,9 @@ dependencies = [
     # WebSocket des notifications en direct (uvicorn) : pur Python, rien à
     # compiler sur Termux.
     "wsproto>=1.2,<2.0",
+    # Jetons de connexion (HS256) et clé Firebase (RS256, via cryptography).
+    # Sur Termux : cryptography fournie précompilée par pkg (python-cryptography).
+    "pyjwt[crypto]>=2.9,<3.0",
     # Moteur de prédiction. Sur Termux : fournis précompilés par pkg
     # (python-numpy, python-scipy), jamais compilés par pip.
     "numpy>=2.0,<3.0",

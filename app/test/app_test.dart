@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:footprono/api/client.dart';
 import 'package:footprono/format.dart';
 import 'package:footprono/main.dart';
+import 'package:footprono/screens/notifications_screen.dart';
 import 'package:footprono/state/app_state.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -15,6 +17,7 @@ class FakeServer {
   FakeServer({this.premium = false});
   bool premium;
   final List<Map<String, dynamic>> placedBets = [];
+  final List<String> devices = [];
 
   static const team1 = {'id': 1, 'name': 'Lens', 'country': 'France'};
   static const team2 = {'id': 2, 'name': 'Lyon', 'country': 'France'};
@@ -85,6 +88,12 @@ class FakeServer {
         body = me;
       case 'GET /me/notifications':
         body = [];
+      case 'POST /me/devices':
+        devices.add((jsonDecode(r.body) as Map)['token'] as String);
+        return http.Response('', 204);
+      case 'POST /me/devices/remove':
+        devices.remove((jsonDecode(r.body) as Map)['token']);
+        return http.Response('', 204);
       case 'GET /live':
         body = [];
       case 'GET /montantes':
@@ -203,16 +212,33 @@ class FakeServer {
   );
 }
 
+class FakePush implements PushBridge {
+  final refresh = StreamController<String>.broadcast();
+  final tapped = StreamController<void>.broadcast();
+  String? current = 'jeton-telephone-1';
+
+  @override
+  Future<String?> token() async => current;
+  @override
+  Stream<String> get tokenRefresh => refresh.stream;
+  @override
+  Stream<void> get opened => tapped.stream;
+  @override
+  Future<bool> openedAtLaunch() async => false;
+}
+
 Future<(AppState, FakeServer)> startApp(
   WidgetTester tester, {
   bool premium = false,
   bool loggedIn = false,
+  PushBridge? push,
 }) async {
   SharedPreferences.setMockInitialValues(loggedIn ? {'token': 'jeton'} : {});
   final server = FakeServer(premium: premium);
   final state = AppState(
     api: ApiClient(baseUrl: 'http://serveur', httpClient: MockClient(server.handle)),
     socketFactory: (_) => null,
+    push: push,
   );
   await tester.binding.setSurfaceSize(const Size(430, 1400));
   await tester.pumpWidget(FootPronoApp(state: state));
@@ -302,5 +328,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Premium'), findsOneWidget);
     expect(find.text('Forme · 5 derniers matchs'), findsNothing);
+  });
+
+  testWidgets('notifications push : téléphone enregistré, notification touchée, déconnexion', (tester) async {
+    final push = FakePush();
+    final (state, server) = await startApp(tester, loggedIn: true, push: push);
+    expect(server.devices, ['jeton-telephone-1']);
+
+    push.refresh.add('jeton-telephone-2');
+    await tester.pumpAndSettle();
+    expect(server.devices, ['jeton-telephone-1', 'jeton-telephone-2']);
+
+    push.tapped.add(null);
+    await tester.pumpAndSettle();
+    expect(find.byType(NotificationsScreen), findsOneWidget);
+    Navigator.of(tester.element(find.byType(NotificationsScreen))).pop();
+    await tester.pumpAndSettle();
+
+    await state.logout();
+    await tester.pumpAndSettle();
+    expect(server.devices, ['jeton-telephone-1']);
+  });
+
+  testWidgets('notifications refusées : rien n\'est enregistré', (tester) async {
+    final push = FakePush()..current = null;
+    final (_, server) = await startApp(tester, loggedIn: true, push: push);
+    expect(server.devices, isEmpty);
   });
 }

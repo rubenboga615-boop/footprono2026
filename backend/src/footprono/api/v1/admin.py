@@ -8,7 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from footprono.accounts import admin
 from footprono.accounts.plans import plan_info
-from footprono.api.deps import AdminUserDep, SessionDep
+from footprono.api.deps import AdminUserDep, SessionDep, SettingsDep
+from footprono.notifications import push
 
 router = APIRouter(prefix="/admin", tags=["administration"])
 
@@ -65,8 +66,10 @@ def _out(user: Any) -> AdminUserOut:
 
 
 @router.get("/stats")
-async def admin_stats(_: AdminUserDep, session: SessionDep) -> dict[str, Any]:
-    return await admin.stats(session)
+async def admin_stats(
+    _: AdminUserDep, session: SessionDep, settings: SettingsDep
+) -> dict[str, Any]:
+    return {**await admin.stats(session), "push": push.status(settings)}
 
 
 @router.get("/users", response_model=list[AdminUserOut])

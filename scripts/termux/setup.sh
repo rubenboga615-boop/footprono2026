@@ -13,7 +13,9 @@ DEV=0
 log "Paquets Termux"
 # numpy et scipy (moteur de prédiction) sont fournis précompilés par Termux :
 # pip ne sait pas les compiler raisonnablement sur téléphone (Fortran, BLAS).
-PACKAGES=(python python-numpy python-scipy postgresql redis clang rust binutils libffi openssl git)
+# cryptography (clé Firebase des notifications push) aussi : sa compilation
+# Rust prendrait très longtemps.
+PACKAGES=(python python-numpy python-scipy python-cryptography postgresql redis clang rust binutils libffi openssl git)
 # ruff (vérification du code) est fourni précompilé par Termux : le compiler
 # avec pip prendrait des heures sur téléphone.
 [ "$DEV" = 1 ] && PACKAGES+=(ruff)
@@ -72,11 +74,11 @@ fi
 log "Installation des dépendances ($(basename "$LOCK"))"
 log "La première fois, la compilation de pydantic-core (Rust) prend plusieurs minutes : c'est normal."
 mkdir -p "$RUN"
-grep -vE '^(numpy|scipy)==' "$LOCK" > "$RUN/requirements-termux.txt"
+grep -vE '^(numpy|scipy|cryptography)==' "$LOCK" > "$RUN/requirements-termux.txt"
 "$VENV/bin/pip" install -r "$RUN/requirements-termux.txt"
 "$VENV/bin/pip" install --no-deps -e "$BACKEND"
-"$VENV/bin/python" -c "import numpy, scipy; print('numpy', numpy.__version__, '· scipy', scipy.__version__)" \
-    || die "numpy ou scipy introuvable : pkg install python-numpy python-scipy"
+"$VENV/bin/python" -c "import numpy, scipy, cryptography; print('numpy', numpy.__version__, '· scipy', scipy.__version__, '· cryptography', cryptography.__version__)" \
+    || die "numpy, scipy ou cryptography introuvable : pkg install python-numpy python-scipy python-cryptography"
 
 cd "$BACKEND"
 if [ ! -f .env ]; then

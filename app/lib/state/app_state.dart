@@ -33,17 +33,38 @@ String defaultServer() {
 /// Ouvre le WebSocket ; `null` désactive le direct (tests).
 typedef SocketFactory = WebSocketChannel? Function(Uri uri);
 
+/// Notifications push du téléphone (Firebase sur Android ; absent ailleurs et en test).
+abstract class PushBridge {
+  /// Jeton de l'appareil, ou null si l'utilisateur refuse les notifications.
+  Future<String?> token();
+  Stream<String> get tokenRefresh;
+
+  /// Notification touchée alors que l'application tournait en arrière-plan.
+  Stream<void> get opened;
+
+  /// L'application a été lancée en touchant une notification.
+  Future<bool> openedAtLaunch();
+}
+
 class AppState extends ChangeNotifier {
-  AppState({required this.api, this.socketFactory});
+  AppState({required this.api, this.socketFactory, this.push});
 
   final ApiClient api;
   final SocketFactory? socketFactory;
+  final PushBridge? push;
   SharedPreferences? _prefs;
 
   bool ready = false;
   Me? me;
   final List<CouponItem> coupon = [];
   int unread = 0;
+
+  /// Incrémenté quand l'utilisateur touche une notification : l'écran des
+  /// notifications s'ouvre.
+  final notificationOpened = ValueNotifier<int>(0);
+  String? _pushToken;
+  StreamSubscription<String>? _pushRefreshSub;
+  StreamSubscription<void>? _pushOpenedSub;
 
   WebSocketChannel? _socket;
   StreamSubscription<dynamic>? _socketSub;
@@ -71,6 +92,7 @@ class AppState extends ChangeNotifier {
         await refreshMe();
         _connectSocket();
         unawaited(refreshUnread());
+        unawaited(_registerPush(atLaunch: true));
       } on ApiException catch (e) {
         if (e.isUnauthorized) await _clearSession();
         // Serveur injoignable : on garde la session, l'écran d'accueil affichera l'erreur.
@@ -122,15 +144,28 @@ class AppState extends ChangeNotifier {
     await refreshMe();
     _connectSocket();
     unawaited(refreshUnread());
+    unawaited(_registerPush());
   }
 
   Future<void> logout() async {
+    // Ce téléphone ne reçoit plus les notifications de ce compte.
+    final pushToken = _pushToken;
+    if (pushToken != null) {
+      try {
+        await api.post('/me/devices/remove', {'token': pushToken});
+      } on ApiException {
+        // serveur injoignable : le jeton passera au prochain compte connecté
+      }
+    }
     await _clearSession();
     notifyListeners();
   }
 
   Future<void> _clearSession() async {
     _disconnectSocket();
+    _pushRefreshSub?.cancel();
+    _pushRefreshSub = null;
+    _pushToken = null;
     api.token = null;
     me = null;
     coupon.clear();
@@ -203,6 +238,34 @@ class AppState extends ChangeNotifier {
 
   double get couponOdds => coupon.fold(1.0, (p, c) => p * c.offer.odds);
 
+  // --- Notifications push (téléphone fermé) -----------------------------------
+
+  Future<void> _registerPush({bool atLaunch = false}) async {
+    final p = push;
+    if (p == null || api.token == null) return;
+    _pushOpenedSub ??= p.opened.listen((_) => notificationOpened.value += 1);
+    try {
+      if (atLaunch && await p.openedAtLaunch()) notificationOpened.value += 1;
+      final token = await p.token();
+      if (token == null) return;
+      await _sendPushToken(token);
+      _pushRefreshSub ??= p.tokenRefresh.listen((t) => unawaited(_sendPushToken(t)));
+    } catch (e) {
+      // Sans notifications push, l'application reste utilisable.
+      debugPrint('Notifications push indisponibles : $e');
+    }
+  }
+
+  Future<void> _sendPushToken(String token) async {
+    if (api.token == null) return;
+    try {
+      await api.post('/me/devices', {'token': token, 'platform': 'android'});
+      _pushToken = token;
+    } on ApiException catch (e) {
+      debugPrint('Enregistrement du téléphone refusé : ${e.message}');
+    }
+  }
+
   // --- Notifications en direct ---------------------------------------------------
 
   void _connectSocket() {
@@ -263,6 +326,9 @@ class AppState extends ChangeNotifier {
   @override
   void dispose() {
     _disconnectSocket();
+    _pushRefreshSub?.cancel();
+    _pushOpenedSub?.cancel();
+    notificationOpened.dispose();
     super.dispose();
   }
 }

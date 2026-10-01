@@ -1,22 +1,49 @@
 """Tâches de fond."""
 
 import asyncio
+import logging
 from typing import Any
 
 from celery.signals import worker_ready
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from footprono import __version__
 from footprono.bookmaker import settlement
 from footprono.cache.redis import create_redis
-from footprono.core.config import get_settings
+from footprono.core.config import Settings, get_settings
 from footprono.db.session import create_engine, create_session_factory
 from footprono.football.models import DataSource
 from footprono.ingestion import live
 from footprono.ingestion.quality import current_season_start
 from footprono.ingestion.reference import COMPETITIONS
 from footprono.ingestion.service import IngestionRequest, run_ingestion
+from footprono.notifications.push import FcmSender, PushConfigError
 from footprono.predictions import service as prediction_service
 from footprono.worker.celery_app import celery_app
+
+logger = logging.getLogger(__name__)
+
+
+def _push_sender(settings: Settings) -> FcmSender | None:
+    """Expéditeur Firebase, ou None (non configuré, ou clé inutilisable : consigné)."""
+    try:
+        return FcmSender.from_settings(settings)
+    except PushConfigError as exc:
+        logger.error("push_disabled", extra={"error": str(exc)})
+        return None
+
+
+async def _settle(engine: AsyncEngine, settings: Settings) -> dict[str, Any]:
+    """Règle les paris ; notifications en direct (Redis) et sur téléphone (Firebase)."""
+    redis = create_redis(settings)
+    push = _push_sender(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            return await settlement.settle_bets(session, redis=redis, push=push)
+    finally:
+        await redis.aclose()
+        if push is not None:
+            await push.aclose()
 
 
 @celery_app.task(name="footprono.ping")
@@ -51,12 +78,7 @@ async def _ingest_current_season() -> dict[str, Any]:
             ],
         )
         # Scores confirmés par football-data : paris récents revus si un score a changé.
-        redis = create_redis(settings)
-        try:
-            async with create_session_factory(engine)() as session:
-                bets = await settlement.settle_bets(session, redis=redis)
-        finally:
-            await redis.aclose()
+        bets = await _settle(engine, settings)
     finally:
         await engine.dispose()
     return {
@@ -108,12 +130,7 @@ async def _follow_live() -> dict[str, Any]:
         async with create_session_factory(engine)() as session:
             report = await live.follow_live(session, settings)
         # Règlement juste après : un pari est payé dès la fin de son match.
-        redis = create_redis(settings)
-        try:
-            async with create_session_factory(engine)() as session:
-                report["bets"] = await settlement.settle_bets(session, redis=redis)
-        finally:
-            await redis.aclose()
+        report["bets"] = await _settle(engine, settings)
         return report
     finally:
         await engine.dispose()

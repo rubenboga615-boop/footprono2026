@@ -15,6 +15,7 @@ from footprono.accounts.models import SubscriptionEvent, User
 from footprono.accounts.service import normalize_phone
 from footprono.bookmaker.models import Bet
 from footprono.core.errors import AppError, NotFoundError
+from footprono.notifications.models import PushDevice
 
 MAX_GRANT_DAYS = 366
 
@@ -148,6 +149,7 @@ async def stats(session: AsyncSession, now: datetime | None = None) -> dict[str,
         await session.scalar(select(func.count(User.id)).where(User.created_at >= week)) or 0
     )
     bets_week = await session.scalar(select(func.count(Bet.id)).where(Bet.placed_at >= week)) or 0
+    push_users = await session.scalar(select(func.count(func.distinct(PushDevice.user_id)))) or 0
     return {
         "users": users,
         "active_users": active,
@@ -156,4 +158,5 @@ async def stats(session: AsyncSession, now: datetime | None = None) -> dict[str,
         "premium_paid_or_granted": premium - trial,
         "new_users_7d": new_users,
         "bets_7d": bets_week,
+        "push_users": push_users,
     }

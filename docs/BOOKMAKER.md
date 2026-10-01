@@ -75,8 +75,9 @@ Argent **fictif**. Code : `backend/src/footprono/accounts/`, `bookmaker/`,
   remboursé, montante réussie ou perdue.
 - **En direct** : WebSocket `/api/v1/ws?token=…`, relayé par Redis ; diffusées
   seulement après validation du règlement.
-- **Téléphone fermé (Firebase Cloud Messaging)** : pas encore activé ; il faut
-  un projet Firebase et sa clé de service (phase 5, avec l'application).
+- **Téléphone fermé (Firebase Cloud Messaging)** : envoyées aux téléphones
+  enregistrés après le direct ; un jeton refusé par Firebase (application
+  désinstallée) est oublié. Voir `APPLICATION.md`.
 
 ## API
 
@@ -89,3 +90,4 @@ Argent **fictif**. Code : `backend/src/footprono/accounts/`, `bookmaker/`,
 | `POST /montantes`, `GET /montantes`, `GET /montantes/{id}` | montantes et plan |
 | `GET /montantes/{id}/suggestions`, `POST /montantes/{id}/bet`, `POST /montantes/{id}/cash-out` | paliers |
 | `GET /me/notifications`, `POST /me/notifications/{id}/read`, `POST /me/notifications/read-all`, `WS /ws` | notifications |
+| `POST /me/devices`, `POST /me/devices/remove` | téléphone des notifications push (jeton Firebase) |
