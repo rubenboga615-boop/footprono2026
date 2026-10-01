@@ -9,7 +9,9 @@ const SHOTS = process.env.E2E_SHOTS || '';
 const browser = await chromium.launch(
   process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {},
 );
-const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+// Langue explicite : sans langue système (LANG vide, cas des machines d'intégration),
+// Chromium annonce « en-US@posix », que le moteur Flutter web refuse au démarrage.
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: 'fr-FR' });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 
