@@ -260,6 +260,7 @@ def counts_backtest(
     yh, ya = count_values(hist, stat)
     line = EVAL_LINE.get(stat, TOTAL_LINES.get(stat, (0.5,))[0])
     model_total, naive_total, model_ou, naive_ou, outcome_ou = [], [], [], [], []
+    rows: list[tuple[str, int]] = []  # (championnat, saison) de chaque match évalué
     for comp in competitions:
         test = np.where(
             (hist.competition == comp)
@@ -292,6 +293,7 @@ def counts_backtest(
             model_ou.append(float(pmf[np.arange(len(pmf)) > line].sum()))
             naive_ou.append(float(naive[np.arange(len(naive)) > line].sum()))
             outcome_ou.append(int(total > line))
+            rows.append((comp, int(hist.season[i])))
     y = np.array(outcome_ou, dtype=np.int64)
     return {
         "stat": stat,
@@ -306,6 +308,11 @@ def counts_backtest(
             "naive": log_loss_binary(np.array(naive_ou), y),
         },
         "ou_calibration": calibration_binary(np.array(model_ou), y),
+        # Détail par match (plus/moins à ``line``) pour la calibration détaillée.
+        "ou_rows": [
+            (c, s, float(m), float(n), int(o))
+            for (c, s), m, n, o in zip(rows, model_ou, naive_ou, outcome_ou, strict=True)
+        ],
     }
 
 

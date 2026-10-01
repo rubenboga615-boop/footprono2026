@@ -114,6 +114,20 @@ Méthode vérifiée sur données simulées : moteur exact → angle juste ;
 moteur bruité → surestimation détectée (`tests/test_angles.py`).
 Résultats sur les vraies données : à compléter.
 
+## Calibration détaillée (`footprono-engine calibration`)
+
+Pour chaque marché suivi (1X2, double chance, +1,5/2,5/3,5 buts, les deux
+marquent, buts de chaque équipe, mi-temps, corners +9,5, cartons +4,5), par
+championnat et par saison : log loss et score de Brier du moteur contre une
+référence naïve **causale** (fréquence de l'issue dans le championnat sur les
+3 saisons précédentes), écart observé - annoncé avec son erreur type, courbe
+de calibration par tranches de 10 points, et alertes sur les cases
+(championnat, saison) qui dérivent de plus de 3 erreurs types (seuil large :
+sur des centaines de cases, 2 erreurs types donneraient des fausses alertes).
+Méthode vérifiée sur données simulées (`tests/test_calibration.py`) : moteur
+exact → aucune alerte et gain sur la référence ; moteur biaisé dans une seule
+case → cette case est signalée, et elle seule.
+
 ## Résultats sur les saisons de test 2022-23 → 2025-26 (vérifié le 30/09/2026)
 
 7 081 matchs, jamais vus pendant le réglage ni la sélection. Chaque match est

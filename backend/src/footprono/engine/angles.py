@@ -75,7 +75,7 @@ def _market(key: str) -> str:
     return key.split("|", 1)[0]
 
 
-def _actual(hg: int, ag: int, hht: int, aht: int) -> ScoreDistribution:
+def actual_distribution(hg: int, ag: int, hht: int, aht: int) -> ScoreDistribution:
     joint = np.zeros((MAX_HT_GOALS + 1, MAX_HT_GOALS + 1, MAX_GOALS + 1, MAX_GOALS + 1))
     joint[hht, aht, hg, ag] = 1.0
     return ScoreDistribution(joint)
@@ -94,7 +94,7 @@ def match_selections(hist: History, pred: Predictions, k: int) -> list[tuple[str
             pred.lam_h[k], pred.lam_a[k], pred.rho[k], pred.share_h[k], pred.share_a[k]
         )
     )
-    actual = derive_markets(_actual(hg, ag, hht, aht))
+    actual = derive_markets(actual_distribution(hg, ag, hht, aht))
     out = []
     for key, sel in model.items():
         market = _market(key)
