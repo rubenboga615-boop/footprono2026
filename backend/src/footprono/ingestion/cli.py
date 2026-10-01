@@ -138,12 +138,14 @@ def print_summary(report: dict[str, Any]) -> None:
         print(f"Ingestion n°{report['run_id']} : {report['status']}")
     for f in report.get("files", []):
         line = f"  [{f['status']:<11}] {f['source']:<13} {f['competition']:<10} {f['season']}"
-        if f["status"] == "ok":
+        if f["status"] in ("ok", "incomplete"):
             line += (
                 f"  matchs +{f['matches_inserted']} ~{f['matches_updated']}"
                 f"  cotes {f['odds_upserted']}  stats {f['advanced_stats_upserted']}"
                 f"  anomalies {len(f['issues'])}"
             )
+            if f.get("stats_missing"):
+                line += f"  stats manquantes {f['stats_missing']} matchs (quota)"
         else:
             line += f"  {f['error']}"
         print(line)

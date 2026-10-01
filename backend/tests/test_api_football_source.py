@@ -402,3 +402,35 @@ async def test_rejected_key_stops_without_retry(
     assert report["files"][0]["status"] == "unavailable"
     assert "refuse la clé" in report["files"][0]["error"]
     assert calls == ["/status?"]
+
+
+async def test_quota_reached_mid_season_is_incomplete_not_ok(
+    db_factory: Factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await _ingest(db_factory, tmp_path, _fd("EPL", 2024))
+    fixtures = [
+        _raw_fixture(1, "Manchester United", "Fulham", "2024-08-16", 1, 0),
+        _raw_fixture(2, "Ipswich", "Liverpool", "2024-08-17", 0, 2),
+    ]
+    calls: list[str] = []
+    monkeypatch.setattr(service, "api_football_transport", _api_transport(fixtures, calls))
+    monkeypatch.setattr(api_football.ApiFootballClient, "__init__", _fast_init)
+    request = IngestionRequest(DataSource.API_FOOTBALL, ["EPL"], [2024])
+    # Budget de 2 requêtes : la liste des matchs, puis une seule statistique.
+    tight = make_settings(
+        raw_data_dir=tmp_path / "raw", api_football_key="k" * 32, api_football_budget=2
+    )
+    messages: list[str] = []
+    report = await run_ingestion(db_factory, tight, [request], progress=messages.append)
+    entry = report["files"][0]
+    assert entry["status"] == "incomplete"
+    assert entry["stats_missing"] == 1
+    assert report["status"] == "partial"
+    assert any("statistiques manquantes 1 matchs (quota)" in m for m in messages)
+
+    # Le lendemain (quota renouvelé) : seul le match manquant est demandé.
+    calls.clear()
+    full = make_settings(raw_data_dir=tmp_path / "raw", api_football_key="k" * 32)
+    report = await run_ingestion(db_factory, full, [request])
+    assert report["files"][0]["status"] == "ok"
+    assert [c.split("?")[0] for c in calls] == ["/status", "/fixtures", "/fixtures/statistics"]

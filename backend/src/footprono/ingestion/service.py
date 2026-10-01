@@ -162,14 +162,19 @@ api_football_transport: httpx.AsyncBaseTransport | None = None
 
 async def _download_api_football(
     session: AsyncSession, settings: Settings, comp: CompetitionRef, year: int
-) -> tuple[bytes, list[api_football.ApiFixture], list[str]]:
-    """Liste des matchs de la saison, puis statistiques des terminés qui n'en ont pas."""
+) -> tuple[bytes, list[api_football.ApiFixture], list[str], int]:
+    """Liste des matchs de la saison, puis statistiques des terminés qui n'en ont pas.
+
+    Renvoie aussi le nombre de matchs dont les statistiques restent à demander
+    (quota du jour atteint) : le fichier est alors « incomplete », jamais « ok ».
+    """
     if settings.api_football_key is None:
         raise raw_store.SourceUnavailableError(
             "FP_API_FOOTBALL_KEY absente : statistiques API-Football non téléchargées",
             transient=False,
         )
     notes: list[str] = []
+    left = 0
     async with api_football.ApiFootballClient(
         settings.api_football_key.get_secret_value(),
         budget=settings.api_football_budget,
@@ -236,7 +241,7 @@ async def _download_api_football(
             )
         fixtures.append(fixture)
     content = json.dumps({"fixtures": body, "statistics": statistics}).encode()
-    return content, fixtures, notes + issues.items
+    return content, fixtures, notes + issues.items, left
 
 
 async def _api_football_file(
@@ -248,7 +253,9 @@ async def _api_football_file(
 ) -> FileResult:
     if from_dir is None:
         origin = f"{api_football.BASE_URL}/fixtures?league={comp.api_football_id}&season={year}"
-        content, fixtures, notes = await _download_api_football(session, settings, comp, year)
+        content, fixtures, notes, stats_missing = await _download_api_football(
+            session, settings, comp, year
+        )
         name = f"{comp.api_football_id}/{year}-{datetime.now(UTC):%Y%m%dT%H%M%S}.json"
     else:
         # Disposition du collecteur : <dossier>/<id de ligue>/<saison>.json
@@ -258,6 +265,7 @@ async def _api_football_file(
         origin, content = str(path), path.read_bytes()
         fixtures, parse_issues = api_football.parse_collector_file(json.loads(content))
         notes = parse_issues.items
+        stats_missing = 0
         name = f"{comp.api_football_id}/{year}.json"
 
     raw_id = await raw_store.archive(
@@ -271,6 +279,7 @@ async def _api_football_file(
         "origin": origin,
         "parsed_matches": len(fixtures),
         "with_stats": with_stats,
+        "stats_missing": stats_missing,
         **stats.as_dict(),
     }
 
@@ -298,12 +307,15 @@ Progress = Callable[[str], None]
 
 
 def _describe(entry: FileResult) -> str:
-    if entry["status"] == "ok":
-        return (
-            f"ok — matchs +{entry['matches_inserted']} ~{entry['matches_updated']}, "
-            f"cotes {entry['odds_upserted']}, stats {entry['advanced_stats_upserted']}, "
-            f"anomalies {len(entry['issues'])}"
+    if entry["status"] in ("ok", "incomplete"):
+        text = (
+            f"{entry['status']} — matchs +{entry['matches_inserted']} "
+            f"~{entry['matches_updated']}, cotes {entry['odds_upserted']}, "
+            f"stats {entry['advanced_stats_upserted']}, anomalies {len(entry['issues'])}"
         )
+        if entry.get("stats_missing"):
+            text += f", statistiques manquantes {entry['stats_missing']} matchs (quota)"
+        return text
     return f"{entry['status']} — {entry['error']}"
 
 
@@ -377,7 +389,8 @@ async def run_ingestion(
                 try:
                     async with factory() as session, session.begin():
                         entry.update(await handler(session, settings, comp, year, request.from_dir))
-                    entry["status"] = "ok"
+                    # Quota atteint en cours de saison : chargé, mais pas complet.
+                    entry["status"] = "incomplete" if entry.get("stats_missing") else "ok"
                 except raw_store.SourceUnavailableError as exc:
                     entry.update(status="unavailable", error=str(exc))
                     if exc.transient:
@@ -406,8 +419,8 @@ async def run_ingestion(
             status = "failed"
         elif quality["errors"]:
             status = "quality_errors"
-        elif "unavailable" in statuses:
-            # Un fichier manquant n'est jamais passé sous silence.
+        elif statuses & {"unavailable", "incomplete"}:
+            # Un fichier manquant ou incomplet n'est jamais passé sous silence.
             status = "partial"
         else:
             status = "ok"

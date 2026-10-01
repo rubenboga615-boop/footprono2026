@@ -38,6 +38,9 @@ Serie A, Bundesliga et Ligue 1.
 - **Idempotence** : relancer une ingestion ne crée aucun doublon.
 - **Une source indisponible** donne le statut `unavailable` pour le fichier et
   `partial` pour l'exécution ; aucune donnée de remplacement n'est produite.
+- **Quota API-Football atteint en cours de saison** : le fichier est chargé
+  mais marqué `incomplete` (nombre de matchs sans statistiques indiqué), et
+  l'exécution `partial`. La relance suivante ne demande que les manquants.
   Après 3 échecs consécutifs (réseau, blocage, page HTML au lieu des données),
   les fichiers restants de cette source ne sont pas tentés et le rapport le dit.
   Un fichier absent (404) ne compte pas comme un échec de la source.
