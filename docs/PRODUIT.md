@@ -80,9 +80,9 @@ Code : `backend/src/footprono/predictions/reliability.py`.
   part, présentés comme une simulation et non comme des prédictions publiées.
 - Filtres : `?competition=EPL`, `?since=2026-08-01`, `?recent=20`.
 
-## Reste à faire en phase 5
+## Phase 5 : terminée (01/10/2026)
 
-- Application Flutter : faite (voir `APPLICATION.md`) ; reste à valider sur
-  le téléphone.
-- Notifications téléphone fermé (Firebase) : faites ; reste à installer la
-  clé du compte de service sur le serveur et à valider sur le téléphone.
+- Application Flutter (voir `APPLICATION.md`) : installée et utilisée sur le
+  téléphone.
+- Notifications téléphone fermé (Firebase) : validées sur le téléphone
+  (application fermée, notification dans la barre).
