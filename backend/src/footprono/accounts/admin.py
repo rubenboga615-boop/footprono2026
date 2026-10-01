@@ -51,8 +51,12 @@ async def grant_premium(
     *,
     note: str | None = None,
     now: datetime | None = None,
+    kind: str = "admin_grant",
 ) -> SubscriptionEvent:
-    """Ajoute ``days`` jours de Premium, à la suite de la période en cours s'il y en a une."""
+    """Ajoute ``days`` jours de Premium, à la suite de la période en cours s'il y en a une.
+
+    ``kind`` : ``admin_grant`` (administrateur) ou ``payment`` (paiement vérifié).
+    """
     if not 1 <= days <= MAX_GRANT_DAYS:
         raise AppError(f"durée de 1 à {MAX_GRANT_DAYS} jours")
     now = now or datetime.now(UTC)
@@ -60,7 +64,7 @@ async def grant_premium(
     user.premium_until = start + timedelta(days=days)
     event = SubscriptionEvent(
         user_id=user.id,
-        kind="admin_grant",
+        kind=kind,
         days=days,
         premium_until=user.premium_until,
         admin_id=admin.id if admin else None,

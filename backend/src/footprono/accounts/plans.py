@@ -20,6 +20,7 @@ from footprono.core.errors import AppError
 
 FREE_MARKETS = frozenset({"1X2", "OU", "BTTS"})
 PREMIUM_PRICE = 2000  # F CFA par mois
+PREMIUM_DAYS = 30  # durée achetée par paiement
 PREMIUM_CURRENCY = "XOF"
 
 

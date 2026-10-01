@@ -14,6 +14,7 @@ from footprono.bookmaker import montante_models
 from footprono.db.base import Base
 from footprono.football import models as football_models
 from footprono.notifications import models as notification_models
+from footprono.payments import models as payment_models
 from footprono.predictions import models as prediction_models
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     "football_models",
     "montante_models",
     "notification_models",
+    "payment_models",
     "prediction_models",
 ]

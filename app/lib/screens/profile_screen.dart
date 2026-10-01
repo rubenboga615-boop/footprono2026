@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../api/client.dart';
+import '../api/models.dart';
 
 import '../format.dart';
 import '../state/app_state.dart';
@@ -238,6 +239,29 @@ class ProfileScreen extends StatelessWidget {
 class _PlanCard extends StatelessWidget {
   const _PlanCard();
 
+  Future<void> _buy(BuildContext context, Plan plan) async {
+    final state = context.read<AppState>();
+    final amount = money(plan.price, plan.priceCurrency);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Premium · 30 jours'),
+        content: Text(
+          'Tu vas payer $amount par Mobile Money (Orange, MTN, Moov, Wave) sur la page '
+          'sécurisée de CinetPay. Premium est activé dès que l\'opérateur confirme le paiement'
+          '${plan.premium ? ', à la suite de ta période en cours' : ''}.\n\n'
+          'Ce paiement est réel (contrairement aux paris, en argent fictif).',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Payer')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    await guard(context, state.buyPremium);
+  }
+
   @override
   Widget build(BuildContext context) {
     final me = context.watch<AppState>().me!;
@@ -296,19 +320,13 @@ class _PlanCard extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 14),
-          OutlinedButton(
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Gérer mon abonnement'),
-                content: Text(
-                  'Premium coûte $price. Le paiement Mobile Money dans l\'application arrive bientôt : '
-                  'en attendant, Premium est activé par l\'administrateur après ton paiement.',
-                ),
-                actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Compris'))],
-              ),
+          FilledButton(
+            onPressed: () => _buy(context, plan),
+            child: Text(
+              plan.premium
+                  ? 'Prolonger de 30 jours · ${money(plan.price, plan.priceCurrency)}'
+                  : 'Passer Premium · ${money(plan.price, plan.priceCurrency)}',
             ),
-            child: const Text('Gérer mon abonnement'),
           ),
         ],
       ),

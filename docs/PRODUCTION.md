@@ -68,6 +68,29 @@ GitHub → dépôt → Settings → Secrets and variables → Actions → **Vari
 ensuite se connectent au serveur. Sur un téléphone déjà installé :
 Profil → Serveur → la même adresse.
 
+## 7. Paiement Mobile Money (CinetPay)
+
+1. Compte marchand sur <https://cinetpay.com> (pièce d'identité ; validation
+   de quelques jours).
+2. Espace marchand → **Intégrations** : noter l'**APIKEY** et le **SITE ID**.
+3. Sur le serveur, dans `/opt/footprono/deploy/.env` :
+   `FP_CINETPAY_API_KEY=…` et `FP_CINETPAY_SITE_ID=…`, puis relancer
+   `install-server.sh` (ou `docker compose … up -d`).
+
+Fonctionnement :
+
+- Profil → **Passer Premium** (2 000 F CFA, 30 jours) : le serveur crée le
+  paiement (`POST /payments/premium`) et l'application ouvre le guichet
+  CinetPay (Orange Money, MTN MoMo, Moov Money, Wave, carte).
+- Premium n'est accordé qu'après **vérification auprès de CinetPay**
+  (`/payment/check`), montant et devise contrôlés, une seule fois. La
+  notification de CinetPay n'est qu'un signal ; le retour dans l'application
+  et une vérification toutes les 10 minutes (24 h) couvrent une
+  notification perdue.
+- Payer pendant une période Premium la prolonge de 30 jours.
+- Historique : `GET /me/payments` ; abonnements : `SubscriptionEvent`
+  (`payment`).
+
 ## Sauvegardes
 
 - Chaque jour à 3 h (UTC) : `deploy/backups/footprono-AAAAMMJJ-HHMM.dump`,
@@ -101,5 +124,5 @@ Profil → Serveur → la même adresse.
 | Tentatives de connexion limitées (10 échecs / 15 min / numéro) | ratelimit.py |
 | Métriques non publiques (`/metrics` → 404) | Caddyfile |
 | Sauvegardes quotidiennes + copie hors serveur | backup, scp |
-| Paiement vérifié auprès de CinetPay, jamais sur la seule notification | (à venir) |
+| Paiement vérifié auprès de CinetPay, jamais sur la seule notification | payments/service.py |
 | HTTP en clair dans l'APK (Termux) à retirer après la bascule | (à faire) |

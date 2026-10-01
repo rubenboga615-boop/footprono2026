@@ -26,6 +26,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   static IconData _icon(String kind) {
     if (kind.startsWith('montante')) return Icons.stairs_rounded;
+    if (kind.startsWith('premium')) return Icons.workspace_premium_outlined;
     if (kind == 'bet_corrected') return Icons.edit_note_rounded;
     if (kind.startsWith('bet')) return Icons.confirmation_number_outlined;
     return Icons.notifications_none_rounded;

@@ -8,6 +8,7 @@ from footprono.api.v1 import (
     health,
     montantes,
     notifications,
+    payments,
     predictions,
 )
 
@@ -18,5 +19,6 @@ api_router.include_router(admin.router)
 api_router.include_router(bets.router)
 api_router.include_router(montantes.router)
 api_router.include_router(notifications.router)
+api_router.include_router(payments.router)
 api_router.include_router(football.router)
 api_router.include_router(predictions.router)

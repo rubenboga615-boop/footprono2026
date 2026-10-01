@@ -61,6 +61,12 @@ class Settings(BaseSettings):
     # Clé du compte de service Firebase (JSON, secret) : notifications sur le
     # téléphone fermé. Vide : pas de notifications push.
     fcm_credentials_file: Path | None = None
+    # Adresse publique du serveur (https://…) : retour et notification de paiement.
+    public_url: str | None = None
+    # Paiement Mobile Money (CinetPay, espace marchand → Intégrations).
+    # Sans clé : le paiement est indisponible (Premium par l'administrateur).
+    cinetpay_api_key: SecretStr | None = None
+    cinetpay_site_id: str | None = None
 
     # Comptes et bookmaker virtuel (argent fictif, montants entiers en devise).
     access_token_days: int = Field(default=30, ge=1)
@@ -85,7 +91,14 @@ class Settings(BaseSettings):
     # Délai maximal d'une vérification de dépendance (base, Redis) dans /ready.
     readiness_timeout_seconds: float = Field(default=2.0, gt=0)
 
-    @field_validator("web_app_dir", "fcm_credentials_file", mode="before")
+    @field_validator(
+        "web_app_dir",
+        "fcm_credentials_file",
+        "public_url",
+        "cinetpay_api_key",
+        "cinetpay_site_id",
+        mode="before",
+    )
     @classmethod
     def _empty_is_none(cls, value: object) -> object:
         # « FP_WEB_APP_DIR= » (vide) dans .env : pas de version web (idem pour la clé Firebase).

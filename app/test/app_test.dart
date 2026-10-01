@@ -18,6 +18,7 @@ class FakeServer {
   bool premium;
   final List<Map<String, dynamic>> placedBets = [];
   final List<String> devices = [];
+  String paymentStatus = 'pending';
 
   static const team1 = {'id': 1, 'name': 'Lens', 'country': 'France'};
   static const team2 = {'id': 2, 'name': 'Lyon', 'country': 'France'};
@@ -88,6 +89,19 @@ class FakeServer {
         body = me;
       case 'GET /me/notifications':
         body = [];
+      case 'POST /payments/premium':
+        return http.Response(
+          jsonEncode({
+            'id': 1,
+            'status': 'pending',
+            'payment_url': 'https://checkout.cinetpay.com/payment/abc',
+          }),
+          201,
+          headers: {'content-type': 'application/json'},
+        );
+      case 'GET /payments/1':
+        if (paymentStatus == 'accepted') premium = true;
+        body = {'id': 1, 'status': paymentStatus};
       case 'POST /me/devices':
         devices.add((jsonDecode(r.body) as Map)['token'] as String);
         return http.Response('', 204);
@@ -363,5 +377,46 @@ void main() {
     final push = FakePush()..current = null;
     final (_, server) = await startApp(tester, loggedIn: true, push: push);
     expect(server.devices, isEmpty);
+  });
+
+  testWidgets('Premium : paiement ouvert dans le navigateur, vérifié au retour', (tester) async {
+    SharedPreferences.setMockInitialValues({'token': 'jeton'});
+    final server = FakeServer();
+    final opened = <Uri>[];
+    final state = AppState(
+      api: ApiClient(baseUrl: 'http://serveur', httpClient: MockClient(server.handle)),
+      socketFactory: (_) => null,
+      openUrl: (url) async {
+        opened.add(url);
+        return true;
+      },
+    );
+    await tester.binding.setSurfaceSize(const Size(430, 1400));
+    await tester.pumpWidget(FootPronoApp(state: state));
+    await state.init();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.textContaining('Passer Premium'), 200);
+    await tester.tap(find.textContaining('Passer Premium'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Ce paiement est réel'), findsOneWidget);
+    await tester.tap(find.text('Payer'));
+    await tester.pumpAndSettle();
+    expect(opened.single.toString(), 'https://checkout.cinetpay.com/payment/abc');
+
+    // Retour dans l'application avant confirmation : en attente.
+    state.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.textContaining('en attente de confirmation'), findsOneWidget);
+    await tester.pumpAndSettle(const Duration(seconds: 5));
+
+    server.paymentStatus = 'accepted';
+    state.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(find.text('Paiement reçu : Premium est activé.'), findsOneWidget);
+    expect(state.premium, isTrue);
+    expect(state.pendingPayment, isNull);
   });
 }

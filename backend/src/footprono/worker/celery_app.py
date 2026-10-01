@@ -67,6 +67,12 @@ def create_celery(settings: Settings | None = None) -> Celery:
                 "schedule": crontab(minute=10),
                 "options": {"expires": 3000},
             },
+            # Paiements dont la notification CinetPay n'est pas arrivée.
+            "check-payments": {
+                "task": "footprono.check_payments",
+                "schedule": crontab(minute="*/10"),
+                "options": {"expires": 500},
+            },
         },
     )
     app.autodiscover_tasks(["footprono.worker"], related_name="tasks")

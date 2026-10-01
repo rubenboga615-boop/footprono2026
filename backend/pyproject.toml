@@ -21,6 +21,8 @@ dependencies = [
     # Jetons de connexion (HS256) et clé Firebase (RS256, via cryptography).
     # Sur Termux : cryptography fournie précompilée par pkg (python-cryptography).
     "pyjwt[crypto]>=2.9,<3.0",
+    # Notification de paiement CinetPay (formulaire) : pur Python.
+    "python-multipart>=0.0.9,<1.0",
     # Moteur de prédiction. Sur Termux : fournis précompilés par pkg
     # (python-numpy, python-scipy), jamais compilés par pip.
     "numpy>=2.0,<3.0",

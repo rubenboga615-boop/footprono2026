@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../api/client.dart';
@@ -56,12 +57,22 @@ abstract class PushBridge {
   Stream<PushMessage> get foreground;
 }
 
-class AppState extends ChangeNotifier {
-  AppState({required this.api, this.socketFactory, this.push});
+/// Ouvre une page dans le navigateur (guichet de paiement) ; faux en test.
+typedef UrlOpener = Future<bool> Function(Uri url);
+
+Future<bool> _openInBrowser(Uri url) => launchUrl(url, mode: LaunchMode.externalApplication);
+
+class AppState extends ChangeNotifier with WidgetsBindingObserver {
+  AppState({required this.api, this.socketFactory, this.push, UrlOpener? openUrl})
+    : openUrl = openUrl ?? _openInBrowser;
 
   final ApiClient api;
   final SocketFactory? socketFactory;
   final PushBridge? push;
+  final UrlOpener openUrl;
+
+  /// Paiement Premium ouvert dans le navigateur, vérifié au retour dans l'application.
+  int? pendingPayment;
   SharedPreferences? _prefs;
 
   bool ready = false;
@@ -95,6 +106,7 @@ class AppState extends ChangeNotifier {
   static const _kToken = 'token';
 
   Future<void> init() async {
+    WidgetsBinding.instance.addObserver(this);
     _prefs = await SharedPreferences.getInstance();
     api.baseUrl = _prefs!.getString(_kServer) ?? defaultServer();
     api.token = _prefs!.getString(_kToken);
@@ -249,6 +261,55 @@ class AppState extends ChangeNotifier {
 
   double get couponOdds => coupon.fold(1.0, (p, c) => p * c.offer.odds);
 
+  // --- Paiement Premium (Mobile Money, CinetPay) -----------------------------
+
+  /// Crée le paiement et ouvre le guichet CinetPay dans le navigateur.
+  Future<void> buyPremium() async {
+    final payment = await api.post('/payments/premium') as Json;
+    pendingPayment = payment['id'] as int;
+    final opened = await openUrl(Uri.parse(payment['payment_url'] as String));
+    if (!opened) {
+      throw ApiException(0, 'browser', 'Impossible d\'ouvrir la page de paiement.');
+    }
+  }
+
+  /// État du paiement en cours : « accepted », « refused », « error », « pending ».
+  Future<String?> checkPayment() async {
+    final id = pendingPayment;
+    if (id == null) return null;
+    final payment = await api.get('/payments/$id') as Json;
+    final status = payment['status'] as String;
+    if (status != 'pending') {
+      pendingPayment = null;
+      await refreshMe();
+    }
+    return status;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Retour du guichet de paiement : vérification immédiate.
+    if (state == AppLifecycleState.resumed && pendingPayment != null) {
+      unawaited(_announcePayment());
+    }
+  }
+
+  Future<void> _announcePayment() async {
+    try {
+      final status = await checkPayment();
+      final text = switch (status) {
+        'accepted' => 'Paiement reçu : Premium est activé.',
+        'refused' => 'Paiement refusé : aucun montant débité.',
+        'error' => 'Paiement non conforme : contacte l\'administrateur.',
+        'pending' => 'Paiement en attente de confirmation par l\'opérateur.',
+        _ => null,
+      };
+      if (text != null) showMessage(text, error: status == 'refused' || status == 'error');
+    } on ApiException {
+      // vérifié de nouveau au prochain retour, et par le serveur toutes les 10 min
+    }
+  }
+
   // --- Notifications push (téléphone fermé) -----------------------------------
 
   Future<void> _registerPush({bool atLaunch = false}) async {
@@ -342,6 +403,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _disconnectSocket();
     _pushRefreshSub?.cancel();
     _pushOpenedSub?.cancel();

@@ -226,6 +226,15 @@ class FcmSender:
         return total
 
 
+def sender_or_none(settings: Settings) -> FcmSender | None:
+    """Expéditeur Firebase, ou None (non configuré, ou clé inutilisable : consigné)."""
+    try:
+        return FcmSender.from_settings(settings)
+    except PushConfigError as exc:
+        logger.error("push_disabled", extra={"error": str(exc)})
+        return None
+
+
 def status(settings: Settings) -> dict[str, Any]:
     """État affichable des notifications push (sans secret)."""
     if settings.fcm_credentials_file is None:

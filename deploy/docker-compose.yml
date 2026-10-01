@@ -32,6 +32,10 @@ x-backend: &backend
     FP_RAW_DATA_DIR: /data/raw
     # Clé Firebase (notifications push) : deploy/secrets/firebase.json.
     FP_FCM_CREDENTIALS_FILE: ${FP_FCM_CREDENTIALS_FILE:-}
+    # Paiement Mobile Money : retour et notification CinetPay sur l'adresse publique.
+    FP_PUBLIC_URL: https://${FP_DOMAIN}
+    FP_CINETPAY_API_KEY: ${FP_CINETPAY_API_KEY:-}
+    FP_CINETPAY_SITE_ID: ${FP_CINETPAY_SITE_ID:-}
   volumes:
     - raw-data:/data/raw
     - ./secrets:/secrets:ro

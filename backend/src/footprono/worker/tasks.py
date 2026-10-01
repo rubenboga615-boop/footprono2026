@@ -11,32 +11,26 @@ from footprono import __version__
 from footprono.bookmaker import settlement
 from footprono.cache.redis import create_redis
 from footprono.core.config import Settings, get_settings
+from footprono.core.errors import AppError
 from footprono.db.session import create_engine, create_session_factory
 from footprono.football.models import DataSource
 from footprono.ingestion import live
 from footprono.ingestion.quality import current_season_start
 from footprono.ingestion.reference import COMPETITIONS
 from footprono.ingestion.service import IngestionRequest, run_ingestion
-from footprono.notifications.push import FcmSender, PushConfigError
+from footprono.notifications import service as notifications
+from footprono.notifications.push import sender_or_none as push_sender_or_none
+from footprono.payments import service as payment_service
 from footprono.predictions import service as prediction_service
 from footprono.worker.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
 
-def _push_sender(settings: Settings) -> FcmSender | None:
-    """Expéditeur Firebase, ou None (non configuré, ou clé inutilisable : consigné)."""
-    try:
-        return FcmSender.from_settings(settings)
-    except PushConfigError as exc:
-        logger.error("push_disabled", extra={"error": str(exc)})
-        return None
-
-
 async def _settle(engine: AsyncEngine, settings: Settings) -> dict[str, Any]:
     """Règle les paris ; notifications en direct (Redis) et sur téléphone (Firebase)."""
     redis = create_redis(settings)
-    push = _push_sender(settings)
+    push = push_sender_or_none(settings)
     try:
         async with create_session_factory(engine)() as session:
             return await settlement.settle_bets(session, redis=redis, push=push)
@@ -164,6 +158,42 @@ def predict_if_needed() -> dict[str, Any]:
     cotes et du calendrier : un serveur éteint aux heures fixes rattrape son retard.
     """
     return asyncio.run(_predict_upcoming(only_if_needed=True))
+
+
+@celery_app.task(name="footprono.check_payments")
+def check_payments() -> dict[str, Any]:
+    """Revérifie auprès de CinetPay les paiements en attente (moins de 24 h)."""
+    return asyncio.run(_check_payments())
+
+
+async def _check_payments() -> dict[str, Any]:
+    settings = get_settings()
+    if settings.cinetpay_api_key is None:
+        return {"status": "idle", "reason": "CinetPay non configuré"}
+    engine = create_engine(settings)
+    redis = create_redis(settings)
+    push = push_sender_or_none(settings)
+    counts: dict[str, int] = {}
+    try:
+        factory = create_session_factory(engine)
+        async with factory() as session:
+            pending = await payment_service.pending_to_check(session)
+        for tx in pending:
+            async with factory() as session:
+                try:
+                    payment = await payment_service.confirm(session, settings, tx)
+                except AppError as exc:
+                    logger.warning("payment_check_failed", extra={"tx": tx, "error": exc.message})
+                    counts["error"] = counts.get("error", 0) + 1
+                    continue
+                await notifications.publish_pending(session, redis, push)
+                counts[payment.status] = counts.get(payment.status, 0) + 1
+    finally:
+        await redis.aclose()
+        if push is not None:
+            await push.aclose()
+        await engine.dispose()
+    return {"status": "ok", "checked": len(pending), **counts}
 
 
 @worker_ready.connect

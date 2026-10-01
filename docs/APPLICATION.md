@@ -90,7 +90,7 @@ Projet Firebase « footprono-56616 », application Android `com.footprono.footpr
 
 ## Pas encore disponible
 
-- Paiement Mobile Money (phase 6) ; Premium est activé par l'administrateur.
+- Paiement Mobile Money : en place (Profil → Passer Premium) dès que CinetPay est configuré sur le serveur.
 - Vérification du numéro par SMS.
 
 ## Développement
