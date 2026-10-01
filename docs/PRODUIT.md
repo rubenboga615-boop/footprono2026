@@ -43,6 +43,10 @@ l'application) :
 bash scripts/termux/admin.sh make-admin +22997000000
 bash scripts/termux/admin.sh grant +22997000000 --days 30 --note "paiement reçu"
 bash scripts/termux/admin.sh stats
+bash scripts/termux/admin.sh users                  # comptes : numéro, rôle, Premium
+bash scripts/termux/admin.sh set-phone +22997000000 +22961000000   # changer de numéro
+bash scripts/termux/admin.sh reset-password +22997000000           # mot de passe provisoire
+bash scripts/termux/admin.sh push-test +22997000000                # notification d'essai
 ```
 
 | Route (administrateur seulement) | Rôle |
