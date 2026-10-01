@@ -100,6 +100,20 @@ cette part avec une mémoire plus courte (demi-vie 60, 90, 120 jours au lieu de
 suggestions automatiques de la montante**, car le moteur n'y apporte rien de
 plus que les fréquences.
 
+## « Angle du match » et coupons (`footprono-engine angles`, à mesurer)
+
+Question du Coupon intelligent : si l'on choisit, dans chaque match, le
+marché le plus probable d'une tranche (« sûr » 75-90 %, « équilibré »
+60-75 %, « audacieux » 45-60 %), la probabilité annoncée reste-t-elle juste ?
+Prendre un maximum parmi des dizaines de marchés favorise les erreurs du
+modèle (malédiction du gagnant). Mesures, hors échantillon : calibration de
+toutes les sélections (référence), de l'angle choisi (au total et par
+famille de marché), des coupons du jour de 2 à 4 angles, et rendement aux
+cotes de clôture réelles (1X2 et plus/moins 2,5 : seules cotes historiques).
+Méthode vérifiée sur données simulées : moteur exact → angle juste ;
+moteur bruité → surestimation détectée (`tests/test_angles.py`).
+Résultats sur les vraies données : à compléter.
+
 ## Résultats sur les saisons de test 2022-23 → 2025-26 (vérifié le 30/09/2026)
 
 7 081 matchs, jamais vus pendant le réglage ni la sélection. Chaque match est

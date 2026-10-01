@@ -6,6 +6,7 @@ footprono-engine backtest --seasons 2022-2025 --grid    # compare plusieurs rég
 footprono-engine features --seasons 2019-2021           # teste chaque indicateur de contexte
 footprono-engine counts                                 # corners, cartons, tirs
 footprono-engine ah                                     # handicap asiatique contre les cotes
+footprono-engine angles                                 # « angle du match » et coupons
 """
 
 import argparse
@@ -23,6 +24,7 @@ from numpy.typing import NDArray
 
 from footprono.core.config import get_settings
 from footprono.db.session import create_engine, create_session_factory
+from footprono.engine.angles import angles_study, format_report
 from footprono.engine.backtest import (
     BacktestConfig,
     Predictions,
@@ -228,6 +230,13 @@ def ah_report(hist: History, args: argparse.Namespace) -> None:
             )
 
 
+def angles_report(hist: History, args: argparse.Namespace) -> None:
+    pred = predict(hist, args.competitions, args.seasons, GoalsConfig(), DEFAULT_FEATURES)
+    _progress("angles et coupons…")
+    report = angles_study(hist, pred)
+    print(json.dumps(report, ensure_ascii=False, indent=2) if args.json else format_report(report))
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="footprono-engine")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -270,6 +279,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     ah.add_argument(
         "--competitions", type=parse_competitions, default=[c.code for c in COMPETITIONS]
     )
+    an = sub.add_parser("angles", help="« angle du match » : marché le plus sûr et coupons")
+    an.add_argument("--seasons", type=parse_seasons, default=parse_seasons("2022-2025"))
+    an.add_argument(
+        "--competitions", type=parse_competitions, default=[c.code for c in COMPETITIONS]
+    )
+    an.add_argument("--json", action="store_true")
     pr = sub.add_parser("predict", help="prédit et enregistre les matchs à venir")
     pr.add_argument("--days", type=int, default=10, help="horizon en jours (défaut 10)")
     pr.add_argument("--as-of", type=date.fromisoformat, default=None, help="AAAA-MM-JJ")
@@ -289,6 +304,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "counts":
         counts_report(hist, args)
+        return 0
+    if args.command == "angles":
+        angles_report(hist, args)
         return 0
     if not args.grid:
         goals = GoalsConfig(
