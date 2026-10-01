@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# Installation (ou mise à jour) du serveur FootProno sur Ubuntu 24.04, en root :
-#   curl -fsSL https://raw.githubusercontent.com/rubenboga615-boop/footprono2026/main/deploy/install-server.sh \
-#     | bash -s -- monsousdomaine.duckdns.org
-# Relancer la même commande met à jour le code et redémarre (les secrets et la
-# base sont conservés). Voir docs/PRODUCTION.md.
+# Installation (ou mise à jour) du serveur FootProno sur Ubuntu 24.04, lancée
+# depuis Termux (le dépôt est privé : le script part du téléphone) :
+#   ssh root@<ip> 'bash -s -- monsousdomaine.duckdns.org' < deploy/install-server.sh
+# La première fois, le serveur crée sa clé de lecture du dépôt (« deploy key »)
+# et l'affiche : l'ajouter sur GitHub, puis relancer la même commande.
+# Relancer met à jour le code et redémarre (secrets et base conservés).
+# Voir docs/PRODUCTION.md.
 set -euo pipefail
 
 DOMAIN="${1:-}"
 BRANCH="${FP_BRANCH:-main}"
-REPO="https://github.com/rubenboga615-boop/footprono2026.git"
+REPO="${FP_REPO:-git@github.com:rubenboga615-boop/footprono2026.git}"
+DEPLOY_KEY=/root/.ssh/footprono_deploy
 DIR=/opt/footprono
 
 log() { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
@@ -47,6 +50,28 @@ if [ -s /root/.ssh/authorized_keys ]; then
     systemctl reload ssh || systemctl reload sshd || true
 else
     warn "aucune clé SSH : la connexion par mot de passe reste active"
+fi
+
+# Dépôt privé : clé SSH du serveur, en lecture seule, déclarée sur GitHub.
+mkdir -p /root/.ssh && chmod 700 /root/.ssh
+if [ ! -f "$DEPLOY_KEY" ]; then
+    ssh-keygen -q -t ed25519 -N "" -C "serveur-footprono" -f "$DEPLOY_KEY"
+fi
+if ! grep -q "footprono_deploy" /root/.ssh/config 2>/dev/null; then
+    printf 'Host github.com\n  IdentityFile %s\n  IdentitiesOnly yes\n' "$DEPLOY_KEY" >> /root/.ssh/config
+fi
+ssh-keyscan -q github.com >> /root/.ssh/known_hosts 2>/dev/null
+sort -u -o /root/.ssh/known_hosts /root/.ssh/known_hosts
+if ! git ls-remote -q "$REPO" >/dev/null 2>&1; then
+    echo
+    warn "le serveur n'a pas encore accès au dépôt privé. Sur GitHub : dépôt footprono2026"
+    echo "  → Settings → Deploy keys → Add deploy key (titre : serveur, « Allow write » décoché),"
+    echo "  coller cette clé :"
+    echo
+    cat "$DEPLOY_KEY.pub"
+    echo
+    echo "Puis relancer exactement la même commande."
+    exit 2
 fi
 
 log "Code ($BRANCH)"

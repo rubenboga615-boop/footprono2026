@@ -16,6 +16,16 @@ cat ~/.ssh/id_ed25519.pub      # à copier dans Hetzner (étape 2)
 La clé privée reste sur le téléphone ; le serveur n'accepte qu'elle
 (connexion par mot de passe désactivée par l'installation).
 
+**Dépôt privé** : la même clé donne à Termux l'accès au dépôt.
+GitHub → photo de profil → Settings → **SSH and GPG keys** → New SSH key →
+coller la même clé. Puis, une fois :
+
+```bash
+cd ~/footprono2026
+git remote set-url origin git@github.com:rubenboga615-boop/footprono2026.git
+git pull    # répondre « yes » à la première connexion
+```
+
 ## 2. Serveur Hetzner
 
 1. Compte sur <https://www.hetzner.com/cloud> (carte bancaire ou PayPal).
@@ -34,11 +44,17 @@ L'IP d'un serveur Hetzner ne change pas : rien à mettre à jour ensuite.
 
 ## 4. Installation
 
+Depuis Termux (le script part du téléphone, le dépôt étant privé) :
+
 ```bash
-ssh root@<ip du serveur>
-curl -fsSL https://raw.githubusercontent.com/rubenboga615-boop/footprono2026/main/deploy/install-server.sh \
-  | bash -s -- <sous-domaine>.duckdns.org
+cd ~/footprono2026 && git pull
+ssh root@<ip du serveur> 'bash -s -- <sous-domaine>.duckdns.org' < deploy/install-server.sh
 ```
+
+La première fois, le script s'arrête et affiche la **clé du serveur** :
+GitHub → dépôt footprono2026 → Settings → **Deploy keys** → Add deploy key
+(titre « serveur », « Allow write access » **décoché**), coller la clé,
+puis relancer la même commande. Le serveur ne peut que lire le dépôt.
 
 Le script : mises à jour automatiques de sécurité, pare-feu (SSH, HTTP,
 HTTPS seulement), fail2ban, 2 Go d'échange, Docker, secrets générés
