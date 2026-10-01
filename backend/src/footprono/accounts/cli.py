@@ -5,6 +5,9 @@ footprono-admin remove-admin +22997000000
 footprono-admin grant +22997000000 --days 30   # activer Premium (paiement reçu)
 footprono-admin stats
 footprono-admin push-test +22997000000          # notification d'essai sur ses téléphones
+footprono-admin users [nom ou numéro]           # comptes existants (numéro, rôle, Premium)
+footprono-admin set-phone +22997000000 +22961000000   # changer le numéro de connexion
+footprono-admin reset-password +22997000000     # mot de passe provisoire
 """
 
 import argparse
@@ -12,6 +15,7 @@ import asyncio
 import json
 import sys
 from collections.abc import Sequence
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -72,6 +76,25 @@ async def _run(args: argparse.Namespace) -> str:
                 message = f"{found.display_name} ({found.phone}) : Premium jusqu'au " + (
                     f"{found.premium_until:%d/%m/%Y %H:%M} (UTC)"
                 )
+            elif args.command == "users":
+                users = await admin.search_users(session, args.query, limit=200)
+                lines = [
+                    f"{u.phone:<16} {u.role:<6} "
+                    + (f"Premium jusqu'au {u.premium_until:%d/%m/%Y}" if u.premium_until
+                       and u.premium_until > datetime.now(UTC) else "gratuit")
+                    + f"  {u.display_name}" + ("" if u.is_active else "  (désactivé)")
+                    for u in users
+                ]  # fmt: skip
+                message = "\n".join(lines) if lines else "aucun compte"
+            elif args.command == "set-phone":
+                user = await admin.change_phone(session, args.old, args.new)
+                message = f"{user.display_name} : se connecte désormais avec {user.phone}"
+            elif args.command == "reset-password":
+                user, password = await admin.reset_password(session, args.phone)
+                message = (
+                    f"{user.display_name} ({user.phone}) : mot de passe provisoire {password}\n"
+                    "À changer dans l'application : Profil → Changer le mot de passe."
+                )
             elif args.command == "push-test":
                 message = await _push_test(session, args.phone)
             else:
@@ -92,6 +115,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     grant.add_argument("--days", type=int, default=30)
     grant.add_argument("--note")
     sub.add_parser("stats", help="nombre de comptes, Premium, paris")
+    sub.add_parser("users", help="lister les comptes").add_argument("query", nargs="?")
+    set_phone = sub.add_parser("set-phone", help="changer le numéro de connexion")
+    set_phone.add_argument("old")
+    set_phone.add_argument("new")
+    sub.add_parser("reset-password", help="mot de passe provisoire").add_argument("phone")
     sub.add_parser("push-test", help="notification d'essai sur ses téléphones").add_argument(
         "phone"
     )

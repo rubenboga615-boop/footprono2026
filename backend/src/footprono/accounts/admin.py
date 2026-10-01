@@ -5,6 +5,7 @@ Premium à la main. Chaque changement est inscrit dans ``subscription_events``
 (qui, quand, combien de jours, jusqu'à quelle date).
 """
 
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -12,6 +13,7 @@ from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.accounts.models import SubscriptionEvent, User
+from footprono.accounts.security import hash_password
 from footprono.accounts.service import normalize_phone
 from footprono.bookmaker.models import Bet
 from footprono.core.errors import AppError, NotFoundError
@@ -112,6 +114,34 @@ async def set_role(session: AsyncSession, phone: str, role: str) -> User:
     user.role = role
     await session.flush()
     return user
+
+
+async def _by_phone(session: AsyncSession, phone: str) -> User:
+    user = await session.scalar(select(User).where(User.phone == normalize_phone(phone)))
+    if user is None:
+        raise NotFoundError(f"aucun compte avec le numéro {phone}")
+    return user
+
+
+async def change_phone(session: AsyncSession, old: str, new: str) -> User:
+    """Change le numéro de connexion d'un compte (ligne de commande)."""
+    user = await _by_phone(session, old)
+    phone = normalize_phone(new)
+    taken = await session.scalar(select(User.id).where(User.phone == phone, User.id != user.id))
+    if taken is not None:
+        raise AppError(f"le numéro {phone} est déjà utilisé par un autre compte")
+    user.phone = phone
+    await session.flush()
+    return user
+
+
+async def reset_password(session: AsyncSession, phone: str) -> tuple[User, str]:
+    """Mot de passe provisoire aléatoire, à changer ensuite dans l'application."""
+    user = await _by_phone(session, phone)
+    password = secrets.token_urlsafe(9)  # 12 caractères
+    user.password_hash = hash_password(password)
+    await session.flush()
+    return user, password
 
 
 async def subscription_history(session: AsyncSession, user_id: int) -> list[SubscriptionEvent]:

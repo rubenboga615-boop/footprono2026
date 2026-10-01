@@ -3,6 +3,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from footprono.accounts import admin
 from footprono.accounts import service as accounts
 from footprono.accounts.models import User
+from footprono.core.errors import AppError
 
 from .conftest import make_settings
 from .test_bets import NOW, _login, _sel, quote, world  # noqa: F401 (fixture)
@@ -156,3 +158,35 @@ async def test_admin_grants_and_revokes_premium(
         f"/api/v1/admin/users/{boss_id}/active", json={"active": False}, headers=headers
     )
     assert self_off.status_code == 400
+
+
+async def test_admin_changes_phone_and_resets_password(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with db_factory() as session:
+        found = await admin.search_users(session, "97111111")
+        assert [u.phone for u in found] == ["+22997111111"]
+        user = await admin.change_phone(session, "+229 97 11 11 11", "+229 61 00 00 00")
+        assert user.phone == "+22961000000"
+        _, password = await admin.reset_password(session, "+22961000000")
+        await session.commit()
+    old = await client.post(
+        "/api/v1/auth/login", json={"phone": "+22961000000", "password": "12345678"}
+    )
+    assert old.status_code == 401
+    new = await client.post(
+        "/api/v1/auth/login", json={"phone": "+22961000000", "password": password}
+    )
+    assert new.status_code == 200
+
+    other = await client.post(
+        "/api/v1/auth/register",
+        json={"phone": "+22997222222", "password": "motdepasse", "display_name": "Ama",
+              "country": "BJ", "adult": True},
+    )  # fmt: skip
+    assert other.status_code == 201
+    async with db_factory() as session:
+        with pytest.raises(AppError, match="déjà utilisé"):
+            await admin.change_phone(session, "+22997222222", "+22961000000")
