@@ -7,8 +7,10 @@ from fastapi import APIRouter, Query
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import aliased
 
-from footprono.api.deps import SessionDep
+from footprono.accounts.plans import PremiumRequiredError, is_premium
+from footprono.api.deps import OptionalUserDep, SessionDep
 from footprono.core.errors import NotFoundError
+from footprono.football.analysis import match_analysis
 from footprono.football.models import (
     BookmakerOdds,
     Competition,
@@ -295,3 +297,16 @@ async def get_ingestion_run(run_id: int, session: SessionDep) -> IngestionRun:
 async def data_quality(session: SessionDep) -> dict[str, Any]:
     """Contrôles de qualité recalculés sur l'état actuel de la base."""
     return await run_quality_checks(session)
+
+
+@router.get("/matches/{match_id}/analysis")
+async def get_match_analysis(
+    match_id: int, session: SessionDep, user: OptionalUserDep
+) -> dict[str, Any]:
+    """Forme (5 derniers matchs), confrontations directes, moyennes de la saison.
+
+    Analyse détaillée : réservée à Premium (comme l'onglet Analyse).
+    """
+    if not is_premium(user):
+        raise PremiumRequiredError("analyse détaillée du match : réservée à Premium")
+    return await match_analysis(session, match_id)

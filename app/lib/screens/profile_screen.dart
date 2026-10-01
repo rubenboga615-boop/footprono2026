@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../api/client.dart';
+
 import '../format.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
@@ -27,6 +29,65 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
     if (ok == true) await state.logout();
+  }
+
+  Future<void> _changePassword(BuildContext context, AppState state) async {
+    final current = TextEditingController(),
+        next = TextEditingController(),
+        confirm = TextEditingController();
+    String? error;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Mot de passe'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FpField(label: 'Mot de passe actuel', controller: current, obscure: true),
+                const SizedBox(height: 12),
+                FpField(
+                  label: 'Nouveau mot de passe',
+                  controller: next,
+                  obscure: true,
+                  helper: '8 caractères au minimum',
+                ),
+                const SizedBox(height: 12),
+                FpField(label: 'Confirmer', controller: confirm, obscure: true),
+                if (error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(error!, style: Fp.body(13, color: Fp.lossText)),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+            FilledButton(
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+              onPressed: () async {
+                if (next.text != confirm.text) {
+                  setState(() => error = 'Les deux nouveaux mots de passe sont différents.');
+                  return;
+                }
+                try {
+                  await state.api.post('/me/password', {
+                    'current_password': current.text,
+                    'new_password': next.text,
+                  });
+                  if (context.mounted) Navigator.pop(context);
+                  showMessage('Mot de passe changé.');
+                } on ApiException catch (e) {
+                  setState(() => error = e.message);
+                }
+              },
+              child: const Text('Changer'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _responsible(BuildContext context) => showDialog<void>(
@@ -115,6 +176,13 @@ class ProfileScreen extends StatelessWidget {
                       title: 'Fiabilité du modèle',
                       subtitle: 'Historique public des pronostics',
                       onTap: () => open(const ReliabilityScreen()),
+                    ),
+                    const Divider(),
+                    _Item(
+                      icon: Icons.key_outlined,
+                      title: 'Mot de passe',
+                      subtitle: 'Changer mon mot de passe',
+                      onTap: () => _changePassword(context, state),
                     ),
                     const Divider(),
                     _Item(

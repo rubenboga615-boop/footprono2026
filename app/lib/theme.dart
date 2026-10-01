@@ -903,20 +903,24 @@ class FpField extends StatelessWidget {
           style: Fp.body(13, weight: FontWeight.w600, color: Fp.textStrong),
         ),
         const SizedBox(height: 7),
-        TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          obscureText: obscure,
-          onSubmitted: onSubmitted,
-          textCapitalization: textCapitalization,
-          maxLength: maxLength,
-          style: Fp.body(15),
-          decoration: InputDecoration(
-            hintText: hint,
-            helperText: helper,
-            counterText: '',
-            prefixIcon: icon == null ? null : Icon(icon, size: 20),
-            suffixIcon: suffix,
+        // Libellé lu par les lecteurs d'écran (et les tests de bout en bout).
+        Semantics(
+          label: label,
+          child: TextField(
+            controller: controller,
+            keyboardType: keyboardType,
+            obscureText: obscure,
+            onSubmitted: onSubmitted,
+            textCapitalization: textCapitalization,
+            maxLength: maxLength,
+            style: Fp.body(15),
+            decoration: InputDecoration(
+              hintText: hint,
+              helperText: helper,
+              counterText: '',
+              prefixIcon: icon == null ? null : Icon(icon, size: 20),
+              suffixIcon: suffix,
+            ),
           ),
         ),
       ],

@@ -120,3 +120,30 @@ async def test_wallet_moves_and_refill(db_factory: async_sessionmaker[AsyncSessi
         )
         again = await service.refill(session, settings, user_id)
         assert again.balance_after == 100_000
+
+
+async def test_change_password(client: AsyncClient) -> None:
+    token = (await client.post("/api/v1/auth/register", json=SIGNUP)).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    url = "/api/v1/me/password"
+    wrong = await client.post(
+        url, headers=headers, json={"current_password": "x" * 9, "new_password": "nouveau-mdp"}
+    )
+    assert wrong.status_code == 401
+    short = await client.post(
+        url, headers=headers, json={"current_password": SIGNUP["password"], "new_password": "court"}
+    )
+    assert short.status_code == 400
+    ok = await client.post(
+        url,
+        headers=headers,
+        json={"current_password": SIGNUP["password"], "new_password": "nouveau-mdp"},
+    )
+    assert ok.status_code == 204
+    phone = SIGNUP["phone"]
+    old = await client.post(
+        "/api/v1/auth/login", json={"phone": phone, "password": SIGNUP["password"]}
+    )
+    assert old.status_code == 401
+    new = await client.post("/api/v1/auth/login", json={"phone": phone, "password": "nouveau-mdp"})
+    assert new.status_code == 200

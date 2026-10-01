@@ -11,6 +11,7 @@ from footprono.accounts.plans import plan_info
 from footprono.accounts.schemas import (
     LoginIn,
     MeOut,
+    PasswordIn,
     PlanOut,
     RegisterIn,
     TokenOut,
@@ -81,3 +82,9 @@ async def refill(user: CurrentUserDep, session: SessionDep, settings: SettingsDe
     entry = await service.refill(session, settings, user.id)
     await session.commit()
     return entry
+
+
+@router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(body: PasswordIn, user: CurrentUserDep, session: SessionDep) -> None:
+    await service.change_password(session, user, body.current_password, body.new_password)
+    await session.commit()

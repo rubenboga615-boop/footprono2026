@@ -10,10 +10,13 @@ import '../theme.dart';
 import '../widgets/common.dart';
 
 class MatchData {
-  MatchData(this.match, this.prediction, this.offers);
+  MatchData(this.match, this.prediction, this.offers, this.analysis);
   final MatchInfo match;
   final Prediction? prediction;
   final List<Offer> offers;
+
+  /// Faits (forme, confrontations, moyennes) : Premium seulement.
+  final Json? analysis;
 }
 
 class MatchScreen extends StatelessWidget {
@@ -30,7 +33,15 @@ class MatchScreen extends StatelessWidget {
       if (e.status != 404) rethrow;
     }
     final offers = [for (final o in await api.get('/matches/$matchId/offer') as List) Offer(o as Json)];
-    return MatchData(match, prediction, offers);
+    Json? analysis;
+    if (state.premium) {
+      try {
+        analysis = await api.get('/matches/$matchId/analysis') as Json;
+      } on ApiException catch (e) {
+        if (e.status != 403 && e.status != 404) rethrow;
+      }
+    }
+    return MatchData(match, prediction, offers, analysis);
   }
 
   @override
@@ -367,15 +378,28 @@ class _MatchViewState extends State<_MatchView> {
   List<Widget> _analysis(MatchData d) {
     final p = d.prediction;
     final m = d.match;
-    if (p == null) {
-      return const [EmptyState('Pas encore d\'analyse pour ce match.', icon: Icons.hourglass_empty_rounded)];
-    }
-    if (p.counts == null || p.context == null) {
+    if (!context.read<AppState>().premium) {
       return const [
         PremiumLock(
           text:
-              'L\'analyse détaillée (classement, forme, repos, enjeu, corners, cartons et tirs attendus) '
-              'est incluse dans Premium.',
+              'L\'analyse détaillée (forme, confrontations, moyennes de la saison, classement, enjeu, '
+              'corners, cartons et tirs attendus) est incluse dans Premium.',
+        ),
+      ];
+    }
+    final facts = d.analysis == null ? const <Widget>[] : _facts(d.analysis!, m);
+    if (p == null || p.counts == null || p.context == null) {
+      if (facts.isEmpty) {
+        return const [
+          EmptyState('Pas encore d\'analyse pour ce match.', icon: Icons.hourglass_empty_rounded),
+        ];
+      }
+      return [
+        ...facts,
+        const SizedBox(height: 12),
+        Text(
+          'Les estimations du moteur apparaîtront une fois le match prédit.',
+          style: Fp.body(12, color: Fp.text3),
         ),
       ];
     }
@@ -406,6 +430,8 @@ class _MatchViewState extends State<_MatchView> {
     };
 
     return [
+      ...facts,
+      if (facts.isNotEmpty) const SizedBox(height: 12),
       GlassCard.section(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -446,8 +472,9 @@ class _MatchViewState extends State<_MatchView> {
           children: [
             Row(
               children: [
-                Text('Moyennes attendues', style: Fp.title(15, weight: FontWeight.w600)),
-                const Spacer(),
+                Expanded(
+                  child: Text('Moyennes attendues', style: Fp.title(15, weight: FontWeight.w600)),
+                ),
                 Text('pour ce match', style: Fp.body(12, color: Fp.text3)),
               ],
             ),
@@ -475,6 +502,135 @@ class _MatchViewState extends State<_MatchView> {
       Text(
         'Moyennes du moteur pour ce match, calculées avec les seuls matchs déjà joués.',
         style: Fp.body(12, color: Fp.text3, height: 1.4),
+      ),
+    ];
+  }
+
+  /// Faits : forme sur 5 matchs, moyennes de la saison, confrontations directes.
+  List<Widget> _facts(Json a, MatchInfo m) {
+    final form = a['form'] as Json;
+    final season = a['season'] as Json;
+    final h2h = (a['head_to_head'] as List).cast<Json>();
+    Widget formRow(String name, List results) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(name, style: Fp.body(15, weight: FontWeight.w600)),
+          ),
+          for (final f in results.reversed.cast<Json>()) ...[
+            const SizedBox(width: 6),
+            Tooltip(
+              message: '${f['venue'] == 'home' ? 'contre' : 'chez'} ${f['opponent']} : ${f['score']}',
+              child: Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: switch (f['result']) {
+                    'W' => Fp.win,
+                    'L' => Fp.loss,
+                    _ => const Color(0x8CF4F2F8),
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(switch (f['result']) {
+                  'W' => 'G',
+                  'L' => 'P',
+                  _ => 'N',
+                }, style: Fp.body(13, weight: FontWeight.w700, color: const Color(0xFF0B0A10))),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+    final hs = season['home'] as Json, as_ = season['away'] as Json;
+    double? v(Json j, String k) => (j[k] as num?)?.toDouble();
+    const rows = {
+      'goals_for': 'Buts marqués',
+      'goals_against': 'Buts encaissés',
+      'xg_for': 'xG (Understat)',
+      'shots_on_target': 'Tirs cadrés',
+      'corners': 'Corners',
+    };
+    return [
+      GlassCard.section(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Forme · 5 derniers matchs', style: Fp.title(15, weight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            formRow(m.home.name, form['home'] as List),
+            formRow(m.away.name, form['away'] as List),
+          ],
+        ),
+      ),
+      const SizedBox(height: 12),
+      if ((hs['matches'] as int) > 0 || (as_['matches'] as int) > 0) ...[
+        GlassCard.section(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('Moyennes cette saison', style: Fp.title(15, weight: FontWeight.w600)),
+                  ),
+                  Text('par match', style: Fp.body(12, color: Fp.text3)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              for (final e in rows.entries)
+                if (v(hs, e.key) != null && v(as_, e.key) != null)
+                  _TwoSided(e.value, v(hs, e.key)!, v(as_, e.key)!, format: decimal),
+              const SizedBox(height: 4),
+              Text(
+                '${hs['matches']} et ${as_['matches']} matchs de championnat joués avant celui-ci.',
+                style: Fp.body(12, color: Fp.text3),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
+      GlassCard.section(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Confrontations', style: Fp.title(15, weight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            if (h2h.isEmpty)
+              Text(
+                'Aucune confrontation dans notre historique (depuis 2016).',
+                style: Fp.body(13, color: Fp.text2),
+              )
+            else
+              for (final (i, c) in h2h.indexed) ...[
+                if (i > 0) const Divider(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 82,
+                        child: Text(
+                          numericDate(DateTime.parse(c['date'] as String)),
+                          style: Fp.body(12, color: Fp.text2),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          '${c['home']} ${c['score']} ${c['away']}',
+                          style: Fp.body(14, weight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+          ],
+        ),
       ),
     ];
   }

@@ -129,6 +129,45 @@ class FakeServer {
           'plan': premium ? 'premium' : 'free',
           'locked_markets': premium ? [] : ['AH', 'CORNERS_OU'],
         };
+      case 'GET /matches/7/analysis':
+        if (!premium) return _error(403, 'premium_required', 'réservé à Premium');
+        Map<String, dynamic> f(String opp, String res) => {
+          'match_id': 1,
+          'date': '2026-10-01',
+          'competition': 'LIGUE_1',
+          'venue': 'home',
+          'opponent': opp,
+          'score': '1-0',
+          'result': res,
+        };
+        Map<String, dynamic> avg() => {
+          'matches': 7,
+          'goals_for': 1.6,
+          'goals_against': 0.9,
+          'xg_for': 1.4,
+          'xg_against': 1.0,
+          'shots_on_target': 5.1,
+          'corners': 5.5,
+        };
+        body = {
+          'match_id': 7,
+          'form': {
+            'home': [f('Nice', 'W'), f('Lille', 'D'), f('Brest', 'L'), f('Nantes', 'W'), f('Lorient', 'W')],
+            'away': [f('Metz', 'L'), f('Paris FC', 'D'), f('Lens', 'W'), f('Auxerre', 'W'), f('Angers', 'D')],
+          },
+          'head_to_head': [
+            {
+              'match_id': 3,
+              'date': '2026-02-01',
+              'competition': 'LIGUE_1',
+              'home': 'Lyon',
+              'away': 'Lens',
+              'score': '1-2',
+              'winner': 'Lens',
+            },
+          ],
+          'season': {'home': avg(), 'away': avg()},
+        };
       case 'GET /matches/7/offer':
         body = [
           {
@@ -246,5 +285,22 @@ void main() {
     expect(find.text('Handicap asiatique'), findsOneWidget);
     expect(find.text('Lens (−0,25)'), findsOneWidget);
     expect(find.textContaining('autres marchés'), findsNothing);
+
+    await tester.tap(find.text('Analyse'));
+    await tester.pumpAndSettle();
+    expect(find.text('Forme · 5 derniers matchs'), findsOneWidget);
+    expect(find.text('G'), findsNWidgets(5)); // 3 + 2 victoires
+    expect(find.text('Moyennes cette saison'), findsOneWidget);
+    expect(find.text('Lyon 1-2 Lens'), findsOneWidget);
+  });
+
+  testWidgets('version gratuite : analyse verrouillée', (tester) async {
+    await startApp(tester, loggedIn: true);
+    await tester.tap(find.text('LEN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Analyse'));
+    await tester.pumpAndSettle();
+    expect(find.text('Premium'), findsOneWidget);
+    expect(find.text('Forme · 5 derniers matchs'), findsNothing);
   });
 }

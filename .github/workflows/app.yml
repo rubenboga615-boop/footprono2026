@@ -5,9 +5,9 @@ name: Application
 on:
   push:
     branches: [main, "claude/**"]
-    paths: ["app/**", ".github/workflows/app.yml"]
+    paths: ["app/**", "backend/**", "e2e/**", ".github/workflows/app.yml"]
   pull_request:
-    paths: ["app/**", ".github/workflows/app.yml"]
+    paths: ["app/**", "backend/**", "e2e/**", ".github/workflows/app.yml"]
   workflow_dispatch:
 
 jobs:
@@ -46,3 +46,76 @@ jobs:
           name: footprono-web
           path: app/build/web
           if-no-files-found: error
+
+  # Parcours de bout en bout : vraie API (PostgreSQL, Redis) + application web
+  # dans Chromium (inscription → matchs → pari → bookmaker → montante…).
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: footprono
+          POSTGRES_PASSWORD: footprono
+          POSTGRES_DB: footprono_e2e
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U footprono" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      FP_DATABASE_URL: postgresql+asyncpg://footprono:footprono@localhost:5432/footprono_e2e
+      FP_REDIS_URL: redis://localhost:6379/0
+      FP_SECRET_KEY: cle-de-test-e2e-uniquement-0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: API (versions verrouillées), base migrée et données d'essai
+        working-directory: backend
+        run: |
+          pip install -r requirements.lock
+          pip install --no-deps -e .
+          alembic upgrade head
+          python ../e2e/seed.py
+      - name: Version web
+        working-directory: app
+        run: flutter build web --release --base-href /app/ --no-web-resources-cdn
+      - name: Démarrage de l'API (sert aussi la version web)
+        working-directory: backend
+        env:
+          FP_WEB_APP_DIR: ${{ github.workspace }}/app/build/web
+        run: |
+          nohup uvicorn footprono.main:create_app --factory --port 8000 > ../api.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:8000/api/v1/ready && break; sleep 1; done
+      - name: Parcours dans Chromium
+        working-directory: e2e
+        env:
+          E2E_URL: http://127.0.0.1:8000/app/
+          E2E_SHOTS: shots
+        run: |
+          mkdir -p shots
+          npm ci
+          npx playwright install --with-deps chromium
+          node app.test.mjs
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-captures
+          path: |
+            e2e/shots
+            api.log

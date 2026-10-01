@@ -164,3 +164,14 @@ async def refill(session: AsyncSession, settings: Settings, user_id: int) -> Wal
     return await move(
         session, user_id, settings.starting_balance - wallet.balance, "refill", note="rechargement"
     )
+
+
+async def change_password(session: AsyncSession, user: User, current: str, new: str) -> None:
+    if not verify_password(current, user.password_hash):
+        raise UnauthorizedError("mot de passe actuel incorrect")
+    if len(new) < MIN_PASSWORD:
+        raise AppError(f"mot de passe trop court ({MIN_PASSWORD} caractères minimum)")
+    if new == current:
+        raise AppError("le nouveau mot de passe doit être différent de l'actuel")
+    user.password_hash = hash_password(new)
+    await session.flush()

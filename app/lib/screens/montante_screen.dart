@@ -382,7 +382,11 @@ class _SecureCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Switch(value: on, onChanged: onChanged),
+              // Montante lancée : réglage figé, affiché sans interrupteur inactif.
+              if (onChanged != null)
+                Switch(value: on, onChanged: onChanged)
+              else
+                on ? const Tag.win('Activé') : const Tag('Désactivé', color: Fp.textSoft),
             ],
           ),
           if (on && onPct != null)
@@ -994,8 +998,14 @@ class SuggestionsScreen extends StatelessWidget {
                 Row(
                   children: [
                     Text('Suggestions', style: Fp.title(17, weight: FontWeight.w600)),
-                    const Spacer(),
-                    Text('classées par probabilité du modèle', style: Fp.body(12, color: Fp.text2)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'classées par probabilité du modèle',
+                        textAlign: TextAlign.right,
+                        style: Fp.body(12, color: Fp.text2),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),

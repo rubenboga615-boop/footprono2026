@@ -1,6 +1,8 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:provider/provider.dart';
 
 import 'api/client.dart';
@@ -14,6 +16,12 @@ import 'state/app_state.dart';
 import 'theme.dart';
 
 void main() {
+  // Tests de bout en bout (navigateur) : l'arbre d'accessibilité est activé
+  // pour que les boutons et champs soient trouvés par leur libellé.
+  if (kIsWeb && Uri.base.queryParameters.containsKey('e2e')) {
+    WidgetsFlutterBinding.ensureInitialized();
+    SemanticsBinding.instance.ensureSemantics();
+  }
   final state = AppState(api: ApiClient(baseUrl: defaultServer()));
   runApp(FootPronoApp(state: state));
   state.init();

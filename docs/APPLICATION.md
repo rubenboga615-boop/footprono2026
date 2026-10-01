@@ -51,12 +51,12 @@ page elle-même (`FP_WEB_APP_DIR`) : même adresse, aucun réglage CORS.
 | Matchs | jours, championnats, direct, carte par match (1 / N / 2, +2,5 buts, les deux marquent) | `/predictions/upcoming`, `/live` |
 | Match · Probabilités | 1 / N / 2, scores les plus probables, tous les marchés (Premium) avec cote juste et cote réelle jouable | `/matches/{id}/prediction`, `/offer` |
 | Match · Cotes | cotes réelles 1xBet (Bet365 en secours) et probabilité du moteur | `/matches/{id}/offer` |
-| Match · Analyse (Premium) | buts attendus, classement, repos, forme, enjeu, corners / cartons / tirs attendus | prédiction (`counts`, `context`) |
+| Match · Analyse (Premium) | forme sur 5 matchs (G/N/P), moyennes de la saison, confrontations directes ; buts attendus, classement, repos, enjeu, corners / cartons / tirs attendus | `/matches/{id}/analysis` (faits, matchs antérieurs seulement), prédiction (`counts`, `context`) |
 | Coupon | sélections, probabilité combinée, cote totale, mise, gain ; utilisation pour un palier de montante | `/bets`, `/montantes/{id}/bet` |
 | Montante | création (mise, paliers, plages, part sécurisée), tableau, chances, encaisser, historique | `/montantes*` |
 | Pari du palier (Premium) | 3 suggestions, écart modèle / cote, « déconseillé » | `/montantes/{id}/suggestions` |
 | Bookmaker | solde fictif, en jeu, rendement, paris en cours / réglés, mouvements | `/bets`, `/me/wallet/*` |
-| Profil | formule et prix, notifications, fiabilité, jeu responsable, serveur, administration | `/me` |
+| Profil | formule et prix, notifications, fiabilité, mot de passe, jeu responsable, serveur, administration | `/me`, `/me/password` |
 | Fiabilité | annoncé contre réalisé par marché et championnat, références, backtest séparé | `/reliability` |
 | Notifications | en direct (WebSocket) et historique | `/ws`, `/me/notifications` |
 | Administration | statistiques, recherche, Premium, désactivation | `/admin/*` |
@@ -88,3 +88,13 @@ flutter build apk --release --split-per-abi   # nécessite le SDK Android
 Les tests (`app/test/`) couvrent les formats français, les libellés des
 marchés et les parcours connexion, inscription, match → coupon → pari et
 Premium, contre un faux serveur qui renvoie les mêmes réponses que l'API.
+
+**Bout en bout** (`e2e/`, tâche `e2e` du workflow Application) : vraie API
+(PostgreSQL, Redis, saison 2024-25 du dépôt prédite par le moteur) et vraie
+version web dans Chromium — inscription, matchs, match, coupon et pari,
+bookmaker, profil, fiabilité, montante et suggestions. Les éléments sont
+trouvés par leur libellé d'accessibilité, comme un lecteur d'écran : ce test
+a déjà révélé des champs sans nom et un bouton annoncé « désactivé ».
+
+Changer de mot de passe ne déconnecte pas les autres appareils déjà
+connectés (jeton valable 30 jours) : à traiter avec la sécurité (phase 6).
