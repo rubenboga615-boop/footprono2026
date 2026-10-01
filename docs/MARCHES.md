@@ -62,6 +62,52 @@ testées.
   buts (même distribution des scores) ; un combiné buts + corners ou cartons
   n'est pas couvert en V1 (modèles distincts, dépendance non modélisée).
 
+## Audit de tous les marchés (vérifié le 02/10/2026, `footprono-engine audit`)
+
+Saisons de test 2022-23 → 2025-26 (7 081 matchs, jamais vus), moteur avec
+xG remis au niveau des buts. Gain = part de la log loss d'une référence
+causale (fréquence de l'issue dans le championnat, 3 saisons précédentes)
+gagnée par le moteur. « À corriger » = au moins une tranche de probabilité
+écartée de plus de 3,5 erreurs types (calculées par match).
+
+**Validés** (meilleurs que la référence, bien calibrés) :
+
+| Famille | Gain | Famille | Gain |
+|---|---|---|---|
+| Tirs : le plus de | +12,8 % | Combiné résultat + buts | +5,2 % |
+| Tirs : par équipe | +11,1 % | Corners : par équipe | +4,9 % |
+| Tirs cadrés : par équipe | +8,1 % | Combiné résultat + les deux marquent | +4,5 % |
+| Résultat (1X2) | +7,8 % | Mi-temps / fin de match | +4,1 % |
+| Double chance | +7,8 % | Tirs cadrés : total | +3,9 % |
+| Gagner sans encaisser | +7,2 % | Mi-temps : résultat | +3,7 % |
+| Corners : handicap | +6,6 % | Score exact | +3,3 % |
+| Clean sheet | +5,5 % | Cartons : par équipe | +2,8 % |
+| Corners : le plus de | +5,5 % | Buts du match (plus/moins) | +1,9 % |
+| Combiné buts + les deux marquent | +1,1 % | Mi-temps : buts | +1,0 % |
+| Les deux marquent | +0,6 % | | |
+
+**Utiles, calibration à corriger** (écarts faibles sauf mention) :
+
+| Famille | Gain | Écart repéré |
+|---|---|---|
+| Handicap asiatique (lignes x,5) | +10,8 % | trop prudent : 85,4 % annoncé → 86,8 % observé |
+| Tirs cadrés : le plus de | +9,5 % | **trop prudent** : 74 % → 82 % (tranche 70-80 %) |
+| Handicap européen | +8,8 % | trop prudent : +1,4 point vers 80-90 % |
+| Buts d'une équipe | +6,8 % | extrêmes : ±0,7 point |
+| Tirs : total | +4,9 % | trop prudent : ±1,9 à 2,4 points |
+| Écart de buts | +4,3 % | +1,9 point vers 20-30 % |
+| Cartons : total | +2,9 % | trop sûr aux extrêmes : ±1,6 point |
+| Cartons : le plus de | +1,3 % | +2,5 points vers 10-20 % |
+| Corners : total | +1,0 % | trop prudent : ±1,6 à 1,8 point |
+
+**Sans apport** (pas mieux que la fréquence du championnat) : mi-temps
+« les deux marquent », mi-temps la plus prolifique, total pair / impair.
+
+Non évalués ici : remboursé si nul et handicap asiatique à ligne entière ou
+quart de but (remboursements ; le handicap asiatique est comparé aux cotes
+dans `MOTEUR.md`), points de cartons, corners / cartons / tirs par mi-temps
+(historique API-Football depuis 2024-25 seulement).
+
 ## Non couverts en V1
 
 - Buteurs, statistiques de joueurs, minute du premier but, penalty : pas de
