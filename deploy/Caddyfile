@@ -1,0 +1,27 @@
+# Reverse proxy HTTPS (certificat Let's Encrypt automatique pour FP_DOMAIN).
+{$FP_DOMAIN} {
+	encode zstd gzip
+
+	# Les métriques ne sont jamais exposées publiquement.
+	@metrics path /metrics
+	respond @metrics 404
+
+	# Version web de l'application (facultative, construite avec --base-href /app/).
+	redir /app /app/
+	handle_path /app/* {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+
+	handle {
+		reverse_proxy api:8000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}

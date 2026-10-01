@@ -1,0 +1,155 @@
+# Déploiement serveur de FootProno (voir docs/PRODUCTION.md).
+#
+#   bash deploy/install-server.sh        # première installation (Ubuntu 24.04)
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+#
+# Les migrations sont appliquées par le service « migrate » avant le démarrage
+# de l'API et des workers. Ingestion initiale de l'historique :
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env run --rm migrate footprono-ingest all
+# Ensuite, « beat » met à jour la saison en cours chaque matin.
+
+# Journaux Docker limités (3 x 10 Mo par service) : le disque ne se remplit pas.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-backend: &backend
+  logging: *logging
+  build:
+    context: ../backend
+  image: footprono-backend:${FP_IMAGE_TAG:-latest}
+  restart: unless-stopped
+  environment: &backend-env
+    FP_ENVIRONMENT: production
+    FP_SECRET_KEY: ${FP_SECRET_KEY:?FP_SECRET_KEY est obligatoire}
+    FP_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    FP_REDIS_URL: redis://redis:6379/0
+    FP_CORS_ORIGINS: ${FP_CORS_ORIGINS:-[]}
+    FP_LOG_LEVEL: ${FP_LOG_LEVEL:-INFO}
+    FP_API_FOOTBALL_KEY: ${FP_API_FOOTBALL_KEY:-}
+    FP_RAW_DATA_DIR: /data/raw
+    # Clé Firebase (notifications push) : deploy/secrets/firebase.json.
+    FP_FCM_CREDENTIALS_FILE: ${FP_FCM_CREDENTIALS_FILE:-}
+    # Paiement Mobile Money : retour et notification CinetPay sur l'adresse publique.
+    FP_PUBLIC_URL: https://${FP_DOMAIN}
+    FP_CINETPAY_API_KEY: ${FP_CINETPAY_API_KEY:-}
+    FP_CINETPAY_SITE_ID: ${FP_CINETPAY_SITE_ID:-}
+  volumes:
+    - raw-data:/data/raw
+    - ./secrets:/secrets:ro
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER est obligatoire}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB est obligatoire}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    logging: *logging
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    <<: *backend
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+
+  api:
+    <<: *backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *backend
+    command: ["celery", "-A", "footprono.worker.celery_app", "worker", "--loglevel=INFO"]
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A footprono.worker.celery_app inspect ping -d celery@$$HOSTNAME"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  beat:
+    <<: *backend
+    command: ["celery", "-A", "footprono.worker.celery_app", "beat", "--loglevel=INFO", "--schedule", "/tmp/celerybeat-schedule"]
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Sauvegarde quotidienne de la base (pg_dump, format personnalisé) dans
+  # deploy/backups, gardée FP_BACKUP_KEEP_DAYS jours. Restauration :
+  # bash deploy/restore.sh deploy/backups/<fichier>.dump
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      KEEP_DAYS: ${FP_BACKUP_KEEP_DAYS:-14}
+      BACKUP_HOUR: ${FP_BACKUP_HOUR:-3}
+    volumes:
+      - ./backups:/backups
+      - ./backup-loop.sh:/backup-loop.sh:ro
+    entrypoint: ["sh", "/backup-loop.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    logging: *logging
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      FP_DOMAIN: ${FP_DOMAIN:?FP_DOMAIN est obligatoire}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Version web de l'application (facultative) : deploy/web/index.html…
+      - ./web:/srv/web:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+
+volumes:
+  raw-data:
+  postgres-data:
+  redis-data:
+  caddy-data:
+  caddy-config:

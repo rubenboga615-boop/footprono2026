@@ -1,0 +1,12 @@
+{
+  "name": "footprono-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Parcours de bout en bout : vraie API + application web dans Chromium",
+  "scripts": {
+    "test": "node app.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

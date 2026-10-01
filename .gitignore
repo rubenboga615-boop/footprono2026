@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Configuration locale et secrets
+.env
+deploy/.env
+
+# Exécution locale (pid, logs, planning celery)
+.run/
+celerybeat-schedule*
+
+# Données brutes et artefacts de modèles : jamais dans git
+data/raw/
+backend/data/raw/
+data/processed/
+artifacts/
+
+# Flutter
+mobile/.dart_tool/
+mobile/build/

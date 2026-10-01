@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: footprono
+          POSTGRES_PASSWORD: footprono
+          POSTGRES_DB: footprono_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U footprono" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      FP_TEST_DATABASE_URL: postgresql+asyncpg://footprono:footprono@localhost:5432/footprono_test
+      FP_TEST_REDIS_URL: redis://localhost:6379/15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Installation (versions verrouillées)
+        run: |
+          pip install -r requirements-dev.lock
+          pip install --no-deps -e .
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Typage
+        run: mypy
+      - name: Tests
+        run: pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validation docker compose
+        env:
+          FP_SECRET_KEY: ci
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+          FP_DOMAIN: ci.local
+        run: docker compose -f deploy/docker-compose.yml config -q
+      - name: Construction de l'image backend
+        run: docker build -t footprono-backend:ci backend
+      # Pile de production démarrée pour de vrai (sans Caddy : pas de domaine
+      # public en CI) : migrations, API prête, sauvegarde écrite puis restaurée.
+      - name: Pile de production, sauvegarde et restauration
+        run: |
+          cd deploy
+          cp .env.example .env
+          sed -i -e "s|^FP_SECRET_KEY=.*|FP_SECRET_KEY=$(openssl rand -hex 32)|" \
+                 -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 16)|" .env
+          compose() { docker compose -f docker-compose.yml --env-file .env "$@"; }
+          compose up -d --build postgres redis migrate api worker beat backup
+          for i in $(seq 1 40); do
+            compose exec -T api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/ready', timeout=3)" && break
+            sleep 3
+          done
+          compose exec -T api python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/api/v1/ready', timeout=3).read().decode())"
+          for i in $(seq 1 20); do ls backups/footprono-*.dump >/dev/null 2>&1 && break; sleep 3; done
+          ls -la backups
+          dump=$(ls backups/footprono-*.dump | head -1)
+          sudo chmod -R a+r backups
+          bash restore.sh "$dump" --oui
+          compose ps
+          test -z "$(compose ps --status exited --services | grep -v migrate)"
+      - if: failure()
+        name: Journaux de la pile
+        run: docker compose -f deploy/docker-compose.yml --env-file deploy/.env logs --tail 80

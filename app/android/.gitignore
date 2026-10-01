@@ -1,0 +1,19 @@
+gradle-wrapper.jar
+/.gradle
+/captures/
+/gradlew
+/gradlew.bat
+/local.properties
+GeneratedPluginRegistrant.java
+.cxx/
+
+# Remember to never publicly share your keystore.
+# See https://flutter.dev/to/reference-keystore
+key.properties
+**/*.keystore
+**/*.jks
+# Clé de signature de DÉVELOPPEMENT, volontairement versionnée : chaque APK
+# construit par GitHub Actions a la même signature, donc s'installe par-dessus
+# le précédent. À remplacer par une clé gardée en secret avant la publication
+# (phase 6, voir docs/APPLICATION.md).
+!keystore/footprono-dev.jks

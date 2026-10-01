@@ -1,0 +1,100 @@
+[project]
+name = "footprono"
+version = "0.1.0"
+description = "FootProno — serveur d'API de probabilités et d'analyses de matchs de football"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "uvicorn>=0.32,<1.0",
+    "pydantic>=2.9,<3.0",
+    "pydantic-settings>=2.6,<3.0",
+    "sqlalchemy[asyncio]>=2.0.36,<2.1",
+    "asyncpg>=0.30,<1.0",
+    "alembic>=1.14,<2.0",
+    "redis>=5.2,<6.0",
+    "celery[redis]>=5.4,<6.0",
+    "prometheus-client>=0.21,<1.0",
+    "httpx>=0.28,<1.0",
+    # WebSocket des notifications en direct (uvicorn) : pur Python, rien à
+    # compiler sur Termux.
+    "wsproto>=1.2,<2.0",
+    # Jetons de connexion (HS256) et clé Firebase (RS256, via cryptography).
+    # Sur Termux : cryptography fournie précompilée par pkg (python-cryptography).
+    "pyjwt[crypto]>=2.9,<3.0",
+    # Notification de paiement CinetPay (formulaire) : pur Python.
+    "python-multipart>=0.0.9,<1.0",
+    # Moteur de prédiction. Sur Termux : fournis précompilés par pkg
+    # (python-numpy, python-scipy), jamais compilés par pip.
+    "numpy>=2.0,<3.0",
+    "scipy>=1.13,<2.0",
+]
+
+[project.optional-dependencies]
+# Accélérateurs natifs d'uvicorn : utiles sur le serveur, facultatifs sur Termux.
+perf = ["uvloop>=0.21", "httptools>=0.6"]
+# Outils de test et de typage (sans ruff, fourni précompilé par Termux).
+test = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28",
+    "mypy>=1.13",
+    "celery-types>=0.22",
+]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28",
+    "mypy>=1.13",
+    "celery-types>=0.22",
+    "ruff>=0.8",
+]
+
+[project.scripts]
+footprono-ingest = "footprono.ingestion.cli:main"
+footprono-engine = "footprono.engine.cli:main"
+footprono-admin = "footprono.accounts.cli:main"
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+footprono = [
+    "db/migrations/*.py",
+    "db/migrations/*.mako",
+    "db/migrations/versions/*.py",
+    "ingestion/reference/*.csv",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+filterwarnings = ["error::DeprecationWarning:footprono.*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF", "SIM", "PT"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+packages = ["footprono"]
+
+[[tool.mypy.overrides]]
+module = ["prometheus_client.*", "scipy.*"]
+ignore_missing_imports = true

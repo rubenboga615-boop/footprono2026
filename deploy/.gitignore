@@ -1,0 +1,8 @@
+# Secrets, sauvegardes et version web : propres au serveur, jamais dans le dépôt.
+.env
+secrets/*
+!secrets/.gitkeep
+backups/*
+!backups/.gitkeep
+web/*
+!web/.gitkeep
