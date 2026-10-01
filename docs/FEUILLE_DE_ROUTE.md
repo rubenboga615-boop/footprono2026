@@ -11,7 +11,7 @@ précédente soit validée par ses critères (tests automatisés verts).
 | **3 — Temps réel** (terminée, voir `DONNEES.md`) | API-Football (calendrier, compositions, cotes), analyses (prédictions quotidiennes stockées et versionnées : faites en phase 2) | 2 | Vrais matchs du jour, prédictions traçables ; source en panne ⇒ erreur explicite |
 | **4 — Métier** (terminée, voir `BOOKMAKER.md` ; notifications FCM en phase 5) | Résultats, règlement automatique, bookmaker virtuel, coupons, montante, notifications (WebSocket, FCM) | 3 | Parcours pari → résultat → règlement → solde testé de bout en bout |
 | **5 — Produit** (terminée le 01/10/2026, voir `PRODUIT.md`, `APPLICATION.md`) | Comptes, rôles, abonnements, administration, application Flutter (web + APK), historique public de fiabilité | 4 | Tests de bout en bout de l'application verts |
-| **6 — Production** | Serveur distant, sauvegardes, supervision, sécurité, paiement Mobile Money | 5 | Checklist production validée |
+| **6 — Production** (en cours, voir `PRODUCTION.md`) | Serveur distant, sauvegardes, supervision, sécurité, paiement Mobile Money | 5 | Checklist production validée |
 
 ## Périmètre
 

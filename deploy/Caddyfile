@@ -6,7 +6,17 @@
 	@metrics path /metrics
 	respond @metrics 404
 
-	reverse_proxy api:8000
+	# Version web de l'application (facultative, construite avec --base-href /app/).
+	redir /app /app/
+	handle_path /app/* {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+
+	handle {
+		reverse_proxy api:8000
+	}
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"

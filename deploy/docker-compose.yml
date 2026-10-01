@@ -1,6 +1,6 @@
-# Déploiement serveur de FootProno.
+# Déploiement serveur de FootProno (voir docs/PRODUCTION.md).
 #
-#   cp deploy/.env.example deploy/.env   # puis remplir les secrets
+#   bash deploy/install-server.sh        # première installation (Ubuntu 24.04)
 #   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 #
 # Les migrations sont appliquées par le service « migrate » avant le démarrage
@@ -8,7 +8,15 @@
 #   docker compose -f deploy/docker-compose.yml --env-file deploy/.env run --rm migrate footprono-ingest all
 # Ensuite, « beat » met à jour la saison en cours chaque matin.
 
+# Journaux Docker limités (3 x 10 Mo par service) : le disque ne se remplit pas.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 x-backend: &backend
+  logging: *logging
   build:
     context: ../backend
   image: footprono-backend:${FP_IMAGE_TAG:-latest}
@@ -22,8 +30,11 @@ x-backend: &backend
     FP_LOG_LEVEL: ${FP_LOG_LEVEL:-INFO}
     FP_API_FOOTBALL_KEY: ${FP_API_FOOTBALL_KEY:-}
     FP_RAW_DATA_DIR: /data/raw
+    # Clé Firebase (notifications push) : deploy/secrets/firebase.json.
+    FP_FCM_CREDENTIALS_FILE: ${FP_FCM_CREDENTIALS_FILE:-}
   volumes:
     - raw-data:/data/raw
+    - ./secrets:/secrets:ro
   depends_on:
     postgres:
       condition: service_healthy
@@ -32,8 +43,9 @@ x-backend: &backend
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER est obligatoire}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD est obligatoire}
@@ -49,6 +61,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    logging: *logging
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis-data:/data
@@ -90,9 +103,32 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # Sauvegarde quotidienne de la base (pg_dump, format personnalisé) dans
+  # deploy/backups, gardée FP_BACKUP_KEEP_DAYS jours. Restauration :
+  # bash deploy/restore.sh deploy/backups/<fichier>.dump
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      KEEP_DAYS: ${FP_BACKUP_KEEP_DAYS:-14}
+      BACKUP_HOUR: ${FP_BACKUP_HOUR:-3}
+    volumes:
+      - ./backups:/backups
+      - ./backup-loop.sh:/backup-loop.sh:ro
+    entrypoint: ["sh", "/backup-loop.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    logging: *logging
     ports:
       - "80:80"
       - "443:443"
@@ -100,6 +136,8 @@ services:
       FP_DOMAIN: ${FP_DOMAIN:?FP_DOMAIN est obligatoire}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Version web de l'application (facultative) : deploy/web/index.html…
+      - ./web:/srv/web:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:

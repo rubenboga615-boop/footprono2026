@@ -20,14 +20,18 @@ void showMessage(String text, {bool error = false}) {
     ..showSnackBar(SnackBar(content: Text(text), backgroundColor: error ? const Color(0xFF3A1430) : null));
 }
 
-/// Adresse par défaut : le serveur Termux sur le même téléphone ; en version
-/// web, le serveur qui a servi la page.
+/// Serveur intégré à l'APK (--dart-define=FP_SERVER=https://…) : le serveur
+/// distant. Sans valeur : le serveur Termux du même téléphone.
+const builtInServer = String.fromEnvironment('FP_SERVER');
+
+/// Adresse par défaut : en version web, le serveur qui a servi la page ;
+/// sinon le serveur intégré à l'APK, ou à défaut celui de Termux.
 String defaultServer() {
   if (kIsWeb) {
     final base = Uri.base;
     if (base.scheme.startsWith('http')) return base.origin;
   }
-  return 'http://127.0.0.1:8000';
+  return builtInServer.isNotEmpty ? builtInServer : 'http://127.0.0.1:8000';
 }
 
 /// Ouvre le WebSocket ; `null` désactive le direct (tests).
