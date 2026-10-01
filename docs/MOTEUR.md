@@ -142,6 +142,21 @@ Autres pistes essayées, rejetées : poids des xG 0,5 ou 0,3 (moins bons en
 validation, corrigent moins en test). Les nuls (+0,9 % après correction,
 dans la marge d'erreur) ne demandent pas de correction propre.
 
+## Cartons : surestimés au-dessus de 50 %, correction non retenue (02/10/2026)
+
+Plus/moins 4,5 cartons : au-dessus de 50 % annoncés, le moteur surestime de
+plus en plus (test 2022 → 2025 : −1,2 ; −3,7 ; −5,6 ; −6,4 points). Essais :
+- plus de rétrécissement (pénalité 60 ou 120, arbitre 40 matchs fictifs) :
+  écart réduit en test, mais log loss dégradée en validation 2019-21
+  (réglage actuel le meilleur : 0,6288 contre 0,6295 à 0,6358) ;
+- recalibration glissante (apprise sur les saisons précédentes) : gain
+  négligeable (≈ 0,0003) et irrégulier, la dérive grandit plus vite.
+
+Décision : modèle inchangé ; les cartons restent affichés mais **exclus des
+choix automatiques** (Coupon intelligent, suggestions de montante) tant
+qu'aucune correction n'est prouvée. Corners : calibrés (écarts de −0,8 à
++2,0 points), rien à corriger.
+
 ## Calibration détaillée (`footprono-engine calibration`)
 
 Pour chaque marché suivi (1X2, double chance, +1,5/2,5/3,5 buts, les deux
