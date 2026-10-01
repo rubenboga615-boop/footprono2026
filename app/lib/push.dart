@@ -41,4 +41,15 @@ class FirebasePush implements PushBridge {
 
   @override
   Future<bool> openedAtLaunch() async => await _fm.getInitialMessage() != null;
+
+  // Application ouverte : Android n'affiche pas la notification, l'application le fait.
+  @override
+  Stream<PushMessage> get foreground => FirebaseMessaging.onMessage
+      .where((m) => m.notification != null)
+      .map(
+        (m) => (
+          text: '${m.notification!.title ?? 'FootProno'} — ${m.notification!.body ?? ''}',
+          kind: m.data['kind']?.toString(),
+        ),
+      );
 }

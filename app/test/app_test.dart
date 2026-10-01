@@ -215,6 +215,7 @@ class FakeServer {
 class FakePush implements PushBridge {
   final refresh = StreamController<String>.broadcast();
   final tapped = StreamController<void>.broadcast();
+  final received = StreamController<PushMessage>.broadcast();
   String? current = 'jeton-telephone-1';
 
   @override
@@ -225,6 +226,8 @@ class FakePush implements PushBridge {
   Stream<void> get opened => tapped.stream;
   @override
   Future<bool> openedAtLaunch() async => false;
+  @override
+  Stream<PushMessage> get foreground => received.stream;
 }
 
 Future<(AppState, FakeServer)> startApp(
@@ -338,6 +341,12 @@ void main() {
     push.refresh.add('jeton-telephone-2');
     await tester.pumpAndSettle();
     expect(server.devices, ['jeton-telephone-1', 'jeton-telephone-2']);
+
+    push.received.add((text: 'FootProno — Notification d\'essai', kind: 'test'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('FootProno — Notification d\'essai'), findsOneWidget);
+    await tester.pumpAndSettle(const Duration(seconds: 5));
 
     push.tapped.add(null);
     await tester.pumpAndSettle();

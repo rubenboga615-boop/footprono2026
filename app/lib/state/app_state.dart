@@ -33,6 +33,9 @@ String defaultServer() {
 /// Ouvre le WebSocket ; `null` désactive le direct (tests).
 typedef SocketFactory = WebSocketChannel? Function(Uri uri);
 
+/// Notification push reçue application ouverte : « titre — texte » et type.
+typedef PushMessage = ({String text, String? kind});
+
 /// Notifications push du téléphone (Firebase sur Android ; absent ailleurs et en test).
 abstract class PushBridge {
   /// Jeton de l'appareil, ou null si l'utilisateur refuse les notifications.
@@ -44,6 +47,9 @@ abstract class PushBridge {
 
   /// L'application a été lancée en touchant une notification.
   Future<bool> openedAtLaunch();
+
+  /// Notifications reçues pendant que l'application est ouverte.
+  Stream<PushMessage> get foreground;
 }
 
 class AppState extends ChangeNotifier {
@@ -65,6 +71,7 @@ class AppState extends ChangeNotifier {
   String? _pushToken;
   StreamSubscription<String>? _pushRefreshSub;
   StreamSubscription<void>? _pushOpenedSub;
+  StreamSubscription<PushMessage>? _pushForegroundSub;
 
   WebSocketChannel? _socket;
   StreamSubscription<dynamic>? _socketSub;
@@ -244,6 +251,12 @@ class AppState extends ChangeNotifier {
     final p = push;
     if (p == null || api.token == null) return;
     _pushOpenedSub ??= p.opened.listen((_) => notificationOpened.value += 1);
+    // Les notifications de paris arrivent aussi par le direct (WebSocket) : pas de
+    // doublon, sauf si le direct est coupé. L'essai de l'administrateur n'existe
+    // qu'en push.
+    _pushForegroundSub ??= p.foreground.listen((m) {
+      if (m.kind == 'test' || _socket == null) showMessage(m.text);
+    });
     try {
       if (atLaunch && await p.openedAtLaunch()) notificationOpened.value += 1;
       final token = await p.token();
@@ -328,6 +341,7 @@ class AppState extends ChangeNotifier {
     _disconnectSocket();
     _pushRefreshSub?.cancel();
     _pushOpenedSub?.cancel();
+    _pushForegroundSub?.cancel();
     notificationOpened.dispose();
     super.dispose();
   }
