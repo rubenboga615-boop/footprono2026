@@ -8,6 +8,7 @@ footprono-engine counts                                 # corners, cartons, tirs
 footprono-engine ah                                     # handicap asiatique contre les cotes
 footprono-engine angles                                 # « angle du match » et coupons
 footprono-engine calibration --output calibration.json  # par marché, championnat, saison
+footprono-engine audit --output audit.json              # tous les marchés de l'application
 """
 
 import argparse
@@ -26,6 +27,13 @@ from numpy.typing import NDArray
 from footprono.core.config import get_settings
 from footprono.db.session import create_engine, create_session_factory
 from footprono.engine.angles import angles_study, format_report
+from footprono.engine.audit import (
+    audit_report,
+    count_entries,
+    format_audit,
+    goal_entries,
+    goal_history,
+)
 from footprono.engine.backtest import (
     BacktestConfig,
     Predictions,
@@ -264,6 +272,24 @@ def calibration_command(hist: History, args: argparse.Namespace) -> None:
         print(f"Détail complet écrit dans {args.output}")
 
 
+def audit_command(hist: History, args: argparse.Namespace) -> None:
+    pred = predict(hist, args.competitions, args.seasons, GoalsConfig(), DEFAULT_FEATURES)
+    _progress("marchés de buts…")
+    entries = goal_entries(hist, pred)
+    past = goal_history(hist, args.competitions, args.seasons)
+    for stat in EVALUATED_COUNTS:
+        _progress(f"{stat}…")
+        e, p = count_entries(hist, args.competitions, args.seasons, stat, counts_config(stat))
+        entries += e
+        past += p
+    report = audit_report(entries, past)
+    print(format_audit(report))
+    if args.output:
+        with open(args.output, "w", encoding="utf-8") as f:
+            json.dump(report, f, ensure_ascii=False, indent=1)
+        print(f"Détail complet écrit dans {args.output}")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="footprono-engine")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -319,6 +345,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     cb.add_argument("--output", help="fichier JSON du détail (courbes de calibration)")
     cb.add_argument("--no-counts", action="store_true", help="sans corners ni cartons")
+    au = sub.add_parser("audit", help="audit de tous les marchés de l'application")
+    au.add_argument("--seasons", type=parse_seasons, default=parse_seasons("2022-2025"))
+    au.add_argument(
+        "--competitions", type=parse_competitions, default=[c.code for c in COMPETITIONS]
+    )
+    au.add_argument("--output", help="fichier JSON du détail (courbes par famille)")
     pr = sub.add_parser("predict", help="prédit et enregistre les matchs à venir")
     pr.add_argument("--days", type=int, default=10, help="horizon en jours (défaut 10)")
     pr.add_argument("--as-of", type=date.fromisoformat, default=None, help="AAAA-MM-JJ")
@@ -344,6 +376,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "calibration":
         calibration_command(hist, args)
+        return 0
+    if args.command == "audit":
+        audit_command(hist, args)
         return 0
     if not args.grid:
         goals = GoalsConfig(

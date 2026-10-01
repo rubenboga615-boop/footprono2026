@@ -13,7 +13,8 @@ Code : `backend/src/footprono/engine/` (indépendant du serveur web et de Celery
    - Vraisemblance de Poisson pondérée dans le temps (demi-vie 180 jours,
      fenêtre de 3 ans).
    - Cible = 0,3 × buts + 0,7 × xG Understat : les xG décrivent mieux la
-     qualité réelle des équipes que les buts, plus aléatoires.
+     qualité réelle des équipes que les buts, plus aléatoires. Les xG sont
+     remis au niveau des vrais buts du championnat (voir plus bas).
    - Pénalité vers un a priori : 0 pour les équipes connues, le quart le plus
      faible du championnat pour les promus sans historique.
    - Correction de Dixon-Coles (petits scores) et part des buts en 1re période
@@ -113,6 +114,33 @@ cotes de clôture réelles (1X2 et plus/moins 2,5 : seules cotes historiques).
 Méthode vérifiée sur données simulées : moteur exact → angle juste ;
 moteur bruité → surestimation détectée (`tests/test_angles.py`).
 Résultats sur les vraies données : à compléter.
+
+## xG remis au niveau des vrais buts (vérifié le 02/10/2026)
+
+La calibration détaillée a montré une surestimation des buts en 2024-2025
+(+2,5 buts : annoncé 55,5 %, observé 53,4 % ; +3,5 : 33,9 % / 30,9 %), en
+Liga, Serie A et Ligue 1. Cause : le rapport buts / xG Understat est passé
+de 1,00 (2019-2021) à 0,91 (2025) ; le moteur apprenant à 70 % sur les xG en
+héritait. Correction (`GoalsConfig.xg_rescale`) : dans chaque championnat,
+les xG de la fenêtre d'apprentissage sont multipliés par le rapport buts / xG
+de cette fenêtre (mêmes poids) ; ils gardent leur information relative.
+
+| Log loss / écart observé - annoncé | Validation 2019-21 avant | après | Test 2022-25 avant | après |
+|---|---|---|---|---|
+| +1,5 buts | 0,5229 / +0,7 % | 0,5229 / +0,7 % | 0,5258 / −1,2 % | 0,5253 / +0,5 % |
+| +2,5 buts | 0,6758 / +0,4 % | 0,6759 / +0,3 % | 0,6768 / −2,1 % | 0,6758 / +0,3 % |
+| +3,5 buts | 0,6040 / −0,2 % | 0,6039 / −0,3 % | 0,6022 / −3,0 % | 0,5999 / −0,7 % |
+| Domicile +1,5 | 0,6377 / −0,6 % | 0,6380 / −0,6 % | 0,6421 / −2,1 % | 0,6411 / −0,3 % |
+| Mi-temps +1,5 | 0,6451 / +0,5 % | 0,6453 / +0,4 % | 0,6420 / −2,3 % | 0,6406 / −0,7 % |
+| Les deux marquent | 0,6846 / +1,2 % | 0,6843 / +1,1 % | 0,6844 / −0,3 % | 0,6850 / +1,4 % |
+| 1X2 (3 issues) | inchangé à ±0,0002 | | inchangé à ±0,0003 | |
+
+Neutre en validation (pas de dérive à l'époque), nette amélioration en test.
+Honnêteté : le problème a été repéré sur les saisons de test ; la saison
+2026-27 en cours servira de vraie vérification hors échantillon.
+Autres pistes essayées, rejetées : poids des xG 0,5 ou 0,3 (moins bons en
+validation, corrigent moins en test). Les nuls (+0,9 % après correction,
+dans la marge d'erreur) ne demandent pas de correction propre.
 
 ## Calibration détaillée (`footprono-engine calibration`)
 

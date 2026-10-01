@@ -38,6 +38,11 @@ class GoalsConfig:
     half_life_days: float = 180.0
     window_days: int = 3 * 365
     xg_weight: float = 0.7
+    # Les xG Understat ont dérivé par rapport aux vrais buts (rapport buts/xG
+    # passé de 1,00 en 2019-21 à 0,91 en 2025) : remis au niveau des vrais
+    # buts du championnat sur la fenêtre (mêmes poids), ils ne gardent que
+    # leur information relative (quelle équipe crée plus ou moins).
+    xg_rescale: bool = True
     ridge: float = 2.0
     # A priori des équipes sans historique dans la fenêtre (promus) :
     # moyenne du quart le plus faible des équipes du championnat.
@@ -160,8 +165,13 @@ def fit_goals(
     if cfg.xg_weight > 0:
         hx, ax = hist.hxg[mask], hist.axg[mask]
         ok = ~np.isnan(hx) & ~np.isnan(ax)
-        yh[ok] = (1 - cfg.xg_weight) * hg[ok] + cfg.xg_weight * hx[ok]
-        ya[ok] = (1 - cfg.xg_weight) * ag[ok] + cfg.xg_weight * ax[ok]
+        scale = 1.0
+        if cfg.xg_rescale and ok.any():
+            scale = float(
+                np.sum(w[ok] * (hg[ok] + ag[ok])) / max(np.sum(w[ok] * (hx[ok] + ax[ok])), 1e-9)
+            )
+        yh[ok] = (1 - cfg.xg_weight) * hg[ok] + cfg.xg_weight * scale * hx[ok]
+        ya[ok] = (1 - cfg.xg_weight) * ag[ok] + cfg.xg_weight * scale * ax[ok]
 
     teams = np.unique(np.concatenate([h, a]))
     index = {int(t): k for k, t in enumerate(teams)}
