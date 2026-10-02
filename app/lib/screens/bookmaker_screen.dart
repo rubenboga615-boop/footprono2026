@@ -214,7 +214,7 @@ class _BetRow extends StatelessWidget {
         ? () {
             final s = b.selections.single;
             return '${s.homeTeam} – ${s.awayTeam} · '
-                '${selectionLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam)}';
+                '${fullLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam)}';
           }()
         : b.selections.map((s) => '${s.homeTeam} – ${s.awayTeam}').join(', ');
     return InkWell(

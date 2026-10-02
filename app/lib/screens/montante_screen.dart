@@ -720,7 +720,7 @@ class _MontanteViewState extends State<MontanteView> {
                       padding: const EdgeInsets.only(bottom: 4),
                       child: Text(
                         '${s.homeTeam} – ${s.awayTeam} · '
-                        '${selectionLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam)}',
+                        '${fullLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam)}',
                         style: Fp.body(15, weight: FontWeight.w700),
                       ),
                     ),
@@ -1091,7 +1091,9 @@ class _SuggestionCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              selectionLabel(
+                              // Libellé complet : « Buts de Stuttgart · Moins de 2,5 buts »,
+                              // jamais « Moins de 2,5 buts » seul (ambigu pour un total d'équipe).
+                              fullLabel(
                                 sel['market'] as String,
                                 (sel['line'] ?? '') as String,
                                 sel['selection'] as String,
