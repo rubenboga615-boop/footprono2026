@@ -4,6 +4,7 @@
 #   bash scripts/termux/ingest.sh all --seasons 2026         # saison en cours seulement
 #   bash scripts/termux/ingest.sh football-data --from-dir ~/footprono-data/football-data
 #   bash scripts/termux/ingest.sh quality                    # contrôles seuls
+#   bash scripts/termux/ingest.sh coverage                   # ce qui est collecté, ce qui manque
 #   bash scripts/termux/ingest.sh odds                       # cotes des matchs à venir
 #   bash scripts/termux/ingest.sh live                       # matchs en cours (score, fin, statistiques)
 #   bash scripts/termux/ingest.sh injuries                   # blessés et suspendus d'aujourd'hui et demain

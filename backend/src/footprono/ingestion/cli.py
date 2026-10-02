@@ -27,6 +27,7 @@ from typing import Any
 from footprono.core.config import Settings, get_settings
 from footprono.db.session import create_engine, create_session_factory
 from footprono.football.models import DataSource
+from footprono.ingestion.coverage import coverage_report, format_coverage
 from footprono.ingestion.live import collect_injuries, collect_odds, follow_live
 from footprono.ingestion.quality import current_season_start, run_quality_checks
 from footprono.ingestion.reference import COMPETITIONS, COMPETITIONS_BY_CODE
@@ -98,6 +99,9 @@ def build_parser() -> argparse.ArgumentParser:
                 "--from-dir", type=Path, help="importer un dossier local au lieu de télécharger"
             )
     sub.add_parser("quality", help="contrôles de qualité sur les données en base")
+    sub.add_parser(
+        "coverage", help="ce qui est collecté par championnat et saison, et ce qui manque"
+    )
     sub.add_parser("odds", help="cotes des bookmakers pour les matchs à venir (API-Football)")
     sub.add_parser("live", help="matchs en cours : score, puis résultat et statistiques")
     sub.add_parser("injuries", help="blessés et suspendus des matchs d'aujourd'hui et demain")
@@ -216,6 +220,14 @@ async def run(args: argparse.Namespace, settings: Settings) -> int:
                     report = await collect_injuries(session, settings)
             print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
             return 0 if report["status"] in ("ok", "idle") else 1
+        if args.command == "coverage":
+            async with factory() as session:
+                report = await coverage_report(session)
+            if args.json:
+                print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
+            else:
+                print(format_coverage(report))
+            return 0
         if args.command == "odds":
             async with factory() as session:
                 report = await collect_odds(session, settings, progress=_print_progress)

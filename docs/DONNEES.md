@@ -11,6 +11,15 @@
 Saisons couvertes : 2016-17 → saison en cours, pour Premier League, La Liga,
 Serie A, Bundesliga et Ligue 1.
 
+## Vérifier ce qui est collecté
+
+`bash scripts/termux/ingest.sh coverage` : pour chaque championnat et chaque
+saison (matchs terminés), part des matchs avec mi-temps, statistiques
+football-data, arbitre, xG, statistiques API-Football (match et mi-temps) et
+cotes de clôture ; puis la liste des trous récupérables avec la commande qui
+les comble. « — » : la source n'a pas la donnée (mi-temps API-Football avant
+2024-25).
+
 ## Règles d'ingestion
 
 - **Référentiel unique** (`ingestion/reference/teams.csv`) : 165 équipes, chacune
