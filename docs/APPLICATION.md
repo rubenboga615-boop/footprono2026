@@ -98,13 +98,15 @@ les paris sont sur le serveur : rien n'est perdu), puis installer le nouvel APK.
 | Match · Probabilités | 1 / N / 2, scores les plus probables, tous les marchés (Premium) avec cote juste et cote réelle jouable | `/matches/{id}/prediction`, `/offer` |
 | Match · Cotes | cotes réelles 1xBet (Bet365 en secours) et probabilité du moteur | `/matches/{id}/offer` |
 | Match · Analyse (Premium) | forme sur 5 matchs (G/N/P), moyennes de la saison, confrontations directes ; buts attendus, classement, repos, enjeu, corners / cartons / tirs attendus | `/matches/{id}/analysis` (faits, matchs antérieurs seulement), prédiction (`counts`, `context`) |
+| Fiche équipe (toucher une équipe dans un match) | forme, points et buts domicile / extérieur / saison ; Premium : xG créés et concédés, xPts, pressing (PPDA), passes dangereuses, tirs cadrés, corners, cartons, possession, arrêts, passes réussies ; phrase si les buts s'écartent des xG de 0,2 ou plus ; « — » si la source n'a pas la donnée | `/teams/{id}/profile?competition=&season=` (champs avancés à `null` et `locked: true` en gratuit) |
+| Classement mérité (icône classement des Matchs ou d'une fiche) | points réels contre xPts d'Understat par championnat et saison ; écart vert ≥ +3, rose ≤ −3, gris sinon ; rang mérité entre parenthèses ; avertissement si des xPts manquent | `/competitions/{code}/seasons/{année}/merited` |
 | Coupon | sélections, probabilité combinée, cote totale, mise, gain ; utilisation pour un palier de montante | `/bets`, `/montantes/{id}/bet` |
 | Coupon intelligent (Premium) | profil Sûr / Équilibré / Audacieux, période (aujourd'hui → 7 jours), 1 à 4 sélections ; cotes réelles, probabilité, deux faits par sélection, 3 autres choix ; « Mettre dans mon coupon » | `/smart-coupon` |
 | Coupons du jour (public) | coupons enregistrés chaque matin avant les matchs, gagnés ou perdus, bilan annoncé / observé | `/smart-coupons/history` |
 | Montante | création (mise, paliers, plages, part sécurisée), tableau, chances, encaisser, historique | `/montantes*` |
 | Pari du palier (Premium) | 3 suggestions, probabilité du modèle et selon la cote, côte à côte (aucun « bon plan ») | `/montantes/{id}/suggestions` |
 | Bookmaker | solde fictif, en jeu, rendement, paris en cours / réglés, mouvements | `/bets`, `/me/wallet/*` |
-| Profil | formule et prix, notifications, fiabilité, mot de passe, jeu responsable, serveur, administration | `/me`, `/me/password` |
+| Profil | formule et prix, notifications, fiabilité, mot de passe, jeu responsable, serveur, administration ; numéro de version en bas | `/me`, `/me/password` |
 | Fiabilité | annoncé contre réalisé par marché et championnat, références, backtest séparé | `/reliability` |
 | Notifications | en direct (WebSocket) et historique | `/ws`, `/me/notifications` |
 | Administration | statistiques, recherche, Premium, désactivation | `/admin/*` |

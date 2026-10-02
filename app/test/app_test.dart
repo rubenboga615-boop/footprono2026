@@ -20,6 +20,7 @@ class FakeServer {
   final List<String> devices = [];
   String paymentStatus = 'pending';
   final List<Map<String, String>> smartQueries = [];
+  final List<Map<String, String>> teamQueries = [];
   int latestBuild = 50;
   bool deleted = false;
   int minimumBuild = 0;
@@ -277,6 +278,94 @@ class FakeServer {
             },
           ],
         };
+      case 'GET /competitions':
+        body = [
+          {
+            'code': 'LIGUE_1',
+            'name': 'Ligue 1',
+            'country': 'France',
+            'n_teams': 18,
+            'seasons': [
+              {'start_year': 2025, 'label': '2025-26', 'matches': 306, 'finished': 306},
+              {'start_year': 2026, 'label': '2026-27', 'matches': 306, 'finished': 0},
+            ],
+          },
+        ];
+      case 'GET /competitions/LIGUE_1/seasons/2025/merited':
+        Map<String, dynamic> row(
+          int rank,
+          int? xrank,
+          int id,
+          String name,
+          int pts,
+          double? xpts,
+          String? v,
+        ) => {
+          'rank': rank,
+          'merited_rank': xrank,
+          'team': {'id': id, 'name': name},
+          'played': 34,
+          'points': pts,
+          'goals_for': 50,
+          'goals_against': 40,
+          'xpts': xpts,
+          'xg_for': 48.0,
+          'xg_against': 41.0,
+          'luck': xpts == null ? null : double.parse((pts - xpts).toStringAsFixed(1)),
+          'verdict': v,
+        };
+        body = {
+          'competition': 'LIGUE_1',
+          'season': 2025,
+          'luck_threshold': 3.0,
+          'complete': true,
+          'table': [
+            row(1, 1, 9, 'Paris SG', 76, 73.3, 'fair'),
+            row(2, 3, 3, 'Rennes', 59, 44.6, 'lucky'),
+            row(3, 2, 4, 'Nantes', 24, 36.3, 'unlucky'),
+          ],
+        };
+      case _ when path.startsWith('/teams/') && path.endsWith('/profile'):
+        teamQueries.add(r.url.queryParameters);
+        Map<String, dynamic> venue(int n, int pts) => {
+          'matches': n,
+          'points': pts,
+          'goals_for': 2.41,
+          'goals_against': 1.18,
+          'xg_for': premium ? 1.95 : null,
+          'xg_against': premium ? 1.27 : null,
+          'xpts': premium ? 32.9 : null,
+          'ppda': premium ? 10.8 : null,
+          'deep': premium ? 9.1 : null,
+          'shots_on_target': premium ? 6.4 : null,
+          'corners': premium ? 5.6 : null,
+          'yellow_cards': premium ? 2.2 : null,
+          'possession': premium ? 57.8 : null,
+          'saves': null,
+          'pass_pct': premium ? 87.4 : null,
+        };
+        body = {
+          'team': {'id': 1, 'name': 'Lens'},
+          'competition': 'LIGUE_1',
+          'season': 2025,
+          'seasons': [
+            {'competition': 'LIGUE_1', 'season': 2026, 'played': 3},
+            {'competition': 'LIGUE_1', 'season': 2025, 'played': 34},
+          ],
+          'form': [
+            {
+              'match_id': 1,
+              'date': '2026-09-27',
+              'competition': 'LIGUE_1',
+              'venue': 'away',
+              'opponent': 'Monaco',
+              'score': '0-2',
+              'result': 'W',
+            },
+          ],
+          'venues': {'home': venue(17, 37), 'away': venue(17, 22), 'all': venue(34, 59)},
+          'locked': !premium,
+        };
       case 'POST /bets':
         final b = jsonDecode(r.body) as Map<String, dynamic>;
         placedBets.add(b);
@@ -424,6 +513,56 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Premium'), findsOneWidget);
     expect(find.text('Forme · 5 derniers matchs'), findsNothing);
+  });
+
+  testWidgets('fiche équipe gratuite : forme et buts, statistiques avancées verrouillées', (tester) async {
+    await startApp(tester, loggedIn: true);
+    await tester.tap(find.text('LEN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Fiche équipe').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Forme · 5 derniers matchs'), findsOneWidget);
+    expect(find.text('chez Monaco'), findsOneWidget);
+    expect(find.text('2,41'), findsOneWidget);
+    expect(find.text('Statistiques avancées'), findsNothing);
+    expect(find.text('Premium'), findsOneWidget);
+
+    await tester.tap(find.text('Extérieur'));
+    await tester.pumpAndSettle();
+    expect(find.text('22'), findsOneWidget); // points à l'extérieur
+  });
+
+  testWidgets('fiche équipe Premium, classement mérité, retour sur une fiche', (tester) async {
+    final (_, server) = await startApp(tester, loggedIn: true, premium: true);
+    await tester.binding.setSurfaceSize(const Size(430, 2400)); // fiche entière à l'écran
+    await tester.tap(find.text('LEN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Fiche équipe').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Statistiques avancées'), findsOneWidget);
+    expect(find.text('1,95'), findsOneWidget); // xG créés
+    expect(find.text('57,8 %'), findsOneWidget);
+    expect(find.text('—'), findsOneWidget); // arrêts : donnée absente, pas 0
+    expect(find.textContaining('Marque plus que ses xG'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Classement mérité'));
+    await tester.pumpAndSettle();
+    expect(find.text('+14,4'), findsOneWidget);
+    expect(find.text('−12,3'), findsOneWidget);
+    expect(find.text('+2,7'), findsOneWidget);
+
+    await tester.tap(find.textContaining('Rennes', findRichText: true));
+    await tester.pumpAndSettle();
+    expect(server.teamQueries.last, {'competition': 'LIGUE_1', 'season': '2025'});
+  });
+
+  testWidgets('classement mérité depuis les matchs : saison terminée la plus récente', (tester) async {
+    await startApp(tester, loggedIn: true);
+    await tester.tap(find.byTooltip('Classement mérité'));
+    await tester.pumpAndSettle();
+    expect(find.text('2025-26'), findsOneWidget);
+    expect(find.text('2026-27'), findsNothing); // aucun match terminé
+    expect(find.text('+14,4'), findsOneWidget);
   });
 
   testWidgets('notifications push : téléphone enregistré, notification touchée, déconnexion', (tester) async {

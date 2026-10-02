@@ -8,6 +8,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'team_screen.dart';
 
 class MatchData {
   MatchData(this.match, this.prediction, this.offers, this.analysis);
@@ -144,17 +145,27 @@ class _MatchViewState extends State<_MatchView> {
     );
   }
 
-  Widget _bigTeam(Team t) => Column(
-    children: [
-      TeamCircle(t.code, size: 60),
-      const SizedBox(height: 8),
-      Text(
-        t.name,
-        textAlign: TextAlign.center,
-        maxLines: 2,
-        style: Fp.body(15, weight: FontWeight.w700),
+  /// Toucher une équipe ouvre sa fiche.
+  Widget _bigTeam(Team t) => InkWell(
+    borderRadius: BorderRadius.circular(12),
+    onTap: () => Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TeamScreen(teamId: t.id, name: t.name),
       ),
-    ],
+    ),
+    child: Column(
+      children: [
+        TeamCircle(t.code, size: 60),
+        const SizedBox(height: 8),
+        Text(
+          t.name,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          style: Fp.body(15, weight: FontWeight.w700),
+        ),
+        Text('Fiche équipe', style: Fp.body(11, color: Fp.accentLight)),
+      ],
+    ),
   );
 
   // --- Probabilités -----------------------------------------------------------

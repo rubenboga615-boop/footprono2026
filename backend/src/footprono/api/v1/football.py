@@ -39,6 +39,7 @@ from footprono.football.schemas import (
     TeamOut,
     TeamStatsOut,
 )
+from footprono.football.team_stats import lock_premium, merited_table, team_profile
 from footprono.ingestion.live import LIVE_STATUSES
 from footprono.ingestion.quality import run_quality_checks
 from footprono.ingestion.sources.api_football_odds import REFERENCE_ONLY, map_bet
@@ -137,6 +138,26 @@ async def get_team(team_id: int, session: SessionDep) -> Team:
     if team is None:
         raise NotFoundError(f"équipe {team_id} introuvable")
     return team
+
+
+@router.get("/teams/{team_id}/profile")
+async def get_team_profile(
+    team_id: int,
+    session: SessionDep,
+    user: OptionalUserDep,
+    competition: str | None = None,
+    season: int | None = None,
+) -> dict[str, Any]:
+    """Fiche équipe : forme, bilan domicile / extérieur (statistiques avancées : Premium)."""
+    profile = await team_profile(session, team_id, competition, season)
+    profile["locked"] = False
+    return profile if is_premium(user) else lock_premium(profile)
+
+
+@router.get("/competitions/{code}/seasons/{year}/merited")
+async def get_merited_table(code: str, year: int, session: SessionDep) -> dict[str, Any]:
+    """Classement réel contre classement mérité (xPts Understat)."""
+    return await merited_table(session, code, year)
 
 
 @router.get("/matches", response_model=MatchPage)

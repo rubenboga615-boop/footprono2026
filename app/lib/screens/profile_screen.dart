@@ -309,6 +309,12 @@ class ProfileScreen extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 18),
+              Text(
+                appBuild > 0 ? 'FootProno · version $appBuild' : 'FootProno · version de développement',
+                textAlign: TextAlign.center,
+                style: Fp.body(12, color: Fp.text3),
+              ),
             ],
           ),
         ),

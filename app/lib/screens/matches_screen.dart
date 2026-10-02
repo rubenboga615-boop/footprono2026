@@ -8,6 +8,7 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'match_screen.dart';
+import 'merited_screen.dart';
 import 'notifications_screen.dart';
 
 class MatchesScreen extends StatefulWidget {
@@ -62,6 +63,14 @@ class _MatchesScreenState extends State<MatchesScreen> {
                     children: [
                       const FpLogo(),
                       const Spacer(),
+                      SquareButton(
+                        icon: Icons.leaderboard_rounded,
+                        tooltip: 'Classement mérité',
+                        onTap: () =>
+                            Navigator.of(context)
+                                .push(MaterialPageRoute(builder: (_) => const MeritedScreen())),
+                      ),
+                      const SizedBox(width: 10),
                       SquareButton(
                         icon: Icons.notifications_none_rounded,
                         tooltip: 'Notifications',
