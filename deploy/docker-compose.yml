@@ -30,6 +30,8 @@ x-backend: &backend
     FP_LOG_LEVEL: ${FP_LOG_LEVEL:-INFO}
     FP_API_FOOTBALL_KEY: ${FP_API_FOOTBALL_KEY:-}
     FP_RAW_DATA_DIR: /data/raw
+    # APK proposé en mise à jour (footprono-admin publish-apk).
+    FP_APP_RELEASE_DIR: /data/app
     # Clé Firebase (notifications push) : deploy/secrets/firebase.json.
     FP_FCM_CREDENTIALS_FILE: ${FP_FCM_CREDENTIALS_FILE:-}
     # Paiement Mobile Money : retour et notification CinetPay sur l'adresse publique.
@@ -38,6 +40,7 @@ x-backend: &backend
     FP_CINETPAY_SITE_ID: ${FP_CINETPAY_SITE_ID:-}
   volumes:
     - raw-data:/data/raw
+    - app-release:/data/app
     - ./secrets:/secrets:ro
   depends_on:
     postgres:
@@ -149,6 +152,7 @@ services:
 
 volumes:
   raw-data:
+  app-release:
   postgres-data:
   redis-data:
   caddy-data:

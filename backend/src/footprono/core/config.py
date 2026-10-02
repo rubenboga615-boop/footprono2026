@@ -84,6 +84,8 @@ class Settings(BaseSettings):
 
     # Fichiers bruts archivés (football-data, Understat…), nommés par empreinte.
     raw_data_dir: Path = Path("data/raw")
+    # APK publié par « footprono-admin publish-apk » (mise à jour de l'application).
+    app_release_dir: Path = Path("data/app")
 
     log_level: str = "INFO"
     log_json: bool = True

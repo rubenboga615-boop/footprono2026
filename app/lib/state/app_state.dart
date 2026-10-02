@@ -25,6 +25,10 @@ void showMessage(String text, {bool error = false}) {
 /// distant. Sans valeur : le serveur Termux du même téléphone.
 const builtInServer = String.fromEnvironment('FP_SERVER');
 
+/// Numéro de construction de l'APK (GitHub Actions) ; 0 en développement : pas de
+/// vérification de mise à jour.
+const appBuild = int.fromEnvironment('FP_BUILD');
+
 /// Adresse par défaut : en version web, le serveur qui a servi la page ;
 /// sinon le serveur intégré à l'APK, ou à défaut celui de Termux.
 String defaultServer() {
@@ -63,8 +67,21 @@ typedef UrlOpener = Future<bool> Function(Uri url);
 Future<bool> _openInBrowser(Uri url) => launchUrl(url, mode: LaunchMode.externalApplication);
 
 class AppState extends ChangeNotifier with WidgetsBindingObserver {
-  AppState({required this.api, this.socketFactory, this.push, UrlOpener? openUrl})
-    : openUrl = openUrl ?? _openInBrowser;
+  AppState({
+    required this.api,
+    this.socketFactory,
+    this.push,
+    UrlOpener? openUrl,
+    this.build = appBuild,
+    this.android = !kIsWeb,
+  }) : openUrl = openUrl ?? _openInBrowser;
+
+  /// Version installée (comparée à GET /app/version) ; APK Android seulement.
+  final int build;
+  final bool android;
+
+  /// Nouvelle version publiée sur le serveur (null : à jour ou inconnue).
+  final update = ValueNotifier<AppUpdate?>(null);
 
   final ApiClient api;
   final SocketFactory? socketFactory;
@@ -110,6 +127,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _prefs = await SharedPreferences.getInstance();
     api.baseUrl = _prefs!.getString(_kServer) ?? defaultServer();
     api.token = _prefs!.getString(_kToken);
+    unawaited(checkUpdate());
     if (api.token != null) {
       try {
         await refreshMe();
@@ -286,12 +304,37 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return status;
   }
 
+  /// Demande au serveur la dernière version de l'application ; silencieux en cas d'échec.
+  Future<void> checkUpdate() async {
+    if (!android || build <= 0) return;
+    try {
+      final v = await api.get('/app/version') as Json;
+      final latest = (v['build'] as num?)?.toInt() ?? 0;
+      if (latest <= build) return;
+      update.value = AppUpdate(
+        build: latest,
+        notes: (v['notes'] as String?) ?? '',
+        mandatory: build < ((v['minimum_build'] as num?)?.toInt() ?? 0),
+        sizeMb: (((v['size'] as num?) ?? 0) / 1e6).round(),
+        url: Uri.parse(api.baseUrl).resolve(v['download_path'] as String),
+      );
+    } catch (_) {
+      // Serveur injoignable ou ancien : on réessaiera au prochain retour dans l'application.
+    }
+  }
+
+  Future<void> downloadUpdate() async {
+    final u = update.value;
+    if (u != null) await openUrl(u.url);
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Retour du guichet de paiement : vérification immédiate.
     if (state == AppLifecycleState.resumed && pendingPayment != null) {
       unawaited(_announcePayment());
     }
+    if (state == AppLifecycleState.resumed) unawaited(checkUpdate());
   }
 
   Future<void> _announcePayment() async {
@@ -411,4 +454,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notificationOpened.dispose();
     super.dispose();
   }
+}
+
+/// Version de l'application plus récente que celle installée.
+class AppUpdate {
+  AppUpdate({
+    required this.build,
+    required this.notes,
+    required this.mandatory,
+    required this.sizeMb,
+    required this.url,
+  });
+  final int build;
+  final String notes;
+  final bool mandatory;
+  final int sizeMb;
+  final Uri url;
 }

@@ -91,14 +91,54 @@ class HomeShellState extends State<HomeShell> {
   void initState() {
     super.initState();
     _state.notificationOpened.addListener(_openNotifications);
+    _state.update.addListener(_offerUpdate);
     // Application lancée en touchant une notification.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _openNotifications());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openNotifications();
+      _offerUpdate();
+    });
   }
 
   @override
   void dispose() {
     _state.notificationOpened.removeListener(_openNotifications);
+    _state.update.removeListener(_offerUpdate);
     super.dispose();
+  }
+
+  int _updateShown = 0;
+
+  /// Nouvelle version publiée : proposée une fois par version (obligatoire : à chaque fois).
+  Future<void> _offerUpdate() async {
+    final u = _state.update.value;
+    if (!mounted || u == null || (u.build == _updateShown && !u.mandatory)) return;
+    _updateShown = u.build;
+    final go = await showDialog<bool>(
+      context: context,
+      barrierDismissible: !u.mandatory,
+      builder: (context) => AlertDialog(
+        title: const Text('Nouvelle version disponible'),
+        content: Text(
+          [
+            if (u.notes.isNotEmpty) u.notes,
+            u.mandatory
+                ? 'Cette mise à jour est nécessaire pour continuer à utiliser FootProno.'
+                : 'Téléchargement de ${u.sizeMb} Mo, puis touche le fichier pour l\'installer. '
+                      'Tes paris et ton compte sont conservés.',
+          ].join('\n\n'),
+        ),
+        actions: [
+          if (!u.mandatory)
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Plus tard')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Mettre à jour')),
+        ],
+      ),
+    );
+    if (go == true) await _state.downloadUpdate();
+    if (u.mandatory && mounted) {
+      _updateShown = 0;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _offerUpdate());
+    }
   }
 
   /// Notification touchée : écran des notifications.

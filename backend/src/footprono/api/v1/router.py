@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from footprono.api.v1 import (
     accounts,
     admin,
+    app_release,
     bets,
     football,
     health,
@@ -15,6 +16,7 @@ from footprono.api.v1 import (
 
 api_router = APIRouter()
 api_router.include_router(health.router)
+api_router.include_router(app_release.router)
 api_router.include_router(accounts.router)
 api_router.include_router(admin.router)
 api_router.include_router(bets.router)

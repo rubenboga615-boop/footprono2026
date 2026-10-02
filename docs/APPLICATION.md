@@ -43,6 +43,27 @@ bash scripts/termux/stop.sh && bash scripts/termux/start.sh
 Puis ouvrir `http://127.0.0.1:8000/app/` dans le navigateur. L'API sert la
 page elle-même (`FP_WEB_APP_DIR`) : même adresse, aucun réglage CORS.
 
+## Mises à jour (hors Play Store)
+
+Chaque APK porte son numéro de construction (numéro de l'exécution GitHub
+Actions). À l'ouverture et au retour dans l'application, elle demande
+`GET /app/version` ; si le serveur a publié une version plus récente, une
+fenêtre « Nouvelle version disponible » propose de la télécharger
+(`GET /app/download`, APK arm64), puis l'utilisateur touche le fichier pour
+l'installer par-dessus (même clé de signature : compte et paris conservés).
+
+Publier une version (Termux) : télécharger l'archive `footprono-apk.zip`
+depuis GitHub Actions, puis
+`bash scripts/termux/publish-apk.sh ~/storage/downloads/footprono-apk.zip "Nouveautés"`.
+`--minimum N` rend la mise à jour obligatoire pour les versions sous N
+(correctif important). Sur le serveur de production :
+`docker compose -f /opt/footprono/deploy/docker-compose.yml exec api footprono-admin publish-apk …`
+après avoir copié l'archive dans le conteneur. L'avant-dernière version est
+gardée ; on ne publie jamais un numéro plus ancien.
+
+Une installation manuelle reste nécessaire une fois : les APK construits
+avant cette fonction n'ont pas de numéro et ne vérifient rien.
+
 ## Clé de signature de production
 
 Sans clé de production, l'APK est signé avec la clé de développement du

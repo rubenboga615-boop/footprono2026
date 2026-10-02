@@ -58,11 +58,19 @@ jobs:
           FP_KEYSTORE_PASSWORD: ${{ secrets.FP_KEYSTORE_PASSWORD }}
           FP_KEY_ALIAS: ${{ secrets.FP_KEY_ALIAS }}
           FP_KEY_PASSWORD: ${{ secrets.FP_KEY_PASSWORD }}
-        run: flutter build apk --release --split-per-abi --dart-define=FP_SERVER=${{ vars.FP_SERVER_URL }}
+        # Numéro de construction = numéro de l'exécution : toujours croissant (mises à
+        # jour par-dessus) et comparé par l'application à GET /app/version.
+        run: |
+          flutter build apk --release --split-per-abi --build-number=${{ github.run_number }} \
+            --dart-define=FP_SERVER=${{ vars.FP_SERVER_URL }} --dart-define=FP_BUILD=${{ github.run_number }}
+          echo '{"build": ${{ github.run_number }}, "commit": "${{ github.sha }}"}' \
+            > build/app/outputs/flutter-apk/release.json
       - uses: actions/upload-artifact@v4
         with:
           name: footprono-apk
-          path: app/build/app/outputs/flutter-apk/*-release.apk
+          path: |
+            app/build/app/outputs/flutter-apk/*-release.apk
+            app/build/app/outputs/flutter-apk/release.json
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:

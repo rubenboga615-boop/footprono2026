@@ -20,6 +20,8 @@ class FakeServer {
   final List<String> devices = [];
   String paymentStatus = 'pending';
   final List<Map<String, String>> smartQueries = [];
+  int latestBuild = 50;
+  int minimumBuild = 0;
 
   static const smartSel = {
     'match_id': 7,
@@ -221,6 +223,16 @@ class FakeServer {
             'model_fair_odds': 2.439,
           },
         ];
+      case 'GET /app/version':
+        body = {
+          'build': latestBuild,
+          'minimum_build': minimumBuild,
+          'notes': 'Coupon intelligent amélioré.',
+          'size': 19500000,
+          'sha256': 'x',
+          'published_at': '2026-10-02T12:00:00Z',
+          'download_path': '/api/v1/app/download',
+        };
       case 'GET /smart-coupon':
         if (!premium) return _error(403, 'premium_required', 'réservé à Premium');
         smartQueries.add(r.url.queryParameters);
@@ -302,6 +314,8 @@ Future<(AppState, FakeServer)> startApp(
   bool premium = false,
   bool loggedIn = false,
   PushBridge? push,
+  int build = 0,
+  UrlOpener? openUrl,
 }) async {
   SharedPreferences.setMockInitialValues(loggedIn ? {'token': 'jeton'} : {});
   final server = FakeServer(premium: premium);
@@ -309,6 +323,9 @@ Future<(AppState, FakeServer)> startApp(
     api: ApiClient(baseUrl: 'http://serveur', httpClient: MockClient(server.handle)),
     socketFactory: (_) => null,
     push: push,
+    build: build,
+    android: build > 0,
+    openUrl: openUrl,
   );
   await tester.binding.setSurfaceSize(const Size(430, 1400));
   await tester.pumpWidget(FootPronoApp(state: state));
@@ -506,5 +523,30 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('inclus dans Premium'), findsOneWidget);
     expect(find.text('Composer le coupon'), findsNothing);
+  });
+
+  testWidgets('nouvelle version : proposée, téléchargée depuis le serveur', (tester) async {
+    final opened = <Uri>[];
+    await startApp(
+      tester,
+      loggedIn: true,
+      build: 41,
+      openUrl: (url) async {
+        opened.add(url);
+        return true;
+      },
+    );
+    expect(find.text('Nouvelle version disponible'), findsOneWidget);
+    expect(find.textContaining('Coupon intelligent amélioré.'), findsOneWidget);
+    expect(find.textContaining('20 Mo'), findsOneWidget);
+    await tester.tap(find.text('Mettre à jour'));
+    await tester.pumpAndSettle();
+    expect(opened.single.path, '/api/v1/app/download');
+    expect(find.text('Nouvelle version disponible'), findsNothing);
+  });
+
+  testWidgets('version à jour : rien n\'est proposé', (tester) async {
+    await startApp(tester, loggedIn: true, build: 50);
+    expect(find.text('Nouvelle version disponible'), findsNothing);
   });
 }

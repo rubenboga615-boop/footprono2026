@@ -8,6 +8,7 @@ footprono-admin push-test +22997000000          # notification d'essai sur ses t
 footprono-admin users [nom ou numéro]           # comptes existants (numéro, rôle, Premium)
 footprono-admin set-phone +22997000000 +22961000000   # changer le numéro de connexion
 footprono-admin reset-password +22997000000     # mot de passe provisoire
+footprono-admin publish-apk footprono-apk.zip --notes "…"   # nouvelle version de l'application
 """
 
 import argparse
@@ -16,10 +17,12 @@ import json
 import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from footprono import app_release
 from footprono.accounts import admin
 from footprono.accounts.models import User
 from footprono.accounts.service import normalize_phone
@@ -123,7 +126,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     sub.add_parser("push-test", help="notification d'essai sur ses téléphones").add_argument(
         "phone"
     )
+    publish = sub.add_parser("publish-apk", help="publier l'APK d'une archive GitHub Actions")
+    publish.add_argument("archive", type=Path)
+    publish.add_argument("--notes", default="", help="nouveautés affichées aux utilisateurs")
+    publish.add_argument(
+        "--minimum",
+        type=int,
+        default=0,
+        help="construction en dessous de laquelle c'est obligatoire",
+    )
     args = parser.parse_args(argv)
+    if args.command == "publish-apk":
+        try:
+            info = app_release.publish(
+                args.archive, get_settings().app_release_dir, args.notes, args.minimum
+            )
+        except AppError as exc:
+            print(f"Erreur : {exc.message}", file=sys.stderr)
+            return 1
+        print(
+            f"Version {info['build']} publiée ({info['size'] // 1_000_000} Mo) : proposée aux "
+            "téléphones à l'ouverture de l'application."
+        )
+        return 0
     try:
         print(asyncio.run(_run(args)))
     except AppError as exc:

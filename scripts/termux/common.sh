@@ -67,6 +67,8 @@ load_env() {
     # shellcheck disable=SC1091
     . ./.env
     set +a
+    # APK proposé en mise à jour : même dossier pour le serveur et publish-apk.sh.
+    export FP_APP_RELEASE_DIR="${FP_APP_RELEASE_DIR:-$FP_DATA/app}"
 }
 
 migrate() {
