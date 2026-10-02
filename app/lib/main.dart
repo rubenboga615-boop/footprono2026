@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -123,8 +125,8 @@ class HomeShellState extends State<HomeShell> {
             if (u.notes.isNotEmpty) u.notes,
             u.mandatory
                 ? 'Cette mise à jour est nécessaire pour continuer à utiliser FootProno.'
-                : 'Téléchargement de ${u.sizeMb} Mo, puis touche le fichier pour l\'installer. '
-                      'Tes paris et ton compte sont conservés.',
+                : 'Téléchargement de ${u.sizeMb} Mo dans l\'application, puis Android te demande de '
+                      'confirmer l\'installation. Tes paris et ton compte sont conservés.',
           ].join('\n\n'),
         ),
         actions: [
@@ -134,10 +136,63 @@ class HomeShellState extends State<HomeShell> {
         ],
       ),
     );
-    if (go == true) await _state.downloadUpdate();
+    if (go == true) await _runUpdate();
     if (u.mandatory && mounted) {
       _updateShown = 0;
       WidgetsBinding.instance.addPostFrameCallback((_) => _offerUpdate());
+    }
+  }
+
+  /// Téléchargement avec progression, puis écran d'installation d'Android.
+  Future<void> _runUpdate() async {
+    final navigator = Navigator.of(context);
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _UpdateProgress(_state.updateProgress),
+      ),
+    );
+    final step = await _state.installUpdate();
+    if (!mounted) return;
+    navigator.pop();
+    if (step == UpdateStep.permission) {
+      final retry = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Autorisation nécessaire'),
+          content: const Text(
+            'Une seule fois : dans le réglage qui vient de s\'ouvrir, active « Autoriser cette source » '
+            'pour FootProno, reviens ici puis touche « Installer ».',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Plus tard')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Installer')),
+          ],
+        ),
+      );
+      if (retry == true && mounted) await _runUpdate();
+    } else if (step == UpdateStep.failed) {
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Téléchargement impossible'),
+          content: const Text(
+            'La mise à jour n\'a pas pu être téléchargée en entier (connexion coupée ou serveur '
+            'injoignable). Rien n\'a été installé.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'browser'),
+              child: const Text('Par le navigateur'),
+            ),
+            FilledButton(onPressed: () => Navigator.pop(context, 'retry'), child: const Text('Réessayer')),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      if (choice == 'retry') await _runUpdate();
+      if (choice == 'browser') await _state.downloadInBrowser();
     }
   }
 
@@ -301,4 +356,30 @@ class _NavItem extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Progression du téléchargement de la mise à jour.
+class _UpdateProgress extends StatelessWidget {
+  const _UpdateProgress(this.progress);
+  final ValueListenable<double?> progress;
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: false,
+    child: AlertDialog(
+      title: const Text('Téléchargement'),
+      content: ValueListenableBuilder<double?>(
+        valueListenable: progress,
+        builder: (context, p, _) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LinearProgressIndicator(value: p == null || p == 0 ? null : p),
+            const SizedBox(height: 12),
+            Text(p == null ? 'Préparation…' : '${(p * 100).round()} %'),
+          ],
+        ),
+      ),
+    ),
+  );
 }

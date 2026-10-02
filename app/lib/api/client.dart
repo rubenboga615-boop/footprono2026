@@ -29,6 +29,9 @@ class ApiClient {
   String baseUrl;
   String? token;
   final http.Client _http;
+
+  /// Client HTTP partagé (téléchargement de la mise à jour).
+  http.Client get httpClient => _http;
   static const timeout = Duration(seconds: 20);
 
   Uri uri(String path, [Map<String, Object?>? query]) {

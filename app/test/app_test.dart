@@ -8,6 +8,7 @@ import 'package:footprono/format.dart';
 import 'package:footprono/main.dart';
 import 'package:footprono/screens/notifications_screen.dart';
 import 'package:footprono/state/app_state.dart';
+import 'package:footprono/update/installer.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -237,7 +238,7 @@ class FakeServer {
           'minimum_build': minimumBuild,
           'notes': 'Coupon intelligent amélioré.',
           'size': 19500000,
-          'sha256': 'x',
+          'sha256': 'abc123',
           'published_at': '2026-10-02T12:00:00Z',
           'download_path': '/api/v1/app/download',
         };
@@ -387,6 +388,40 @@ class FakeServer {
   );
 }
 
+/// Faux installateur : téléchargement simulé, autorisation et installation enregistrées.
+class FakeInstaller implements ApkInstaller {
+  FakeInstaller({this.allowed = true, this.fail = false});
+  bool allowed;
+  bool fail;
+  int downloads = 0;
+  int settingsOpened = 0;
+  final installed = <String>[];
+  String? sha;
+
+  @override
+  Future<String> download(
+    http.Client client,
+    Uri url, {
+    required int build,
+    required String sha256,
+    required void Function(double progress) onProgress,
+  }) async {
+    downloads++;
+    sha = sha256;
+    if (fail) throw Exception('connexion coupée');
+    onProgress(0.5);
+    onProgress(1);
+    return '/cache/updates/footprono-$build.apk';
+  }
+
+  @override
+  Future<bool> canInstall() async => allowed;
+  @override
+  Future<void> openSettings() async => settingsOpened++;
+  @override
+  Future<void> install(String path) async => installed.add(path);
+}
+
 class FakePush implements PushBridge {
   final refresh = StreamController<String>.broadcast();
   final tapped = StreamController<void>.broadcast();
@@ -412,6 +447,7 @@ Future<(AppState, FakeServer)> startApp(
   PushBridge? push,
   int build = 0,
   UrlOpener? openUrl,
+  ApkInstaller? installer,
 }) async {
   SharedPreferences.setMockInitialValues(loggedIn ? {'token': 'jeton'} : {});
   final server = FakeServer(premium: premium);
@@ -422,6 +458,7 @@ Future<(AppState, FakeServer)> startApp(
     build: build,
     android: build > 0,
     openUrl: openUrl,
+    installer: installer,
   );
   await tester.binding.setSurfaceSize(const Size(430, 1400));
   await tester.pumpWidget(FootPronoApp(state: state));
@@ -673,24 +710,54 @@ void main() {
     expect(find.text('Composer le coupon'), findsNothing);
   });
 
-  testWidgets('nouvelle version : proposée, téléchargée depuis le serveur', (tester) async {
-    final opened = <Uri>[];
-    await startApp(
-      tester,
-      loggedIn: true,
-      build: 41,
-      openUrl: (url) async {
-        opened.add(url);
-        return true;
-      },
-    );
+  testWidgets('nouvelle version : téléchargée dans l\'application, installateur ouvert', (tester) async {
+    final installer = FakeInstaller();
+    await startApp(tester, loggedIn: true, build: 41, installer: installer);
     expect(find.text('Nouvelle version disponible'), findsOneWidget);
     expect(find.textContaining('Coupon intelligent amélioré.'), findsOneWidget);
     expect(find.textContaining('20 Mo'), findsOneWidget);
     await tester.tap(find.text('Mettre à jour'));
     await tester.pumpAndSettle();
-    expect(opened.single.path, '/api/v1/app/download');
+    expect(installer.sha, 'abc123'); // empreinte publiée par le serveur, vérifiée au téléchargement
+    expect(installer.installed, ['/cache/updates/footprono-50.apk']);
     expect(find.text('Nouvelle version disponible'), findsNothing);
+    expect(find.text('Téléchargement'), findsNothing);
+  });
+
+  testWidgets('mise à jour : autorisation demandée une fois, sans retélécharger', (tester) async {
+    final installer = FakeInstaller(allowed: false);
+    await startApp(tester, loggedIn: true, build: 41, installer: installer);
+    await tester.tap(find.text('Mettre à jour'));
+    await tester.pumpAndSettle();
+    expect(installer.settingsOpened, 1);
+    expect(find.text('Autorisation nécessaire'), findsOneWidget);
+    installer.allowed = true; // l'utilisateur a activé le réglage
+    await tester.tap(find.text('Installer'));
+    await tester.pumpAndSettle();
+    expect(installer.downloads, 1);
+    expect(installer.installed, hasLength(1));
+  });
+
+  testWidgets('mise à jour : échec annoncé, navigateur en secours', (tester) async {
+    final installer = FakeInstaller(fail: true);
+    final opened = <Uri>[];
+    await startApp(
+      tester,
+      loggedIn: true,
+      build: 41,
+      installer: installer,
+      openUrl: (url) async {
+        opened.add(url);
+        return true;
+      },
+    );
+    await tester.tap(find.text('Mettre à jour'));
+    await tester.pumpAndSettle();
+    expect(find.text('Téléchargement impossible'), findsOneWidget);
+    expect(installer.installed, isEmpty);
+    await tester.tap(find.text('Par le navigateur'));
+    await tester.pumpAndSettle();
+    expect(opened.single.path, '/api/v1/app/download');
   });
 
   testWidgets('version à jour : rien n\'est proposé', (tester) async {

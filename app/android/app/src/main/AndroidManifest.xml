@@ -3,6 +3,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Notifications push (Android 13 et plus : autorisation demandée à la connexion). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Mise à jour hors Play Store : ouvrir l'installateur d'Android pour la nouvelle
+         version (l'utilisateur confirme toujours lui-même). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- HTTP en clair autorisé : le serveur Termux du téléphone (127.0.0.1)
          n'a pas de certificat. À retirer quand le serveur distant sera en HTTPS. -->
     <application
@@ -42,6 +45,16 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="footprono" />
+        <!-- APK de mise à jour transmis à l'installateur d'Android. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

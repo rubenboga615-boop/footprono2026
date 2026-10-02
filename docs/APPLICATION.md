@@ -48,9 +48,17 @@ page elle-même (`FP_WEB_APP_DIR`) : même adresse, aucun réglage CORS.
 Chaque APK porte son numéro de construction (numéro de l'exécution GitHub
 Actions). À l'ouverture et au retour dans l'application, elle demande
 `GET /app/version` ; si le serveur a publié une version plus récente, une
-fenêtre « Nouvelle version disponible » propose de la télécharger
-(`GET /app/download`, APK arm64), puis l'utilisateur touche le fichier pour
-l'installer par-dessus (même clé de signature : compte et paris conservés).
+fenêtre « Nouvelle version disponible » propose de la télécharger.
+Depuis la version 47, l'application télécharge elle-même l'APK
+(`GET /app/download`, APK arm64) avec une barre de progression, vérifie son
+empreinte SHA-256 (celle de `/app/version`) puis ouvre directement l'écran
+d'installation d'Android (même clé de signature : compte et paris conservés).
+La première fois, Android demande d'autoriser FootProno à installer des
+applications (réglage ouvert par l'application). Une confirmation reste
+toujours nécessaire : hors Play Store, aucune application ne peut
+s'installer en silence. En cas d'échec (connexion coupée, fichier altéré),
+rien n'est installé et le navigateur est proposé en secours. Code :
+`lib/update/`, canal `footprono/installer` dans `MainActivity.kt`.
 
 Publier une version (Termux) : télécharger l'archive `footprono-apk.zip`
 depuis GitHub Actions, puis

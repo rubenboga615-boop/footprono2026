@@ -11,6 +11,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../labels.dart';
+import '../update/installer.dart';
 
 /// Messages éphémères (erreurs, confirmations, notifications reçues).
 final messengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -74,7 +75,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     UrlOpener? openUrl,
     this.build = appBuild,
     this.android = !kIsWeb,
-  }) : openUrl = openUrl ?? _openInBrowser;
+    ApkInstaller? installer,
+  }) : openUrl = openUrl ?? _openInBrowser,
+       installer = installer ?? (android && !kIsWeb ? ChannelInstaller() : null);
 
   /// Version installée (comparée à GET /app/version) ; APK Android seulement.
   final int build;
@@ -82,6 +85,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Nouvelle version publiée sur le serveur (null : à jour ou inconnue).
   final update = ValueNotifier<AppUpdate?>(null);
+
+  /// Téléchargement de la mise à jour : 0 à 1 (null : aucun en cours).
+  final updateProgress = ValueNotifier<double?>(null);
+  final ApkInstaller? installer;
+  String? _downloadedApk;
+  int? _downloadedBuild;
 
   final ApiClient api;
   final SocketFactory? socketFactory;
@@ -323,6 +332,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         notes: (v['notes'] as String?) ?? '',
         mandatory: build < ((v['minimum_build'] as num?)?.toInt() ?? 0),
         sizeMb: (((v['size'] as num?) ?? 0) / 1e6).round(),
+        sha256: (v['sha256'] as String?) ?? '',
         url: Uri.parse(api.baseUrl).resolve(v['download_path'] as String),
       );
     } catch (_) {
@@ -330,9 +340,44 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  Future<void> downloadUpdate() async {
+  /// Télécharge la mise à jour dans l'application (une seule fois par version), vérifie son
+  /// empreinte, puis ouvre l'écran d'installation d'Android.
+  Future<UpdateStep> installUpdate() async {
+    final u = update.value;
+    if (u == null) return UpdateStep.failed;
+    final inst = installer;
+    if (inst == null || u.sha256.isEmpty) return downloadInBrowser();
+    try {
+      if (_downloadedBuild != u.build) {
+        updateProgress.value = 0;
+        _downloadedApk = await inst.download(
+          api.httpClient,
+          u.url,
+          build: u.build,
+          sha256: u.sha256,
+          onProgress: (p) => updateProgress.value = p,
+        );
+        _downloadedBuild = u.build;
+      }
+      if (!await inst.canInstall()) {
+        await inst.openSettings();
+        return UpdateStep.permission;
+      }
+      await inst.install(_downloadedApk!);
+      return UpdateStep.installing;
+    } catch (_) {
+      _downloadedBuild = null;
+      return UpdateStep.failed;
+    } finally {
+      updateProgress.value = null;
+    }
+  }
+
+  /// Solution de secours : téléchargement par le navigateur.
+  Future<UpdateStep> downloadInBrowser() async {
     final u = update.value;
     if (u != null) await openUrl(u.url);
+    return UpdateStep.browser;
   }
 
   @override
@@ -471,10 +516,15 @@ class AppUpdate {
     required this.mandatory,
     required this.sizeMb,
     required this.url,
+    this.sha256 = '',
   });
   final int build;
   final String notes;
   final bool mandatory;
   final int sizeMb;
   final Uri url;
+  final String sha256;
 }
+
+/// Où en est la mise à jour après « Mettre à jour ».
+enum UpdateStep { installing, permission, browser, failed }
