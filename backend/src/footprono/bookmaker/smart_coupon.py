@@ -3,8 +3,9 @@
 Méthode validée hors échantillon (``footprono-engine angles``, docs/MOTEUR.md) :
 dans chaque match, parmi les marchés retenus (``rules.automatic``) qui ont
 une **vraie cote** jouable, on prend la sélection la plus probable de la
-tranche du profil ; on garde ensuite les matchs les plus sûrs, jamais deux
-sélections d'un même match (elles sont liées).
+tranche du profil (« sûr » : la plus proche du milieu de sa tranche) ; on
+garde ensuite les matchs les plus sûrs, jamais deux sélections d'un même
+match (elles sont liées).
 
 - **Sûr** : 75 à 92 % par sélection ; **équilibré** : 60 à 75 % ;
   **audacieux** : 45 à 60 %.
@@ -39,10 +40,15 @@ class Profile:
     label: str
     low: float
     high: float
+    # Sélection visée dans la tranche : la plus probable (None) ou la plus proche
+    # de cette probabilité. « Sûr » vise le milieu : au plafond (90 %), un coupon
+    # de 3 rapportait 1,31 ; au milieu (83 %), 1,66 pour 60 % de réussite,
+    # annoncé juste sur 2019-2025 (étude du 02/10/2026, docs/MOTEUR.md).
+    target: float | None = None
 
 
 PROFILES = {
-    "sur": Profile("Sûr", 0.75, 0.92),
+    "sur": Profile("Sûr", 0.75, 0.92, target=0.835),
     "equilibre": Profile("Équilibré", 0.60, 0.75),
     "audacieux": Profile("Audacieux", 0.45, 0.60),
 }
@@ -138,6 +144,14 @@ def french_day(d: datetime) -> str:
     return f"{_DAYS[d.weekday()]} {d.day} {_MONTHS[d.month - 1]}"
 
 
+def choose(profile: Profile, inside: list[Pick]) -> Pick:
+    """L'angle du match : le plus probable, ou le plus proche de la cible du profil."""
+    if profile.target is None:
+        return max(inside, key=lambda pk: pk.probability)
+    target = profile.target
+    return min(inside, key=lambda pk: (abs(pk.probability - target), -pk.probability))
+
+
 async def best_angles(
     session: AsyncSession,
     profile: Profile,
@@ -146,20 +160,21 @@ async def best_angles(
     now: datetime,
     competitions: list[str] | None = None,
 ) -> list[Pick]:
-    """L'angle (sélection la plus probable du profil) de chaque match, du plus sûr au moins sûr."""
+    """L'angle de chaque match (voir ``choose``), du plus sûr au moins sûr."""
     picks = []
     for match, home, away, comp in await _matches(session, start, end, competitions):
         offers = await service.match_offer(session, match.id, now)
         probs = await service.model_probabilities(session, match.id)
-        best: Pick | None = None
-        for k, offer in offers.items():
-            p = probs.get(k)
-            if p is None or not automatic(offer.market) or offer.odds < MIN_ODDS:
-                continue
-            if profile.low <= p < profile.high and (best is None or p > best.probability):
-                best = Pick(match, home, away, comp, offer, p)
-        if best is not None:
-            picks.append(best)
+        inside = [
+            Pick(match, home, away, comp, offer, p)
+            for k, offer in offers.items()
+            if (p := probs.get(k)) is not None
+            and automatic(offer.market)
+            and offer.odds >= MIN_ODDS
+            and profile.low <= p < profile.high
+        ]
+        if inside:
+            picks.append(choose(profile, inside))
     picks.sort(key=lambda pk: (-pk.probability, pk.match.kickoff_at, pk.match.id))
     return picks
 

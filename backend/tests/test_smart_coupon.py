@@ -65,6 +65,19 @@ def test_automatic_markets() -> None:
     assert automatic("EH")
 
 
+def test_sure_profile_aims_at_the_middle() -> None:
+    from types import SimpleNamespace
+
+    def pick(p: float) -> smart_coupon.Pick:
+        return smart_coupon.Pick(SimpleNamespace(), "A", "B", "EPL", SimpleNamespace(), p)  # type: ignore[arg-type]
+
+    inside = [pick(0.91), pick(0.84), pick(0.78)]
+    # « Sûr » : la plus proche de 83,5 % (cote plus utile), pas la plus probable.
+    assert smart_coupon.choose(smart_coupon.PROFILES["sur"], inside).probability == 0.84
+    # Les autres profils gardent la plus probable de leur tranche.
+    assert smart_coupon.choose(smart_coupon.PROFILES["equilibre"], inside).probability == 0.91
+
+
 def test_withdrawn_markets() -> None:
     assert not offered("ODD_EVEN||odd")
     assert not offered("HT_BTTS||yes")

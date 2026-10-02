@@ -371,3 +371,23 @@ Rendement en jouant quand le moteur voit une espérance positive : −3,6 à
 bookmaker, les écarts du moteur avec le marché sont du bruit. Décisions :
 handicap asiatique retiré des choix automatiques (`bookmaker/rules.py`) ;
 plus aucun badge d'écart avec la cote dans l'application.
+
+## Coupon intelligent : plafond ou milieu de la tranche (02/10/2026)
+
+Hors échantillon (12 457 matchs 2019-2025, moteur actuel), sélection la plus
+probable de la tranche (« plafond ») ou la plus proche de son milieu. Test
+2022-2025, coupons de 3 :
+
+| Profil | Règle | Annoncé | Observé | Cote juste |
+|---|---|---|---|---|
+| Sûr | plafond | 76,4 % | 78,5 % | 1,31 |
+| Sûr | milieu | 60,2 % | 61,5 % | 1,66 |
+| Équilibré | plafond | 41,1 % | 40,0 % | 2,44 |
+| Équilibré | milieu | 32,0 % | 33,6 % | 3,13 |
+| Audacieux | plafond | 20,5 % | 20,3 % | 4,90 |
+| Audacieux | milieu | 15,9 % | 13,3 % | 6,32 |
+
+Les deux règles sont justes (écarts dans la marge, mêmes conclusions sur
+2019-2021) : seul change le compromis chances / gain. Retenu : milieu pour
+Sûr (cote enfin utile), plafond pour Équilibré et Audacieux (au milieu, ils
+se confondraient).

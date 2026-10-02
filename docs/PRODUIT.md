@@ -102,7 +102,8 @@ Onglet **Coupon** → carte « Coupon intelligent » (Premium).
   Fermeture 15 minutes avant le coup d'envoi.
 - **1 à 4 sélections**, jamais deux du même match.
 - Méthode : dans chaque match, la sélection la plus probable de la tranche du
-  profil parmi les marchés retenus avec une vraie cote (≥ 1,10) ; les matchs
+  profil (Sûr : la plus proche de 83,5 %, milieu de sa tranche, pour une cote
+  utile : coupon de 3 ≈ 1,66 pour 60 % de réussite, contre 1,31 au plafond) parmi les marchés retenus avec une vraie cote (≥ 1,10) ; les matchs
   les plus sûrs d'abord ; 3 autres choix proposés. Validée hors échantillon
   (`footprono-engine angles`, `docs/MOTEUR.md`).
 - Chaque sélection : cote réelle, probabilité du moteur, deux faits (forme,
