@@ -151,3 +151,15 @@ code : `FP_LEGAL_NAME`, `FP_CONTACT_EMAIL` (`backend/.env` sur Termux,
 (`main.py`), à changer à chaque modification importante du texte.
 Texte non relu par un juriste : à faire relire avant la publication sur les
 magasins d'applications.
+
+## Conditions d'utilisation (02/10/2026)
+
+Page publique **`/conditions`** : probabilités et non certitudes, aucun pari
+en argent réel, argent fictif sans valeur (ni achat, ni retrait, ni lot),
+18 ans et plus, compte et usages interdits, Premium (prix, durée et essai
+repris du code : `PREMIUM_PRICE`, `PREMIUM_DAYS`, `TRIAL_DAYS`), pas de
+renouvellement automatique, remboursement si débité sans activation,
+responsabilité, jeu responsable, droit ivoirien. Liens : écran
+d'inscription (« En créant un compte, tu acceptes… »), Profil, page de
+suppression. Même date de version que la confidentialité
+(`LEGAL_EFFECTIVE_DATE`). Texte non relu par un juriste.

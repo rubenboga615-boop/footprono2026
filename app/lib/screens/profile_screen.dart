@@ -279,6 +279,13 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const Divider(),
                     _Item(
+                      icon: Icons.gavel_outlined,
+                      title: 'Conditions d\'utilisation',
+                      subtitle: 'Argent fictif, Premium, remboursement',
+                      onTap: () => state.openUrl(Uri.parse(state.api.baseUrl).resolve('/conditions')),
+                    ),
+                    const Divider(),
+                    _Item(
                       icon: Icons.delete_forever_outlined,
                       title: 'Supprimer mon compte',
                       subtitle: 'Efface tes données, définitivement',

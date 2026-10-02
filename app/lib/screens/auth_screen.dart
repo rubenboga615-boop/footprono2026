@@ -205,6 +205,20 @@ class _AuthScreenState extends State<AuthScreen> {
                             'Argent fictif uniquement : aucun pari réel. 7 jours de Premium offerts.',
                             style: Fp.body(12, color: Fp.accentLight, weight: FontWeight.w600, height: 1.4),
                           ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                'En créant un compte, tu acceptes les ',
+                                style: Fp.body(12, color: Fp.text2, height: 1.4),
+                              ),
+                              _LegalLink('conditions d\'utilisation', '/conditions'),
+                              Text(' et la ', style: Fp.body(12, color: Fp.text2, height: 1.4)),
+                              _LegalLink('politique de confidentialité', '/confidentialite'),
+                              Text('.', style: Fp.body(12, color: Fp.text2, height: 1.4)),
+                            ],
+                          ),
                         ],
                         if (error != null) ...[
                           const SizedBox(height: 14),
@@ -267,6 +281,30 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Lien vers une page légale du serveur (ouverte dans le navigateur).
+class _LegalLink extends StatelessWidget {
+  const _LegalLink(this.text, this.path);
+  final String text;
+  final String path;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.read<AppState>();
+    return GestureDetector(
+      onTap: () => state.openUrl(Uri.parse(state.api.baseUrl).resolve(path)),
+      child: Text(
+        text,
+        style: Fp.body(
+          12,
+          color: Fp.accentLight,
+          weight: FontWeight.w700,
+          height: 1.4,
+        ).copyWith(decoration: TextDecoration.underline),
       ),
     );
   }

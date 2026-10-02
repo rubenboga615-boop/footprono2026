@@ -366,6 +366,8 @@ void main() {
     await tester.tap(find.text('Créer un compte'));
     await tester.pumpAndSettle();
     expect(find.text("J'ai 18 ans ou plus"), findsOneWidget);
+    expect(find.text("conditions d'utilisation"), findsOneWidget);
+    expect(find.text('politique de confidentialité'), findsOneWidget);
     await tester.tap(find.text('Créer mon compte'));
     await tester.pumpAndSettle();
     expect(find.textContaining('18 ans ou plus pour utiliser'), findsOneWidget);
@@ -572,7 +574,9 @@ void main() {
     await tester.scrollUntilVisible(find.text('Confidentialité'), 200);
     await tester.tap(find.text('Confidentialité'));
     expect(opened.single.path, '/confidentialite');
-    await tester.scrollUntilVisible(find.text('Supprimer mon compte'), 200);
+    // Au-dessus de la barre de navigation flottante.
+    await tester.scrollUntilVisible(find.text('Se déconnecter'), 200);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Supprimer mon compte'));
     await tester.pumpAndSettle();
     expect(find.textContaining('ne peut pas être annulée'), findsOneWidget);

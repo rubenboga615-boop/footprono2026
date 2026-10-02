@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,6 +13,8 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
 from footprono import __version__
+from footprono.accounts.plans import PREMIUM_DAYS, PREMIUM_PRICE
+from footprono.accounts.service import TRIAL_DAYS
 from footprono.api.v1.router import api_router
 from footprono.cache.redis import create_redis
 from footprono.core.config import Environment, Settings, get_settings
@@ -21,9 +23,9 @@ from footprono.core.logging import configure_logging
 from footprono.core.middleware import RequestContextMiddleware, RouteResolver
 from footprono.db.session import create_engine, create_session_factory
 
-# Date de la version en vigueur de la politique de confidentialité (à changer à chaque
-# modification importante du texte).
-PRIVACY_EFFECTIVE_DATE = "2 octobre 2026"
+# Date de la version en vigueur des pages légales (confidentialité, conditions) : à
+# changer à chaque modification importante du texte.
+LEGAL_EFFECTIVE_DATE = "2 octobre 2026"
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -78,27 +80,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         async def home() -> RedirectResponse:
             return RedirectResponse("/app/")
 
-    # Page publique exigée par Google Play : supprimer son compte sans l'application.
-    deletion_page = (Path(__file__).parent / "web" / "suppression_compte.html").read_text()
-
-    privacy_page = (Path(__file__).parent / "web" / "confidentialite.html").read_text()
-    for key, value in {
+    # Pages légales publiques (exigées par Google Play et l'App Store) : chiffres et
+    # identité tirés du code et de la configuration, jamais recopiés à la main.
+    values = {
         "legal_name": settings.legal_name,
         "contact_email": settings.contact_email,
         "hosting": settings.privacy_hosting,
         "payment_provider": settings.privacy_payment_provider,
         "backup_days": str(settings.backup_keep_days),
-        "effective_date": PRIVACY_EFFECTIVE_DATE,
-    }.items():
-        privacy_page = privacy_page.replace("{" + key + "}", html.escape(value))
+        "effective_date": LEGAL_EFFECTIVE_DATE,
+        "premium_price": f"{PREMIUM_PRICE:,}".replace(",", " "),
+        "premium_days": str(PREMIUM_DAYS),
+        "trial_days": str(TRIAL_DAYS),
+        "starting_balance": f"{settings.starting_balance:,}".replace(",", " "),
+    }
+    pages = {}
+    for route, name in (
+        ("/confidentialite", "confidentialite"),
+        ("/conditions", "conditions"),
+        ("/suppression-compte", "suppression_compte"),
+    ):
+        text = (Path(__file__).parent / "web" / f"{name}.html").read_text()
+        for key, value in values.items():
+            text = text.replace("{" + key + "}", html.escape(value))
+        pages[route] = text
 
-    @app.get("/confidentialite", include_in_schema=False)
-    async def privacy_policy() -> HTMLResponse:
-        return HTMLResponse(privacy_page)
+    async def legal_page(request: Request) -> HTMLResponse:
+        return HTMLResponse(pages[request.url.path])
 
-    @app.get("/suppression-compte", include_in_schema=False)
-    async def account_deletion_page() -> HTMLResponse:
-        return HTMLResponse(deletion_page)
+    for route in pages:
+        app.add_api_route(route, legal_page, methods=["GET"], include_in_schema=False)
 
     @app.get("/metrics", include_in_schema=False)
     async def metrics() -> Response:
