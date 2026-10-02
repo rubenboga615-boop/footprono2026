@@ -272,6 +272,13 @@ class ProfileScreen extends StatelessWidget {
                     const _Item(icon: Icons.language_rounded, title: 'Langue', subtitle: 'Français'),
                     const Divider(),
                     _Item(
+                      icon: Icons.privacy_tip_outlined,
+                      title: 'Confidentialité',
+                      subtitle: 'Données collectées, durée, tes droits',
+                      onTap: () => state.openUrl(Uri.parse(state.api.baseUrl).resolve('/confidentialite')),
+                    ),
+                    const Divider(),
+                    _Item(
                       icon: Icons.delete_forever_outlined,
                       title: 'Supprimer mon compte',
                       subtitle: 'Efface tes données, définitivement',

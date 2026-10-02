@@ -30,6 +30,10 @@ x-backend: &backend
     FP_LOG_LEVEL: ${FP_LOG_LEVEL:-INFO}
     FP_API_FOOTBALL_KEY: ${FP_API_FOOTBALL_KEY:-}
     FP_RAW_DATA_DIR: /data/raw
+    # Politique de confidentialité (/confidentialite).
+    FP_LEGAL_NAME: ${FP_LEGAL_NAME:-FootProno (société en cours d'immatriculation)}
+    FP_CONTACT_EMAIL: ${FP_CONTACT_EMAIL:-[adresse e-mail à compléter]}
+    FP_BACKUP_KEEP_DAYS: ${FP_BACKUP_KEEP_DAYS:-14}
     # APK proposé en mise à jour (footprono-admin publish-apk).
     FP_APP_RELEASE_DIR: /data/app
     # Clé Firebase (notifications push) : deploy/secrets/firebase.json.

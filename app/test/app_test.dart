@@ -558,9 +558,20 @@ void main() {
   });
 
   testWidgets('suppression du compte : mot de passe redemandé, puis retour à la connexion', (tester) async {
-    final (state, server) = await startApp(tester, loggedIn: true);
+    final opened = <Uri>[];
+    final (state, server) = await startApp(
+      tester,
+      loggedIn: true,
+      openUrl: (url) async {
+        opened.add(url);
+        return true;
+      },
+    );
     await tester.tap(find.text('Profil'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Confidentialité'), 200);
+    await tester.tap(find.text('Confidentialité'));
+    expect(opened.single.path, '/confidentialite');
     await tester.scrollUntilVisible(find.text('Supprimer mon compte'), 200);
     await tester.tap(find.text('Supprimer mon compte'));
     await tester.pumpAndSettle();

@@ -86,3 +86,12 @@ async def test_delete_without_app(
     )
     assert ok.status_code == 204
     assert await _count(db_factory, User, id=world["user_id"]) == 0
+
+
+async def test_privacy_policy_page(client: AsyncClient) -> None:
+    page = await client.get("/confidentialite")
+    assert page.status_code == 200
+    assert "Politique de confidentialité" in page.text
+    assert "loi ivoirienne n° 2013-450" in page.text
+    assert "/suppression-compte" in page.text
+    assert "{" not in page.text.split("<style>")[0] + page.text.split("</style>")[1]

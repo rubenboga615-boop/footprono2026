@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FootProno — Politique de confidentialité</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #060509; color: #f4f2f8; font: 16px/1.6 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 19px; margin: 32px 0 8px; color: #b793f5; }
+  p, li, td { color: #d6d2df; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px; border-bottom: 1px solid #2a2638; }
+  th { color: #f4f2f8; }
+  a { color: #b793f5; }
+  .muted { color: #9e99ab; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Politique de confidentialité</h1>
+  <p class="muted">FootProno — en vigueur le {effective_date}</p>
+
+  <p>FootProno est une application d'analyse et de probabilités sur le football, avec un
+  bookmaker en <b>argent fictif</b> (ni achetable, ni convertible en argent réel) et un
+  abonnement Premium payant. Cette page dit quelles données nous collectons, pourquoi, combien
+  de temps nous les gardons et comment les supprimer. Nous ne vendons aucune donnée et ne
+  faisons aucune publicité ciblée.</p>
+
+  <h2>1. Responsable du traitement</h2>
+  <p>{legal_name}<br>Contact : <a href="mailto:{contact_email}">{contact_email}</a></p>
+  <p>Le traitement est soumis à la loi ivoirienne n° 2013-450 du 19 juin 2013 relative à la
+  protection des données à caractère personnel.</p>
+
+  <h2>2. Données collectées</h2>
+  <table>
+    <tr><th>Donnée</th><th>Pourquoi</th></tr>
+    <tr><td>Numéro de téléphone</td><td>Identifiant de connexion, un compte par numéro</td></tr>
+    <tr><td>Mot de passe (stocké sous forme hachée, illisible, jamais en clair)</td><td>Sécuriser l'accès au compte</td></tr>
+    <tr><td>Nom affiché, pays, devise</td><td>Personnaliser l'application, afficher les montants</td></tr>
+    <tr><td>Confirmation d'avoir 18 ans ou plus</td><td>Application réservée aux adultes</td></tr>
+    <tr><td>Paris, coupons et montantes en argent fictif ; solde fictif</td><td>Faire fonctionner le bookmaker virtuel et son historique</td></tr>
+    <tr><td>Notifications et jeton de notification du téléphone</td><td>Prévenir des paris réglés et des nouveautés</td></tr>
+    <tr><td>Abonnement Premium et paiements (montant, date, référence, statut)</td><td>Activer et justifier l'abonnement, comptabilité</td></tr>
+    <tr><td>Adresse IP (temporairement)</td><td>Limiter les tentatives de connexion abusives : gardée au plus 1 heure, jamais dans les journaux</td></tr>
+  </table>
+  <p>Nous ne collectons <b>pas</b> : localisation, contacts, photos, données bancaires ou de
+  carte (saisies uniquement chez le prestataire de paiement), identifiant publicitaire. Les
+  journaux techniques du serveur ne contiennent ni adresse IP ni numéro de téléphone.</p>
+
+  <h2>3. Prestataires qui reçoivent des données</h2>
+  <table>
+    <tr><th>Prestataire</th><th>Données</th><th>Rôle</th></tr>
+    <tr><td>Hébergeur du serveur ({hosting})</td><td>Toutes les données ci-dessus</td><td>Hébergement, sauvegardes</td></tr>
+    <tr><td>Google Firebase Cloud Messaging</td><td>Jeton de notification, texte des notifications</td><td>Envoi des notifications sur le téléphone</td></tr>
+    <tr><td>Prestataire de paiement ({payment_provider})</td><td>Montant, référence ; ton numéro Mobile Money ou ta carte sont saisis chez lui, pas chez nous</td><td>Encaissement du Premium</td></tr>
+  </table>
+  <p>Certains de ces prestataires peuvent traiter les données hors de Côte d'Ivoire ; ils
+  sont choisis pour leurs garanties de sécurité. Les données sportives (matchs, cotes,
+  statistiques) viennent de fournisseurs publics et ne concernent pas les utilisateurs.</p>
+
+  <h2>4. Durée de conservation</h2>
+  <ul>
+    <li>Compte et activité : tant que le compte existe ; effacés à la suppression du compte.</li>
+    <li>Sauvegardes du serveur : effacées automatiquement après {backup_days} jours (une donnée
+    supprimée peut donc subsister au plus {backup_days} jours dans une sauvegarde
+    d'accès restreint, jamais utilisée sauf pour réparer une panne).</li>
+    <li>Paiements : conservés pour la comptabilité, <b>détachés de la personne</b> après
+    suppression du compte (ni nom ni numéro).</li>
+    <li>Adresse IP : au plus 1 heure.</li>
+  </ul>
+
+  <h2>5. Tes droits</h2>
+  <p>Tu peux accéder à tes données, les corriger ou t'opposer à leur traitement en nous
+  écrivant à <a href="mailto:{contact_email}">{contact_email}</a>.</p>
+  <p><b>Supprimer ton compte</b> : dans l'application, Profil → Supprimer mon compte ; ou sans
+  l'application, sur la page <a href="/suppression-compte">Supprimer mon compte</a>. La
+  suppression est immédiate et définitive.</p>
+  <p>Tu peux aussi saisir l'ARTCI (Autorité de Régulation des Télécommunications/TIC de Côte
+  d'Ivoire), autorité de protection des données personnelles.</p>
+
+  <h2>6. Sécurité</h2>
+  <p>Connexions chiffrées (HTTPS), mots de passe hachés, accès au serveur limité,
+  tentatives de connexion limitées, sauvegardes quotidiennes.</p>
+
+  <h2>7. Mineurs</h2>
+  <p>FootProno est réservé aux personnes de 18 ans ou plus. Un compte ouvert par un mineur
+  sera supprimé dès qu'il nous est signalé.</p>
+
+  <h2>8. Modifications</h2>
+  <p>En cas de changement important, l'application t'en informe. La date en haut de cette
+  page indique la dernière version.</p>
+</main>
+</body>
+</html>

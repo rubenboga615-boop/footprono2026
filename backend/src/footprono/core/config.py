@@ -84,6 +84,12 @@ class Settings(BaseSettings):
 
     # Fichiers bruts archivés (football-data, Understat…), nommés par empreinte.
     raw_data_dir: Path = Path("data/raw")
+    # Politique de confidentialité (/confidentialite) : identité et contact du responsable.
+    legal_name: str = "FootProno (société en cours d'immatriculation)"
+    contact_email: str = "[adresse e-mail à compléter]"
+    privacy_hosting: str = "Hetzner Online GmbH, Allemagne"
+    privacy_payment_provider: str = "CinetPay"
+    backup_keep_days: int = Field(default=14, ge=1)
     # APK publié par « footprono-admin publish-apk » (mise à jour de l'application).
     app_release_dir: Path = Path("data/app")
 

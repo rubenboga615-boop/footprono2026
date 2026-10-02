@@ -138,3 +138,16 @@ Exigée par Google Play et l'App Store.
   prestataire vidée ; paiement en cours annulé (`cancelled`). Si un
   prestataire confirme ensuite un paiement annulé, le rembourser à la main.
 - Le dernier administrateur ne peut pas se supprimer (en nommer un autre).
+
+## Politique de confidentialité (02/10/2026)
+
+Page publique **`/confidentialite`** (lien dans Profil → Confidentialité et
+sur `/suppression-compte`) : données collectées et pourquoi, prestataires
+(hébergeur, Firebase, paiement), durées (sauvegardes 14 jours, paiements
+détachés après suppression, adresse IP au plus 1 heure), droits, ARTCI (loi
+n° 2013-450), 18 ans et plus. Identité et contact réglables sans toucher au
+code : `FP_LEGAL_NAME`, `FP_CONTACT_EMAIL` (`backend/.env` sur Termux,
+`deploy/.env` en production) ; date de version : `PRIVACY_EFFECTIVE_DATE`
+(`main.py`), à changer à chaque modification importante du texte.
+Texte non relu par un juriste : à faire relire avant la publication sur les
+magasins d'applications.
