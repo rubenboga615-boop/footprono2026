@@ -3,8 +3,9 @@
 Pour chaque championnat et chaque saison (matchs terminés seulement) : part des matchs
 avec score à la mi-temps, statistiques football-data (tirs, corners, cartons),
 arbitre, xG (Understat), statistiques API-Football du match et par mi-temps,
-cotes de clôture. Chaque trou récupérable est listé avec la commande qui le
-comble ; un trou qui ne l'est pas (la source n'a pas la donnée) est dit tel quel.
+cotes de clôture et du handicap asiatique. Chaque trou récupérable est listé
+avec la commande qui le comble ; un trou qui ne l'est pas (la source n'a
+pas la donnée) est dit tel quel.
 """
 
 from collections import defaultdict
@@ -13,6 +14,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from footprono.ingestion.quality import current_season_start
+from footprono.ingestion.reference import COMPETITIONS
 from footprono.ingestion.sources.api_football import HALF_SPLIT_FIRST_SEASON
 
 COLUMNS = {
@@ -23,8 +26,11 @@ COLUMNS = {
     "api_full": "stats API",
     "api_half": "par mi-t.",
     "closing_odds": "cotes",
+    "ah_odds": "cotes AH",
 }
 COMPLETE = 0.98  # en dessous : à compléter (quelques matchs manquent parfois à la source)
+FIRST_SEASON = 2016  # comme ingestion/cli.py : défaut des commandes d'ingestion
+AH_COMPLETE = 0.9  # football-data n'a pas la cote du handicap pour quelques matchs
 
 _QUERY = text(
     """
@@ -38,7 +44,9 @@ _QUERY = text(
       avg((exists(select 1 from match_team_stats t
                   where t.match_id = m.id and t.period = 'first_half'))::int) as api_half,
       avg((exists(select 1 from match_odds o
-                  where o.match_id = m.id and o.timing = 'close'))::int) as closing_odds
+                  where o.match_id = m.id and o.timing = 'close'))::int) as closing_odds,
+      avg((exists(select 1 from match_odds o
+                  where o.match_id = m.id and o.market = 'AH'))::int) as ah_odds
     from matches m
     join seasons s on s.id = m.season_id
     join competitions c on c.id = s.competition_id
@@ -65,12 +73,21 @@ def _todo(rows: list[dict[str, Any]]) -> list[str]:
             by_fix[("api-football", "arbitres (liste des matchs API-Football)")][comp].add(season)
         if r["xg"] < COMPLETE:
             by_fix[("understat", "xG Understat")][comp].add(season)
-        if r["fd_stats"] < COMPLETE or r["ht"] < COMPLETE or r["closing_odds"] < COMPLETE:
-            by_fix[("football-data", "statistiques, mi-temps ou cotes football-data")][comp].add(
-                season
-            )
+        if min(r["fd_stats"], r["ht"], r["closing_odds"]) < COMPLETE or r["ah_odds"] < AH_COMPLETE:
+            by_fix[
+                ("football-data", "statistiques, mi-temps ou cotes (dont handicap) football-data")
+            ][comp].add(season)
+    # Ce que couvre une commande sans --seasons ni --competitions.
+    every = {
+        (c.code, y) for c in COMPETITIONS for y in range(FIRST_SEASON, current_season_start() + 1)
+    }
     for (source, what), comps in by_fix.items():
         seasons = sorted({y for ys in comps.values() for y in ys})
+        if source != "api-football" and {(c, y) for c, ys in comps.items() for y in ys} >= every:
+            # Tout est concerné : la commande par défaut couvre 2016 → saison en cours.
+            out.append(f"{what} : tous les championnats, toutes les saisons\n"
+                       f"    bash scripts/termux/ingest.sh {source}")  # fmt: skip
+            continue
         out.append(
             f"{what} : {', '.join(f'{c} {_years(ys)}' for c, ys in sorted(comps.items()))}\n"
             f"    bash scripts/termux/ingest.sh {source} --seasons {','.join(map(str, seasons))} "

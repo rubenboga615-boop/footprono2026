@@ -26,6 +26,7 @@ async def test_coverage_lists_missing_sources(
     (row,) = report["rows"]
     assert (row["competition"], row["season"], row["matches"]) == ("EPL", 2024, 380)
     assert row["ht"] == row["fd_stats"] == row["referee"] == 1.0  # football-data
+    assert row["ah_odds"] > 0.9  # handicap asiatique (football-data)
     assert row["xg"] == row["api_full"] == 0.0  # Understat et API-Football pas encore collectés
     text = format_coverage(report)
     assert "ingest.sh api-football --seasons 2024 --competitions EPL" in text
