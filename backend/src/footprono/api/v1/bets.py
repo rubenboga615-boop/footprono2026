@@ -54,6 +54,8 @@ async def match_offer(match_id: int, session: SessionDep, user: OptionalUserDep)
                 model_fair_odds=round(1 / p, 3) if p else None,
                 opening_odds=first.price if first else None,
                 opened_at=first.fetched_at if first else None,
+                source_updated_at=o.source_updated_at,
+                checked_at=o.checked_at,
             )
         )
     return out

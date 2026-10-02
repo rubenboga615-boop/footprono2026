@@ -43,6 +43,10 @@ class GoalsConfig:
     # buts du championnat sur la fenêtre (mêmes poids), ils ne gardent que
     # leur information relative (quelle équipe crée plus ou moins).
     xg_rescale: bool = True
+    # Part des passes dangereuses (« deep » Understat, ramenées au niveau des xG)
+    # dans le signal d'occasions : 0,3 choisi sur 2019-22, confirmé sur 2022-26
+    # (1X2, plus/moins 2,5 et les deux marquent meilleurs ; docs/MOTEUR.md).
+    deep_weight: float = 0.3
     ridge: float = 2.0
     # A priori des équipes sans historique dans la fenêtre (promus) :
     # moyenne du quart le plus faible des équipes du championnat.
@@ -149,6 +153,20 @@ def training_mask(
     return np.asarray(mask, dtype=bool)
 
 
+def _with_deep(
+    hx: FloatArray, ax: FloatArray, hd: FloatArray, ad: FloatArray, w: FloatArray, weight: float
+) -> tuple[FloatArray, FloatArray]:
+    """xG mêlés aux passes dangereuses, ramenées au niveau des xG sur la fenêtre."""
+    ok = ~np.isnan(hx) & ~np.isnan(ax) & ~np.isnan(hd) & ~np.isnan(ad)
+    if not ok.any():
+        return hx, ax
+    k = float(np.sum(w[ok] * (hx[ok] + ax[ok])) / max(np.sum(w[ok] * (hd[ok] + ad[ok])), 1e-9))
+    hx, ax = hx.copy(), ax.copy()
+    hx[ok] = (1 - weight) * hx[ok] + weight * k * hd[ok]
+    ax[ok] = (1 - weight) * ax[ok] + weight * k * ad[ok]
+    return hx, ax
+
+
 def fit_goals(
     hist: History, competition: str, as_of: np.datetime64, cfg: GoalsConfig | None = None
 ) -> GoalsModel:
@@ -164,6 +182,8 @@ def fit_goals(
     yh, ya = hg.copy(), ag.copy()
     if cfg.xg_weight > 0:
         hx, ax = hist.hxg[mask], hist.axg[mask]
+        if cfg.deep_weight > 0 and len(hist.hdeep):
+            hx, ax = _with_deep(hx, ax, hist.hdeep[mask], hist.adeep[mask], w, cfg.deep_weight)
         ok = ~np.isnan(hx) & ~np.isnan(ax)
         scale = 1.0
         if cfg.xg_rescale and ok.any():

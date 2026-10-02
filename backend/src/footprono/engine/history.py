@@ -12,6 +12,7 @@ from numpy.typing import NDArray
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from footprono.football.referees import referee_key
 from footprono.ingestion.reference import AWARDED_MATCHES
 
 # Statistiques de match : colonne (domicile) de la requête, extérieur = suivante.
@@ -49,6 +50,9 @@ class History:
     stats: dict[str, tuple[FloatArray, FloatArray]] = field(default_factory=dict)
     # Arbitre : API-Football si connu (même écriture partout), sinon football-data.
     referee: NDArray[np.str_] = field(default_factory=lambda: np.array([], dtype=np.str_))
+    # Passes dangereuses (« deep », Understat) : vides si non chargées.
+    hdeep: FloatArray = field(default_factory=lambda: np.array([], dtype=np.float64))
+    adeep: FloatArray = field(default_factory=lambda: np.array([], dtype=np.float64))
 
     def __len__(self) -> int:
         return len(self.match_id)
@@ -65,6 +69,8 @@ class History:
             odds={k: v[mask] for k, v in self.odds.items()},
             stats={k: (h[mask], a[mask]) for k, (h, a) in self.stats.items()},
             referee=self.referee[mask] if len(self.referee) else self.referee,
+            hdeep=self.hdeep[mask] if len(self.hdeep) else self.hdeep,
+            adeep=self.adeep[mask] if len(self.adeep) else self.adeep,
         )  # fmt: skip
 
 
@@ -77,7 +83,7 @@ _MATCHES = text(
            m.home_corners, m.away_corners, m.home_yellow_cards, m.away_yellow_cards,
            m.home_red_cards, m.away_red_cards, m.home_shots, m.away_shots,
            m.home_shots_on_target, m.away_shots_on_target, m.home_fouls, m.away_fouls,
-           m.api_referee, m.referee
+           m.api_referee, m.referee, xh.deep AS hdeep, xa.deep AS adeep
     FROM matches m
     JOIN seasons s ON s.id = m.season_id
     JOIN competitions c ON c.id = s.competition_id
@@ -141,10 +147,15 @@ async def load_history(session: AsyncSession) -> History:
             )
             for name, col in STATS.items()
         },
+        # Un arbitre = une clé (initiale + nom), quelle que soit l'orthographe de la
+        # source : « Stuart Attwell », « S. Attwell » et « S Attwell » ne font qu'un
+        # (meilleur sur 2019-21 comme sur 2022-26, docs/MOTEUR.md).
         referee=np.array(
-            [f"api:{r[27]}" if r[27] else (f"fd:{r[28]}" if r[28] else "") for r in rows],
+            [referee_key(r[27] or r[28]) if (r[27] or r[28]) else "" for r in rows],
             dtype=np.str_,
         ),
+        hdeep=np.array([_nan(r[29]) for r in rows]),
+        adeep=np.array([_nan(r[30]) for r in rows]),
     )
     index = {int(mid): i for i, mid in enumerate(ids)}
     widths = {"1x2": 3, "ou25": 2, "ah": 3}

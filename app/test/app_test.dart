@@ -228,6 +228,8 @@ class FakeServer {
             'model_fair_odds': 2.439,
             'opening_odds': '2.040',
             'opened_at': '2026-09-30T07:30:00Z',
+            'source_updated_at': '2026-09-20T17:09:14Z',
+            'checked_at': '2026-10-09T08:00:00Z',
           },
         ];
       case 'GET /matches/7/odds-history':
@@ -753,6 +755,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cotes'));
     await tester.pumpAndSettle();
+    expect(find.textContaining('mises à jour le'), findsOneWidget);
+    expect(find.textContaining('pas mis ces cotes à jour depuis plus de 2 jours'), findsOneWidget);
     await tester.tap(find.text('▼ 2,04 → 1,85 · historique'));
     await tester.pumpAndSettle();
     expect(find.text('La cote est passée de 2,04 à 1,85 (2 changements).'), findsOneWidget);

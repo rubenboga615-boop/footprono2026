@@ -46,6 +46,10 @@ class Offer:
     quote_id: int
     fetched_at: datetime
     label: str  # libellé du bookmaker : « Match Winner — Home »
+    # Mise à jour de la cote chez la source (API-Football) et dernier relevé où elle
+    # était encore proposée : une cote peut être relevée souvent sans être mise à jour.
+    source_updated_at: datetime | None = None
+    checked_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -102,6 +106,8 @@ async def match_offer(
                 quote_id=r.id,
                 fetched_at=r.fetched_at,
                 label=f"{r.bet} — {r.value}",
+                source_updated_at=r.source_updated_at,
+                checked_at=r.last_seen_at,
             )
     return offers
 

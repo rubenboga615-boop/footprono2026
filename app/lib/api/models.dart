@@ -179,7 +179,9 @@ class Offer {
       fetchedAt = parseDate(j['fetched_at']),
       modelProbability = _dn(j['model_probability']),
       openingOdds = _dn(j['opening_odds']),
-      openedAt = parseDate(j['opened_at']);
+      openedAt = parseDate(j['opened_at']),
+      sourceUpdatedAt = parseDate(j['source_updated_at']),
+      checkedAt = parseDate(j['checked_at']);
   final String market;
   final String line;
   final String selection;
@@ -192,6 +194,11 @@ class Offer {
   /// Première cote relevée pour cette sélection chez ce bookmaker.
   final double? openingOdds;
   final DateTime? openedAt;
+
+  /// Dernière mise à jour de la cote chez la source (API-Football) ; peut être bien
+  /// plus ancienne que le dernier relevé de FootProno ([checkedAt]).
+  final DateTime? sourceUpdatedAt;
+  final DateTime? checkedAt;
   bool get moved => openingOdds != null && (openingOdds! - odds).abs() >= 0.005;
   String get key => '$market|$line|$selection';
 }

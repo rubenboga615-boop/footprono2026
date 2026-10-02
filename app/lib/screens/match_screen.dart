@@ -12,6 +12,9 @@ import 'odds_history.dart';
 import 'referee_screen.dart';
 import 'team_screen.dart';
 
+/// Cotes non mises à jour par la source depuis plus longtemps : signalées comme anciennes.
+const staleOdds = Duration(days: 2);
+
 class MatchData {
   MatchData(this.match, this.prediction, this.offers, this.analysis);
   final MatchInfo match;
@@ -331,17 +334,27 @@ class _MatchViewState extends State<_MatchView> {
     final order = [for (final g in marketGroups) ...g.markets];
     int rank(String k) => order.contains(k) ? order.indexOf(k) : 999;
     final markets = byMarket.keys.toList()..sort((a, b) => rank(a).compareTo(rank(b)));
-    final newest = d.offers
-        .map((o) => o.fetchedAt)
-        .whereType<DateTime>()
-        .fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
+    DateTime? latest(Iterable<DateTime?> dates) =>
+        dates.whereType<DateTime>().fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
+    final updated = latest(d.offers.map((o) => o.sourceUpdatedAt));
+    final checked = latest(d.offers.map((o) => o.checkedAt ?? o.fetchedAt));
+    final stale = updated != null && DateTime.now().difference(updated) > staleOdds;
     return [
       Text(
-        'Cotes réelles relevées chez 1xBet (Bet365 en secours)'
-        '${newest != null ? ', dernier relevé le ${dateTime(newest)}' : ''}. Paris en argent fictif. '
+        'Cotes réelles de 1xBet (Bet365 en secours)'
+        '${updated != null ? ', mises à jour le ${dateTime(updated.toLocal())} selon API-Football' : ''}'
+        '${checked != null ? ', vérifiées le ${dateTime(checked.toLocal())}' : ''}. Paris en argent fictif. '
         'La probabilité du moteur est une information : elle n\'annonce pas de « bon coup ».',
         style: Fp.body(12, color: Fp.text3, height: 1.4),
       ),
+      if (stale) ...[
+        const SizedBox(height: 6),
+        Text(
+          'Attention : la source n\'a pas mis ces cotes à jour depuis plus de 2 jours. Elles peuvent '
+          'différer de celles affichées aujourd\'hui chez le bookmaker.',
+          style: Fp.body(12, color: Fp.warning, height: 1.4),
+        ),
+      ],
       const SizedBox(height: 8),
       if (d.offers.isEmpty)
         const EmptyState(

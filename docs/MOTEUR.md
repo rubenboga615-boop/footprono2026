@@ -391,3 +391,58 @@ Les deux règles sont justes (écarts dans la marge, mêmes conclusions sur
 2019-2021) : seul change le compromis chances / gain. Retenu : milieu pour
 Sûr (cote enfin utile), plafond pour Équilibré et Audacieux (au milieu, ils
 se confondraient).
+
+## Études du 02/10/2026 sur les données réelles (export du serveur)
+
+Méthode habituelle : réglage choisi sur les saisons 2019-20 → 2021-22, puis
+confirmé sans retouche sur 2022-23 → 2025-26 (7 081 matchs). Log loss : plus
+bas = mieux.
+
+### Arbitres regroupés (adopté, moteur 2.2)
+
+Un même arbitre était écrit « Stuart Attwell » (API-Football), « S. Attwell »
+(API-Football, saisons récentes) ou « S Attwell » (football-data) : 520
+« arbitres » au lieu de 324. Clé unique initiale + nom
+(`football/referees.py`, `referee_key`). Cartons, plus/moins 4,5 :
+
+| | 2019-22 | 2022-26 |
+|---|---|---|
+| sans arbitre | 0,63811 | 0,66027 |
+| arbitre, noms bruts | 0,62878 | 0,65710 |
+| arbitre, noms regroupés | **0,62817** | **0,65637** |
+
+Poids de l'arbitre (`referee_prior`) : 10 reste le meilleur sur 2019-22
+(5 et 20 testés).
+
+### Passes dangereuses dans le signal d'occasions (adopté, moteur 2.2)
+
+Cible du modèle des buts : `0,3 × buts + 0,7 × signal`, où le signal était
+le xG ; il devient `0,7 × xG + 0,3 × deep` (passes réussies près de la
+surface, Understat, ramenées au niveau des xG sur la fenêtre). Poids 0,15 /
+0,3 / 0,45 / 0,6 / 0,8 / 1 testés sur 2019-22 : 0,3 le meilleur.
+
+Chaîne complète (corrections comprises), 2022-26 :
+
+| | 1X2 | RPS | +2,5 buts | les deux marquent |
+|---|---|---|---|---|
+| sans deep | 0,98274 | 0,19908 | 0,67583 | 0,68496 |
+| avec deep 0,3 | **0,98133** | **0,19875** | **0,67429** | **0,68466** |
+
+1X2 et plus/moins 2,5 meilleurs dans les 5 championnats ; « les deux
+marquent » très légèrement moins bon en Serie A et Bundesliga, meilleur
+ailleurs.
+
+Rejetés : xG hors penalty (npxG) à la place du xG, aucun gain (1X2 0,98855
+contre 0,98863 sur 2019-22, « les deux marquent » moins bon) ; pressing
+(PPDA) non retenu comme signal de force : il décrit un style de jeu, pas la
+qualité des occasions.
+
+### Corners et cartons de la 1re mi-temps : pas encore
+
+Statistiques par mi-temps disponibles depuis 2024-25 seulement. Modèle :
+moyenne du match × part de la 1re mi-temps du championnat (apprise sur
+2024-25), testé sur 2025-26 (1 751 matchs). Corners : pas mieux que la
+fréquence seule (plus de 3,5 : 0,6576 contre 0,6575). Cartons : mieux que la
+fréquence (plus de 1,5 : 0,6490 contre 0,6620) mais surestimés (plus de
+0,5 : annoncé 74,1 %, réalisé 72,0 %). Une seule saison de test : marchés
+non ajoutés, à refaire après 2026-27.

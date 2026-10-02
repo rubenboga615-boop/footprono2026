@@ -19,6 +19,9 @@ class OfferOut(BaseModel):
     # Première cote relevée pour cette sélection chez ce bookmaker (mouvement des cotes).
     opening_odds: Decimal | None = None
     opened_at: datetime | None = None
+    # Dernière mise à jour de la cote chez la source, et dernier relevé de FootProno.
+    source_updated_at: datetime | None = None
+    checked_at: datetime | None = None
 
 
 class OddsPointOut(BaseModel):

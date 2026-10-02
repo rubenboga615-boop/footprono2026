@@ -32,6 +32,8 @@ async def test_offer_shows_opening_odds_and_history(
     )
     assert home["odds"] == "1.750"
     assert home["opening_odds"] == "1.850"
+    assert home["checked_at"] is not None  # dernier relevé ; la mise à jour source peut manquer
+    assert "source_updated_at" in home
 
     r = await client.get(
         f"/api/v1/matches/{m1}/odds-history", params={"market": "1X2", "selection": "home"}
