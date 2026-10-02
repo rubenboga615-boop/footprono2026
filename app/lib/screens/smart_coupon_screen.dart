@@ -25,6 +25,7 @@ class SmartCouponScreen extends StatefulWidget {
     ('3days', '3 jours'),
     ('weekend', 'Ce week-end'),
     ('week', '7 jours'),
+    ('next', 'Prochaine journée'),
   ];
 
   @override
@@ -33,7 +34,7 @@ class SmartCouponScreen extends StatefulWidget {
 
 class _SmartCouponScreenState extends State<SmartCouponScreen> {
   int profile = 1;
-  int period = 2;
+  int period = 5; // Prochaine journée : jamais vide pendant une trêve
   int size = 3;
   bool busy = false;
   Json? result;

@@ -51,6 +51,7 @@ def test_period_windows() -> None:
     sunday = datetime(2026, 10, 4, 12, tzinfo=UTC)
     assert smart_coupon.period_window("weekend", sunday)[1] == datetime(2026, 10, 5, tzinfo=UTC)
     assert smart_coupon.period_window("week", friday)[1] == datetime(2026, 10, 9, tzinfo=UTC)
+    assert smart_coupon.french_day(friday) == "vendredi 2 octobre"
 
 
 def test_withdrawn_markets() -> None:
@@ -95,6 +96,25 @@ async def test_smart_coupon_api(
     ).json()
     assert sure["coupon"] is None
     assert "Seulement 0 match" in sure["message"]
+
+    # Rien aujourd'hui (matchs demain soir) : la date des prochains matchs est donnée.
+    today = (
+        await client.get(
+            "/api/v1/smart-coupon", params={"profile": "equilibre", "period": "today"},
+            headers=headers,
+        )
+    ).json()  # fmt: skip
+    if NOW.date() < DAY:
+        assert today["coupon"] is None
+        assert "Prochains matchs à partir du" in today["message"]
+    # « Prochaine journée » : trouve toujours les prochains matchs, même après une trêve.
+    nxt = (
+        await client.get(
+            "/api/v1/smart-coupon", params={"profile": "equilibre", "period": "next", "size": 2},
+            headers=headers,
+        )
+    ).json()  # fmt: skip
+    assert len(nxt["coupon"]["selections"]) == 2
 
     bad = await client.get("/api/v1/smart-coupon", params={"size": 9}, headers=headers)
     assert bad.status_code == 400

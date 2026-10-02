@@ -52,7 +52,10 @@ PERIODS = {
     "3days": "3 prochains jours",
     "weekend": "Ce week-end",
     "week": "7 prochains jours",
+    # Toujours des matchs : la prochaine journée, même après une trêve internationale.
+    "next": "Prochaine journée",
 }
+NEXT_ROUND_DAYS = 4  # vendredi → lundi
 MIN_SIZE, MAX_SIZE = 1, 4
 MIN_ODDS = Decimal("1.10")  # en dessous, la sélection ne rapporte presque rien
 CLOSE_BEFORE_KICKOFF = timedelta(minutes=15)
@@ -73,6 +76,8 @@ def period_window(period: str, now: datetime) -> tuple[datetime, datetime]:
         return start, today + timedelta(days=3)
     if period == "week":
         return start, today + timedelta(days=7)
+    if period == "next":  # fin fixée par generate, d'après le premier match à venir
+        return start, start
     # Ce week-end : samedi et dimanche (le week-end en cours s'il a commencé).
     saturday = today + timedelta(days=(5 - today.weekday()) % 7)
     if today.weekday() == 6:
@@ -111,6 +116,26 @@ async def _matches(
     if competitions:
         stmt = stmt.where(Competition.code.in_([c.upper() for c in competitions]))
     return list((await session.execute(stmt)).tuples().all())
+
+
+async def next_kickoff(
+    session: AsyncSession, after: datetime, competitions: list[str] | None = None
+) -> datetime | None:
+    """Coup d'envoi du premier match à venir (après ``after``)."""
+    far = after + timedelta(days=60)
+    found = await _matches(session, after, far, competitions)
+    return found[0][0].kickoff_at if found else None
+
+
+_DAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
+_MONTHS = (
+    "janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
+    "septembre", "octobre", "novembre", "décembre",
+)  # fmt: skip
+
+
+def french_day(d: datetime) -> str:
+    return f"{_DAYS[d.weekday()]} {d.day} {_MONTHS[d.month - 1]}"
 
 
 async def best_angles(
@@ -231,6 +256,10 @@ async def generate(
         raise AppError(f"nombre de sélections : {MIN_SIZE} à {MAX_SIZE}")
     now = now or datetime.now(UTC)
     start, end = period_window(period, now)
+    first = await next_kickoff(session, start, competitions)
+    if period == "next" and first is not None:
+        day = datetime(first.year, first.month, first.day, tzinfo=UTC)
+        end = day + timedelta(days=NEXT_ROUND_DAYS)
     prof = PROFILES[profile]
     picks = await best_angles(session, prof, start, end, now, competitions)
     chosen, others = picks[:size], picks[size : size + ALTERNATIVES]
@@ -242,10 +271,19 @@ async def generate(
         "period_label": PERIODS[period],
         "size": size,
         "generated_at": now,
+        "window": [start, end],
         "coupon": None,
         "alternatives": [],
         "message": None,
     }
+    if first is None or first >= end:
+        # Aucun match sur la période (trêve internationale, fin de saison) : le dire.
+        out["message"] = f"Aucun match prévu pour « {PERIODS[period].lower()} »." + (
+            f" Prochains matchs à partir du {french_day(first)} : choisis « Prochaine journée »."
+            if first is not None
+            else " Aucun match à venir au calendrier pour l'instant."
+        )
+        return out
     if len(chosen) < size:
         out["message"] = (
             f"Seulement {len(chosen)} match(s) avec une sélection « {prof.label.lower()} » et une "

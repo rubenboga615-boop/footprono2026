@@ -93,7 +93,10 @@ Onglet **Coupon** → carte « Coupon intelligent » (Premium).
 
 - **Profil** : Sûr (75 à 92 % par sélection), Équilibré (60 à 75 %),
   Audacieux (45 à 60 %).
-- **Période** : aujourd'hui, demain, 3 jours, ce week-end, 7 jours. Inutile
+- **Période** : prochaine journée (par défaut : du premier match à venir
+  jusqu'au lundi qui suit, même après une trêve internationale), aujourd'hui,
+  demain, 3 jours, ce week-end, 7 jours. Sans match sur la période, l'écran
+  donne la date des prochains matchs. Inutile
   d'attendre le jour du match : les prédictions couvrent 10 jours ; seules
   les cotes réelles (relevées à 07:30 et 16:30 UTC) limitent l'horizon.
   Fermeture 15 minutes avant le coup d'envoi.
@@ -115,4 +118,5 @@ puis réglé avec les paris (mêmes règles). Rien n'est effacé ; bilan par
 profil : probabilité annoncée moyenne contre taux de réussite observé.
 
 **Montante** : les suggestions de palier gardent leur plage de cote mais
-utilisent les mêmes règles de marchés et les mêmes probabilités.
+utilisent les mêmes règles de marchés et les mêmes probabilités. Matchs des
+3 prochains jours, ou de la prochaine journée pendant une trêve.

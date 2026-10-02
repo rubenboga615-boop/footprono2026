@@ -18,7 +18,7 @@ from typing import Any
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from footprono.bookmaker import service
+from footprono.bookmaker import service, smart_coupon
 from footprono.bookmaker.rules import automatic
 from footprono.football.models import Match, MatchStatus
 
@@ -35,11 +35,17 @@ class Candidate:
 
 
 async def _candidates(session: AsyncSession, high: Decimal, now: datetime) -> list[Candidate]:
+    start, end = now + CLOSE_BEFORE_KICKOFF, now + HORIZON
+    first = await smart_coupon.next_kickoff(session, start)
+    if first is not None and first >= end:
+        # Trêve : rien dans les 3 jours, on prend la prochaine journée.
+        day = datetime(first.year, first.month, first.day, tzinfo=UTC)
+        end = day + timedelta(days=smart_coupon.NEXT_ROUND_DAYS)
     matches = (
         await session.scalars(
             select(Match).where(
                 Match.status == MatchStatus.SCHEDULED,
-                Match.kickoff_at.between(now + CLOSE_BEFORE_KICKOFF, now + HORIZON),
+                Match.kickoff_at.between(start, end),
                 or_(Match.api_status.is_(None), Match.api_status.in_(("NS", "TBD"))),
             )
         )
