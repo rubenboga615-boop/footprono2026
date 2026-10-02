@@ -8,6 +8,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'record_screen.dart';
 
 class BookmakerScreen extends StatefulWidget {
   const BookmakerScreen({super.key});
@@ -66,7 +67,18 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(18, 26, 18, 120),
                 children: [
-                  const TwoToneTitle('Bookmaker', 'virtuel'),
+                  Row(
+                    children: [
+                      const Expanded(child: TwoToneTitle('Bookmaker', 'virtuel')),
+                      SquareButton(
+                        icon: Icons.insights_rounded,
+                        tooltip: 'Mon bilan',
+                        onTap: () =>
+                            Navigator.of(context)
+                                .push(MaterialPageRoute(builder: (_) => const RecordScreen())),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     'Parie sans argent réel pour tester tes stratégies.',

@@ -116,6 +116,7 @@ les paris sont sur le serveur : rien n'est perdu), puis installer le nouvel APK.
 | Montante | création (mise, paliers, plages, part sécurisée), tableau, chances, encaisser, historique | `/montantes*` |
 | Pari du palier (Premium) | 3 suggestions, probabilité du modèle et selon la cote, côte à côte (aucun « bon plan ») | `/montantes/{id}/suggestions` |
 | Bookmaker | solde fictif, en jeu, rendement, paris en cours / réglés, mouvements | `/bets`, `/me/wallet/*` |
+| Mon bilan (icône du Bookmaker, visible par le joueur seul) | paris réglés, gagnés / perdus, misé, récupéré, résultat net, rendement ; annoncé (moteur) contre selon la cote contre réalisé par tranche de probabilité, « peu de paris » sous 20 sélections ; réussite par marché et par championnat ; rappel de jeu responsable si les mises de la semaine doublent | `/me/record` |
 | Profil | formule et prix, notifications, fiabilité, mot de passe, jeu responsable, serveur, administration ; numéro de version en bas | `/me`, `/me/password` |
 | Fiabilité | annoncé contre réalisé par marché et championnat, références, backtest séparé | `/reliability` |
 | Notifications | en direct (WebSocket) et historique | `/ws`, `/me/notifications` |

@@ -427,6 +427,38 @@ class FakeServer {
             ref('Tim Kirk', 6, 2.5),
           ],
         };
+      case 'GET /bets':
+        body = [];
+      case 'GET /me/wallet/entries':
+        body = [];
+      case 'GET /me/record':
+        Map<String, dynamic> band(double low, int n, double a, double imp, double obs) => {
+          'low': low,
+          'high': low + 0.1,
+          'selections': n,
+          'announced': a,
+          'implied': imp,
+          'observed': obs,
+          'enough': n >= 20,
+        };
+        body = {
+          'bets': {'settled': 26, 'open': 1, 'won': 16, 'lost': 10, 'push': 0, 'partial': 0},
+          'staked': 30000,
+          'returned': 33000,
+          'profit': 3000,
+          'yield': 0.1,
+          'by_market': [
+            {'key': '1X2', 'won': 15, 'lost': 10, 'push': 0, 'rate': 0.6},
+          ],
+          'by_competition': [
+            {'key': 'LIGUE_1', 'won': 16, 'lost': 10, 'push': 1, 'rate': 0.6154},
+          ],
+          'calibration': [band(0.6, 25, 0.65, 0.625, 0.6), band(0.5, 1, 0.55, 0.5, 1.0)],
+          'min_band': 20,
+          'stakes_7d': 40000,
+          'stakes_prev_7d': 10000,
+          'rising': true,
+        };
       case 'POST /bets':
         final b = jsonDecode(r.body) as Map<String, dynamic>;
         placedBets.add(b);
@@ -679,6 +711,24 @@ void main() {
     expect(find.text('MOINS DE 15 MATCHS (NON CLASSÉS)'), findsOneWidget);
     expect(find.text('Tim Kirk'), findsOneWidget);
     expect(find.textContaining('4 matchs de cette saison sans arbitre connu'), findsOneWidget);
+  });
+
+  testWidgets('Mon bilan : rendement, annoncé contre réalisé, rappel de jeu responsable', (tester) async {
+    await startApp(tester, loggedIn: true);
+    await tester.binding.setSurfaceSize(const Size(430, 2400));
+    await tester.tap(find.text('Bookmaker'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Mon bilan'));
+    await tester.pumpAndSettle();
+    expect(find.text(signedMoney(3000)), findsOneWidget);
+    expect(
+      find.text('Tes sélections annoncées autour de 65$nbsp% ont gagné 60$nbsp% du temps.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Moins de 20 sélections'), findsOneWidget);
+    expect(find.textContaining('ont au moins doublé'), findsOneWidget);
+    expect(find.text('Résultat du match'), findsOneWidget);
+    expect(find.text('Ligue 1'), findsOneWidget);
   });
 
   testWidgets('notifications push : téléphone enregistré, notification touchée, déconnexion', (tester) async {

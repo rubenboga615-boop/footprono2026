@@ -1,6 +1,6 @@
 """Bookmaker virtuel : offre d'un match, paris, historique (argent fictif)."""
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, status
 from sqlalchemy import select
@@ -10,6 +10,7 @@ from footprono.accounts.plans import market_allowed
 from footprono.api.deps import CurrentUserDep, OptionalUserDep, SessionDep
 from footprono.bookmaker import service
 from footprono.bookmaker.models import Bet, BetSelection
+from footprono.bookmaker.record import player_record
 from footprono.bookmaker.schemas import BetIn, BetOut, BetSelectionOut, OfferOut
 from footprono.core.errors import NotFoundError
 from footprono.football.models import Match, Team
@@ -112,6 +113,12 @@ async def list_bets(
         stmt = stmt.where(Bet.status == status_)
     bets = (await session.scalars(stmt.order_by(Bet.id.desc()).limit(limit))).all()
     return [await _bet_out(session, b) for b in bets]
+
+
+@router.get("/me/record")
+async def my_record(user: CurrentUserDep, session: SessionDep) -> dict[str, Any]:
+    """Mon bilan : rendement, réussite par marché et championnat, annoncé contre réalisé."""
+    return await player_record(session, user.id)
 
 
 @router.get("/bets/{bet_id}", response_model=BetOut)
