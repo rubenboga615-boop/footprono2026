@@ -98,7 +98,7 @@ Onglet **Coupon** → carte « Coupon intelligent » (Premium).
   demain, 3 jours, ce week-end, 7 jours. Sans match sur la période, l'écran
   donne la date des prochains matchs. Inutile
   d'attendre le jour du match : les prédictions couvrent 10 jours ; seules
-  les cotes réelles (relevées à 07:30 et 16:30 UTC) limitent l'horizon.
+  les cotes réelles (relevées toutes les 3 heures) limitent l'horizon.
   Fermeture 15 minutes avant le coup d'envoi.
 - **1 à 4 sélections**, jamais deux du même match.
 - Méthode : dans chaque match, la sélection la plus probable de la tranche du

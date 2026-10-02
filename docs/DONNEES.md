@@ -92,7 +92,7 @@ les comble. « — » : la source n'a pas la donnée (mi-temps API-Football avan
   sauf s'il est reporté sans nouvelle date ; Understat ne l'écrase plus
   ensuite. Un match reporté, annulé ou arrêté n'est pas prédit.
 - **Cotes des matchs à venir** (`footprono-ingest odds`, tâche `collect_odds`
-  à 07:30 et 16:30 UTC) : bookmakers de `FP_ODDS_BOOKMAKERS` (défaut 1xBet,
+  toutes les 3 heures, de 01:30 à 22:30 UTC) : bookmakers de `FP_ODDS_BOOKMAKERS` (défaut 1xBet,
   Bet365, Pinnacle ; Pinnacle sert de référence interne et n'est pas
   affiché). Table `bookmaker_odds` : chaque cote gardée telle que publiée
   (nom du pari, libellé), une ligne ajoutée seulement quand la cote change,
