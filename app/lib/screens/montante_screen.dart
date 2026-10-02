@@ -1106,6 +1106,18 @@ class _SuggestionCard extends StatelessWidget {
                               '$home – $away${m != null ? ' · ${shortDate(m.date)} ${m.when}' : ''}',
                               style: Fp.body(13, color: Fp.text2),
                             ),
+                            if (explainSelection(
+                                  sel['market'] as String,
+                                  (sel['line'] ?? '') as String,
+                                  sel['selection'] as String,
+                                  home: home,
+                                  away: away,
+                                )
+                                case final e?)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 3),
+                                child: Text(e, style: Fp.body(12, color: Fp.accentLight, height: 1.35)),
+                              ),
                           ],
                         ),
                       ),

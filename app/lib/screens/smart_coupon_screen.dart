@@ -274,6 +274,18 @@ class _SelectionRow extends StatelessWidget {
                 '${kickoff != null ? ' · ${shortDate(kickoff)} ${hourMinute(kickoff)}' : ''}',
                 style: Fp.body(12, color: Fp.text2),
               ),
+              if (explainSelection(
+                    s['market'] as String,
+                    (s['line'] ?? '') as String,
+                    s['selection'] as String,
+                    home: home,
+                    away: away,
+                  )
+                  case final e?)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(e, style: Fp.body(12, color: Fp.accentLight, height: 1.35)),
+                ),
               for (final r in reasons)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),

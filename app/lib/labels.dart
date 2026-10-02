@@ -323,3 +323,101 @@ int compareSelections(String lineA, String selA, String lineB, String selB) {
   final r = rank(selA).compareTo(rank(selB));
   return r != 0 ? r : selA.compareTo(selB);
 }
+
+// --- Explications en français simple (handicaps, remboursé si nul) -------------
+
+String _goals(int n) => n == 1 ? '1 but' : '$n buts';
+
+/// Écart précis : « Villarreal perd de 2 buts », « match nul »…
+String _margin(String team, int d) => switch (d) {
+  0 => 'match nul',
+  1 => '$team gagne d\'un but',
+  -1 => '$team perd d\'un but',
+  > 0 => '$team gagne de ${_goals(d)}',
+  _ => '$team perd de ${_goals(-d)}',
+};
+
+/// Écart d'au moins k buts pour l'équipe (k peut être négatif).
+String _atLeast(String team, int k) {
+  if (k >= 2) return '$team gagne de ${_goals(k)} ou plus';
+  if (k == 1) return '$team gagne';
+  if (k == 0) return '$team gagne ou fait match nul';
+  if (k == -1) return '$team gagne, fait match nul ou perd d\'un seul but';
+  return '$team ne perd pas de ${_goals(-k + 1)} ou plus';
+}
+
+/// Résultat d'un handicap asiatique h pour l'équipe, selon l'écart d (buts de l'équipe − adversaire).
+String _ahResult(double h, int d) {
+  double part(double x) => x > 0 ? 1 : (x == 0 ? 0.5 : 0); // 1 gagné, 0,5 remboursé, 0 perdu
+  final quarter = ((h * 4).round() % 2).abs() == 1;
+  final v = quarter ? (part(d + h - 0.25) + part(d + h + 0.25)) / 2 : part(d + h);
+  return switch (v) {
+    1.0 => 'win',
+    0.75 => 'half_win',
+    0.5 => 'push',
+    0.25 => 'half_loss',
+    _ => 'loss',
+  };
+}
+
+/// Une phrase qui dit quand la sélection est gagnée ; null si le libellé suffit.
+String? explainSelection(
+  String market,
+  String line,
+  String sel, {
+  String home = 'Domicile',
+  String away = 'Extérieur',
+}) {
+  final v = double.tryParse(line) ?? 0;
+  if (market == 'DNB') {
+    return 'Gagné si ${_side(sel, home, away)} gagne. Match nul : mise remboursée.';
+  }
+  if (market == 'EH') {
+    // Handicap européen : la ligne s'ajoute au score du domicile, 3 issues, jamais de remboursement.
+    final eh = v.round();
+    if (sel == 'draw') return 'Gagné seulement si ${_margin(home, -eh)}.';
+    final team = sel == 'home' ? home : away;
+    final k = sel == 'home' ? 1 - eh : 1 + eh;
+    return 'Gagné si ${_atLeast(team, k)}. Sinon perdu.';
+  }
+  if (market != 'AH') return null;
+  final team = sel == 'home' ? home : away;
+  final h = sel == 'home' ? v : -v; // handicap de l'équipe choisie
+  final out = <String>[];
+  int? winFrom;
+  for (var d = -8; d <= 8; d++) {
+    if (_ahResult(h, d) == 'win') {
+      winFrom = d;
+      break;
+    }
+  }
+  if (winFrom != null) out.add('Gagné si ${_atLeast(team, winFrom)}.');
+  for (var d = -8; d <= 8; d++) {
+    final r = _ahResult(h, d);
+    final text = switch (r) {
+      'half_win' => 'moitié gagnée, moitié remboursée',
+      'push' => 'mise remboursée',
+      'half_loss' => 'moitié perdue, moitié remboursée',
+      _ => null,
+    };
+    if (text != null) {
+      final m = _margin(team, d);
+      out.add('${m[0].toUpperCase()}${m.substring(1)} : $text.');
+    }
+  }
+  out.add('Sinon perdu.');
+  return out.join(' ');
+}
+
+/// Comment lire un marché (affiché sous son titre), pour ceux qui ne le connaissent pas.
+String? marketHelp(String market) => switch (market) {
+  'AH' =>
+    'Handicap asiatique : on ajoute le chiffre au score de l\'équipe. « +1,5 » = on lui '
+        'donne 1,5 but d\'avance ; « −1,5 » = elle doit gagner de 2 buts ou plus. Les lignes en '
+        ',25 et ,75 partagent la mise en deux paris (moitié gagnée ou remboursée possible).',
+  'EH' =>
+    'Handicap européen : on ajoute le chiffre au score de l\'équipe, avec 3 issues '
+        '(équipe, nul, adversaire). Jamais de remboursement.',
+  'DNB' => 'Remboursé si nul : tu gagnes si l\'équipe gagne, ta mise est rendue en cas de match nul.',
+  _ => null,
+};

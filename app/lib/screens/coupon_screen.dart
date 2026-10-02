@@ -282,6 +282,18 @@ class _CouponScreenState extends State<CouponScreen> {
                                       ),
                                       style: Fp.body(15, weight: FontWeight.w700),
                                     ),
+                                    if (explainSelection(
+                                          c.offer.market,
+                                          c.offer.line,
+                                          c.offer.selection,
+                                          home: c.match.home.name,
+                                          away: c.match.away.name,
+                                        )
+                                        case final e?)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 3),
+                                        child: Text(e, style: Fp.body(12, color: Fp.text3, height: 1.35)),
+                                      ),
                                   ],
                                 ),
                               ),

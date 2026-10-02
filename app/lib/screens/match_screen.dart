@@ -757,9 +757,20 @@ class _MarketCardState extends State<_MarketCard> {
             marketTitle(widget.market, home: m.home.name, away: m.away.name),
             style: Fp.title(15, weight: FontWeight.w600),
           ),
+          if (marketHelp(widget.market) case final help?) ...[
+            const SizedBox(height: 4),
+            Text(help, style: Fp.body(12, color: Fp.text3, height: 1.4)),
+          ],
           const SizedBox(height: 4),
           for (final s in visible)
             _ProbRow(
+              explain: explainSelection(
+                widget.market,
+                s.line,
+                s.selection,
+                home: m.home.name,
+                away: m.away.name,
+              ),
               label: selectionLabel(widget.market, s.line, s.selection, home: m.home.name, away: m.away.name),
               prob: s,
               offer: widget.offers[s.key],
@@ -777,8 +788,9 @@ class _MarketCardState extends State<_MarketCard> {
 }
 
 class _ProbRow extends StatelessWidget {
-  const _ProbRow({required this.label, required this.prob, required this.match, this.offer});
+  const _ProbRow({required this.label, required this.prob, required this.match, this.offer, this.explain});
   final String label;
+  final String? explain;
   final Prob prob;
   final Offer? offer;
   final MatchInfo match;
@@ -803,6 +815,10 @@ class _ProbRow extends StatelessWidget {
                     Text(percent(prob.probability), style: Fp.body(14, weight: FontWeight.w700)),
                   ],
                 ),
+                if (explain != null) ...[
+                  const SizedBox(height: 3),
+                  Text(explain!, style: Fp.body(12, color: Fp.text3, height: 1.35)),
+                ],
                 const SizedBox(height: 8),
                 ProbBar(prob.probability, height: 6),
                 if (prob.fairOdds != null || push.isNotEmpty) ...[
