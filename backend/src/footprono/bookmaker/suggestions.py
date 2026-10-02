@@ -86,10 +86,9 @@ def _describe(combo: tuple[Candidate, ...]) -> dict[str, Any]:
         ],
         "total_odds": total,
         "model_probability": round(probability, 4),
+        # Affichée à côté, sans « bon plan » : face au marché, le moteur ne
+        # gagne pas (log loss et rendement aux vraies cotes, docs/MOTEUR.md).
         "implied_probability": round(implied, 4),
-        "gap": round(probability - implied, 4),
-        # Le moteur juge ce pari moins probable que ce que suppose sa cote.
-        "advised": probability >= implied,
     }
 
 

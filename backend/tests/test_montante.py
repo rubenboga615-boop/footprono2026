@@ -112,8 +112,8 @@ async def test_montante_end_to_end(
     ranked = proposals["suggestions"]
     assert [s["model_probability"] for s in ranked] == [0.6, 0.6, 0.5]
     assert all(Decimal("1.80") <= Decimal(s["total_odds"]) <= Decimal("1.90") for s in ranked)
-    assert ranked[0]["advised"] is True  # 60 % contre 1/1,85 = 54 %
-    assert ranked[2]["advised"] is False  # 50 % contre 1/1,90 = 53 % : déconseillé
+    assert "advised" not in ranked[0]  # aucun « bon plan » face à la cote
+    assert ranked[0]["implied_probability"] == 0.5405  # 1 / 1,85
 
     # Palier 1 : victoire à domicile de m1 à 1,85, mise imposée (5 000).
     first = await client.post(

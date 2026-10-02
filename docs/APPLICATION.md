@@ -56,7 +56,7 @@ page elle-même (`FP_WEB_APP_DIR`) : même adresse, aucun réglage CORS.
 | Coupon intelligent (Premium) | profil Sûr / Équilibré / Audacieux, période (aujourd'hui → 7 jours), 1 à 4 sélections ; cotes réelles, probabilité, deux faits par sélection, 3 autres choix ; « Mettre dans mon coupon » | `/smart-coupon` |
 | Coupons du jour (public) | coupons enregistrés chaque matin avant les matchs, gagnés ou perdus, bilan annoncé / observé | `/smart-coupons/history` |
 | Montante | création (mise, paliers, plages, part sécurisée), tableau, chances, encaisser, historique | `/montantes*` |
-| Pari du palier (Premium) | 3 suggestions, écart modèle / cote, « déconseillé » | `/montantes/{id}/suggestions` |
+| Pari du palier (Premium) | 3 suggestions, probabilité du modèle et selon la cote, côte à côte (aucun « bon plan ») | `/montantes/{id}/suggestions` |
 | Bookmaker | solde fictif, en jeu, rendement, paris en cours / réglés, mouvements | `/bets`, `/me/wallet/*` |
 | Profil | formule et prix, notifications, fiabilité, mot de passe, jeu responsable, serveur, administration | `/me`, `/me/password` |
 | Fiabilité | annoncé contre réalisé par marché et championnat, références, backtest séparé | `/reliability` |
@@ -66,8 +66,9 @@ page elle-même (`FP_WEB_APP_DIR`) : même adresse, aucun réglage CORS.
 Règles respectées dans l'application :
 
 - Aucune donnée inventée : sans prédiction ou sans cote, l'écran le dit.
-- Aucune « value » : la probabilité du moteur est une information ; les
-  suggestions de montante indiquent l'écart et « déconseillé », rien de plus.
+- Aucune « value » : la probabilité du moteur est une information, affichée
+  à côté de celle de la cote ; aucun badge d'écart ni « bon plan » (face au
+  marché, le moteur ne gagne pas : `MOTEUR.md`, handicap asiatique).
 - Argent fictif rappelé sur le bookmaker, le coupon et le profil.
 - Marchés Premium signalés (verrou), jamais masqués en silence.
 

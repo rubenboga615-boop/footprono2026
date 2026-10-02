@@ -9,7 +9,11 @@ Décidé sur les audits hors échantillon (docs/MARCHES.md, docs/MOTEUR.md) :
   correction prouvée ;
 - combinés dans un même match, score exact, mi-temps / fin de match, écart de
   buts : choisis comme « meilleur angle », ils sont surestimés (malédiction
-  du gagnant) ou trop improbables pour un coupon.
+  du gagnant) ou trop improbables pour un coupon ;
+- handicap asiatique (et ceux des statistiques) : à la ligne du bookmaker, le
+  moteur fait moins bien que pile ou face (log loss 0,704 contre 0,692 pour
+  le marché, 7 000 matchs 2022-2025, `footprono-engine ah`) ; ses écarts avec
+  le marché sont du bruit, pas une information.
 
 L'utilisateur peut toujours les jouer lui-même ; ils ne sont simplement
 jamais proposés automatiquement.
@@ -18,9 +22,10 @@ jamais proposés automatiquement.
 from footprono.engine.markets import WITHDRAWN_MARKETS
 
 NOT_AUTOMATIC = frozenset(
-    {"CS", "HTFT", "1X2_OU", "1X2_BTTS", "OU_BTTS", "MARGIN", "BOOKING_POINTS_OU"}
+    {"CS", "HTFT", "1X2_OU", "1X2_BTTS", "OU_BTTS", "MARGIN", "BOOKING_POINTS_OU", "AH"}
 )
 NOT_AUTOMATIC_PREFIXES = ("CARDS_",)
+NOT_AUTOMATIC_SUFFIXES = ("_AH",)
 
 
 def automatic(market: str) -> bool:
@@ -29,4 +34,5 @@ def automatic(market: str) -> bool:
         market not in WITHDRAWN_MARKETS
         and market not in NOT_AUTOMATIC
         and not market.startswith(NOT_AUTOMATIC_PREFIXES)
+        and not market.endswith(NOT_AUTOMATIC_SUFFIXES)
     )

@@ -229,7 +229,8 @@ class _CouponCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Selon la cote (marge comprise) : ${percent(implied, decimals: 1)}.',
+            'Selon la cote (marge comprise) : ${percent(implied, decimals: 1)}. Quand le moteur et la '
+            'cote ne sont pas d\'accord, la cote a le plus souvent raison.',
             style: Fp.body(12, color: Fp.text3),
           ),
           const SizedBox(height: 14),

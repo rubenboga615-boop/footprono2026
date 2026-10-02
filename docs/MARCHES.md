@@ -134,4 +134,5 @@ dans `MOTEUR.md`), points de cartons, corners / cartons / tirs par mi-temps
   règles (`bookmaker/rules.py`). Exclus : score exact, mi-temps / fin de
   match, combinés dans un même match (surestimés par l'étude des angles),
   marge de victoire, cartons et points de cartons (trop sûrs au-dessus de
-  50 % depuis 2022). Ces marchés restent jouables à la main.
+  50 % depuis 2022), handicap asiatique (à la ligne du bookmaker, moins bien
+  que pile ou face, voir `MOTEUR.md`). Ces marchés restent jouables à la main.

@@ -54,6 +54,17 @@ def test_period_windows() -> None:
     assert smart_coupon.french_day(friday) == "vendredi 2 octobre"
 
 
+def test_automatic_markets() -> None:
+    from footprono.bookmaker.rules import automatic
+
+    # Handicap asiatique : moins bien que pile ou face à la ligne du bookmaker.
+    assert not automatic("AH")
+    assert not automatic("CORNERS_AH")
+    assert not automatic("CARDS_OU")
+    assert automatic("OU")
+    assert automatic("EH")
+
+
 def test_withdrawn_markets() -> None:
     assert not offered("ODD_EVEN||odd")
     assert not offered("HT_BTTS||yes")

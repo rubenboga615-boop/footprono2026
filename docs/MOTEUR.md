@@ -355,3 +355,19 @@ footprono-engine ah                                         # handicap asiatique
 footprono-engine predict                                    # prédit et enregistre les 10 prochains jours
 bash scripts/termux/engine.sh backtest                      # sur le téléphone
 ```
+
+## Handicap asiatique contre le marché, données réelles (02/10/2026)
+
+`footprono-engine ah` après chargement des cotes football-data du handicap
+(2022-2025, environ 7 080 matchs, ligne du bookmaker) :
+
+| Cotes | Log loss moteur | Log loss marché | Pile ou face |
+|---|---|---|---|
+| Avant-match | 0,7038 | 0,6919 | 0,6931 |
+| Clôture | 0,7058 | 0,6920 | 0,6931 |
+
+Rendement en jouant quand le moteur voit une espérance positive : −3,6 à
+−6,5 % (± 2,3 à 4,4), pire quand l'écart annoncé est grand. À la ligne du
+bookmaker, les écarts du moteur avec le marché sont du bruit. Décisions :
+handicap asiatique retiré des choix automatiques (`bookmaker/rules.py`) ;
+plus aucun badge d'écart avec la cote dans l'application.

@@ -1019,13 +1019,14 @@ class SuggestionsScreen extends StatelessWidget {
                     rank: i + 1,
                     s: s,
                     matches: matches,
-                    primary: i == 0 && s['advised'] == true,
+                    primary: i == 0,
                     onPlay: () => _play(context, s, data),
                   ),
                 const SizedBox(height: 8),
                 Text(
-                  'L\'écart en points compare la probabilité du modèle à celle déduite de la cote. '
-                  '« Déconseillé » : le modèle juge le pari moins probable que sa cote. Rien n\'est joué '
+                  'Modèle : chances estimées par notre moteur. Selon la cote : chances que donne le '
+                  'bookmaker. Quand les deux ne sont pas d\'accord, la cote a le plus souvent raison '
+                  '(vérifié sur 7 000 matchs) : un écart n\'est pas une bonne affaire. Rien n\'est joué '
                   'sans ta validation.',
                   style: Fp.body(12, color: Fp.text3, height: 1.4),
                 ),
@@ -1055,8 +1056,6 @@ class _SuggestionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sels = (s['selections'] as List).cast<Json>();
-    final gap = ((s['gap'] as num).toDouble() * 100).round();
-    final advised = s['advised'] == true;
     final kind = sels.length == 1 ? 'SIMPLE' : 'COMBINÉ DE ${sels.length}';
     return GlassCard.section(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1071,7 +1070,6 @@ class _SuggestionCard extends StatelessWidget {
                   style: Fp.body(14, color: Fp.text2, weight: FontWeight.w700).copyWith(letterSpacing: 1),
                 ),
               ),
-              gap >= 0 ? Tag.win('+$gap pts vs la cote') : Tag.loss('$gap pts vs la cote'),
             ],
           ),
           const SizedBox(height: 10),
@@ -1143,13 +1141,6 @@ class _SuggestionCard extends StatelessWidget {
               ),
             ],
           ),
-          if (!advised) ...[
-            const SizedBox(height: 10),
-            Text(
-              'Le modèle est moins confiant que ne le laissent croire les cotes. Déconseillé.',
-              style: Fp.body(13, color: Fp.lossText, height: 1.4),
-            ),
-          ],
           const SizedBox(height: 14),
           primary
               ? FilledButton(onPressed: onPlay, child: const Text('Choisir ce pari'))
