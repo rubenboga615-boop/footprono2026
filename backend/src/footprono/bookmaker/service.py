@@ -207,3 +207,33 @@ async def place_bet(
         )
     await accounts.move(session, user.id, -stake, "stake", bet_id=bet.id, note=f"pari {bet.id}")
     return bet
+
+
+async def offer_history(
+    session: AsyncSession, quote_ids: list[int]
+) -> dict[int, list[BookmakerOdds]]:
+    """Relevés successifs (du plus ancien au plus récent) de la sélection de chaque cote.
+
+    Une ligne n'existe que si la cote a changé : l'historique est donc la suite des
+    mouvements, chacun avec son heure de relevé.
+    """
+    if not quote_ids:
+        return {}
+    current = (
+        await session.scalars(select(BookmakerOdds).where(BookmakerOdds.id.in_(quote_ids)))
+    ).all()
+    out: dict[int, list[BookmakerOdds]] = {}
+    for q in current:
+        out[q.id] = list(
+            await session.scalars(
+                select(BookmakerOdds)
+                .where(
+                    BookmakerOdds.match_id == q.match_id,
+                    BookmakerOdds.bookmaker == q.bookmaker,
+                    BookmakerOdds.bet == q.bet,
+                    BookmakerOdds.value == q.value,
+                )
+                .order_by(BookmakerOdds.fetched_at, BookmakerOdds.id)
+            )
+        )
+    return out

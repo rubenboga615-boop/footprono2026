@@ -6,12 +6,20 @@ from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import aliased
 
-from footprono.accounts.plans import market_allowed
+from footprono.accounts.plans import PremiumRequiredError, market_allowed
 from footprono.api.deps import CurrentUserDep, OptionalUserDep, SessionDep
 from footprono.bookmaker import service
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.bookmaker.record import player_record
-from footprono.bookmaker.schemas import BetIn, BetOut, BetSelectionOut, OfferOut
+from footprono.bookmaker.schemas import (
+    BetIn,
+    BetOut,
+    BetSelectionOut,
+    OddsHistoryOut,
+    OddsPointOut,
+    OfferOut,
+)
+from footprono.bookmaker.service import key
 from footprono.core.errors import NotFoundError
 from footprono.football.models import Match, Team
 
@@ -27,10 +35,11 @@ async def match_offer(match_id: int, session: SessionDep, user: OptionalUserDep)
     """
     offers = await service.match_offer(session, match_id)
     probs = await service.model_probabilities(session, match_id)
+    allowed = {k: o for k, o in offers.items() if market_allowed(user, o.market)}
+    history = await service.offer_history(session, [o.quote_id for o in allowed.values()])
     out = []
-    for k, o in sorted(offers.items()):
-        if not market_allowed(user, o.market):
-            continue
+    for k, o in sorted(allowed.items()):
+        first = history.get(o.quote_id, [None])[0]
         p = probs.get(k)
         out.append(
             OfferOut(
@@ -43,9 +52,43 @@ async def match_offer(match_id: int, session: SessionDep, user: OptionalUserDep)
                 fetched_at=o.fetched_at,
                 model_probability=p,
                 model_fair_odds=round(1 / p, 3) if p else None,
+                opening_odds=first.price if first else None,
+                opened_at=first.fetched_at if first else None,
             )
         )
     return out
+
+
+@router.get("/matches/{match_id}/odds-history", response_model=OddsHistoryOut)
+async def odds_history(
+    match_id: int,
+    session: SessionDep,
+    user: OptionalUserDep,
+    market: str,
+    selection: str,
+    line: str = "",
+) -> OddsHistoryOut:
+    """Mouvement de la cote jouable d'une sélection : chaque changement, avec son heure.
+
+    Une information, pas un conseil : une cote bouge avec l'argent des parieurs et les
+    nouvelles (blessures, compositions).
+    """
+    if not market_allowed(user, market):
+        raise PremiumRequiredError(f"marché {market} : réservé à Premium")
+    offers = await service.match_offer(session, match_id)
+    o = offers.get(key(market, line, selection))
+    if o is None:
+        raise NotFoundError("aucune cote jouable pour cette sélection")
+    rows = (await service.offer_history(session, [o.quote_id]))[o.quote_id]
+    return OddsHistoryOut(
+        market=o.market,
+        line=o.line or None,
+        selection=o.selection,
+        bookmaker=o.bookmaker,
+        label=o.label,
+        points=[OddsPointOut(at=r.fetched_at, odds=r.price) for r in rows],
+        last_seen_at=rows[-1].last_seen_at,
+    )
 
 
 async def _bet_out(session: SessionDep, bet: Bet) -> BetOut:

@@ -226,8 +226,24 @@ class FakeServer {
             'fetched_at': '2026-10-09T08:00:00Z',
             'model_probability': 0.41,
             'model_fair_odds': 2.439,
+            'opening_odds': '2.040',
+            'opened_at': '2026-09-30T07:30:00Z',
           },
         ];
+      case 'GET /matches/7/odds-history':
+        body = {
+          'market': '1X2',
+          'line': null,
+          'selection': 'home',
+          'bookmaker': '1xBet',
+          'label': 'Match Winner — Home',
+          'points': [
+            {'at': '2026-09-30T07:30:00Z', 'odds': '2.040'},
+            {'at': '2026-10-01T16:30:00Z', 'odds': '1.980'},
+            {'at': '2026-10-02T07:30:00Z', 'odds': '1.850'},
+          ],
+          'last_seen_at': '2026-10-09T08:00:00Z',
+        };
       case 'POST /me/delete':
         if ((jsonDecode(r.body) as Map)['password'] != 'motdepasse') {
           return _error(401, 'unauthorized', 'mot de passe incorrect');
@@ -729,6 +745,18 @@ void main() {
     expect(find.textContaining('ont au moins doublé'), findsOneWidget);
     expect(find.text('Résultat du match'), findsOneWidget);
     expect(find.text('Ligue 1'), findsOneWidget);
+  });
+
+  testWidgets('mouvement des cotes : ouverture affichée, historique des relevés', (tester) async {
+    await startApp(tester, loggedIn: true);
+    await tester.tap(find.text('LEN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cotes'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('▼ 2,04 → 1,85 · historique'));
+    await tester.pumpAndSettle();
+    expect(find.text('La cote est passée de 2,04 à 1,85 (2 changements).'), findsOneWidget);
+    expect(find.text('1,98'), findsOneWidget);
   });
 
   testWidgets('notifications push : téléphone enregistré, notification touchée, déconnexion', (tester) async {

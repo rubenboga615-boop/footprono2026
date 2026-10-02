@@ -16,6 +16,27 @@ class OfferOut(BaseModel):
     fetched_at: datetime
     model_probability: float | None
     model_fair_odds: float | None
+    # Première cote relevée pour cette sélection chez ce bookmaker (mouvement des cotes).
+    opening_odds: Decimal | None = None
+    opened_at: datetime | None = None
+
+
+class OddsPointOut(BaseModel):
+    """Une cote relevée : enregistrée à ``at`` (seulement quand elle a changé)."""
+
+    at: datetime
+    odds: Decimal
+
+
+class OddsHistoryOut(BaseModel):
+    market: str
+    line: str | None
+    selection: str
+    bookmaker: str
+    label: str
+    points: list[OddsPointOut]
+    # Dernier relevé où la cote actuelle était encore proposée, inchangée.
+    last_seen_at: datetime
 
 
 class SelectionIn(BaseModel):

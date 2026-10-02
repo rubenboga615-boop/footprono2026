@@ -8,6 +8,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'odds_history.dart';
 import 'referee_screen.dart';
 import 'team_screen.dart';
 
@@ -374,6 +375,18 @@ class _MatchViewState extends State<_MatchView> {
                             Text(
                               'Moteur ${percent(o.modelProbability!)} · cote juste ${decimal(1 / o.modelProbability!)}',
                               style: Fp.body(12, color: Fp.text2),
+                            ),
+                          if (o.moved)
+                            InkWell(
+                              onTap: () => showOddsHistory(context, m, o),
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  '${o.odds < o.openingOdds! ? '▼' : '▲'} ${odds(o.openingOdds)} → ${odds(o.odds)}'
+                                  ' · historique',
+                                  style: Fp.body(12, color: Fp.accentLight, weight: FontWeight.w600),
+                                ),
+                              ),
                             ),
                         ],
                       ),

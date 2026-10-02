@@ -177,7 +177,9 @@ class Offer {
       oddsText = '${j['odds']}',
       bookmaker = j['bookmaker'] as String,
       fetchedAt = parseDate(j['fetched_at']),
-      modelProbability = _dn(j['model_probability']);
+      modelProbability = _dn(j['model_probability']),
+      openingOdds = _dn(j['opening_odds']),
+      openedAt = parseDate(j['opened_at']);
   final String market;
   final String line;
   final String selection;
@@ -186,6 +188,11 @@ class Offer {
   final String bookmaker;
   final DateTime? fetchedAt;
   final double? modelProbability;
+
+  /// Première cote relevée pour cette sélection chez ce bookmaker.
+  final double? openingOdds;
+  final DateTime? openedAt;
+  bool get moved => openingOdds != null && (openingOdds! - odds).abs() >= 0.005;
   String get key => '$market|$line|$selection';
 }
 
