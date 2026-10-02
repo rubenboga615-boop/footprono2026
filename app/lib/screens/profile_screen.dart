@@ -32,6 +32,66 @@ class ProfileScreen extends StatelessWidget {
     if (ok == true) await state.logout();
   }
 
+  Future<void> _deleteAccount(BuildContext context, AppState state) async {
+    final password = TextEditingController();
+    String? error;
+    var busy = false;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Supprimer mon compte'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Effacés définitivement : numéro, nom, mot de passe, solde fictif, paris, '
+                  'montantes, notifications et historique Premium. Un Premium en cours est perdu.\n\n'
+                  'Gardés sans ton nom ni ton numéro (obligation comptable) : les paiements Premium. '
+                  'Un paiement en cours est annulé.\n\nCette action ne peut pas être annulée.',
+                  style: Fp.body(13, color: Fp.text2, height: 1.4),
+                ),
+                const SizedBox(height: 14),
+                FpField(label: 'Mot de passe', controller: password, obscure: true),
+                if (error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(error!, style: Fp.body(13, color: Fp.lossText)),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Fp.loss, minimumSize: const Size(0, 44)),
+              onPressed: busy
+                  ? null
+                  : () async {
+                      setState(() {
+                        busy = true;
+                        error = null;
+                      });
+                      try {
+                        await state.deleteAccount(password.text);
+                        if (context.mounted) Navigator.pop(context);
+                        showMessage('Compte supprimé. Tes données personnelles ont été effacées.');
+                      } on ApiException catch (e) {
+                        setState(() {
+                          busy = false;
+                          error = e.message;
+                        });
+                      }
+                    },
+              child: const Text('Supprimer définitivement'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _changePassword(BuildContext context, AppState state) async {
     final current = TextEditingController(),
         next = TextEditingController(),
@@ -210,6 +270,13 @@ class ProfileScreen extends StatelessWidget {
                     ],
                     const Divider(),
                     const _Item(icon: Icons.language_rounded, title: 'Langue', subtitle: 'Français'),
+                    const Divider(),
+                    _Item(
+                      icon: Icons.delete_forever_outlined,
+                      title: 'Supprimer mon compte',
+                      subtitle: 'Efface tes données, définitivement',
+                      onTap: () => _deleteAccount(context, state),
+                    ),
                     const Divider(),
                     InkWell(
                       onTap: () => _logout(context, state),

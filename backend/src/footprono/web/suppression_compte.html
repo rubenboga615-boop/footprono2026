@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FootProno — Supprimer mon compte</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #060509; color: #f4f2f8; font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 520px; margin: 0 auto; padding: 32px 16px; }
+  h1 { font-size: 24px; margin: 0 0 8px; }
+  p, li { color: #cfcbd8; }
+  label { display: block; margin: 16px 0 6px; font-weight: 600; }
+  input { width: 100%; box-sizing: border-box; padding: 12px; border-radius: 10px;
+          border: 1px solid #3a3550; background: #12101a; color: #f4f2f8; font-size: 16px; }
+  button { margin-top: 20px; width: 100%; padding: 14px; border: 0; border-radius: 12px;
+           background: #be185d; color: #fff; font-size: 16px; font-weight: 700; }
+  button:disabled { opacity: .5; }
+  #msg { margin-top: 16px; font-weight: 600; }
+  .ok { color: #34d399; } .err { color: #f9a8d4; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Supprimer mon compte FootProno</h1>
+  <p>Dans l'application : <b>Profil → Supprimer mon compte</b>. Sans l'application, utilise
+  ce formulaire avec ton numéro et ton mot de passe.</p>
+  <p><b>Effacé définitivement :</b></p>
+  <ul>
+    <li>numéro de téléphone, nom, mot de passe ;</li>
+    <li>solde fictif, paris, montantes, notifications, téléphones enregistrés ;</li>
+    <li>historique Premium.</li>
+  </ul>
+  <p><b>Conservé sans ton nom ni ton numéro</b> (obligation comptable) : les paiements
+  Premium (montant, date, référence du prestataire). Un paiement en cours est annulé.</p>
+  <form id="f">
+    <label for="phone">Numéro de téléphone</label>
+    <input id="phone" autocomplete="tel" placeholder="+225 07 00 00 00 00" required>
+    <label for="password">Mot de passe</label>
+    <input id="password" type="password" autocomplete="current-password" required>
+    <button id="go">Supprimer définitivement mon compte</button>
+  </form>
+  <p id="msg"></p>
+</main>
+<script>
+  const f = document.getElementById('f'), msg = document.getElementById('msg'), go = document.getElementById('go');
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!confirm('Supprimer définitivement le compte ? Cette action ne peut pas être annulée.')) return;
+    go.disabled = true; msg.textContent = ''; msg.className = '';
+    try {
+      const r = await fetch('/api/v1/account/delete', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({phone: f.phone.value, password: f.password.value}),
+      });
+      if (r.status === 204) {
+        msg.textContent = 'Compte supprimé. Tes données personnelles ont été effacées.';
+        msg.className = 'ok'; f.reset();
+      } else {
+        const body = await r.json().catch(() => ({}));
+        msg.textContent = (body.error && body.error.message) || 'Échec de la suppression.';
+        msg.className = 'err';
+      }
+    } catch (_) {
+      msg.textContent = 'Serveur injoignable, réessaie plus tard.'; msg.className = 'err';
+    } finally { go.disabled = false; }
+  });
+</script>
+</body>
+</html>

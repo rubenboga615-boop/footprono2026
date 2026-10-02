@@ -121,3 +121,20 @@ profil : probabilité annoncée moyenne contre taux de réussite observé.
 **Montante** : les suggestions de palier gardent leur plage de cote mais
 utilisent les mêmes règles de marchés et les mêmes probabilités. Matchs des
 3 prochains jours, ou de la prochaine journée pendant une trêve.
+
+## Suppression du compte (02/10/2026)
+
+Exigée par Google Play et l'App Store.
+
+- Application : Profil → **Supprimer mon compte**, mot de passe redemandé
+  (`POST /me/delete`).
+- Sans l'application : page publique **`/suppression-compte`** (numéro et mot
+  de passe, `POST /account/delete`, mêmes limites de tentatives que la
+  connexion). Son adresse est celle à déclarer à Google Play.
+- Effacés : numéro, nom, mot de passe, portefeuille fictif et mouvements,
+  paris, montantes, notifications, téléphones enregistrés, historique Premium.
+- Conservés sans lien avec la personne (obligation comptable) : paiements
+  (montant, devise, date, référence du prestataire) ; réponse brute du
+  prestataire vidée ; paiement en cours annulé (`cancelled`). Si un
+  prestataire confirme ensuite un paiement annulé, le rembourser à la main.
+- Le dernier administrateur ne peut pas se supprimer (en nommer un autre).

@@ -67,6 +67,7 @@ footprono = [
     "db/migrations/*.mako",
     "db/migrations/versions/*.py",
     "ingestion/reference/*.csv",
+    "web/*.html",
 ]
 
 [tool.pytest.ini_options]

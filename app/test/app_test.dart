@@ -21,6 +21,7 @@ class FakeServer {
   String paymentStatus = 'pending';
   final List<Map<String, String>> smartQueries = [];
   int latestBuild = 50;
+  bool deleted = false;
   int minimumBuild = 0;
 
   static const smartSel = {
@@ -223,6 +224,12 @@ class FakeServer {
             'model_fair_odds': 2.439,
           },
         ];
+      case 'POST /me/delete':
+        if ((jsonDecode(r.body) as Map)['password'] != 'motdepasse') {
+          return _error(401, 'unauthorized', 'mot de passe incorrect');
+        }
+        deleted = true;
+        return http.Response('', 204);
       case 'GET /app/version':
         body = {
           'build': latestBuild,
@@ -548,5 +555,28 @@ void main() {
   testWidgets('version à jour : rien n\'est proposé', (tester) async {
     await startApp(tester, loggedIn: true, build: 50);
     expect(find.text('Nouvelle version disponible'), findsNothing);
+  });
+
+  testWidgets('suppression du compte : mot de passe redemandé, puis retour à la connexion', (tester) async {
+    final (state, server) = await startApp(tester, loggedIn: true);
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Supprimer mon compte'), 200);
+    await tester.tap(find.text('Supprimer mon compte'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('ne peut pas être annulée'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).last, 'mauvais');
+    await tester.tap(find.text('Supprimer définitivement'));
+    await tester.pumpAndSettle();
+    expect(find.text('mot de passe incorrect'), findsOneWidget);
+    expect(server.deleted, isFalse);
+
+    await tester.enterText(find.byType(TextField).last, 'motdepasse');
+    await tester.tap(find.text('Supprimer définitivement'));
+    await tester.pumpAndSettle();
+    expect(server.deleted, isTrue);
+    expect(state.me, isNull);
+    expect(find.text('Se connecter'), findsOneWidget);
   });
 }

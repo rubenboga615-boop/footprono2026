@@ -2,10 +2,11 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
@@ -71,6 +72,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.get("/", include_in_schema=False)
         async def home() -> RedirectResponse:
             return RedirectResponse("/app/")
+
+    # Page publique exigée par Google Play : supprimer son compte sans l'application.
+    deletion_page = (Path(__file__).parent / "web" / "suppression_compte.html").read_text()
+
+    @app.get("/suppression-compte", include_in_schema=False)
+    async def account_deletion_page() -> HTMLResponse:
+        return HTMLResponse(deletion_page)
 
     @app.get("/metrics", include_in_schema=False)
     async def metrics() -> Response:

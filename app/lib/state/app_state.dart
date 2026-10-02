@@ -202,6 +202,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// Suppression définitive du compte (mot de passe redemandé par le serveur).
+  Future<void> deleteAccount(String password) async {
+    await api.post('/me/delete', {'password': password});
+    await _clearSession();
+    notifyListeners();
+  }
+
   Future<void> _clearSession() async {
     _disconnectSocket();
     _pushRefreshSub?.cancel();

@@ -3,9 +3,10 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, status
+from pydantic import BaseModel
 from sqlalchemy import select
 
-from footprono.accounts import service
+from footprono.accounts import deletion, service
 from footprono.accounts.models import Wallet, WalletEntry
 from footprono.accounts.plans import plan_info
 from footprono.accounts.schemas import (
@@ -137,4 +138,53 @@ async def refill(user: CurrentUserDep, session: SessionDep, settings: SettingsDe
 @router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)
 async def change_password(body: PasswordIn, user: CurrentUserDep, session: SessionDep) -> None:
     await service.change_password(session, user, body.current_password, body.new_password)
+    await session.commit()
+
+
+class DeleteIn(BaseModel):
+    password: str
+
+
+class DeleteByPhoneIn(BaseModel):
+    phone: str
+    password: str
+
+
+@router.post("/me/delete", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_me(body: DeleteIn, user: CurrentUserDep, session: SessionDep) -> None:
+    """Suppression définitive du compte (mot de passe redemandé)."""
+    await deletion.delete_account(session, user, body.password)
+    await session.commit()
+
+
+@router.post("/account/delete", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_by_phone(
+    body: DeleteByPhoneIn,
+    request: Request,
+    session: SessionDep,
+    settings: SettingsDep,
+    redis: RedisDep,
+) -> None:
+    """Même suppression sans l'application (page web /suppression-compte), mêmes limites
+    de tentatives que la connexion."""
+    ip = _client_ip(request)
+    try:
+        phone = service.normalize_phone(body.phone)
+    except AppError:
+        phone = body.phone.strip()
+    limits = [
+        ("login-phone", phone, settings.login_failures_per_phone),
+        ("login-ip", ip, settings.login_failures_per_ip),
+    ]
+    for scope, ident, limit in limits:
+        if limit:
+            await ratelimit.check(redis, scope, ident, limit, LOGIN_WINDOW)
+    try:
+        user = await service.authenticate(session, body.phone, body.password)
+    except UnauthorizedError:
+        for scope, ident, limit in limits:
+            if limit:
+                await ratelimit.hit(redis, scope, ident, LOGIN_WINDOW)
+        raise
+    await deletion.delete_account(session, user, body.password)
     await session.commit()
