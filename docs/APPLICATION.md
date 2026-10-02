@@ -54,7 +54,7 @@ l'installer par-dessus (même clé de signature : compte et paris conservés).
 
 Publier une version (Termux) : télécharger l'archive `footprono-apk.zip`
 depuis GitHub Actions, puis
-`bash scripts/termux/publish-apk.sh ~/storage/downloads/footprono-apk.zip "Nouveautés"`.
+`bash scripts/termux/publish-apk.sh "Nouveautés"` (prend l'archive `footprono-apk*.zip` la plus récente des Téléchargements ; `--archive CHEMIN` pour en choisir une).
 `--minimum N` rend la mise à jour obligatoire pour les versions sous N
 (correctif important). Sur le serveur de production :
 `docker compose -f /opt/footprono/deploy/docker-compose.yml exec api footprono-admin publish-apk …`
