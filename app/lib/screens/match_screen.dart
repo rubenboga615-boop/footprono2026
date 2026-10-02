@@ -8,6 +8,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'referee_screen.dart';
 import 'team_screen.dart';
 
 class MatchData {
@@ -110,6 +111,16 @@ class _MatchViewState extends State<_MatchView> {
               const SizedBox(width: 44),
             ],
           ),
+          if (m.referee != null)
+            Center(
+              child: TextButton.icon(
+                onPressed: () =>
+                    Navigator.of(context)
+                        .push(MaterialPageRoute(builder: (_) => RefereeScreen(name: m.referee!))),
+                icon: const Icon(Icons.sports_rounded, size: 16),
+                label: Text('Arbitre : ${m.referee}'),
+              ),
+            ),
           const SizedBox(height: 18),
           Row(
             children: [

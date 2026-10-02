@@ -67,7 +67,8 @@ class MatchInfo {
       awayGoals = j['away_goals'] as int?,
       liveMinute = j['live_minute'] as int?,
       liveHome = j['live_home_goals'] as int?,
-      liveAway = j['live_away_goals'] as int?;
+      liveAway = j['live_away_goals'] as int?,
+      referee = (j['api_referee'] ?? j['referee']) as String?;
   final int id;
   final String competition;
   final DateTime date;
@@ -81,6 +82,9 @@ class MatchInfo {
   final int? liveMinute;
   final int? liveHome;
   final int? liveAway;
+
+  /// Arbitre désigné (API-Football, sinon football-data) ; absent des listes de matchs.
+  final String? referee;
 
   static const _live = {'1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'};
   static const _postponed = {'PST', 'CANC', 'ABD', 'SUSP', 'AWD', 'WO'};

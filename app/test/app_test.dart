@@ -60,6 +60,8 @@ class FakeServer {
     'live_minute': null,
     'live_home_goals': null,
     'live_away_goals': null,
+    'referee': null,
+    'api_referee': 'Stuart Attwell',
   };
 
   static Map<String, dynamic> sel(String market, String? line, String s, double p) => {
@@ -367,6 +369,64 @@ class FakeServer {
           'venues': {'home': venue(17, 37), 'away': venue(17, 22), 'all': venue(34, 59)},
           'locked': !premium,
         };
+      case 'GET /referees/profile':
+        Map<String, dynamic> summary(int n, double y, bool enough) => {
+          'matches': n,
+          'yellow': y,
+          'red': 0.12,
+          'home_yellow': 1.8,
+          'away_yellow': y - 1.8,
+          'league_yellow': 3.75,
+          'league_red': 0.1,
+          'enough': enough,
+        };
+        body = {
+          'name': 'Stuart Attwell',
+          'min_matches': 15,
+          'total': summary(197, 4.6, true),
+          'seasons': [
+            {'competition': 'LIGUE_1', 'season': 2026, ...summary(3, 5.67, false)},
+            {'competition': 'LIGUE_1', 'season': 2025, ...summary(25, 4.6, true)},
+          ],
+          'recent': [
+            {
+              'match_id': 1,
+              'date': '2026-09-27',
+              'competition': 'LIGUE_1',
+              'home': 'Lens',
+              'away': 'Monaco',
+              'home_yellow': 2,
+              'away_yellow': 3,
+              'red': 1,
+            },
+          ],
+        };
+      case 'GET /competitions/LIGUE_1/seasons/2025/referees':
+        Map<String, dynamic> ref(String name, int n, double y) => {
+          'name': name,
+          'matches': n,
+          'yellow': y,
+          'red': 0.1,
+          'home_yellow': y / 2,
+          'away_yellow': y / 2,
+          'league_yellow': 3.75,
+          'league_red': 0.1,
+          'enough': n >= 15,
+        };
+        body = {
+          'competition': 'LIGUE_1',
+          'season': 2025,
+          'matches': 306,
+          'league_yellow': 3.75,
+          'league_red': 0.1,
+          'min_matches': 15,
+          'without_referee': 4,
+          'referees': [
+            ref('Stuart Attwell', 25, 4.6),
+            ref('Craig Pawson', 20, 2.67),
+            ref('Tim Kirk', 6, 2.5),
+          ],
+        };
       case 'POST /bets':
         final b = jsonDecode(r.body) as Map<String, dynamic>;
         placedBets.add(b);
@@ -600,6 +660,25 @@ void main() {
     expect(find.text('2025-26'), findsOneWidget);
     expect(find.text('2026-27'), findsNothing); // aucun match terminé
     expect(find.text('+14,4'), findsOneWidget);
+  });
+
+  testWidgets('fiche arbitre : sévérité jugée seulement avec assez de matchs, classement', (tester) async {
+    await startApp(tester, loggedIn: true);
+    await tester.binding.setSurfaceSize(const Size(430, 2400));
+    await tester.tap(find.text('LEN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Arbitre : Stuart Attwell'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Seulement 3 matchs : pas assez pour juger'), findsOneWidget);
+    expect(find.text('Plus sévère que la moyenne : +0,85 jaune par match.'), findsOneWidget);
+    expect(find.text('2 + 3 J · 1 R'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Tous les arbitres'));
+    await tester.pumpAndSettle();
+    expect(find.text('Craig Pawson'), findsOneWidget);
+    expect(find.text('MOINS DE 15 MATCHS (NON CLASSÉS)'), findsOneWidget);
+    expect(find.text('Tim Kirk'), findsOneWidget);
+    expect(find.textContaining('4 matchs de cette saison sans arbitre connu'), findsOneWidget);
   });
 
   testWidgets('notifications push : téléphone enregistré, notification touchée, déconnexion', (tester) async {

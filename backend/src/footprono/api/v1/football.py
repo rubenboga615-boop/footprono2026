@@ -24,6 +24,7 @@ from footprono.football.models import (
     Season,
     Team,
 )
+from footprono.football.referees import referee_profile, referee_table
 from footprono.football.schemas import (
     AdvancedStatsOut,
     BookmakerOddsOut,
@@ -158,6 +159,20 @@ async def get_team_profile(
 async def get_merited_table(code: str, year: int, session: SessionDep) -> dict[str, Any]:
     """Classement réel contre classement mérité (xPts Understat)."""
     return await merited_table(session, code, year)
+
+
+@router.get("/referees/profile")
+async def get_referee_profile(
+    session: SessionDep, name: Annotated[str, Query(min_length=2, max_length=100)]
+) -> dict[str, Any]:
+    """Fiche arbitre : cartons par match contre la moyenne du championnat, saison par saison."""
+    return await referee_profile(session, name)
+
+
+@router.get("/competitions/{code}/seasons/{year}/referees")
+async def get_referee_table(code: str, year: int, session: SessionDep) -> dict[str, Any]:
+    """Arbitres d'une saison, du plus sévère au plus clément (cartons jaunes par match)."""
+    return await referee_table(session, code, year)
 
 
 @router.get("/matches", response_model=MatchPage)
