@@ -43,6 +43,31 @@ bash scripts/termux/stop.sh && bash scripts/termux/start.sh
 Puis ouvrir `http://127.0.0.1:8000/app/` dans le navigateur. L'API sert la
 page elle-même (`FP_WEB_APP_DIR`) : même adresse, aucun réglage CORS.
 
+## Clé de signature de production
+
+Sans clé de production, l'APK est signé avec la clé de développement du
+dépôt (n'importe qui peut la copier) : à remplacer avant toute diffusion.
+
+1. Sur le téléphone, une seule fois : `bash scripts/termux/keystore.sh`
+   (crée `~/footprono-release.jks`, alias `footprono`, RSA 4096, 27 ans ;
+   copie de sauvegarde et texte base64 dans Téléchargements).
+2. **Sauvegarde** : copier `footprono-release.jks` hors du téléphone (Google
+   Drive, e-mail à soi-même) et noter le mot de passe. Perdus, l'application
+   ne peut plus jamais être mise à jour chez les utilisateurs.
+3. GitHub → dépôt → Settings → Secrets and variables → Actions → **New
+   repository secret**, quatre secrets :
+   `FP_KEYSTORE_BASE64` (contenu de `footprono-release-base64.txt`),
+   `FP_KEYSTORE_PASSWORD` (le mot de passe), `FP_KEY_ALIAS` (`footprono`),
+   `FP_KEY_PASSWORD` (le même mot de passe : clé PKCS12).
+4. Supprimer `footprono-release-base64.txt` des Téléchargements.
+5. La construction suivante signe avec la clé de production et affiche
+   l'empreinte SHA-256 du certificat dans le journal (étape « Clé de
+   signature »). Sans les secrets : avertissement, clé de développement.
+
+Changement de clé : Android refuse d'installer un APK signé autrement par
+dessus l'ancien. Désinstaller une fois l'application (le compte, le solde et
+les paris sont sur le serveur : rien n'est perdu), puis installer le nouvel APK.
+
 ## Écrans
 
 | Onglet / écran | Contenu | Données |

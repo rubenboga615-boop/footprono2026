@@ -34,9 +34,30 @@ jobs:
       - run: flutter test
       - name: Version web (servie par l'API sur /app)
         run: flutter build web --release --base-href /app/ --no-web-resources-cdn
+      - name: Clé de signature de production (secrets du dépôt)
+        # Secrets : FP_KEYSTORE_BASE64, FP_KEYSTORE_PASSWORD, FP_KEY_ALIAS,
+        # FP_KEY_PASSWORD (docs/APPLICATION.md). Sans eux : clé de développement.
+        env:
+          KEYSTORE_BASE64: ${{ secrets.FP_KEYSTORE_BASE64 }}
+          FP_KEYSTORE_PASSWORD: ${{ secrets.FP_KEYSTORE_PASSWORD }}
+          FP_KEY_ALIAS: ${{ secrets.FP_KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::Pas de clé de production : APK signé avec la clé de développement."
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/footprono-release.jks"
+          # Empreinte publique du certificat (rien de secret) : contrôle que c'est la bonne clé.
+          keytool -list -keystore "$RUNNER_TEMP/footprono-release.jks" \
+            -storepass "$FP_KEYSTORE_PASSWORD" -alias "$FP_KEY_ALIAS" | grep -i "SHA-256"
+          echo "FP_KEYSTORE_FILE=$RUNNER_TEMP/footprono-release.jks" >> "$GITHUB_ENV"
       - name: APK Android
         # Serveur distant intégré à l'APK : variable FP_SERVER_URL du dépôt
         # (Settings → Secrets and variables → Actions → Variables), sinon Termux.
+        env:
+          FP_KEYSTORE_PASSWORD: ${{ secrets.FP_KEYSTORE_PASSWORD }}
+          FP_KEY_ALIAS: ${{ secrets.FP_KEY_ALIAS }}
+          FP_KEY_PASSWORD: ${{ secrets.FP_KEY_PASSWORD }}
         run: flutter build apk --release --split-per-abi --dart-define=FP_SERVER=${{ vars.FP_SERVER_URL }}
       - uses: actions/upload-artifact@v4
         with:
