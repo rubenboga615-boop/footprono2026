@@ -19,7 +19,7 @@ from footprono.accounts.models import User
 from footprono.accounts.plans import require_market
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.core.errors import AppError, NotFoundError
-from footprono.engine.markets import Selection
+from footprono.engine.markets import WITHDRAWN_MARKETS, Selection
 from footprono.football.models import BookmakerOdds, Match, MatchStatus
 from footprono.ingestion.sources.api_football import UNPLAYED_STATUSES
 from footprono.ingestion.sources.api_football_odds import map_bet
@@ -86,7 +86,12 @@ async def match_offer(
     for r in sorted(rows, key=lambda r: rank[r.bookmaker]):
         mapped = map_bet(r.bet, r.value)
         withdrawn = r.last_seen_at < latest_seen[r.bookmaker]
-        if mapped is None or withdrawn or now - r.last_seen_at > ODDS_MAX_AGE:
+        if (
+            mapped is None
+            or mapped[0] in WITHDRAWN_MARKETS
+            or withdrawn
+            or now - r.last_seen_at > ODDS_MAX_AGE
+        ):
             continue
         k = key(*mapped)
         if k not in offers:

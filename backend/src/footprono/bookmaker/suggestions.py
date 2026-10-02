@@ -6,8 +6,7 @@ chacun : probabilité du moteur, probabilité déduite de la cote (1 / cote) et
 l'écart ; un pari moins probable que sa cote ne le suppose est marqué
 « déconseillé ». Rien n'est joué sans validation de l'utilisateur.
 
-Exclus : marchés où le moteur ne fait pas mieux que les fréquences
-(mi-temps la plus prolifique, docs/MOTEUR.md).
+Marchés : les mêmes règles que le Coupon intelligent (``rules.automatic``).
 """
 
 import itertools
@@ -20,9 +19,9 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.bookmaker import service
+from footprono.bookmaker.rules import automatic
 from footprono.football.models import Match, MatchStatus
 
-EXCLUDED_MARKETS = frozenset({"HIGHEST_HALF"})
 HORIZON = timedelta(days=3)
 CLOSE_BEFORE_KICKOFF = timedelta(minutes=15)
 POOL_PAIRS, POOL_TRIPLES = 60, 25
@@ -51,7 +50,7 @@ async def _candidates(session: AsyncSession, high: Decimal, now: datetime) -> li
         probs = await service.model_probabilities(session, match.id)
         for k, offer in offers.items():
             p = probs.get(k)
-            if p is None or offer.market in EXCLUDED_MARKETS or not 1 < offer.odds <= high:
+            if p is None or not automatic(offer.market) or not 1 < offer.odds <= high:
                 continue
             out.append(Candidate(match.id, offer, p))
     return out

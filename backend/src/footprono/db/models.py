@@ -10,7 +10,7 @@ Chaque module métier déclare ses tables ; elles sont importées ici pour que
 
 from footprono.accounts import models as account_models
 from footprono.bookmaker import models as bookmaker_models
-from footprono.bookmaker import montante_models
+from footprono.bookmaker import montante_models, smart_models
 from footprono.db.base import Base
 from footprono.football import models as football_models
 from footprono.notifications import models as notification_models
@@ -26,4 +26,5 @@ __all__ = [
     "notification_models",
     "payment_models",
     "prediction_models",
+    "smart_models",
 ]

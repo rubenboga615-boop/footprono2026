@@ -78,6 +78,17 @@ def asian_handicap(ft: FloatArray, margin: IntArray, line: float) -> Selection:
     return Selection(win=float(ft[d > 0].sum()), push=float(ft[d == 0].sum()))
 
 
+# Retirés de l'application (audit du 02/10/2026, docs/MARCHES.md) : le moteur
+# n'y fait pas mieux que la fréquence du championnat. Toujours calculés (et
+# réglés pour les paris déjà placés), mais ni enregistrés, ni proposés.
+WITHDRAWN_MARKETS = frozenset({"HT_BTTS", "HIGHEST_HALF", "ODD_EVEN"})
+
+
+def offered(key: str) -> bool:
+    """Le marché de cette clé (« MARCHÉ|ligne|issue ») est-il proposé ?"""
+    return key.split("|", 1)[0] not in WITHDRAWN_MARKETS
+
+
 def derive_markets(dist: ScoreDistribution) -> dict[str, Selection]:
     ft, ht, joint = dist.full_time, dist.half_time, dist.joint
     out: dict[str, Selection] = {}

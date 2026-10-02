@@ -15,7 +15,8 @@ Tâches planifiées (UTC) :
 - ``footprono.predict_if_needed`` au démarrage du worker, toutes les heures (:10)
   et après chaque collecte des cotes : prédit seulement si la dernière exécution
   a plus de 12 h ou si de nouveaux matchs sont arrivés au calendrier.
-Règlement des paris et notifications viendront dans les phases suivantes.
+- ``footprono.daily_smart_coupons`` à 08:05 : coupons intelligents du jour
+  (un par profil), réglés avec les paris.
 """
 
 from celery import Celery
@@ -66,6 +67,11 @@ def create_celery(settings: Settings | None = None) -> Celery:
                 "task": "footprono.predict_if_needed",
                 "schedule": crontab(minute=10),
                 "options": {"expires": 3000},
+            },
+            # Coupons du jour (après cotes 07:30 et prédictions 07:45).
+            "daily-smart-coupons": {
+                "task": "footprono.daily_smart_coupons",
+                "schedule": crontab(hour=8, minute=5),
             },
             # Paiements dont la notification CinetPay n'est pas arrivée.
             "check-payments": {

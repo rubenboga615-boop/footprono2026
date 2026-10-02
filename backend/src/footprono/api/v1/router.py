@@ -10,6 +10,7 @@ from footprono.api.v1 import (
     notifications,
     payments,
     predictions,
+    smart_coupons,
 )
 
 api_router = APIRouter()
@@ -22,3 +23,4 @@ api_router.include_router(notifications.router)
 api_router.include_router(payments.router)
 api_router.include_router(football.router)
 api_router.include_router(predictions.router)
+api_router.include_router(smart_coupons.router)

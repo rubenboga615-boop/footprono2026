@@ -19,6 +19,22 @@ class FakeServer {
   final List<Map<String, dynamic>> placedBets = [];
   final List<String> devices = [];
   String paymentStatus = 'pending';
+  final List<Map<String, String>> smartQueries = [];
+
+  static const smartSel = {
+    'match_id': 7,
+    'home': 'Lens',
+    'away': 'Lyon',
+    'competition': 'LIGUE_1',
+    'kickoff_at': '2026-10-10T19:00:00Z',
+    'market': '1X2',
+    'line': null,
+    'selection': 'home',
+    'odds': '1.850',
+    'bookmaker': '1xBet',
+    'model_probability': 0.62,
+    'reasons': ['Forme (5 derniers) : Lens VNDVV, Lyon DNVVN'],
+  };
 
   static const team1 = {'id': 1, 'name': 'Lens', 'country': 'France'};
   static const team2 = {'id': 2, 'name': 'Lyon', 'country': 'France'};
@@ -205,6 +221,43 @@ class FakeServer {
             'model_fair_odds': 2.439,
           },
         ];
+      case 'GET /smart-coupon':
+        if (!premium) return _error(403, 'premium_required', 'réservé à Premium');
+        smartQueries.add(r.url.queryParameters);
+        body = {
+          'profile': 'equilibre',
+          'period': '3days',
+          'coupon': {
+            'selections': [smartSel],
+            'total_odds': '1.85',
+            'probability': 0.62,
+            'implied_probability': 0.5405,
+          },
+          'alternatives': [],
+          'message': null,
+        };
+      case 'GET /smart-coupons/history':
+        body = {
+          'stats': {
+            'sur': {'label': 'Sûr', 'settled': 0, 'won': 0, 'announced': null, 'observed': null},
+            'equilibre': {'label': 'Équilibré', 'settled': 1, 'won': 1, 'announced': 0.62, 'observed': 1.0},
+          },
+          'coupons': [
+            {
+              'id': 1,
+              'day': '2026-10-10',
+              'profile': 'equilibre',
+              'profile_label': 'Équilibré',
+              'selections': [
+                {...smartSel, 'result': 'win'},
+              ],
+              'total_odds': '1.85',
+              'probability': 0.62,
+              'status': 'won',
+              'settled_at': '2026-10-10T21:00:00Z',
+            },
+          ],
+        };
       case 'POST /bets':
         final b = jsonDecode(r.body) as Map<String, dynamic>;
         placedBets.add(b);
@@ -418,5 +471,40 @@ void main() {
     expect(find.text('Paiement reçu : Premium est activé.'), findsOneWidget);
     expect(state.premium, isTrue);
     expect(state.pendingPayment, isNull);
+  });
+
+  testWidgets('Coupon intelligent : profil et période choisis, coupon expliqué, ajouté au coupon', (
+    tester,
+  ) async {
+    final (state, server) = await startApp(tester, loggedIn: true, premium: true);
+    await tester.tap(find.text('Coupon'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Coupon intelligent'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ce week-end'));
+    await tester.tap(find.text('Composer le coupon'));
+    await tester.pumpAndSettle();
+    expect(server.smartQueries.single, {'profile': 'equilibre', 'period': 'weekend', 'size': '3'});
+    expect(find.text('Victoire Lens'), findsOneWidget);
+    expect(find.text('• Forme (5 derniers) : Lens VNDVV, Lyon DNVVN'), findsOneWidget);
+
+    await tester.tap(find.text('Mettre dans mon coupon'));
+    await tester.pumpAndSettle();
+    expect(state.coupon.single.offer.key, '1X2||home');
+
+    await tester.tap(find.byTooltip('Coupons du jour'));
+    await tester.pumpAndSettle();
+    expect(find.text('Gagné'), findsWidgets);
+    expect(find.textContaining('1 gagné(s) sur 1'), findsOneWidget);
+  });
+
+  testWidgets('Coupon intelligent : réservé à Premium', (tester) async {
+    await startApp(tester, loggedIn: true);
+    await tester.tap(find.text('Coupon'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Coupon intelligent'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('inclus dans Premium'), findsOneWidget);
+    expect(find.text('Composer le coupon'), findsNothing);
   });
 }

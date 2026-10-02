@@ -30,7 +30,7 @@ from footprono.engine.counts import (
 )
 from footprono.engine.goals import GoalsConfig, fit_goals
 from footprono.engine.history import History, load_history
-from footprono.engine.markets import Selection, derive_markets
+from footprono.engine.markets import Selection, derive_markets, offered
 from footprono.engine.scores import score_distribution
 from footprono.football.models import Match, MatchStatus
 from footprono.ingestion.sources.api_football import UNPLAYED_STATUSES
@@ -75,7 +75,7 @@ def predict_match(
     new_h, new_a = correction.apply(np.array([lam_h]), np.array([lam_a]), ctx, rows)
     lam_h, lam_a = float(new_h[0]), float(new_a[0])
     dist = score_distribution(lam_h, lam_a, goals.rho, goals.ht_share_home, goals.ht_share_away)
-    markets = {k: _selection_row(s) for k, s in derive_markets(dist).items()}
+    markets = {k: _selection_row(s) for k, s in derive_markets(dist).items() if offered(k)}
 
     referee = str(hist.referee[i]) if len(hist.referee) else ""
     counts_out: dict[str, Any] = {}

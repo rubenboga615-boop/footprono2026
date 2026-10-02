@@ -16,7 +16,7 @@ déduits et sont donc cohérents entre eux par construction.
 | Score exact | jusqu'à 5-5, plus « autre » |
 | Handicap européen et asiatique | lignes −3 à +3, quarts de but compris |
 | Clean sheet, gagner sans encaisser | par équipe |
-| Écart de buts, total pair / impair | |
+| Écart de buts | |
 | Combinés dans un même match | 1X2 + plus/moins, 1X2 + les deux marquent… (probabilité jointe exacte) |
 
 ## 2. Marchés de la mi-temps
@@ -28,8 +28,6 @@ Modèle dédié à la première période (scores à la mi-temps disponibles depu
 | Résultat à la mi-temps | 1, N, 2 |
 | Mi-temps / fin de match | 9 combinaisons |
 | Plus/moins de buts à la mi-temps | |
-| Les deux équipes marquent en 1re période | |
-| Mi-temps la plus prolifique | |
 
 ## 3. Marchés statistiques (modèles séparés)
 
@@ -102,6 +100,9 @@ gagnée par le moteur. « À corriger » = au moins une tranche de probabilité
 
 **Sans apport** (pas mieux que la fréquence du championnat) : mi-temps
 « les deux marquent », mi-temps la plus prolifique, total pair / impair.
+**Retirés le 02/10/2026** (`engine/markets.py`, `WITHDRAWN_MARKETS`) : ni
+prédits, ni affichés, ni proposés au bookmaker virtuel. Le règlement des
+paris déjà placés reste assuré.
 
 Non évalués ici : remboursé si nul et handicap asiatique à ligne entière ou
 quart de but (remboursements ; le handicap asiatique est comparé aux cotes
@@ -129,3 +130,8 @@ dans `MOTEUR.md`), points de cartons, corners / cartons / tirs par mi-temps
 
 - Coupon : une ou plusieurs sélections.
 - Montante : 1 à 3 sélections par palier, cote totale dans la plage du palier.
+- Choix automatiques (Coupon intelligent, suggestions de montante) : mêmes
+  règles (`bookmaker/rules.py`). Exclus : score exact, mi-temps / fin de
+  match, combinés dans un même match (surestimés par l'étude des angles),
+  marge de victoire, cartons et points de cartons (trop sûrs au-dessus de
+  50 % depuis 2022). Ces marchés restent jouables à la main.

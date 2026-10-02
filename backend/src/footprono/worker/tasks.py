@@ -8,7 +8,7 @@ from celery.signals import worker_ready
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from footprono import __version__
-from footprono.bookmaker import settlement
+from footprono.bookmaker import settlement, smart_coupon
 from footprono.cache.redis import create_redis
 from footprono.core.config import Settings, get_settings
 from footprono.core.errors import AppError
@@ -33,7 +33,10 @@ async def _settle(engine: AsyncEngine, settings: Settings) -> dict[str, Any]:
     push = push_sender_or_none(settings)
     try:
         async with create_session_factory(engine)() as session:
-            return await settlement.settle_bets(session, redis=redis, push=push)
+            report = await settlement.settle_bets(session, redis=redis, push=push)
+        async with create_session_factory(engine)() as session:
+            report["smart_coupons"] = await smart_coupon.settle_pending(session)
+        return report
     finally:
         await redis.aclose()
         if push is not None:
@@ -106,6 +109,21 @@ async def _collect_odds() -> dict[str, Any]:
         "odds": {k: v for k, v in report.items() if k != "unmapped_bets"},
         "injuries": injuries,
     }
+
+
+@celery_app.task(name="footprono.daily_smart_coupons")
+def daily_smart_coupons() -> dict[str, Any]:
+    """Coupons du jour de chaque profil, enregistrés avant les matchs (historique public)."""
+    return asyncio.run(_daily_smart_coupons())
+
+
+async def _daily_smart_coupons() -> dict[str, Any]:
+    engine = create_engine(get_settings())
+    try:
+        async with create_session_factory(engine)() as session:
+            return await smart_coupon.create_daily(session)
+    finally:
+        await engine.dispose()
 
 
 @celery_app.task(name="footprono.follow_live")

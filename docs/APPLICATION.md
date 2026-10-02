@@ -53,6 +53,8 @@ page elle-même (`FP_WEB_APP_DIR`) : même adresse, aucun réglage CORS.
 | Match · Cotes | cotes réelles 1xBet (Bet365 en secours) et probabilité du moteur | `/matches/{id}/offer` |
 | Match · Analyse (Premium) | forme sur 5 matchs (G/N/P), moyennes de la saison, confrontations directes ; buts attendus, classement, repos, enjeu, corners / cartons / tirs attendus | `/matches/{id}/analysis` (faits, matchs antérieurs seulement), prédiction (`counts`, `context`) |
 | Coupon | sélections, probabilité combinée, cote totale, mise, gain ; utilisation pour un palier de montante | `/bets`, `/montantes/{id}/bet` |
+| Coupon intelligent (Premium) | profil Sûr / Équilibré / Audacieux, période (aujourd'hui → 7 jours), 1 à 4 sélections ; cotes réelles, probabilité, deux faits par sélection, 3 autres choix ; « Mettre dans mon coupon » | `/smart-coupon` |
+| Coupons du jour (public) | coupons enregistrés chaque matin avant les matchs, gagnés ou perdus, bilan annoncé / observé | `/smart-coupons/history` |
 | Montante | création (mise, paliers, plages, part sécurisée), tableau, chances, encaisser, historique | `/montantes*` |
 | Pari du palier (Premium) | 3 suggestions, écart modèle / cote, « déconseillé » | `/montantes/{id}/suggestions` |
 | Bookmaker | solde fictif, en jeu, rendement, paris en cours / réglés, mouvements | `/bets`, `/me/wallet/*` |

@@ -14,7 +14,7 @@ from footprono.accounts.plans import FREE_MARKETS, is_premium
 from footprono.api.deps import OptionalUserDep, SessionDep
 from footprono.api.v1.football import _match_out, _match_select
 from footprono.core.errors import NotFoundError
-from footprono.engine.markets import Selection
+from footprono.engine.markets import Selection, offered
 from footprono.football.models import Competition, Match, MatchStatus
 from footprono.football.schemas import MatchOut
 from footprono.predictions.models import MatchPrediction, PredictionRun
@@ -82,7 +82,7 @@ async def get_match_prediction(
         raise NotFoundError(f"aucune prédiction pour le match {match_id}")
     pred, run = found
     premium = is_premium(user)
-    keys = sorted(pred.markets)
+    keys = sorted(k for k in pred.markets if offered(k))
     locked = sorted({k.split("|")[0] for k in keys} - FREE_MARKETS) if not premium else []
     if not premium:
         keys = [k for k in keys if k.split("|")[0] in FREE_MARKETS]

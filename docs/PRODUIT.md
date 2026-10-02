@@ -86,3 +86,33 @@ Code : `backend/src/footprono/predictions/reliability.py`.
   téléphone.
 - Notifications téléphone fermé (Firebase) : validées sur le téléphone
   (application fermée, notification dans la barre).
+
+## Coupon intelligent (02/10/2026)
+
+Onglet **Coupon** → carte « Coupon intelligent » (Premium).
+
+- **Profil** : Sûr (75 à 92 % par sélection), Équilibré (60 à 75 %),
+  Audacieux (45 à 60 %).
+- **Période** : aujourd'hui, demain, 3 jours, ce week-end, 7 jours. Inutile
+  d'attendre le jour du match : les prédictions couvrent 10 jours ; seules
+  les cotes réelles (relevées à 07:30 et 16:30 UTC) limitent l'horizon.
+  Fermeture 15 minutes avant le coup d'envoi.
+- **1 à 4 sélections**, jamais deux du même match.
+- Méthode : dans chaque match, la sélection la plus probable de la tranche du
+  profil parmi les marchés retenus avec une vraie cote (≥ 1,10) ; les matchs
+  les plus sûrs d'abord ; 3 autres choix proposés. Validée hors échantillon
+  (`footprono-engine angles`, `docs/MOTEUR.md`).
+- Chaque sélection : cote réelle, probabilité du moteur, deux faits (forme,
+  moyennes de la saison, xG, confrontations). Probabilité du coupon et
+  probabilité selon la cote affichées côte à côte. Aucune promesse de gain.
+- « Mettre dans mon coupon » relit les cotes actuelles ; le pari reste validé
+  par le joueur (`GET /smart-coupon?profile=&period=&size=`).
+
+**Coupons du jour** (public, `GET /smart-coupons/history`) : chaque matin à
+08:05 UTC (après cotes et prédictions), un coupon par profil (Sûr : 3
+sélections, Équilibré et Audacieux : 2) est enregistré **avant** les matchs,
+puis réglé avec les paris (mêmes règles). Rien n'est effacé ; bilan par
+profil : probabilité annoncée moyenne contre taux de réussite observé.
+
+**Montante** : les suggestions de palier gardent leur plage de cote mais
+utilisent les mêmes règles de marchés et les mêmes probabilités.
