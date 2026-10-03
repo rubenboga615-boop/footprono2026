@@ -147,6 +147,10 @@ class RecordScreen extends StatelessWidget {
       _Breakdown('Par marché', (data['by_market'] as List).cast<Json>(), (k) => marketTitle(k)),
       const SizedBox(height: 12),
       _Breakdown('Par championnat', (data['by_competition'] as List).cast<Json>(), competitionName),
+      if (((data['by_odds'] as List?) ?? const []).isNotEmpty) ...[
+        const SizedBox(height: 12),
+        _ByOdds((data['by_odds'] as List).cast<Json>(), currency),
+      ],
       const SizedBox(height: 14),
       Text(
         'Réussite : sélections gagnées (demi-gains compris) sur gagnées + perdues ; remboursées à part. '
@@ -247,6 +251,85 @@ class _Breakdown extends StatelessWidget {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Paris réglés par tranche de cote totale : les grosses cotes réussissent-elles ?
+class _ByOdds extends StatelessWidget {
+  const _ByOdds(this.rows, this.currency);
+  final List<Json> rows;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    String band(Json r) {
+      final low = (r['low'] as num).toDouble(), high = (r['high'] as num?)?.toDouble();
+      if (low <= 1) return 'moins de ${decimal(high, max: 0)}';
+      return high == null
+          ? '${decimal(low, max: 0)} et plus'
+          : '${decimal(low, max: 0)} à ${decimal(high, max: 0)}';
+    }
+
+    Widget cell(String t, {TextAlign align = TextAlign.right, Color? color, bool bold = false}) => Text(
+      t,
+      textAlign: align,
+      style: Fp.body(12.5, color: color ?? Fp.text, weight: bold ? FontWeight.w700 : FontWeight.w500),
+    );
+    return GlassCard.section(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Par cote du coupon', style: Fp.title(15, weight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Table(
+            columnWidths: const {
+              0: FlexColumnWidth(1.6),
+              1: FlexColumnWidth(),
+              2: FlexColumnWidth(),
+              3: FlexColumnWidth(1.1),
+              4: FlexColumnWidth(1.4),
+            },
+            children: [
+              TableRow(
+                children: [
+                  for (final (i, h) in ['Cote', 'Paris', 'Gagnés', 'Annoncé', 'Net'].indexed)
+                    cell(h, align: i == 0 ? TextAlign.left : TextAlign.right, color: Fp.text3, bold: true),
+                ],
+              ),
+              for (final r in rows)
+                TableRow(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: cell(band(r), align: TextAlign.left),
+                    ),
+                    Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: cell('${r['bets']}')),
+                    Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: cell('${r['won']}')),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: cell(r['announced'] == null ? '—' : percent((r['announced'] as num).toDouble())),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: cell(
+                        "${(r['profit'] as int) >= 0 ? '+' : '−'}${thousands((r['profit'] as int).abs())}",
+                        color: (r['profit'] as int) >= 0 ? Fp.win : Fp.loss,
+                        bold: true,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '« Annoncé » : chances moyennes données par le moteur pour ces paris. Avec des chances de 3 %, '
+            'perdre 10 paris de suite est normal.',
+            style: Fp.body(11, color: Fp.text3, height: 1.4),
+          ),
         ],
       ),
     );

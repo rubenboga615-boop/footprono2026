@@ -16,13 +16,16 @@ import 'team_screen.dart';
 const staleOdds = Duration(days: 2);
 
 class MatchData {
-  MatchData(this.match, this.prediction, this.offers, this.analysis);
+  MatchData(this.match, this.prediction, this.offers, this.analysis, [this.picks]);
   final MatchInfo match;
   final Prediction? prediction;
   final List<Offer> offers;
 
   /// Faits (forme, confrontations, moyennes) : Premium seulement.
   final Json? analysis;
+
+  /// « Les choix du moteur » : une sélection par profil (Sûr gratuit, les autres Premium).
+  final Json? picks;
 }
 
 class MatchScreen extends StatelessWidget {
@@ -47,7 +50,13 @@ class MatchScreen extends StatelessWidget {
         if (e.status != 403 && e.status != 404) rethrow;
       }
     }
-    return MatchData(match, prediction, offers, analysis);
+    Json? picks;
+    try {
+      picks = (await api.get('/matches/$matchId/picks') as Json)['picks'] as Json;
+    } on ApiException {
+      // Choix indisponibles : l'écran garde toutes les probabilités.
+    }
+    return MatchData(match, prediction, offers, analysis, picks);
   }
 
   @override
@@ -233,6 +242,10 @@ class _MatchViewState extends State<_MatchView> {
     }
 
     return [
+      if (d.picks != null) ...[
+        _EnginePicks(picks: d.picks!, offers: offers, match: m),
+        const SizedBox(height: 12),
+      ],
       GlassCard.section(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -886,6 +899,53 @@ class _ProbRow extends StatelessWidget {
   }
 }
 
+/// Ajoute (ou retire) une sélection. Si le coupon contient déjà une autre sélection du
+/// même match, demande laquelle garder : deux sélections d'un même match sont liées et
+/// leur cote combinée serait fausse.
+Future<void> addToCoupon(BuildContext context, MatchInfo match, Offer offer) async {
+  final state = context.read<AppState>();
+  final other = state.sameMatch(match.id, offer.key);
+  if (other != null) {
+    String label(Offer o) =>
+        '${fullLabel(o.market, o.line, o.selection, home: match.home.name, away: match.away.name)} '
+        '(${odds(o.odds)})';
+    final replace = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Fp.background,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Déjà une sélection de ce match', style: Fp.title(17)),
+              const SizedBox(height: 8),
+              Text(
+                'Ton coupon contient déjà « ${label(other.offer)} ». Deux sélections d\'un même match '
+                'sont liées : leur cote combinée serait fausse. Laquelle gardes-tu ?',
+                style: Fp.body(13, color: Fp.text2, height: 1.4),
+              ),
+              const SizedBox(height: 14),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text('Garder : ${label(other.offer)}'),
+              ),
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text('Remplacer par : ${label(offer)}'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (replace != true) return;
+  }
+  showMessage(state.toggleCoupon(match, offer));
+}
+
 /// Cote réelle jouable : ajoute ou retire la sélection du coupon.
 class OddsButton extends StatelessWidget {
   const OddsButton({super.key, required this.match, required this.offer, this.expand = false});
@@ -906,7 +966,7 @@ class OddsButton extends StatelessWidget {
       shape: shape,
       child: InkWell(
         customBorder: shape,
-        onTap: () => showMessage(state.toggleCoupon(match, offer)),
+        onTap: () => addToCoupon(context, match, offer),
         child: Container(
           width: expand ? double.infinity : null,
           constraints: const BoxConstraints(minWidth: 58),
@@ -918,6 +978,90 @@ class OddsButton extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// « Les choix du moteur » : la sélection la plus probable de chaque profil parmi les
+/// marchés qui ont une vraie cote (celle que prendrait le Coupon intelligent).
+class _EnginePicks extends StatelessWidget {
+  const _EnginePicks({required this.picks, required this.offers, required this.match});
+  final Json picks;
+  final Map<String, Offer> offers;
+  final MatchInfo match;
+
+  static const _colors = {'sur': Fp.win, 'equilibre': Fp.warning, 'audacieux': Fp.loss};
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    for (final key in const ['sur', 'equilibre', 'audacieux']) {
+      final p = picks[key] as Json?;
+      if (p == null) continue;
+      final sel = p['selection'] as Json?;
+      final locked = p['locked'] == true;
+      final offer = sel == null ? null : offers['${sel['market']}|${sel['line'] ?? ''}|${sel['selection']}'];
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Container(
+                width: 9,
+                height: 9,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(color: _colors[key], shape: BoxShape.circle),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      (p['label'] as String).toUpperCase(),
+                      style: Fp.body(11, color: Fp.text2, weight: FontWeight.w700),
+                    ),
+                    Text(
+                      locked
+                          ? 'Avec Premium'
+                          : sel == null
+                          ? 'Aucune sélection dans cette tranche'
+                          : '${fullLabel(sel['market'] as String, (sel['line'] ?? '') as String, sel['selection'] as String, home: match.home.name, away: match.away.name)}'
+                                ' · ${percent((sel['model_probability'] as num).toDouble())}',
+                      style: Fp.body(
+                        13.5,
+                        weight: FontWeight.w600,
+                        color: locked || sel == null ? Fp.text3 : Fp.text,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (locked)
+                const Icon(Icons.lock_rounded, size: 18, color: Fp.accentLight)
+              else if (offer != null)
+                OddsButton(match: match, offer: offer),
+            ],
+          ),
+        ),
+      );
+    }
+    if (rows.isEmpty) return const SizedBox.shrink();
+    return GlassCard.section(
+      highlight: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Les choix du moteur', style: Fp.title(15, weight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          ...rows,
+          const SizedBox(height: 4),
+          Text(
+            'La sélection la plus probable de chaque profil parmi celles qui ont une vraie cote. '
+            'Ce n\'est pas un conseil de pari.',
+            style: Fp.body(11, color: Fp.text3, height: 1.4),
+          ),
+        ],
       ),
     );
   }

@@ -130,12 +130,28 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   static const _kServer = 'server_url';
   static const _kToken = 'token';
+  static const _kExcludedTeams = 'excluded_teams';
+
+  /// Nombre maximum de sélections d'un coupon (comme le serveur).
+  static const maxCoupon = 12;
+
+  /// Équipes que l'utilisateur ne veut plus voir dans le Coupon intelligent (id → nom),
+  /// mémorisées sur le téléphone.
+  final Map<int, String> excludedTeams = {};
 
   Future<void> init() async {
     WidgetsBinding.instance.addObserver(this);
     _prefs = await SharedPreferences.getInstance();
     api.baseUrl = _prefs!.getString(_kServer) ?? defaultServer();
     api.token = _prefs!.getString(_kToken);
+    try {
+      final raw = _prefs!.getString(_kExcludedTeams);
+      if (raw != null) {
+        (jsonDecode(raw) as Map<String, dynamic>).forEach((k, v) => excludedTeams[int.parse(k)] = '$v');
+      }
+    } catch (_) {
+      // Préférence illisible : ignorée.
+    }
     unawaited(checkUpdate());
     if (api.token != null) {
       try {
@@ -263,6 +279,31 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   bool inCoupon(int matchId, String key) => coupon.any((c) => c.match.id == matchId && c.offer.key == key);
 
+  /// Autre sélection du même match déjà dans le coupon (deux sélections liées), ou null.
+  CouponItem? sameMatch(int matchId, String key) =>
+      coupon.where((c) => c.match.id == matchId && c.offer.key != key).firstOrNull;
+
+  Future<void> excludeTeam(int id, String name) async {
+    excludedTeams[id] = name;
+    notifyListeners();
+    await _saveExcluded();
+  }
+
+  Future<void> includeTeam(int id) async {
+    excludedTeams.remove(id);
+    notifyListeners();
+    await _saveExcluded();
+  }
+
+  Future<void> _saveExcluded() async {
+    try {
+      await _prefs?.setString(
+        _kExcludedTeams,
+        jsonEncode({for (final e in excludedTeams.entries) '${e.key}': e.value}),
+      );
+    } catch (_) {}
+  }
+
   /// Ajoute une sélection ; une autre sélection du même match est remplacée
   /// (deux sélections d'un même match sont liées : le serveur les refuse).
   String toggleCoupon(MatchInfo match, Offer offer) {
@@ -277,7 +318,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       notifyListeners();
       return 'Sélection remplacée : une seule par match dans un combiné';
     }
-    if (coupon.length >= 10) return 'Coupon plein (10 sélections au maximum)';
+    if (coupon.length >= maxCoupon) return 'Coupon plein ($maxCoupon sélections au maximum)';
     coupon.add(CouponItem(match: match, offer: offer));
     notifyListeners();
     return 'Ajouté au coupon';

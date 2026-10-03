@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Seul le dossier des mises à jour est partagé avec l'installateur d'Android. -->
+<!-- Dossiers partagés : mises à jour (installateur d'Android), images de coupons (partage). -->
 <paths>
     <cache-path name="updates" path="updates/" />
+    <cache-path name="shared" path="shared/" />
 </paths>

@@ -15,10 +15,18 @@ match (elles sont liées).
   marge, et le coupon ne bat pas le bookmaker à long terme.
 - Chaque sélection est expliquée par des faits (forme, moyennes de la
   saison, confrontations), jamais par une opinion.
+- **Grosse cote** : l'utilisateur fixe une cote totale visée. Pour chaque
+  profil, on ajoute ses angles du plus probable au moins probable jusqu'à
+  atteindre la cote (``target_coupon``), puis on garde le coupon dont la cote
+  est la plus proche de la cible. Les sélections sont choisies par leur probabilité seule, jamais
+  par l'écart entre le moteur et la cote : chercher « la combinaison la plus
+  probable » parmi toutes choisissait les sélections où le moteur contredit le
+  plus la cote, c'est-à-dire là où il se trompe le plus souvent (vérifié sur
+  les données réelles le 03/10/2026).
 """
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -60,20 +68,46 @@ PERIODS = {
     "week": "7 prochains jours",
     # Toujours des matchs : la prochaine journée, même après une trêve internationale.
     "next": "Prochaine journée",
+    "day": "Un seul jour",  # avec ``day``
+    "range": "Plusieurs jours",  # avec ``date_from`` et ``date_to`` (inclus)
 }
+TARGET_PROFILE = "grosse"
+TARGET_LABEL = "Grosse cote"
+TARGET_MIN, TARGET_MAX = Decimal("2"), Decimal("1000")
 NEXT_ROUND_DAYS = 4  # vendredi → lundi
-MIN_SIZE, MAX_SIZE = 1, 4
+MIN_SIZE, MAX_SIZE = 1, 12
+MAX_RANGE_DAYS = 14
 MIN_ODDS = Decimal("1.10")  # en dessous, la sélection ne rapporte presque rien
 CLOSE_BEFORE_KICKOFF = timedelta(minutes=15)
 ALTERNATIVES = 3
 
 
-def period_window(period: str, now: datetime) -> tuple[datetime, datetime]:
+def _midnight(d: date) -> datetime:
+    return datetime(d.year, d.month, d.day, tzinfo=UTC)
+
+
+def period_window(
+    period: str,
+    now: datetime,
+    day: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> tuple[datetime, datetime]:
     """Début et fin (UTC, heure d'Abidjan) des matchs retenus pour la période."""
     if period not in PERIODS:
         raise AppError(f"période inconnue : {period} ({', '.join(PERIODS)})")
     today = datetime(now.year, now.month, now.day, tzinfo=UTC)
     start = now + CLOSE_BEFORE_KICKOFF
+    if period == "day":
+        if day is None:
+            raise AppError("période « un seul jour » : indique le jour (day=AAAA-MM-JJ)")
+        return max(start, _midnight(day)), _midnight(day) + timedelta(days=1)
+    if period == "range":
+        if date_from is None or date_to is None or date_to < date_from:
+            raise AppError("période « plusieurs jours » : indique date_from et date_to (inclus)")
+        if (date_to - date_from).days >= MAX_RANGE_DAYS:
+            raise AppError(f"période « plusieurs jours » : {MAX_RANGE_DAYS} jours au plus")
+        return max(start, _midnight(date_from)), _midnight(date_to) + timedelta(days=1)
     if period == "today":
         return start, today + timedelta(days=1)
     if period == "tomorrow":
@@ -152,6 +186,68 @@ def choose(profile: Profile, inside: list[Pick]) -> Pick:
     return min(inside, key=lambda pk: (abs(pk.probability - target), -pk.probability))
 
 
+@dataclass(frozen=True)
+class Filters:
+    """Restrictions choisies par l'utilisateur (toutes facultatives)."""
+
+    competitions: list[str] | None = None
+    after_hour: int | None = None  # coup d'envoi à partir de cette heure (UTC = Abidjan)
+    exclude_matches: frozenset[int] = frozenset()
+    exclude_teams: frozenset[int] = frozenset()
+
+    def keeps(self, match: Match) -> bool:
+        if match.id in self.exclude_matches:
+            return False
+        if {match.home_team_id, match.away_team_id} & self.exclude_teams:
+            return False
+        return not (
+            self.after_hour is not None
+            and match.kickoff_at is not None
+            and match.kickoff_at.hour < self.after_hour
+        )
+
+
+async def _candidates(
+    session: AsyncSession, match: Match, home: str, away: str, comp: str, now: datetime
+) -> list[Pick]:
+    """Sélections jouables d'un match : marché retenu, vraie cote, probabilité du moteur."""
+    offers = await service.match_offer(session, match.id, now)
+    probs = await service.model_probabilities(session, match.id)
+    return [
+        Pick(match, home, away, comp, offer, p)
+        for k, offer in offers.items()
+        if (p := probs.get(k)) is not None and automatic(offer.market) and offer.odds >= MIN_ODDS
+    ]
+
+
+def angle(profile: Profile, candidates: list[Pick]) -> Pick | None:
+    inside = [pk for pk in candidates if profile.low <= pk.probability < profile.high]
+    return choose(profile, inside) if inside else None
+
+
+async def match_angles(
+    session: AsyncSession, match_id: int, now: datetime | None = None
+) -> dict[str, Pick | None]:
+    """« Les choix du moteur » d'un match : l'angle de chaque profil (ou rien)."""
+    now = now or datetime.now(UTC)
+    home, away = aliased(Team), aliased(Team)
+    row = (
+        await session.execute(
+            select(Match, home.name, away.name, Competition.code)
+            .join(home, home.id == Match.home_team_id)
+            .join(away, away.id == Match.away_team_id)
+            .join(Season, Season.id == Match.season_id)
+            .join(Competition, Competition.id == Season.competition_id)
+            .where(Match.id == match_id)
+        )
+    ).first()
+    if row is None:
+        return dict.fromkeys(PROFILES)
+    match, home_name, away_name, code = row._tuple()
+    candidates = await _candidates(session, match, home_name, away_name, code, now)
+    return {key: angle(prof, candidates) for key, prof in PROFILES.items()}
+
+
 async def best_angles(
     session: AsyncSession,
     profile: Profile,
@@ -159,24 +255,39 @@ async def best_angles(
     end: datetime,
     now: datetime,
     competitions: list[str] | None = None,
+    filters: Filters | None = None,
 ) -> list[Pick]:
     """L'angle de chaque match (voir ``choose``), du plus sûr au moins sûr."""
+    filters = filters or Filters(competitions=competitions)
     picks = []
-    for match, home, away, comp in await _matches(session, start, end, competitions):
-        offers = await service.match_offer(session, match.id, now)
-        probs = await service.model_probabilities(session, match.id)
-        inside = [
-            Pick(match, home, away, comp, offer, p)
-            for k, offer in offers.items()
-            if (p := probs.get(k)) is not None
-            and automatic(offer.market)
-            and offer.odds >= MIN_ODDS
-            and profile.low <= p < profile.high
-        ]
-        if inside:
-            picks.append(choose(profile, inside))
+    for match, home, away, comp in await _matches(session, start, end, filters.competitions):
+        if not filters.keeps(match):
+            continue
+        pick = angle(profile, await _candidates(session, match, home, away, comp, now))
+        if pick is not None:
+            picks.append(pick)
     picks.sort(key=lambda pk: (-pk.probability, pk.match.kickoff_at, pk.match.id))
     return picks
+
+
+def target_coupon(ranked: list[Pick], target: Decimal, max_size: int) -> list[Pick]:
+    """Les sélections les plus probables (dans l'ordre de ``ranked``) jusqu'à la cote visée.
+
+    Ordre de probabilité pur : choisir une sélection « parce que sa cote suffit » ou
+    « parce que le moteur la juge plus probable que sa cote » reviendrait à choisir là
+    où le moteur contredit le bookmaker (vérifié le 03/10/2026). Liste vide si la cote
+    n'est pas atteinte avec ``max_size`` sélections au plus.
+    """
+    chosen: list[Pick] = []
+    total = Decimal(1)
+    for pk in ranked:
+        if len(chosen) >= max_size:
+            break
+        chosen.append(pk)
+        total *= pk.offer.odds
+        if total >= target:
+            return chosen
+    return []
 
 
 # ----------------------------------------------------------------- explications
@@ -235,6 +346,8 @@ def _selection_out(pick: Pick, analysis: dict[str, Any] | None) -> dict[str, Any
         "match_id": m.id,
         "home": pick.home,
         "away": pick.away,
+        "home_team_id": m.home_team_id,
+        "away_team_id": m.away_team_id,
         "competition": pick.competition,
         "kickoff_at": m.kickoff_at,
         "market": pick.offer.market,
@@ -246,6 +359,11 @@ def _selection_out(pick: Pick, analysis: dict[str, Any] | None) -> dict[str, Any
         "model_probability": round(pick.probability, 4),
         "reasons": reasons(analysis, pick) if analysis else [],
     }
+
+
+def selection_summary(pick: Pick) -> dict[str, Any]:
+    """Une sélection sans ses explications (écran d'un match)."""
+    return _selection_out(pick, None)
 
 
 def summarize(selections: list[Pick]) -> tuple[Decimal, float]:
@@ -263,27 +381,51 @@ async def generate(
     size: int,
     *,
     competitions: list[str] | None = None,
+    target_odds: Decimal | None = None,
+    day: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    after_hour: int | None = None,
+    exclude_matches: list[int] | None = None,
+    exclude_teams: list[int] | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    if profile not in PROFILES:
-        raise AppError(f"profil inconnu : {profile} ({', '.join(PROFILES)})")
+    """Coupon d'un profil (``size`` sélections) ou Grosse cote (``target_odds``).
+
+    En Grosse cote, ``size`` est le nombre maximum de sélections.
+    """
+    grosse = profile == TARGET_PROFILE
+    if not grosse and profile not in PROFILES:
+        raise AppError(f"profil inconnu : {profile} ({', '.join([*PROFILES, TARGET_PROFILE])})")
     if not MIN_SIZE <= size <= MAX_SIZE:
         raise AppError(f"nombre de sélections : {MIN_SIZE} à {MAX_SIZE}")
+    if grosse and (target_odds is None or not TARGET_MIN <= target_odds <= TARGET_MAX):
+        raise AppError(f"cote visée : de {TARGET_MIN} à {TARGET_MAX}")
+    if after_hour is not None and not 0 <= after_hour <= 23:
+        raise AppError("heure de début : de 0 à 23")
     now = now or datetime.now(UTC)
-    start, end = period_window(period, now)
+    start, end = period_window(period, now, day, date_from, date_to)
+    filters = Filters(
+        competitions=competitions,
+        after_hour=after_hour,
+        exclude_matches=frozenset(exclude_matches or ()),
+        exclude_teams=frozenset(exclude_teams or ()),
+    )
     first = await next_kickoff(session, start, competitions)
     if period == "next" and first is not None:
-        day = datetime(first.year, first.month, first.day, tzinfo=UTC)
-        end = day + timedelta(days=NEXT_ROUND_DAYS)
-    prof = PROFILES[profile]
-    picks = await best_angles(session, prof, start, end, now, competitions)
-    chosen, others = picks[:size], picks[size : size + ALTERNATIVES]
+        day0 = datetime(first.year, first.month, first.day, tzinfo=UTC)
+        end = day0 + timedelta(days=NEXT_ROUND_DAYS)
+    label = TARGET_LABEL if grosse else PROFILES[profile].label
+    period_label = PERIODS[period]
+    if period == "day" and day is not None:
+        period_label = french_day(_midnight(day))
     out: dict[str, Any] = {
         "profile": profile,
-        "profile_label": prof.label,
-        "range": [prof.low, prof.high],
+        "profile_label": label,
+        "range": None if grosse else [PROFILES[profile].low, PROFILES[profile].high],
+        "target_odds": target_odds,
         "period": period,
-        "period_label": PERIODS[period],
+        "period_label": period_label,
         "size": size,
         "generated_at": now,
         "window": [start, end],
@@ -293,28 +435,58 @@ async def generate(
     }
     if first is None or first >= end:
         # Aucun match sur la période (trêve internationale, fin de saison) : le dire.
-        out["message"] = f"Aucun match prévu pour « {PERIODS[period].lower()} »." + (
+        out["message"] = f"Aucun match prévu pour « {period_label.lower()} »." + (
             f" Prochains matchs à partir du {french_day(first)} : choisis « Prochaine journée »."
             if first is not None
             else " Aucun match à venir au calendrier pour l'instant."
         )
         return out
-    if len(chosen) < size:
-        out["message"] = (
-            f"Seulement {len(chosen)} match(s) avec une sélection « {prof.label.lower()} » et une "
-            f"vraie cote pour « {PERIODS[period].lower()} » : élargis la période, change de "
-            "profil ou réduis le nombre de sélections."
-        )
+    if grosse:
+        assert target_odds is not None
+        # Un coupon par profil (ses angles, du plus probable au moins probable), puis le
+        # plus probable des coupons qui atteignent la cote.
+        coupons = [
+            target_coupon(
+                await best_angles(session, prof, start, end, now, filters=filters),
+                target_odds,
+                size,
+            )
+            for prof in PROFILES.values()
+        ]
+        reached = [c for c in coupons if c]
+        # La cote la plus proche de la cible (critère indépendant de l'avis du moteur).
+        chosen = min(reached, key=lambda c: (summarize(c)[0], len(c))) if reached else []
+        chosen.sort(key=lambda pk: (pk.match.kickoff_at, pk.match.id))
+        others: list[Pick] = []
         if not chosen:
+            out["message"] = (
+                f"Impossible d'atteindre une cote de {target_odds} avec {size} sélections au plus "
+                f"sur « {period_label.lower()} » : élargis la période, ajoute des championnats, "
+                "autorise plus de sélections ou vise une cote plus basse."
+            )
             return out
+    else:
+        prof = PROFILES[profile]
+        picks = await best_angles(session, prof, start, end, now, filters=filters)
+        chosen, others = picks[:size], picks[size : size + ALTERNATIVES]
+        if len(chosen) < size:
+            out["message"] = (
+                f"Seulement {len(chosen)} match(s) avec une sélection « {prof.label.lower()} » et "
+                f"une vraie cote pour « {period_label.lower()} » : élargis la période, change de "
+                "profil ou réduis le nombre de sélections."
+            )
+            if not chosen:
+                return out
     total, probability = summarize(chosen)
     out["coupon"] = {
         "selections": [
             _selection_out(pk, await match_analysis(session, pk.match.id)) for pk in chosen
         ],
         "total_odds": total,
-        "probability": round(probability, 4),
-        "implied_probability": round(float(1 / total), 4),
+        "probability": round(probability, 6),
+        "implied_probability": round(float(1 / total), 6),
+        # « 1 chance sur N », selon le moteur.
+        "one_in": max(1, round(1 / probability)) if probability > 0 else None,
     }
     out["alternatives"] = [
         _selection_out(pk, await match_analysis(session, pk.match.id)) for pk in others

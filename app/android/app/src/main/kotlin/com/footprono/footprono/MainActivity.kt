@@ -79,5 +79,39 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        // Partage d'un coupon en image (lib/share/share_bridge.dart).
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "footprono/share")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "sharedDir" -> {
+                        val dir = File(cacheDir, "shared")
+                        dir.mkdirs()
+                        result.success(dir.absolutePath)
+                    }
+                    "shareImage" -> {
+                        val path = call.argument<String>("path")
+                        if (path == null) {
+                            result.error("argument", "chemin manquant", null)
+                        } else {
+                            val uri = FileProvider.getUriForFile(
+                                this,
+                                "$packageName.fileprovider",
+                                File(path),
+                            )
+                            val send = Intent(Intent.ACTION_SEND)
+                                .setType("image/png")
+                                .putExtra(Intent.EXTRA_STREAM, uri)
+                                .putExtra(Intent.EXTRA_TEXT, call.argument<String>("text") ?: "")
+                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            startActivity(
+                                Intent.createChooser(send, "Partager le coupon")
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                            result.success(null)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
     }
 }

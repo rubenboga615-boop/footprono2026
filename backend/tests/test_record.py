@@ -106,3 +106,12 @@ async def test_record_counts_only_my_settled_bets(
     assert body["stakes_7d"] == 38000
     assert body["stakes_prev_7d"] == 25000
     assert body["rising"] is False  # moins du double
+
+    by_odds = {b["low"]: b for b in body["by_odds"]}
+    assert by_odds[1.0]["bets"] == 25  # simples à 1,60
+    assert by_odds[1.0]["won"] == 15
+    assert by_odds[1.0]["announced"] == 0.65
+    assert by_odds[1.0]["profit"] == 15 * 1600 - 25 * 1000
+    assert by_odds[2.0]["bets"] == 1  # combiné à 2,00
+    assert by_odds[2.0]["announced"] == round(0.55 * 0.5, 4)
+    assert by_odds[2.0]["high"] == 5.0

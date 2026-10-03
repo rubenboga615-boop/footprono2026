@@ -8,6 +8,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'share_coupon.dart';
 
 /// Coupon intelligent : la sélection la plus sûre de chaque match (selon le profil),
 /// sur une période au choix, avec de vraies cotes et des faits pour chaque choix.
@@ -18,7 +19,10 @@ class SmartCouponScreen extends StatefulWidget {
     ('sur', 'Sûr', '75 à 92 % par sélection'),
     ('equilibre', 'Équilibré', '60 à 75 % par sélection'),
     ('audacieux', 'Audacieux', '45 à 60 % par sélection'),
+    ('grosse', 'Grosse cote', 'Les sélections les plus probables, ajoutées jusqu\'à la cote visée'),
   ];
+  static const targets = [10, 25, 50, 100];
+  static const hours = [(null, 'Toute heure'), (15, 'Après 15 h'), (18, 'Après 18 h'), (20, 'Après 20 h')];
   static const periods = [
     ('today', 'Aujourd\'hui'),
     ('tomorrow', 'Demain'),
@@ -26,6 +30,8 @@ class SmartCouponScreen extends StatefulWidget {
     ('weekend', 'Ce week-end'),
     ('week', '7 jours'),
     ('next', 'Prochaine journée'),
+    ('day', 'Un seul jour'),
+    ('range', 'Plusieurs jours'),
   ];
 
   @override
@@ -36,28 +42,134 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
   int profile = 1;
   int period = 5; // Prochaine journée : jamais vide pendant une trêve
   int size = 3;
+  int maxBig = AppState.maxCoupon; // Grosse cote : plafond de sélections
+  num target = 50;
+  DateTime day = _today().add(const Duration(days: 1));
+  DateTime? rangeTo;
+  int hour = 0;
+  final Set<String> competitions = {};
+  final Set<int> excludedMatches = {};
   bool busy = false;
   Json? result;
   Object? error;
 
+  static DateTime _today() {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day);
+  }
+
+  bool get _big => SmartCouponScreen.profiles[profile].$1 == 'grosse';
+  String get _period => SmartCouponScreen.periods[period].$1;
+
+  static String _iso(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
   Future<void> _generate() async {
-    final api = context.read<AppState>().api;
+    final state = context.read<AppState>();
     setState(() {
       busy = true;
       error = null;
     });
     try {
-      final r = await api.get('/smart-coupon', {
+      final query = <String, Object?>{
         'profile': SmartCouponScreen.profiles[profile].$1,
-        'period': SmartCouponScreen.periods[period].$1,
-        'size': '$size',
-      }) as Json;
+        'period': _period,
+        'size': '${_big ? maxBig : size}',
+        if (_big) 'target_odds': '$target',
+        if (_period == 'day') 'day': _iso(day),
+        if (_period == 'range') ...{'date_from': _iso(day), 'date_to': _iso(rangeTo ?? day)},
+        if (SmartCouponScreen.hours[hour].$1 != null) 'after_hour': '${SmartCouponScreen.hours[hour].$1}',
+      };
+      final r = await state.api.get(_withLists(query)) as Json;
       if (mounted) setState(() => result = r);
     } catch (e) {
       if (mounted) setState(() => error = e);
     } finally {
       if (mounted) setState(() => busy = false);
     }
+  }
+
+  /// Paramètres répétés (championnats, exclusions) : ajoutés à la main dans l'adresse.
+  String _withLists(Map<String, Object?> query) {
+    final parts = [
+      for (final e in query.entries) '${e.key}=${Uri.encodeQueryComponent('${e.value}')}',
+      for (final c in competitions) 'competitions=$c',
+      for (final m in excludedMatches) 'exclude_matches=$m',
+      for (final t in context.read<AppState>().excludedTeams.keys) 'exclude_teams=$t',
+    ];
+    return '/smart-coupon?${parts.join('&')}';
+  }
+
+  Future<void> _customTarget() async {
+    final ctrl = TextEditingController(text: '$target');
+    final v = await showDialog<num>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cote visée'),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(helperText: 'De 2 à 1000'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, num.tryParse(ctrl.text.replaceAll(',', '.'))),
+            child: const Text('Valider'),
+          ),
+        ],
+      ),
+    );
+    if (v != null && v >= 2 && v <= 1000) setState(() => target = v);
+  }
+
+  /// Remplacer : la sélection est écartée, le moteur recompose le coupon sans ce match.
+  Future<void> _replace(Json s) async {
+    excludedMatches.add(s['match_id'] as int);
+    await _generate();
+  }
+
+  Future<void> _exclude(Json s) async {
+    final state = context.read<AppState>();
+    final home = s['home'] as String, away = s['away'] as String;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Fp.background,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Exclure $home – $away ?', style: Fp.title(17)),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context, 'match'),
+                child: const Text('Seulement ce match'),
+              ),
+              if (s['home_team_id'] != null) ...[
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(context, 'home'),
+                  child: Text('Toujours exclure $home'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(context, 'away'),
+                  child: Text('Toujours exclure $away'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null) return;
+    if (choice == 'match') excludedMatches.add(s['match_id'] as int);
+    if (choice == 'home') await state.excludeTeam(s['home_team_id'] as int, home);
+    if (choice == 'away') await state.excludeTeam(s['away_team_id'] as int, away);
+    await _generate();
   }
 
   /// Ajoute des sélections au coupon, aux cotes actuelles (relues sur le serveur).
@@ -93,11 +205,13 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final premium = context.watch<AppState>().premium;
+    final state = context.watch<AppState>();
+    final premium = state.premium;
     final (_, _, range) = SmartCouponScreen.profiles[profile];
     final coupon = result?['coupon'] as Json?;
     final alternatives = ((result?['alternatives'] as List?) ?? const []).cast<Json>();
     final message = result?['message'] as String?;
+    final days = [for (var i = 0; i < 10; i++) _today().add(Duration(days: i))];
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
@@ -126,13 +240,32 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
               ),
             ] else ...[
               const SectionTitle('Profil'),
-              SegmentTabs(
-                labels: [for (final p in SmartCouponScreen.profiles) p.$2],
-                selected: profile,
-                onSelected: (i) => setState(() => profile = i),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final (i, p) in SmartCouponScreen.profiles.indexed)
+                    FpChip(p.$2, selected: i == profile, onTap: () => setState(() => profile = i)),
+                ],
               ),
               const SizedBox(height: 6),
               Text(range, style: Fp.body(12, color: Fp.text3)),
+              if (_big) ...[
+                const SectionTitle('Cote visée'),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final t in SmartCouponScreen.targets)
+                      FpChip('$t', selected: target == t, onTap: () => setState(() => target = t)),
+                    FpChip(
+                      SmartCouponScreen.targets.contains(target) ? 'Autre…' : 'Autre : ${decimal(target)}',
+                      selected: !SmartCouponScreen.targets.contains(target),
+                      onTap: _customTarget,
+                    ),
+                  ],
+                ),
+              ],
               const SectionTitle('Période des matchs'),
               // Toutes les périodes visibles d'un coup (pas de défilement caché).
               Wrap(
@@ -143,12 +276,76 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                     FpChip(p.$2, selected: i == period, onTap: () => setState(() => period = i)),
                 ],
               ),
-              const SectionTitle('Nombre de sélections'),
-              ChipRow(
-                labels: const ['1', '2', '3', '4'],
-                selected: size - 1,
-                onSelected: (i) => setState(() => size = i + 1),
+              if (_period == 'day' || _period == 'range') ...[
+                const SizedBox(height: 10),
+                Text(_period == 'day' ? 'Jour' : 'Du', style: Fp.body(12, color: Fp.text3)),
+                const SizedBox(height: 6),
+                ChipRow(
+                  labels: [for (final d in days) shortDate(d)],
+                  selected: days.indexOf(day).clamp(0, days.length - 1),
+                  onSelected: (i) => setState(() {
+                    day = days[i];
+                    if (rangeTo != null && rangeTo!.isBefore(day)) rangeTo = day;
+                  }),
+                ),
+                if (_period == 'range') ...[
+                  const SizedBox(height: 8),
+                  Text('Au', style: Fp.body(12, color: Fp.text3)),
+                  const SizedBox(height: 6),
+                  ChipRow(
+                    labels: [for (final d in days.where((d) => !d.isBefore(day))) shortDate(d)],
+                    selected: (rangeTo == null ? 0 : rangeTo!.difference(day).inDays).clamp(0, 9),
+                    onSelected: (i) => setState(() => rangeTo = day.add(Duration(days: i))),
+                  ),
+                ],
+              ],
+              const SectionTitle('Championnats'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FpChip('Tous', selected: competitions.isEmpty, onTap: () => setState(competitions.clear)),
+                  for (final c in const ['LIGUE_1', 'EPL', 'LA_LIGA', 'SERIE_A', 'BUNDESLIGA'])
+                    FpChip(
+                      competitionName(c),
+                      selected: competitions.contains(c),
+                      onTap: () => setState(
+                        () => competitions.contains(c) ? competitions.remove(c) : competitions.add(c),
+                      ),
+                    ),
+                ],
               ),
+              const SectionTitle('Heure des matchs'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final (i, h) in SmartCouponScreen.hours.indexed)
+                    FpChip(h.$2, selected: i == hour, onTap: () => setState(() => hour = i)),
+                ],
+              ),
+              SectionTitle(_big ? 'Sélections au maximum' : 'Nombre de sélections'),
+              ChipRow(
+                labels: [for (var i = 1; i <= AppState.maxCoupon; i++) '$i'],
+                selected: (_big ? maxBig : size) - 1,
+                onSelected: (i) => setState(() => _big ? maxBig = i + 1 : size = i + 1),
+              ),
+              if (state.excludedTeams.isNotEmpty || excludedMatches.isNotEmpty) ...[
+                const SectionTitle('Exclus'),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final e in state.excludedTeams.entries)
+                      InputChip(label: Text(e.value), onDeleted: () => state.includeTeam(e.key)),
+                    if (excludedMatches.isNotEmpty)
+                      InputChip(
+                        label: Text('${excludedMatches.length} match(s) écarté(s)'),
+                        onDeleted: () => setState(excludedMatches.clear),
+                      ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 18),
               FilledButton(
                 onPressed: busy ? null : _generate,
@@ -162,7 +359,14 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                   child: Text(message, style: Fp.body(13, color: Fp.warning, height: 1.4)),
                 ),
               if (coupon != null) ...[
-                _CouponCard(coupon: coupon, onAdd: busy ? null : () => _addToCoupon(_sels(coupon))),
+                _CouponCard(
+                  coupon: coupon,
+                  big: _big,
+                  profileLabel: '${result?['profile_label'] ?? ''}',
+                  onAdd: busy ? null : () => _addToCoupon(_sels(coupon)),
+                  onReplace: busy ? null : _replace,
+                  onExclude: busy ? null : _exclude,
+                ),
                 if (alternatives.isNotEmpty) ...[
                   const SectionTitle('Autres choix (moins sûrs)'),
                   for (final s in alternatives)
@@ -197,21 +401,56 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
 }
 
 class _CouponCard extends StatelessWidget {
-  const _CouponCard({required this.coupon, required this.onAdd});
+  const _CouponCard({
+    required this.coupon,
+    required this.onAdd,
+    this.big = false,
+    this.profileLabel = '',
+    this.onReplace,
+    this.onExclude,
+  });
   final Json coupon;
   final VoidCallback? onAdd;
+  final bool big;
+  final String profileLabel;
+  final void Function(Json)? onReplace;
+  final void Function(Json)? onExclude;
 
   @override
   Widget build(BuildContext context) {
     final sels = (coupon['selections'] as List).cast<Json>();
     final p = (coupon['probability'] as num).toDouble();
     final implied = (coupon['implied_probability'] as num).toDouble();
+    final oneIn = (coupon['one_in'] as num?)?.toInt() ?? (p > 0 ? (1 / p).round() : null);
     return GlassCard.section(
       highlight: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final (i, s) in sels.indexed) ...[if (i > 0) const Divider(height: 22), _SelectionRow(s)],
+          for (final (i, s) in sels.indexed) ...[
+            if (i > 0) const Divider(height: 22),
+            _SelectionRow(
+              s,
+              trailing: onReplace == null
+                  ? null
+                  : Column(
+                      children: [
+                        IconButton(
+                          tooltip: 'Remplacer',
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.autorenew_rounded, size: 20, color: Fp.text2),
+                          onPressed: () => onReplace!(s),
+                        ),
+                        IconButton(
+                          tooltip: 'Exclure',
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.close_rounded, size: 20, color: Fp.text2),
+                          onPressed: () => onExclude!(s),
+                        ),
+                      ],
+                    ),
+            ),
+          ],
           const Divider(height: 26),
           Row(
             children: [
@@ -219,8 +458,8 @@ class _CouponCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: StatTile(
-                  'Probabilité estimée',
-                  percent(p, decimals: 1),
+                  oneIn != null ? '1 chance sur $oneIn' : 'Probabilité estimée',
+                  percent(p, decimals: p < 0.1 ? 1 : 0),
                   valueColor: Fp.accentLight,
                   valueSize: 20,
                 ),
@@ -233,8 +472,22 @@ class _CouponCard extends StatelessWidget {
             'cote ne sont pas d\'accord, la cote a le plus souvent raison.',
             style: Fp.body(12, color: Fp.text3),
           ),
+          if (big || sels.length >= 6) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Coupon à gros risque : le bookmaker prend une marge d\'environ 5 à 8 % sur chaque cote, '
+              'et ces marges se multiplient avec le nombre de sélections. Argent fictif.',
+              style: Fp.body(12, color: Fp.warning, height: 1.4),
+            ),
+          ],
           const SizedBox(height: 14),
           FilledButton(onPressed: onAdd, child: const Text('Mettre dans mon coupon')),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => shareCoupon(context, sels, coupon, profileLabel),
+            icon: const Icon(Icons.ios_share_rounded, size: 18),
+            label: const Text('Partager l\'image'),
+          ),
         ],
       ),
     );

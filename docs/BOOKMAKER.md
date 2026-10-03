@@ -23,7 +23,7 @@ Argent **fictif**. Code : `backend/src/footprono/accounts/`, `bookmaker/`,
 
 ## Paris
 
-- Simple ou combiné (jusqu'à 10 sélections) ; **un combiné ne réunit que des
+- Simple ou combiné (jusqu'à 12 sélections) ; **un combiné ne réunit que des
   matchs différents** : deux sélections du même match sont liées, multiplier
   leurs cotes serait faux (utiliser un marché combiné du bookmaker).
 - Seulement avant le coup d'envoi, jamais sur un match reporté ; mise minimale

@@ -28,7 +28,7 @@ from footprono.predictions.models import MatchPrediction
 PLAYABLE_BOOKMAKERS = ("1xBet", "Bet365")  # par ordre de préférence
 ODDS_MAX_AGE = timedelta(hours=36)  # relevés toutes les 3 heures ; marge si l'API tombe
 MIN_STAKE = 100
-MAX_SELECTIONS = 10
+MAX_SELECTIONS = 12
 
 
 class OddsChangedError(AppError):

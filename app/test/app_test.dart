@@ -30,6 +30,8 @@ class FakeServer {
     'match_id': 7,
     'home': 'Lens',
     'away': 'Lyon',
+    'home_team_id': 1,
+    'away_team_id': 2,
     'competition': 'LIGUE_1',
     'kickoff_at': '2026-10-10T19:00:00Z',
     'market': '1X2',
@@ -231,7 +233,33 @@ class FakeServer {
             'source_updated_at': '2026-09-20T17:09:14Z',
             'checked_at': '2026-10-09T08:00:00Z',
           },
+          {
+            'market': 'OU',
+            'line': '2.5',
+            'selection': 'over',
+            'odds': '1.950',
+            'bookmaker': '1xBet',
+            'label': 'Goals Over/Under — Over 2.5',
+            'fetched_at': '2026-10-09T08:00:00Z',
+            'model_probability': 0.52,
+            'model_fair_odds': 1.923,
+          },
         ];
+      case 'GET /matches/7/picks':
+        Map<String, dynamic> pick(String label, bool locked, Map<String, dynamic>? sel) => {
+          'label': label,
+          'range': [0.6, 0.75],
+          'locked': locked,
+          'selection': sel,
+        };
+        body = {
+          'match_id': 7,
+          'picks': {
+            'sur': pick('Sûr', false, null),
+            'equilibre': pick('Équilibré', !premium, premium ? smartSel : null),
+            'audacieux': pick('Audacieux', !premium, null),
+          },
+        };
       case 'GET /matches/7/odds-history':
         body = {
           'market': '1X2',
@@ -476,6 +504,10 @@ class FakeServer {
           'stakes_7d': 40000,
           'stakes_prev_7d': 10000,
           'rising': true,
+          'by_odds': [
+            {'low': 1.0, 'high': 2.0, 'bets': 18, 'won': 11, 'announced': 0.62, 'profit': 3200},
+            {'low': 20.0, 'high': null, 'bets': 12, 'won': 0, 'announced': 0.03, 'profit': -12000},
+          ],
         };
       case 'POST /bets':
         final b = jsonDecode(r.body) as Map<String, dynamic>;
@@ -747,6 +779,9 @@ void main() {
     expect(find.textContaining('ont au moins doublé'), findsOneWidget);
     expect(find.text('Résultat du match'), findsOneWidget);
     expect(find.text('Ligue 1'), findsOneWidget);
+    expect(find.text('Par cote du coupon'), findsOneWidget);
+    expect(find.text('20 et plus'), findsOneWidget);
+    expect(find.text('−12${nbsp}000'), findsOneWidget);
   });
 
   testWidgets('mouvement des cotes : ouverture affichée, historique des relevés', (tester) async {
@@ -761,6 +796,72 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('La cote est passée de 2,04 à 1,85 (2 changements).'), findsOneWidget);
     expect(find.text('1,98'), findsOneWidget);
+  });
+
+  testWidgets('Grosse cote : cote visée envoyée, risque affiché, exclusion d\'une équipe, partage', (
+    tester,
+  ) async {
+    final (state, server) = await startApp(tester, loggedIn: true, premium: true);
+    await tester.binding.setSurfaceSize(const Size(430, 2600));
+    await tester.tap(find.text('Coupon'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Coupon intelligent'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Grosse cote'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('25'));
+    await tester.tap(find.text('Après 18 h'));
+    await tester.tap(find.text('Composer le coupon'));
+    await tester.pumpAndSettle();
+    expect(server.smartQueries.last, {
+      'profile': 'grosse',
+      'period': 'next',
+      'size': '12',
+      'target_odds': '25',
+      'after_hour': '18',
+    });
+    expect(find.textContaining('1 chance sur 2'), findsOneWidget); // probabilité 0,62
+    expect(find.textContaining('Coupon à gros risque'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Exclure'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Toujours exclure Lens'));
+    await tester.pumpAndSettle();
+    expect(state.excludedTeams, {1: 'Lens'});
+    expect(server.smartQueries.last['exclude_teams'], '1');
+
+    await tester.tap(find.text("Partager l'image").first);
+    await tester.pumpAndSettle();
+    expect(find.text('Chances du moteur'), findsOneWidget);
+    expect(
+      find.text('Probabilités calculées par FootProno. Argent fictif : aucun gain réel.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('match : choix du moteur, deux sélections du même match à départager', (tester) async {
+    final (state, _) = await startApp(tester, loggedIn: true);
+    await tester.binding.setSurfaceSize(const Size(430, 2400));
+    await tester.tap(find.text('LEN'));
+    await tester.pumpAndSettle();
+    expect(find.text('Les choix du moteur'), findsOneWidget);
+    expect(find.text('Aucune sélection dans cette tranche'), findsOneWidget); // Sûr
+    expect(find.text('Avec Premium'), findsNWidgets(2));
+
+    await tester.tap(find.text('1,85').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cotes'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1,95').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Déjà une sélection de ce match'), findsOneWidget);
+    await tester.tap(find.textContaining('Remplacer par'));
+    await tester.pumpAndSettle();
+    expect(state.coupon.single.offer.key, 'OU|2.5|over');
+  });
+
+  testWidgets('coupon : 12 sélections au maximum', (tester) async {
+    expect(AppState.maxCoupon, 12);
   });
 
   testWidgets('notifications push : téléphone enregistré, notification touchée, déconnexion', (tester) async {
@@ -845,16 +946,21 @@ void main() {
     await tester.tap(find.text('Coupon intelligent'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ce week-end'));
+    await tester.ensureVisible(find.text('Composer le coupon'));
     await tester.tap(find.text('Composer le coupon'));
     await tester.pumpAndSettle();
     expect(server.smartQueries.single, {'profile': 'equilibre', 'period': 'weekend', 'size': '3'});
     expect(find.text('Victoire Lens'), findsOneWidget);
     expect(find.text('• Forme (5 derniers) : Lens VNDVV, Lyon DNVVN'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Mettre dans mon coupon'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Mettre dans mon coupon'));
     await tester.pumpAndSettle();
     expect(state.coupon.single.offer.key, '1X2||home');
 
+    await tester.fling(find.byType(ListView).last, const Offset(0, 3000), 3000); // retour en haut
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Coupons du jour'));
     await tester.pumpAndSettle();
     expect(find.text('Gagné'), findsWidgets);

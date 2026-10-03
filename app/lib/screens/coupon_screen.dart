@@ -338,6 +338,21 @@ class _CouponScreenState extends State<CouponScreen> {
                           Expanded(child: StatTile('Cote totale', odds(total), valueSize: 22)),
                         ],
                       ),
+                      if (modelProb != null && modelProb > 0) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Soit environ 1 chance sur ${(1 / modelProb).round()} selon le moteur.',
+                          style: Fp.body(13, color: Fp.textSoft, weight: FontWeight.w600),
+                        ),
+                      ],
+                      if (items.length >= 6) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          '${items.length} sélections : même des choix sûrs, une fois multipliés, font un coupon '
+                          'risqué. La marge du bookmaker (environ 5 à 8 % par cote) se multiplie aussi.',
+                          style: Fp.body(12, color: Fp.warning, height: 1.4),
+                        ),
+                      ],
                       if (modelProb != null) ...[
                         const SizedBox(height: 8),
                         Text(

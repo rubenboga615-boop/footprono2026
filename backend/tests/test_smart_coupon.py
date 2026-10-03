@@ -140,7 +140,7 @@ async def test_smart_coupon_api(
     ).json()  # fmt: skip
     assert len(nxt["coupon"]["selections"]) == 2
 
-    bad = await client.get("/api/v1/smart-coupon", params={"size": 9}, headers=headers)
+    bad = await client.get("/api/v1/smart-coupon", params={"size": 13}, headers=headers)
     assert bad.status_code == 400
     assert (await client.get("/api/v1/smart-coupon")).status_code == 401
 
@@ -189,3 +189,95 @@ async def test_withdrawn_market_not_offered(
     offer = (await client.get(f"/api/v1/matches/{world['m1']}/offer")).json()
     assert {o["market"] for o in offer} >= {"1X2"}
     assert "ODD_EVEN" not in {o["market"] for o in offer}
+
+
+def _fake(match_id: int, odds: str, p: float) -> smart_coupon.Pick:
+    from decimal import Decimal
+    from types import SimpleNamespace
+
+    offer = SimpleNamespace(odds=Decimal(odds), quote_id=match_id)
+    match = SimpleNamespace(id=match_id)
+    return smart_coupon.Pick(match, "A", "B", "EPL", offer, p)  # type: ignore[arg-type]
+
+
+def test_target_coupon_adds_most_probable_until_target() -> None:
+    from decimal import Decimal
+
+    # Déjà classées du plus probable au moins probable (best_angles) : jamais réordonnées
+    # selon la cote, pour ne pas choisir là où le moteur contredit le bookmaker.
+    ranked = [_fake(1, "1.30", 0.80), _fake(2, "1.50", 0.66), _fake(3, "1.80", 0.55),
+              _fake(4, "2.10", 0.47)]  # fmt: skip
+    picks = smart_coupon.target_coupon(ranked, Decimal("3.5"), max_size=12)
+    assert [pk.match.id for pk in picks] == [1, 2, 3]  # 1,30 x 1,50 x 1,80 = 3,51
+    # Jamais une sélection prise « parce que sa cote suffit » : ordre des probabilités.
+    last = smart_coupon.target_coupon(ranked, Decimal("2.5"), max_size=12)
+    assert [pk.match.id for pk in last] == [1, 2, 3]
+    assert smart_coupon.target_coupon(ranked, Decimal("3.5"), max_size=2) == []
+    assert smart_coupon.target_coupon(ranked, Decimal("100"), max_size=12) == []
+
+
+async def test_grosse_cote_filters_and_periods(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    m1, m2 = world["m1"], world["m2"]
+    await _predict(db_factory, [m1, m2])
+    await _evening(db_factory, [m1, m2])
+    headers = await _login(client)
+
+    async def gen(**params: Any) -> dict[str, Any]:
+        r = await client.get("/api/v1/smart-coupon", params=params, headers=headers)
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    big = await gen(profile="grosse", period="tomorrow", target_odds="3", size=12)
+    coupon = big["coupon"]
+    assert float(coupon["total_odds"]) >= 3
+    assert coupon["one_in"] == round(1 / coupon["probability"])
+    assert len({s["match_id"] for s in coupon["selections"]}) == len(coupon["selections"])
+    assert big["profile_label"] == "Grosse cote"
+
+    impossible = await gen(profile="grosse", period="tomorrow", target_odds="500", size=12)
+    assert impossible["coupon"] is None
+    assert "Impossible d'atteindre une cote de 500" in impossible["message"]
+    no_target = await client.get(
+        "/api/v1/smart-coupon", params={"profile": "grosse"}, headers=headers
+    )
+    assert no_target.status_code == 400
+
+    one_day = await gen(profile="equilibre", period="day", day=DAY.isoformat(), size=2)
+    assert len(one_day["coupon"]["selections"]) == 2
+    assert one_day["period_label"] == smart_coupon.french_day(KICKOFF)
+    span = await gen(profile="equilibre", period="range", date_from=DAY.isoformat(),
+                     date_to=(DAY + timedelta(days=2)).isoformat(), size=2)  # fmt: skip
+    assert len(span["coupon"]["selections"]) == 2
+
+    without_m1 = await gen(profile="equilibre", period="tomorrow", size=2, exclude_matches=[m1])
+    assert [s["match_id"] for s in without_m1["coupon"]["selections"]] == [m2]
+    team = without_m1["coupon"]["selections"][0]["home_team_id"]
+    no_team = await gen(profile="equilibre", period="tomorrow", size=2, exclude_teams=[team])
+    assert m2 not in [s["match_id"] for s in no_team["coupon"]["selections"]]
+    late = await gen(profile="equilibre", period="tomorrow", size=2, after_hour=21)
+    assert late["coupon"] is None  # matchs à 20 h : avant l'heure demandée
+
+    assert (await client.get("/api/v1/smart-coupon", params={"period": "day"},
+                             headers=headers)).status_code == 400  # fmt: skip
+
+
+async def test_match_picks_free_and_premium(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    m1 = world["m1"]
+    await _predict(db_factory, [m1])
+    free = (await client.get(f"/api/v1/matches/{m1}/picks")).json()["picks"]
+    assert free["sur"]["locked"] is False
+    assert free["equilibre"]["locked"] is True
+    assert free["equilibre"]["selection"] is None
+    headers = await _login(client)
+    full = (await client.get(f"/api/v1/matches/{m1}/picks", headers=headers)).json()["picks"]
+    sel = full["equilibre"]["selection"]
+    assert (sel["market"], sel["selection"]) == ("1X2", "home")
+    assert full["equilibre"]["label"] == "Équilibré"

@@ -11,6 +11,7 @@
 - Jeu responsable : mises des 7 derniers jours contre les 7 précédents.
 """
 
+import math
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -23,7 +24,14 @@ from footprono.football.models import Competition, Match, Season
 
 MIN_BAND = 20
 BANDS = ((0.0, 0.4), (0.4, 0.5), (0.5, 0.6), (0.6, 0.7), (0.7, 0.8), (0.8, 1.01))
-RISING_FACTOR = 2.0  # mises de la semaine au moins doublées : rappel de jeu responsable
+RISING_FACTOR = 2.0
+# Tranches de cote totale des paris (« Mon bilan par cote de coupon »).
+ODDS_BANDS = (
+    (1.0, 2.0),
+    (2.0, 5.0),
+    (5.0, 20.0),
+    (20.0, float("inf")),
+)  # mises de la semaine au moins doublées : rappel de jeu responsable
 
 _WON = {"win", "half_win"}
 _LOST = {"loss", "half_loss"}
@@ -117,4 +125,37 @@ async def player_record(
         "stakes_7d": stakes_7d,
         "stakes_prev_7d": stakes_prev,
         "rising": stakes_prev > 0 and stakes_7d >= RISING_FACTOR * stakes_prev,
+        "by_odds": _by_odds(settled, [s for s, _ in rows]),
     }
+
+
+def _by_odds(settled: list[Bet], selections: list[BetSelection]) -> list[dict[str, Any]]:
+    """Paris réglés par tranche de cote totale : gagnés, chances annoncées, résultat net.
+
+    « Annoncé » : moyenne, sur les paris de la tranche, du produit des probabilités du
+    moteur de leurs sélections (paris dont une sélection n'en a pas : non comptés).
+    """
+    probs: dict[int, list[float | None]] = defaultdict(list)
+    for s in selections:
+        probs[s.bet_id].append(s.model_probability)
+    out = []
+    for low, high in ODDS_BANDS:
+        bets = [b for b in settled if low <= float(b.total_odds) < high]
+        if not bets:
+            continue
+        announced = [
+            math.prod(p)  # type: ignore[arg-type]
+            for b in bets
+            if (p := probs.get(b.id)) and None not in p
+        ]
+        out.append(
+            {
+                "low": low,
+                "high": None if math.isinf(high) else high,
+                "bets": len(bets),
+                "won": sum(1 for b in bets if b.outcome == "won"),
+                "announced": round(sum(announced) / len(announced), 4) if announced else None,
+                "profit": sum((b.payout or 0) - b.stake for b in bets),
+            }
+        )
+    return out

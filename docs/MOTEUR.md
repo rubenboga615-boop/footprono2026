@@ -446,3 +446,22 @@ fréquence seule (plus de 3,5 : 0,6576 contre 0,6575). Cartons : mieux que la
 fréquence (plus de 1,5 : 0,6490 contre 0,6620) mais surestimés (plus de
 0,5 : annoncé 74,1 %, réalisé 72,0 %). Une seule saison de test : marchés
 non ajoutés, à refaire après 2026-27.
+
+## Coupon « Grosse cote » : ne jamais choisir sur un désaccord avec la cote (03/10/2026)
+
+Première version : parmi les angles des trois profils, la combinaison qui
+atteint la cote visée avec la plus grande probabilité selon le moteur.
+Essayée sur les données réelles (prochaine journée, cotes du serveur), elle
+choisissait les sélections où le moteur contredit le plus le bookmaker
+(exemple : 74 % annoncés pour une cote de 1,90, soit 53 % selon la cote) :
+coupon de cote 10 annoncé à 23 % par le moteur contre 9,7 % selon la cote.
+Or quand ils ne sont pas d'accord, la cote a le plus souvent raison
+(handicap asiatique, ci-dessus). Même biais avec « la plus probable des
+sélections dont la cote suffit » pour finir le coupon (12,9 % contre 9,8 %).
+
+Retenu : pour chaque profil, ses angles ajoutés du plus probable au moins
+probable jusqu'à la cote visée (ordre de probabilité pur, la cote ne sert
+qu'à savoir quand s'arrêter) ; entre les trois coupons, celui dont la cote
+est la plus proche de la cible. Résultat sur les mêmes données : cote 10,07,
+moteur 9,6 %, cote 9,9 % ; aux cotes de 25 à 100, le moteur est plus prudent
+que la cote. L'application affiche toujours les deux.
