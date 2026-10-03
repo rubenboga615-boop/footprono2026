@@ -190,6 +190,10 @@ async def load_history(session: AsyncSession) -> History:
                 for col, price in prices.items():
                     hist.odds[f"{timing}_{key}"][i, col] = price
                 break
+    # Championnats de niveau 2 : xG « maison » tirés des tirs (engine/tiers.py).
+    from footprono.engine.tiers import apply_shot_xg
+
+    apply_shot_xg(hist)
     return hist
 
 

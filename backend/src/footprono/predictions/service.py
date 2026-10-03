@@ -32,6 +32,7 @@ from footprono.engine.goals import GoalsConfig, fit_goals
 from footprono.engine.history import History, load_history
 from footprono.engine.markets import Selection, derive_markets, offered
 from footprono.engine.scores import score_distribution
+from footprono.engine.tiers import TIERS, goals_config, market_allowed, tier
 from footprono.football.models import Match, MatchStatus
 from footprono.ingestion.sources.api_football import UNPLAYED_STATUSES
 from footprono.predictions.models import MatchPrediction, PredictionRun
@@ -44,6 +45,10 @@ PREDICTED_COUNTS = ("corners", "cards", "shots", "shots_on_target", "yellow_card
 
 def _selection_row(s: Selection) -> list[float]:
     return [round(s.win, 6), round(s.half_win, 6), round(s.push, 6), round(s.half_loss, 6)]
+
+
+# Aucune correction (championnats de niveau 2, ou aucun championnat de niveau 1 à prédire).
+NO_CORRECTION = Correction(features=())
 
 
 def fit_live_correction(
@@ -75,7 +80,12 @@ def predict_match(
     new_h, new_a = correction.apply(np.array([lam_h]), np.array([lam_a]), ctx, rows)
     lam_h, lam_a = float(new_h[0]), float(new_a[0])
     dist = score_distribution(lam_h, lam_a, goals.rho, goals.ht_share_home, goals.ht_share_away)
-    markets = {k: _selection_row(s) for k, s in derive_markets(dist).items() if offered(k)}
+    comp = str(hist.competition[i])
+    markets = {
+        k: _selection_row(s)
+        for k, s in derive_markets(dist).items()
+        if offered(k) and market_allowed(comp, k)
+    }
 
     referee = str(hist.referee[i]) if len(hist.referee) else ""
     counts_out: dict[str, Any] = {}
@@ -132,6 +142,7 @@ async def predict_upcoming(
         parameters={
             "days_ahead": days_ahead,
             "goals": GoalsConfig().__dict__,
+            "tiers": {c: {"level": t.level, "goals": t.goals.__dict__} for c, t in TIERS.items()},
             "correction_features": list(DEFAULT_FEATURES),
             "counts": {s: counts_config(s).__dict__ for s in PREDICTED_COUNTS},
         },
@@ -163,20 +174,32 @@ async def predict_upcoming(
     if len(upcoming):
         ctx = build_context(hist)
         notify("correction : apprentissage sur les saisons passées…")
-        correction = fit_live_correction(hist, day, ctx, competitions)
+        # Correction apprise et appliquée sur les championnats de niveau 1 seulement.
+        tier_1 = [c for c in competitions if tier(c).correction]
+        correction = fit_live_correction(hist, day, ctx, tier_1) if tier_1 else NO_CORRECTION
         run.parameters = {**run.parameters, "correction": correction.coef}
         for comp in competitions:
             rows = upcoming[hist.competition[upcoming] == comp]
             try:
-                goals = fit_goals(hist, comp, day)
-                counts = {
-                    s: fit_counts(hist, comp, s, day, counts_config(s)) for s in PREDICTED_COUNTS
-                }
+                level = tier(comp)
+                goals = fit_goals(hist, comp, day, goals_config(comp))
+                counts = (
+                    {s: fit_counts(hist, comp, s, day, counts_config(s)) for s in PREDICTED_COUNTS}
+                    if level.counts
+                    else {}
+                )
             except ValueError as exc:
                 report["errors"].append(str(exc))
                 continue
             for i in rows:
-                values = predict_match(hist, int(i), goals, correction, ctx, counts)
+                values = predict_match(
+                    hist,
+                    int(i),
+                    goals,
+                    correction if level.correction else NO_CORRECTION,
+                    ctx,
+                    counts,
+                )
                 values.pop("referee")
                 session.add(
                     MatchPrediction(run_id=run.id, match_id=int(hist.match_id[i]), **values)
@@ -184,6 +207,7 @@ async def predict_upcoming(
             report["competitions"][comp] = {
                 "matches": len(rows),
                 "trained_on": goals.n_matches,
+                "data_level": level.level,
                 "home_advantage": round(goals.home_adv, 4),
                 "rho": round(goals.rho, 4),
             }

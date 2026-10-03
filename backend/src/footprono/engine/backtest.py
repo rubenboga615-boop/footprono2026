@@ -37,6 +37,7 @@ from footprono.engine.goals import GoalsConfig, fit_goals, training_mask
 from footprono.engine.history import History
 from footprono.engine.markets import asian_handicap
 from footprono.engine.scores import dixon_coles_matrix, score_distribution
+from footprono.engine.tiers import goals_config
 
 FloatArray = NDArray[np.float64]
 EPS = 1e-12
@@ -144,7 +145,7 @@ def run_backtest(hist: History, cfg: BacktestConfig) -> Predictions:
         for i in test:
             day = hist.date[i]
             if fitted_on is None or day >= fitted_on + np.timedelta64(cfg.refit_every_days, "D"):
-                model = fit_goals(hist, comp, day, cfg.goals)
+                model = fit_goals(hist, comp, day, goals_config(comp, cfg.goals))
                 fitted_on = day
                 naive = _naive_rates(hist, comp, day, cfg.goals)
             assert model is not None

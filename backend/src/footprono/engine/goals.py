@@ -51,6 +51,11 @@ class GoalsConfig:
     # A priori des équipes sans historique dans la fenêtre (promus) :
     # moyenne du quart le plus faible des équipes du championnat.
     promoted_prior: bool = True
+    # Profil de buts modéré (championnats de niveau 2, engine/tiers.py) : chaque équipe
+    # garde sa force (attaque - défense) ; son profil (attaque + défense : matchs
+    # ouverts ou fermés) est rapproché de la moyenne du championnat de ce facteur.
+    # 1 = pas de modération (niveau 1).
+    profile_shrink: float = 1.0
 
 
 @dataclass
@@ -73,8 +78,16 @@ class GoalsModel:
     def team_params(self, team_id: int) -> tuple[float, float]:
         k = self.team_index.get(team_id)
         if k is None:
-            return self.prior_attack, self.prior_defence
-        return float(self.attack[k]), float(self.defence[k])
+            att, dfn = self.prior_attack, self.prior_defence
+        else:
+            att, dfn = float(self.attack[k]), float(self.defence[k])
+        shrink = self.config.profile_shrink
+        if shrink == 1.0 or not len(self.attack):
+            return att, dfn
+        mean = float(np.mean(self.attack + self.defence))
+        profile = mean + shrink * (att + dfn - mean)
+        strength = att - dfn
+        return (profile + strength) / 2, (profile - strength) / 2
 
     def rates(self, home_id: int, away_id: int) -> tuple[float, float]:
         ah, dh = self.team_params(home_id)
