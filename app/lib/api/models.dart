@@ -142,6 +142,9 @@ class Upcoming {
   Upcoming(Json j)
     : match = MatchInfo(j['match'] as Json),
       summary = j['prediction'] == null ? null : Summary(j['prediction'] as Json);
+
+  /// Match sans prédiction (en direct, version ordinateur).
+  Upcoming.of(this.match) : summary = null;
   final MatchInfo match;
   final Summary? summary;
 }

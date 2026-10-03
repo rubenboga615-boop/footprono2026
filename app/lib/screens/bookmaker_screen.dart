@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../desktop/layout.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../format.dart';
@@ -65,7 +66,7 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
                 await reload();
               },
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(18, 26, 18, 120),
+                padding: pagePadding(context, 26, 120),
                 children: [
                   Row(
                     children: [

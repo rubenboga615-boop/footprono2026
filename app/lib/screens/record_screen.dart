@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../desktop/layout.dart';
 import '../api/models.dart';
 import '../format.dart';
 import '../labels.dart';
@@ -24,7 +25,7 @@ class RecordScreen extends StatelessWidget {
           builder: (context, data, reload) => RefreshIndicator(
             onRefresh: reload,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 40),
+              padding: pagePadding(context, 16, 40, maxWidth: 1080),
               children: [
                 const BackHeader(
                   'Mon',
@@ -32,7 +33,7 @@ class RecordScreen extends StatelessWidget {
                   subtitle: 'Tes paris fictifs réglés, visibles par toi seul.',
                 ),
                 const SizedBox(height: 16),
-                ..._content(data, currency),
+                ...deskColumns(context, _content(data, currency)),
               ],
             ),
           ),

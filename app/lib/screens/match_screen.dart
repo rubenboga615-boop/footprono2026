@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../desktop/layout.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../format.dart';
@@ -112,7 +113,7 @@ class _MatchViewState extends State<_MatchView> {
     return RefreshIndicator(
       onRefresh: widget.reload,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
+        padding: pagePadding(context, 16, 32, maxWidth: 1080),
         children: [
           Row(
             children: [
@@ -177,7 +178,7 @@ class _MatchViewState extends State<_MatchView> {
             onSelected: (i) => setState(() => tab = i),
           ),
           const SizedBox(height: 16),
-          ...content,
+          ...deskColumns(context, content),
         ],
       ),
     );

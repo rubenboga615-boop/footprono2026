@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../desktop/layout.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../format.dart';
@@ -221,7 +222,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 40),
+          padding: pagePadding(context, 16, 40, maxWidth: 1120),
           children: [
             BackHeader(
               'Coupon',
@@ -244,157 +245,170 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                     '(bouton historique en haut) restent publics.',
               ),
             ] else ...[
-              const SectionTitle('Profil'),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final (i, p) in SmartCouponScreen.profiles.indexed)
-                    FpChip(p.$2, selected: i == profile, onTap: () => setState(() => profile = i)),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(range, style: Fp.body(12, color: Fp.text3)),
-              if (_big) ...[
-                const SectionTitle('Cote visée'),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final t in SmartCouponScreen.targets)
-                      FpChip('$t', selected: target == t, onTap: () => setState(() => target = t)),
-                    FpChip(
-                      SmartCouponScreen.targets.contains(target) ? 'Autre…' : 'Autre : ${decimal(target)}',
-                      selected: !SmartCouponScreen.targets.contains(target),
-                      onTap: _customTarget,
+              ...deskSplit(
+                context,
+                [
+                  const SectionTitle('Profil'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final (i, p) in SmartCouponScreen.profiles.indexed)
+                        FpChip(p.$2, selected: i == profile, onTap: () => setState(() => profile = i)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(range, style: Fp.body(12, color: Fp.text3)),
+                  if (_big) ...[
+                    const SectionTitle('Cote visée'),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final t in SmartCouponScreen.targets)
+                          FpChip('$t', selected: target == t, onTap: () => setState(() => target = t)),
+                        FpChip(
+                          SmartCouponScreen.targets.contains(target)
+                              ? 'Autre…'
+                              : 'Autre : ${decimal(target)}',
+                          selected: !SmartCouponScreen.targets.contains(target),
+                          onTap: _customTarget,
+                        ),
+                      ],
                     ),
                   ],
-                ),
-              ],
-              const SectionTitle('Période des matchs'),
-              // Toutes les périodes visibles d'un coup (pas de défilement caché).
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final (i, p) in SmartCouponScreen.periods.indexed)
-                    FpChip(p.$2, selected: i == period, onTap: () => setState(() => period = i)),
-                ],
-              ),
-              if (_period == 'day' || _period == 'range') ...[
-                const SizedBox(height: 10),
-                Text(_period == 'day' ? 'Jour' : 'Du', style: Fp.body(12, color: Fp.text3)),
-                const SizedBox(height: 6),
-                ChipRow(
-                  labels: [for (final d in days) shortDate(d)],
-                  selected: days.indexOf(day).clamp(0, days.length - 1),
-                  onSelected: (i) => setState(() {
-                    day = days[i];
-                    if (rangeTo != null && rangeTo!.isBefore(day)) rangeTo = day;
-                  }),
-                ),
-                if (_period == 'range') ...[
-                  const SizedBox(height: 8),
-                  Text('Au', style: Fp.body(12, color: Fp.text3)),
-                  const SizedBox(height: 6),
+                  const SectionTitle('Période des matchs'),
+                  // Toutes les périodes visibles d'un coup (pas de défilement caché).
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final (i, p) in SmartCouponScreen.periods.indexed)
+                        FpChip(p.$2, selected: i == period, onTap: () => setState(() => period = i)),
+                    ],
+                  ),
+                  if (_period == 'day' || _period == 'range') ...[
+                    const SizedBox(height: 10),
+                    Text(_period == 'day' ? 'Jour' : 'Du', style: Fp.body(12, color: Fp.text3)),
+                    const SizedBox(height: 6),
+                    ChipRow(
+                      labels: [for (final d in days) shortDate(d)],
+                      selected: days.indexOf(day).clamp(0, days.length - 1),
+                      onSelected: (i) => setState(() {
+                        day = days[i];
+                        if (rangeTo != null && rangeTo!.isBefore(day)) rangeTo = day;
+                      }),
+                    ),
+                    if (_period == 'range') ...[
+                      const SizedBox(height: 8),
+                      Text('Au', style: Fp.body(12, color: Fp.text3)),
+                      const SizedBox(height: 6),
+                      ChipRow(
+                        labels: [for (final d in days.where((d) => !d.isBefore(day))) shortDate(d)],
+                        selected: (rangeTo == null ? 0 : rangeTo!.difference(day).inDays).clamp(0, 9),
+                        onSelected: (i) => setState(() => rangeTo = day.add(Duration(days: i))),
+                      ),
+                    ],
+                  ],
+                  const SectionTitle('Championnats'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      FpChip(
+                        'Tous',
+                        selected: competitions.isEmpty,
+                        onTap: () => setState(competitions.clear),
+                      ),
+                      for (final c in const ['LIGUE_1', 'EPL', 'LA_LIGA', 'SERIE_A', 'BUNDESLIGA'])
+                        FpChip(
+                          competitionName(c),
+                          selected: competitions.contains(c),
+                          onTap: () => setState(
+                            () => competitions.contains(c) ? competitions.remove(c) : competitions.add(c),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SectionTitle('Heure des matchs'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final (i, h) in SmartCouponScreen.hours.indexed)
+                        FpChip(h.$2, selected: i == hour, onTap: () => setState(() => hour = i)),
+                    ],
+                  ),
+                  SectionTitle(_big ? 'Sélections au maximum' : 'Nombre de sélections'),
                   ChipRow(
-                    labels: [for (final d in days.where((d) => !d.isBefore(day))) shortDate(d)],
-                    selected: (rangeTo == null ? 0 : rangeTo!.difference(day).inDays).clamp(0, 9),
-                    onSelected: (i) => setState(() => rangeTo = day.add(Duration(days: i))),
+                    labels: [for (var i = 1; i <= AppState.maxCoupon; i++) '$i'],
+                    selected: (_big ? maxBig : size) - 1,
+                    onSelected: (i) => setState(() => _big ? maxBig = i + 1 : size = i + 1),
+                  ),
+                  if (state.excludedTeams.isNotEmpty || excludedMatches.isNotEmpty) ...[
+                    const SectionTitle('Exclus'),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final e in state.excludedTeams.entries)
+                          InputChip(label: Text(e.value), onDeleted: () => state.includeTeam(e.key)),
+                        if (excludedMatches.isNotEmpty)
+                          InputChip(
+                            label: Text('${excludedMatches.length} match(s) écarté(s)'),
+                            onDeleted: () => setState(excludedMatches.clear),
+                          ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  FilledButton(
+                    onPressed: busy ? null : _generate,
+                    child: Text(busy ? 'Recherche…' : 'Composer le coupon'),
                   ),
                 ],
-              ],
-              const SectionTitle('Championnats'),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FpChip('Tous', selected: competitions.isEmpty, onTap: () => setState(competitions.clear)),
-                  for (final c in const ['LIGUE_1', 'EPL', 'LA_LIGA', 'SERIE_A', 'BUNDESLIGA'])
-                    FpChip(
-                      competitionName(c),
-                      selected: competitions.contains(c),
-                      onTap: () => setState(
-                        () => competitions.contains(c) ? competitions.remove(c) : competitions.add(c),
-                      ),
+                [
+                  const SizedBox(height: 18),
+                  if (error != null) ErrorPanel(error: error!),
+                  if (message != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(message, style: Fp.body(13, color: Fp.warning, height: 1.4)),
                     ),
-                ],
-              ),
-              const SectionTitle('Heure des matchs'),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final (i, h) in SmartCouponScreen.hours.indexed)
-                    FpChip(h.$2, selected: i == hour, onTap: () => setState(() => hour = i)),
-                ],
-              ),
-              SectionTitle(_big ? 'Sélections au maximum' : 'Nombre de sélections'),
-              ChipRow(
-                labels: [for (var i = 1; i <= AppState.maxCoupon; i++) '$i'],
-                selected: (_big ? maxBig : size) - 1,
-                onSelected: (i) => setState(() => _big ? maxBig = i + 1 : size = i + 1),
-              ),
-              if (state.excludedTeams.isNotEmpty || excludedMatches.isNotEmpty) ...[
-                const SectionTitle('Exclus'),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final e in state.excludedTeams.entries)
-                      InputChip(label: Text(e.value), onDeleted: () => state.includeTeam(e.key)),
-                    if (excludedMatches.isNotEmpty)
-                      InputChip(
-                        label: Text('${excludedMatches.length} match(s) écarté(s)'),
-                        onDeleted: () => setState(excludedMatches.clear),
-                      ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 18),
-              FilledButton(
-                onPressed: busy ? null : _generate,
-                child: Text(busy ? 'Recherche…' : 'Composer le coupon'),
-              ),
-              const SizedBox(height: 18),
-              if (error != null) ErrorPanel(error: error!),
-              if (message != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(message, style: Fp.body(13, color: Fp.warning, height: 1.4)),
-                ),
-              if (coupon != null) ...[
-                _CouponCard(
-                  coupon: coupon,
-                  big: _big,
-                  profileLabel: '${result?['profile_label'] ?? ''}',
-                  onAdd: busy ? null : () => _addToCoupon(_sels(coupon)),
-                  onReplace: busy ? null : _replace,
-                  onExclude: busy ? null : _exclude,
-                ),
-                if (alternatives.isNotEmpty) ...[
-                  const SectionTitle('Autres choix (moins sûrs)'),
-                  for (final s in alternatives)
-                    GlassCard.section(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      child: _SelectionRow(
-                        s,
-                        trailing: IconButton(
-                          tooltip: 'Ajouter au coupon',
-                          icon: const Icon(Icons.add_circle_outline_rounded, color: Fp.accentLight),
-                          onPressed: busy ? null : () => _addToCoupon([s]),
+                  if (coupon != null) ...[
+                    _CouponCard(
+                      coupon: coupon,
+                      big: _big,
+                      profileLabel: '${result?['profile_label'] ?? ''}',
+                      onAdd: busy ? null : () => _addToCoupon(_sels(coupon)),
+                      onReplace: busy ? null : _replace,
+                      onExclude: busy ? null : _exclude,
+                    ),
+                    if (alternatives.isNotEmpty) ...[
+                      const SectionTitle('Autres choix (moins sûrs)'),
+                      for (final s in alternatives)
+                        GlassCard.section(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          child: _SelectionRow(
+                            s,
+                            trailing: IconButton(
+                              tooltip: 'Ajouter au coupon',
+                              icon: const Icon(Icons.add_circle_outline_rounded, color: Fp.accentLight),
+                              onPressed: busy ? null : () => _addToCoupon([s]),
+                            ),
+                          ),
                         ),
-                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Text(
+                      'Probabilité estimée : produit des probabilités du moteur, mesurée juste sur 2022-2025 '
+                      '(prudente pour « Sûr »). La cote du bookmaker contient sa marge : ce coupon ne promet '
+                      'aucun gain et ne bat pas le bookmaker à long terme. Rien n\'est joué sans ta validation.',
+                      style: Fp.body(12, color: Fp.text3, height: 1.4),
                     ),
+                  ],
                 ],
-                const SizedBox(height: 12),
-                Text(
-                  'Probabilité estimée : produit des probabilités du moteur, mesurée juste sur 2022-2025 '
-                  '(prudente pour « Sûr »). La cote du bookmaker contient sa marge : ce coupon ne promet '
-                  'aucun gain et ne bat pas le bookmaker à long terme. Rien n\'est joué sans ta validation.',
-                  style: Fp.body(12, color: Fp.text3, height: 1.4),
-                ),
-              ],
+              ),
             ],
           ],
         ),
@@ -599,7 +613,7 @@ class SmartHistoryScreen extends StatelessWidget {
             return RefreshIndicator(
               onRefresh: reload,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 40),
+                padding: pagePadding(context, 16, 40),
                 children: [
                   const BackHeader(
                     'Coupons',

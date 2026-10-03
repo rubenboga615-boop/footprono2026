@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../desktop/layout.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 
@@ -178,142 +179,150 @@ class ProfileScreen extends StatelessWidget {
         child: RefreshIndicator(
           onRefresh: () async => guard(context, state.refreshMe),
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 26, 18, 120),
+            padding: pagePadding(context, 26, 120, maxWidth: 1080),
             children: [
-              if (me == null)
-                ErrorPanel(
-                  error: 'Profil indisponible : serveur injoignable ?',
-                  onRetry: () => guard(context, state.refreshMe),
-                )
-              else ...[
-                Row(
-                  children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: Fp.accentSoft,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: Fp.accentLine),
-                      ),
-                      child: Text(
-                        me.displayName.isEmpty ? '?' : me.displayName[0].toUpperCase(),
-                        style: Fp.title(26),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(me.displayName, style: Fp.title(24)),
-                          const SizedBox(height: 2),
-                          Text(me.phone, style: Fp.body(14, color: Fp.text2)),
-                        ],
-                      ),
-                    ),
-                    if (me.isAdmin) const Tag('Admin'),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                const _PlanCard(),
-              ],
-              const SizedBox(height: 16),
-              GlassCard.section(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-                child: Column(
-                  children: [
-                    _Item(
-                      icon: Icons.notifications_none_rounded,
-                      title: 'Notifications',
-                      subtitle: 'Paris réglés, montante, scores corrigés',
-                      badge: state.unread,
-                      onTap: () => open(const NotificationsScreen()),
-                    ),
-                    const Divider(),
-                    _Item(
-                      icon: Icons.auto_awesome_outlined,
-                      title: 'Fiabilité du modèle',
-                      subtitle: 'Historique public des pronostics',
-                      onTap: () => open(const ReliabilityScreen()),
-                    ),
-                    const Divider(),
-                    _Item(
-                      icon: Icons.key_outlined,
-                      title: 'Mot de passe',
-                      subtitle: 'Changer mon mot de passe',
-                      onTap: () => _changePassword(context, state),
-                    ),
-                    const Divider(),
-                    _Item(
-                      icon: Icons.lock_outline_rounded,
-                      title: 'Jeu responsable',
-                      subtitle: 'Argent fictif, limites et pauses',
-                      onTap: () => _responsible(context),
-                    ),
-                    const Divider(),
-                    _Item(
-                      icon: Icons.dns_outlined,
-                      title: 'Serveur',
-                      subtitle: state.api.baseUrl,
-                      onTap: () => showServerDialog(context),
-                    ),
-                    if (me?.isAdmin ?? false) ...[
-                      const Divider(),
-                      _Item(
-                        icon: Icons.admin_panel_settings_outlined,
-                        title: 'Administration',
-                        subtitle: 'Comptes, Premium, statistiques',
-                        onTap: () => open(const AdminScreen()),
-                      ),
-                    ],
-                    const Divider(),
-                    const _Item(icon: Icons.language_rounded, title: 'Langue', subtitle: 'Français'),
-                    const Divider(),
-                    _Item(
-                      icon: Icons.privacy_tip_outlined,
-                      title: 'Confidentialité',
-                      subtitle: 'Données collectées, durée, tes droits',
-                      onTap: () => state.openUrl(Uri.parse(state.api.baseUrl).resolve('/confidentialite')),
-                    ),
-                    const Divider(),
-                    _Item(
-                      icon: Icons.gavel_outlined,
-                      title: 'Conditions d\'utilisation',
-                      subtitle: 'Argent fictif, Premium, remboursement',
-                      onTap: () => state.openUrl(Uri.parse(state.api.baseUrl).resolve('/conditions')),
-                    ),
-                    const Divider(),
-                    _Item(
-                      icon: Icons.delete_forever_outlined,
-                      title: 'Supprimer mon compte',
-                      subtitle: 'Efface tes données, définitivement',
-                      onTap: () => _deleteAccount(context, state),
-                    ),
-                    const Divider(),
-                    InkWell(
-                      onTap: () => _logout(context, state),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Row(
-                          children: [
-                            Text(
-                              'Se déconnecter',
-                              style: Fp.body(16, color: Fp.loss, weight: FontWeight.w700),
-                            ),
-                          ],
+              ...deskSplit(
+                context,
+                [
+                  if (me == null)
+                    ErrorPanel(
+                      error: 'Profil indisponible : serveur injoignable ?',
+                      onRetry: () => guard(context, state.refreshMe),
+                    )
+                  else ...[
+                    Row(
+                      children: [
+                        Container(
+                          width: 64,
+                          height: 64,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Fp.accentSoft,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: Fp.accentLine),
+                          ),
+                          child: Text(
+                            me.displayName.isEmpty ? '?' : me.displayName[0].toUpperCase(),
+                            style: Fp.title(26),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(me.displayName, style: Fp.title(24)),
+                              const SizedBox(height: 2),
+                              Text(me.phone, style: Fp.body(14, color: Fp.text2)),
+                            ],
+                          ),
+                        ),
+                        if (me.isAdmin) const Tag('Admin'),
+                      ],
                     ),
+                    const SizedBox(height: 18),
+                    const _PlanCard(),
                   ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                appBuild > 0 ? 'FootProno · version $appBuild' : 'FootProno · version de développement',
-                textAlign: TextAlign.center,
-                style: Fp.body(12, color: Fp.text3),
+                ],
+                [
+                  GlassCard.section(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                    child: Column(
+                      children: [
+                        _Item(
+                          icon: Icons.notifications_none_rounded,
+                          title: 'Notifications',
+                          subtitle: 'Paris réglés, montante, scores corrigés',
+                          badge: state.unread,
+                          onTap: () => open(const NotificationsScreen()),
+                        ),
+                        const Divider(),
+                        _Item(
+                          icon: Icons.auto_awesome_outlined,
+                          title: 'Fiabilité du modèle',
+                          subtitle: 'Historique public des pronostics',
+                          onTap: () => open(const ReliabilityScreen()),
+                        ),
+                        const Divider(),
+                        _Item(
+                          icon: Icons.key_outlined,
+                          title: 'Mot de passe',
+                          subtitle: 'Changer mon mot de passe',
+                          onTap: () => _changePassword(context, state),
+                        ),
+                        const Divider(),
+                        _Item(
+                          icon: Icons.lock_outline_rounded,
+                          title: 'Jeu responsable',
+                          subtitle: 'Argent fictif, limites et pauses',
+                          onTap: () => _responsible(context),
+                        ),
+                        const Divider(),
+                        _Item(
+                          icon: Icons.dns_outlined,
+                          title: 'Serveur',
+                          subtitle: state.api.baseUrl,
+                          onTap: () => showServerDialog(context),
+                        ),
+                        if (me?.isAdmin ?? false) ...[
+                          const Divider(),
+                          _Item(
+                            icon: Icons.admin_panel_settings_outlined,
+                            title: 'Administration',
+                            subtitle: 'Comptes, Premium, statistiques',
+                            onTap: () => open(const AdminScreen()),
+                          ),
+                        ],
+                        const Divider(),
+                        const _Item(icon: Icons.language_rounded, title: 'Langue', subtitle: 'Français'),
+                        const Divider(),
+                        _Item(
+                          icon: Icons.privacy_tip_outlined,
+                          title: 'Confidentialité',
+                          subtitle: 'Données collectées, durée, tes droits',
+                          onTap: () =>
+                              state.openUrl(Uri.parse(state.api.baseUrl).resolve('/confidentialite')),
+                        ),
+                        const Divider(),
+                        _Item(
+                          icon: Icons.gavel_outlined,
+                          title: 'Conditions d\'utilisation',
+                          subtitle: 'Argent fictif, Premium, remboursement',
+                          onTap: () => state.openUrl(Uri.parse(state.api.baseUrl).resolve('/conditions')),
+                        ),
+                        const Divider(),
+                        _Item(
+                          icon: Icons.delete_forever_outlined,
+                          title: 'Supprimer mon compte',
+                          subtitle: 'Efface tes données, définitivement',
+                          onTap: () => _deleteAccount(context, state),
+                        ),
+                        const Divider(),
+                        InkWell(
+                          onTap: () => _logout(context, state),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: Row(
+                              children: [
+                                Text(
+                                  'Se déconnecter',
+                                  style: Fp.body(16, color: Fp.loss, weight: FontWeight.w700),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    appBuild > 0 ? 'FootProno · version $appBuild' : 'FootProno · version de développement',
+                    textAlign: TextAlign.center,
+                    style: Fp.body(12, color: Fp.text3),
+                  ),
+                ],
+                leftWidth: 480,
               ),
             ],
           ),

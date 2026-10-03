@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../desktop/layout.dart';
 import '../api/models.dart';
 import '../format.dart';
 import '../labels.dart';
@@ -49,7 +50,7 @@ class RefereeScreen extends StatelessWidget {
     final min = data['min_matches'] as int;
     final latest = seasons.first;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 40),
+      padding: pagePadding(context, 16, 40, maxWidth: 1080),
       children: [
         BackHeader(
           'Arbitre',
@@ -69,102 +70,104 @@ class RefereeScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        _SummaryCard(
-          title:
-              '${competitionName(latest['competition'] as String)} ${seasonLabel(latest['season'] as int)}',
-          s: latest,
-          min: min,
-        ),
-        const SizedBox(height: 12),
-        _SummaryCard(title: 'Depuis 2016', s: total, min: min),
-        const SizedBox(height: 12),
-        GlassCard.section(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Saison par saison', style: Fp.title(15, weight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              Text('jaunes par match · moyenne du championnat', style: Fp.body(12, color: Fp.text3)),
-              const SizedBox(height: 6),
-              for (final s in seasons)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${competitionName(s['competition'] as String)} ${seasonLabel(s['season'] as int)}',
-                          style: Fp.body(14, weight: FontWeight.w600),
-                        ),
-                      ),
-                      Text('${s['matches']} m.', style: Fp.body(12, color: Fp.text3)),
-                      const SizedBox(width: 12),
-                      SizedBox(
-                        width: 40,
-                        child: Text(
-                          _n(s['yellow']),
-                          textAlign: TextAlign.right,
-                          style: Fp.body(14, color: Fp.accentLight, weight: FontWeight.w700),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 48,
-                        child: Text(
-                          _n(s['league_yellow']),
-                          textAlign: TextAlign.right,
-                          style: Fp.body(14, color: Fp.text2),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
+        ...deskColumns(context, [
+          _SummaryCard(
+            title:
+                '${competitionName(latest['competition'] as String)} ${seasonLabel(latest['season'] as int)}',
+            s: latest,
+            min: min,
           ),
-        ),
-        const SizedBox(height: 12),
-        GlassCard.section(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Derniers matchs', style: Fp.title(15, weight: FontWeight.w600)),
-              const SizedBox(height: 6),
-              for (final r in recent)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 78,
-                        child: Text(
-                          numericDate(DateTime.parse(r['date'] as String)),
-                          style: Fp.body(12, color: Fp.text2),
+          const SizedBox(height: 12),
+          _SummaryCard(title: 'Depuis 2016', s: total, min: min),
+          const SizedBox(height: 12),
+          GlassCard.section(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Saison par saison', style: Fp.title(15, weight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text('jaunes par match · moyenne du championnat', style: Fp.body(12, color: Fp.text3)),
+                const SizedBox(height: 6),
+                for (final s in seasons)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${competitionName(s['competition'] as String)} ${seasonLabel(s['season'] as int)}',
+                            style: Fp.body(14, weight: FontWeight.w600),
+                          ),
                         ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          '${r['home']} – ${r['away']}',
-                          overflow: TextOverflow.ellipsis,
-                          style: Fp.body(13, weight: FontWeight.w600),
+                        Text('${s['matches']} m.', style: Fp.body(12, color: Fp.text3)),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 40,
+                          child: Text(
+                            _n(s['yellow']),
+                            textAlign: TextAlign.right,
+                            style: Fp.body(14, color: Fp.accentLight, weight: FontWeight.w700),
+                          ),
                         ),
-                      ),
-                      Text(
-                        '${r['home_yellow']} + ${r['away_yellow']} J'
-                        '${(r['red'] as int) > 0 ? ' · ${r['red']} R' : ''}',
-                        style: Fp.body(13, color: Fp.textSoft),
-                      ),
-                    ],
+                        SizedBox(
+                          width: 48,
+                          child: Text(
+                            _n(s['league_yellow']),
+                            textAlign: TextAlign.right,
+                            style: Fp.body(14, color: Fp.text2),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 14),
-        Text(
-          'Cartons : football-data ; arbitre : API-Football (football-data en Premier League). '
-          'La moyenne de référence est celle du même championnat sur les mêmes saisons. Le moteur '
-          'tient déjà compte de l\'arbitre pour les marchés cartons.',
-          style: Fp.body(12, color: Fp.text3, height: 1.4),
-        ),
+          const SizedBox(height: 12),
+          GlassCard.section(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Derniers matchs', style: Fp.title(15, weight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                for (final r in recent)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 78,
+                          child: Text(
+                            numericDate(DateTime.parse(r['date'] as String)),
+                            style: Fp.body(12, color: Fp.text2),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            '${r['home']} – ${r['away']}',
+                            overflow: TextOverflow.ellipsis,
+                            style: Fp.body(13, weight: FontWeight.w600),
+                          ),
+                        ),
+                        Text(
+                          '${r['home_yellow']} + ${r['away_yellow']} J'
+                          '${(r['red'] as int) > 0 ? ' · ${r['red']} R' : ''}',
+                          style: Fp.body(13, color: Fp.textSoft),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Cartons : football-data ; arbitre : API-Football (football-data en Premier League). '
+            'La moyenne de référence est celle du même championnat sur les mêmes saisons. Le moteur '
+            'tient déjà compte de l\'arbitre pour les marchés cartons.',
+            style: Fp.body(12, color: Fp.text3, height: 1.4),
+          ),
+        ]),
       ],
     );
   }
@@ -242,7 +245,7 @@ class _RefereeTableScreenState extends State<RefereeTableScreen> {
                 ? null
                 : seasons.first['start_year'] as int;
             return ListView(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 40),
+              padding: pagePadding(context, 16, 40),
               children: [
                 const BackHeader(
                   'Les',

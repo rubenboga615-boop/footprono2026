@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../desktop/layout.dart';
 import '../api/models.dart';
 import '../format.dart';
 import '../state/app_state.dart';
@@ -123,7 +124,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             return RefreshIndicator(
               onRefresh: reload,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
+                padding: pagePadding(context, 16, 32),
                 children: [
                   BackHeader(
                     'Notifi',

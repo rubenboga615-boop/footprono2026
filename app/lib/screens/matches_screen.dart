@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../api/models.dart';
+import '../desktop/layout.dart';
 import '../format.dart';
 import '../labels.dart';
 import '../state/app_state.dart';
@@ -54,34 +55,37 @@ class _MatchesScreenState extends State<MatchesScreen> {
                 .toList();
             final analysed = shown.where((u) => u.summary != null).length;
             final today = _day(DateTime.now());
+            final desk = DesktopScope.of(context);
             return RefreshIndicator(
               onRefresh: reload,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(18, 26, 18, 120),
+                padding: pagePadding(context, 26, 120, maxWidth: 1040),
                 children: [
-                  Row(
-                    children: [
-                      const FpLogo(),
-                      const Spacer(),
-                      SquareButton(
-                        icon: Icons.leaderboard_rounded,
-                        tooltip: 'Classement mérité',
-                        onTap: () =>
-                            Navigator.of(context)
-                                .push(MaterialPageRoute(builder: (_) => const MeritedScreen())),
-                      ),
-                      const SizedBox(width: 10),
-                      SquareButton(
-                        icon: Icons.notifications_none_rounded,
-                        tooltip: 'Notifications',
-                        dot: state.unread > 0,
-                        onTap: () =>
-                            Navigator.of(context)
-                                .push(MaterialPageRoute(builder: (_) => const NotificationsScreen())),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                  // Ordinateur : logo, classements et notifications sont dans le menu de gauche.
+                  if (!desk)
+                    Row(
+                      children: [
+                        const FpLogo(),
+                        const Spacer(),
+                        SquareButton(
+                          icon: Icons.leaderboard_rounded,
+                          tooltip: 'Classement mérité',
+                          onTap: () =>
+                              Navigator.of(context)
+                                  .push(MaterialPageRoute(builder: (_) => const MeritedScreen())),
+                        ),
+                        const SizedBox(width: 10),
+                        SquareButton(
+                          icon: Icons.notifications_none_rounded,
+                          tooltip: 'Notifications',
+                          dot: state.unread > 0,
+                          onTap: () =>
+                              Navigator.of(context)
+                                  .push(MaterialPageRoute(builder: (_) => const NotificationsScreen())),
+                        ),
+                      ],
+                    ),
+                  if (!desk) const SizedBox(height: 16),
                   TwoToneTitle('Matchs', selectedDay == today ? 'du jour' : 'à venir'),
                   const SizedBox(height: 4),
                   Text(
@@ -105,12 +109,18 @@ class _MatchesScreenState extends State<MatchesScreen> {
                   const SizedBox(height: 16),
                   if (live.isNotEmpty) ...[
                     const SectionTitle('En direct'),
-                    for (final m in live) _MatchCard(match: m),
+                    if (desk)
+                      _MatchTable([for (final m in live) Upcoming.of(m)])
+                    else
+                      for (final m in live) _MatchCard(match: m),
                     const SectionTitle('À venir'),
                   ],
                   if (shown.isEmpty)
-                    const EmptyState('Aucun match à venir pour ce filtre.', icon: Icons.event_busy_rounded),
-                  for (final u in shown) _MatchCard(match: u.match, summary: u.summary),
+                    const EmptyState('Aucun match à venir pour ce filtre.', icon: Icons.event_busy_rounded)
+                  else if (desk)
+                    _MatchTable(shown)
+                  else
+                    for (final u in shown) _MatchCard(match: u.match, summary: u.summary),
                 ],
               ),
             );
@@ -225,6 +235,160 @@ class _MatchCard extends StatelessWidget {
             Text('Pas encore de prédiction pour ce match.', style: Fp.body(12, color: Fp.text3)),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Version ordinateur : un tableau, une ligne par match, une colonne par marché.
+/// Plus la case est violette, plus le moteur juge l'issue probable. Un clic ouvre le match.
+class _MatchTable extends StatelessWidget {
+  const _MatchTable(this.rows);
+  final List<Upcoming> rows;
+
+  static const _cell = 74.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = [...rows]
+      ..sort((a, b) {
+        final c = competitionName(a.match.competition).compareTo(competitionName(b.match.competition));
+        return c != 0 ? c : a.match.date.compareTo(b.match.date);
+      });
+    Widget head(String t, {double? width}) => SizedBox(
+      width: width ?? _cell,
+      child: Text(
+        t,
+        textAlign: TextAlign.center,
+        style: Fp.body(11.5, color: Fp.text3, weight: FontWeight.w700),
+      ),
+    );
+    String? comp;
+    return GlassCard.section(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const SizedBox(width: 56),
+              Expanded(
+                child: Text(
+                  'Match',
+                  style: Fp.body(11.5, color: Fp.text3, weight: FontWeight.w700),
+                ),
+              ),
+              head('1'),
+              head('N'),
+              head('2'),
+              head('+2,5 buts'),
+              head('Les deux\nmarquent'),
+              head('Buts\nattendus', width: 86),
+            ],
+          ),
+          const SizedBox(height: 4),
+          for (final u in sorted) ...[
+            if (u.match.competition != comp)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+                child: Text(
+                  competitionName(comp = u.match.competition).toUpperCase(),
+                  style: Fp.body(11, color: Fp.accentLight, weight: FontWeight.w700),
+                ),
+              ),
+            _MatchRow(u),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MatchRow extends StatelessWidget {
+  const _MatchRow(this.u);
+  final Upcoming u;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = u.match, s = u.summary;
+    Widget cell(double? p) => Container(
+      width: _MatchTable._cell - 6,
+      margin: const EdgeInsets.symmetric(horizontal: 3),
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(9),
+        color: p == null ? Fp.fill : Fp.accentAlpha(((p - 0.15) / 1.1).clamp(0.0, 0.6)),
+      ),
+      child: Text(p == null ? '—' : percent(p), style: Fp.title(14, weight: FontWeight.w600)),
+    );
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () =>
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => MatchScreen(matchId: m.id))),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 56,
+                child: m.isLive
+                    ? Tag(m.when, color: Fp.win)
+                    : Text(
+                        m.when,
+                        style: Fp.body(13, color: Fp.text3, weight: FontWeight.w600),
+                      ),
+              ),
+              Expanded(
+                child: Row(
+                  children: [
+                    TeamCircle(m.home.code, size: 30),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            m.home.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Fp.body(13.5, weight: FontWeight.w700),
+                          ),
+                          Text(
+                            m.away.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Fp.body(13.5, color: Fp.text2, weight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (m.score != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Text(m.score!, style: Fp.title(16)),
+                      ),
+                  ],
+                ),
+              ),
+              cell(s?.home.probability),
+              cell(s?.draw.probability),
+              cell(s?.away.probability),
+              cell(s?.over25.probability),
+              cell(s?.btts.probability),
+              SizedBox(
+                width: 86,
+                child: Text(
+                  s == null ? '—' : '${decimal(s.xgHome, max: 1)} - ${decimal(s.xgAway, max: 1)}',
+                  textAlign: TextAlign.center,
+                  style: Fp.body(13, color: Fp.textSoft, weight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

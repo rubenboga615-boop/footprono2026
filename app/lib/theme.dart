@@ -180,9 +180,10 @@ class Fp {
 
 /// Fond des maquettes : noir violacé, deux halos, rubans lumineux diagonaux.
 /// Dessiné une seule fois (aucune animation : économie de batterie).
-/// Grand écran (version web sur ordinateur) : l'application garde une largeur de tablette,
-/// centrée, avec le fond autour. Fenêtres, feuilles et messages restent dans la colonne.
-/// Sur téléphone (largeur sous [maxWidth] + marge), rien ne change.
+/// Fenêtre moyenne (tablette, petite fenêtre d'ordinateur) : l'application garde une largeur
+/// de tablette, centrée, avec le fond autour. Fenêtres, feuilles et messages restent dans la
+/// colonne. Sur téléphone (largeur sous [maxWidth] + marge), rien ne change ; au-delà de
+/// 1100 px, c'est la disposition d'ordinateur.
 class WideFrame extends StatelessWidget {
   const WideFrame({super.key, required this.child});
   final Widget child;
@@ -192,7 +193,8 @@ class WideFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth <= maxWidth + 80) return child;
+        // Au-delà de 1100 px, la version ordinateur prend toute la fenêtre (desktop_shell.dart).
+        if (constraints.maxWidth <= maxWidth + 80 || constraints.maxWidth >= 1100) return child;
         final mq = MediaQuery.of(context);
         return Center(
           child: Container(
@@ -591,12 +593,15 @@ class BackHeader extends StatelessWidget {
       children: [
         Row(
           children: [
-            SquareButton(
-              icon: Icons.arrow_back_rounded,
-              tooltip: 'Retour',
-              onTap: () => Navigator.of(context).maybePop(),
-            ),
-            const SizedBox(width: 14),
+            // Version ordinateur : un écran du menu est la racine de sa zone, sans retour.
+            if (Navigator.of(context).canPop()) ...[
+              SquareButton(
+                icon: Icons.arrow_back_rounded,
+                tooltip: 'Retour',
+                onTap: () => Navigator.of(context).maybePop(),
+              ),
+              const SizedBox(width: 14),
+            ],
             Expanded(child: TwoToneTitle(first, second, size: 24, joined: joined)),
             ?trailing,
           ],

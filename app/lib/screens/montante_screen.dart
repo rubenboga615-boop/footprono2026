@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../desktop/layout.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../format.dart';
@@ -67,7 +68,7 @@ class _MontanteListScreenState extends State<MontanteListScreen> {
             return RefreshIndicator(
               onRefresh: reload,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(18, 26, 18, 120),
+                padding: pagePadding(context, 26, 120),
                 children: [
                   if (current != null)
                     MontanteView(montante: current, onChanged: _refresh)
@@ -860,7 +861,7 @@ class _MontanteDetailScreenState extends State<MontanteDetailScreen> {
           builder: (context, m, reload) => RefreshIndicator(
             onRefresh: reload,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
+              padding: pagePadding(context, 16, 32),
               children: [
                 MontanteView(montante: m, back: true, onChanged: () => setState(() => _key = UniqueKey())),
               ],

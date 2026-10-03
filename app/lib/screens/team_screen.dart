@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../desktop/layout.dart';
 import '../api/models.dart';
 import '../format.dart';
 import '../labels.dart';
@@ -60,7 +61,7 @@ class _TeamScreenState extends State<TeamScreen> {
     final venues = data['venues'] as Json;
     final v = venues[_venues[venue].$1] as Json;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 40),
+      padding: pagePadding(context, 16, 40),
       children: [
         BackHeader(
           widget.name,

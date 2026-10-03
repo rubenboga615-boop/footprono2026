@@ -40,8 +40,27 @@ bash scripts/termux/install-web.sh ~/storage/downloads/footprono-web.zip
 bash scripts/termux/stop.sh && bash scripts/termux/start.sh
 ```
 
-Puis ouvrir `http://127.0.0.1:8000/app/` dans le navigateur. Sur un grand écran (ordinateur), l'application garde une colonne centrée de 680 pixels (`WideFrame`, `lib/theme.dart`). L'API sert la
-page elle-même (`FP_WEB_APP_DIR`) : même adresse, aucun réglage CORS.
+Puis ouvrir `http://127.0.0.1:8000/app/` dans le navigateur. L'API sert la page elle-même
+(`FP_WEB_APP_DIR`) : même adresse, aucun réglage CORS.
+
+La disposition dépend de la largeur de la fenêtre :
+
+- **Téléphone** (jusqu'à 760 pixels) : barre de navigation flottante en bas, rien de changé.
+- **Fenêtre moyenne** (760 à 1100 pixels) : la même application dans une colonne centrée de
+  680 pixels (`WideFrame`, `lib/theme.dart`).
+- **Ordinateur** (1100 pixels et plus, `lib/desktop/`) :
+  - menu à gauche (Jouer, Comprendre, Compte) et barre du haut (recherche, Premium, solde) ;
+  - zone centrale avec sa propre navigation : un match ou une fiche s'ouvre dedans, le menu reste ;
+  - **Matchs** en tableau : une ligne par match ; 1, N, 2, +2,5 buts et « les deux marquent »
+    colorés selon la probabilité du moteur ; buts attendus. Un clic ouvre le match ;
+  - **coupon à droite** pendant qu'on parcourt les matchs (cote totale, chances selon le moteur et
+    selon la cote), avec un lien vers la mise ;
+  - **recherche** (Ctrl K ou la barre du haut) : matchs, équipes et rubriques, sans tenir compte
+    des accents ;
+  - écrans riches sur deux colonnes (`deskColumns`, `deskSplit` dans `lib/desktop/layout.dart`) :
+    match, coupon, Coupon intelligent (réglages à gauche, coupon proposé à droite), Mon bilan,
+    fiche arbitre, fiabilité, profil ;
+  - connexion : présentation à gauche, formulaire à droite (`lib/desktop/welcome.dart`).
 
 ## Mises à jour (hors Play Store)
 

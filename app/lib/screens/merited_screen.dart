@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../desktop/layout.dart';
 import '../api/models.dart';
 import '../format.dart';
 import '../labels.dart';
@@ -45,7 +46,7 @@ class _MeritedScreenState extends State<MeritedScreen> {
                 ? null
                 : seasons.first['start_year'] as int;
             return ListView(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 40),
+              padding: pagePadding(context, 16, 40),
               children: [
                 const BackHeader(
                   'Classement',

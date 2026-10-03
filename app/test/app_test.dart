@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footprono/api/client.dart';
 import 'package:footprono/format.dart';
+import 'package:footprono/desktop/desktop_shell.dart';
 import 'package:footprono/main.dart';
 import 'package:footprono/screens/notifications_screen.dart';
 import 'package:footprono/state/app_state.dart';
@@ -877,13 +879,53 @@ void main() {
     expect(state.premium, isFalse); // profil relu
   });
 
-  testWidgets('ordinateur : colonne centrée de 680 pixels, téléphone inchangé', (tester) async {
+  testWidgets('fenêtre moyenne : colonne centrée de 680 pixels, téléphone inchangé', (tester) async {
     await startApp(tester, loggedIn: true); // 430 pixels de large : téléphone
     expect(tester.getSize(find.byType(Navigator).first).width, 430);
-    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    await tester.binding.setSurfaceSize(const Size(1000, 900));
     await tester.pumpAndSettle();
     expect(find.text('LEN'), findsOneWidget);
     expect(tester.getSize(find.byType(Navigator).first).width, WideFrame.maxWidth - 2); // bordures
+  });
+
+  testWidgets('ordinateur : menu à gauche, tableau des matchs, coupon à droite, recherche', (tester) async {
+    final (state, _) = await startApp(tester, loggedIn: true);
+    await tester.binding.setSurfaceSize(const Size(1440, 900));
+    tester.view
+      ..physicalSize = const Size(1440, 900)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpAndSettle();
+    expect(find.byType(DesktopShell), findsOneWidget);
+    expect(find.text('Fiabilité du moteur'), findsOneWidget); // menu
+    expect(find.text('Les deux\nmarquent'), findsOneWidget); // en-tête du tableau
+    expect(find.text('57$nbsp%'), findsWidgets);
+    expect(find.text('Miser sur ce coupon'), findsNothing); // coupon vide
+
+    // Un match s'ouvre dans la zone centrale ; le menu et le coupon restent.
+    await tester.tap(find.text('LEN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1,85').first);
+    await tester.pumpAndSettle();
+    expect(state.coupon, hasLength(1));
+    expect(find.text('Miser sur ce coupon'), findsOneWidget);
+    expect(find.text('Fiabilité du moteur'), findsOneWidget);
+
+    // Ctrl K : recherche d'un match par son équipe, sans accent ni majuscule.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'lens');
+    await tester.pumpAndSettle();
+    expect(find.text('Fiche équipe'), findsWidgets);
+
+    // Une rubrique du menu remplace la zone centrale.
+    await tester.tapAt(const Offset(5, 5)); // ferme la recherche
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mon bilan'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tes paris fictifs réglés, visibles par toi seul.'), findsOneWidget);
   });
 
   testWidgets('notifications push : téléphone enregistré, notification touchée, déconnexion', (tester) async {

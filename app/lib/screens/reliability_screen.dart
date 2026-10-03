@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../desktop/layout.dart';
 import '../api/models.dart';
 import '../format.dart';
 import '../labels.dart';
@@ -52,7 +53,7 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
             return RefreshIndicator(
               onRefresh: reload,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
+                padding: pagePadding(context, 16, 32, maxWidth: 1080),
                 children: [
                   const BackHeader(
                     'Fiabilité',
@@ -76,114 +77,119 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                     onSelected: (i) => setState(() => competition = _comps[i]),
                   ),
                   const SizedBox(height: 16),
-                  if (r['warning'] != null) ...[_Warning('${r['warning']}'), const SizedBox(height: 14)],
-                  GlassCard.section(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Annoncé contre réalisé · ${_marketNames[market]}',
-                          style: Fp.title(17, weight: FontWeight.w600),
-                        ),
-                        if (hasLive) ...[
-                          const SizedBox(height: 12),
-                          SegmentTabs(
-                            labels: const ['Prédictions publiées', 'Backtest'],
-                            selected: showBacktest ? 1 : 0,
-                            onSelected: (i) => setState(() => backtest = i == 1),
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        if (calib.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 24),
-                            child: Text(
-                              showBacktest
-                                  ? 'Calibration du backtest publiée pour le 1X2 seulement.'
-                                  : 'Pas encore de prédiction publiée à comparer.',
-                              textAlign: TextAlign.center,
-                              style: Fp.body(13, color: Fp.text2),
-                            ),
-                          )
-                        else
-                          SizedBox(height: 230, child: _CalibrationChart(calib)),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 18,
-                          runSpacing: 6,
-                          children: [
-                            _legend(const Color(0x80FFFFFF), 'Probabilité annoncée'),
-                            _legend(Fp.accent, 'Fréquence observée'),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Quand FootProno annonce 60 %, l\'événement doit se produire environ 6 fois sur 10. '
-                          'Les deux barres doivent rester à la même hauteur.',
-                          style: Fp.body(13, color: Fp.text2, height: 1.45),
-                        ),
-                        if (showBacktest) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'Source : backtest (simulation sur ${thousands(bt['matches'] as int)} matchs des saisons '
-                            '${bt['seasons']}), pas des prédictions publiées.',
-                            style: Fp.body(12, color: Fp.warning, height: 1.4),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  GlassCard.section(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text('Depuis le lancement', style: Fp.title(17, weight: FontWeight.w600)),
-                        const SizedBox(height: 8),
-                        KeyValue('Matchs pronostiqués', thousands(n)),
-                        if (hasLive) ...[
-                          KeyValue(
-                            'Écart moyen annoncé / observé',
-                            '${_gap(m).toStringAsFixed(1).replaceAll('.', ',')} points',
-                          ),
-                          KeyValue(
-                            'Issue la plus probable trouvée',
-                            percent((m['most_likely_hit_rate'] as num).toDouble()),
-                          ),
-                          KeyValue(
-                            '… annoncée en moyenne à',
-                            percent((m['most_likely_announced'] as num).toDouble()),
-                          ),
-                          KeyValue('Log loss du modèle', decimal(m['log_loss'], max: 4)),
-                          KeyValue('Référence naïve (fréquences)', decimal(m['naive_log_loss'], max: 4)),
-                          KeyValue('Score de Brier', decimal(m['brier'], max: 4)),
-                          KeyValue(
-                            'Référence : cotes de clôture',
-                            closing != null ? decimal(closing['closing_odds_log_loss'], max: 4) : '—',
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Log loss : plus bas = meilleur. La référence naïve n\'est connue qu\'après coup ; les '
-                            'cotes de clôture intègrent tout ce qui est connu jusqu\'au coup d\'envoi.',
-                            style: Fp.body(12, color: Fp.text3, height: 1.4),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  _Backtest(bt),
-                  if (recent.isNotEmpty) ...[
-                    const SectionTitle('Derniers matchs'),
+                  ...deskColumns(context, [
+                    if (r['warning'] != null) ...[_Warning('${r['warning']}'), const SizedBox(height: 14)],
                     GlassCard.section(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          for (final (i, x) in recent.indexed) ...[if (i > 0) const Divider(), _RecentRow(x)],
+                          Text(
+                            'Annoncé contre réalisé · ${_marketNames[market]}',
+                            style: Fp.title(17, weight: FontWeight.w600),
+                          ),
+                          if (hasLive) ...[
+                            const SizedBox(height: 12),
+                            SegmentTabs(
+                              labels: const ['Prédictions publiées', 'Backtest'],
+                              selected: showBacktest ? 1 : 0,
+                              onSelected: (i) => setState(() => backtest = i == 1),
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          if (calib.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 24),
+                              child: Text(
+                                showBacktest
+                                    ? 'Calibration du backtest publiée pour le 1X2 seulement.'
+                                    : 'Pas encore de prédiction publiée à comparer.',
+                                textAlign: TextAlign.center,
+                                style: Fp.body(13, color: Fp.text2),
+                              ),
+                            )
+                          else
+                            SizedBox(height: 230, child: _CalibrationChart(calib)),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 18,
+                            runSpacing: 6,
+                            children: [
+                              _legend(const Color(0x80FFFFFF), 'Probabilité annoncée'),
+                              _legend(Fp.accent, 'Fréquence observée'),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Quand FootProno annonce 60 %, l\'événement doit se produire environ 6 fois sur 10. '
+                            'Les deux barres doivent rester à la même hauteur.',
+                            style: Fp.body(13, color: Fp.text2, height: 1.45),
+                          ),
+                          if (showBacktest) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Source : backtest (simulation sur ${thousands(bt['matches'] as int)} matchs des saisons '
+                              '${bt['seasons']}), pas des prédictions publiées.',
+                              style: Fp.body(12, color: Fp.warning, height: 1.4),
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                  ],
+                    const SizedBox(height: 14),
+                    GlassCard.section(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text('Depuis le lancement', style: Fp.title(17, weight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          KeyValue('Matchs pronostiqués', thousands(n)),
+                          if (hasLive) ...[
+                            KeyValue(
+                              'Écart moyen annoncé / observé',
+                              '${_gap(m).toStringAsFixed(1).replaceAll('.', ',')} points',
+                            ),
+                            KeyValue(
+                              'Issue la plus probable trouvée',
+                              percent((m['most_likely_hit_rate'] as num).toDouble()),
+                            ),
+                            KeyValue(
+                              '… annoncée en moyenne à',
+                              percent((m['most_likely_announced'] as num).toDouble()),
+                            ),
+                            KeyValue('Log loss du modèle', decimal(m['log_loss'], max: 4)),
+                            KeyValue('Référence naïve (fréquences)', decimal(m['naive_log_loss'], max: 4)),
+                            KeyValue('Score de Brier', decimal(m['brier'], max: 4)),
+                            KeyValue(
+                              'Référence : cotes de clôture',
+                              closing != null ? decimal(closing['closing_odds_log_loss'], max: 4) : '—',
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Log loss : plus bas = meilleur. La référence naïve n\'est connue qu\'après coup ; les '
+                              'cotes de clôture intègrent tout ce qui est connu jusqu\'au coup d\'envoi.',
+                              style: Fp.body(12, color: Fp.text3, height: 1.4),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _Backtest(bt),
+                    if (recent.isNotEmpty) ...[
+                      const SectionTitle('Derniers matchs'),
+                      GlassCard.section(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                        child: Column(
+                          children: [
+                            for (final (i, x) in recent.indexed) ...[
+                              if (i > 0) const Divider(),
+                              _RecentRow(x),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ]),
                 ],
               ),
             );

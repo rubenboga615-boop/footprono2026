@@ -8,6 +8,9 @@ import 'package:flutter/semantics.dart';
 import 'package:provider/provider.dart';
 
 import 'api/client.dart';
+import 'desktop/desktop_shell.dart';
+import 'desktop/layout.dart';
+import 'desktop/welcome.dart';
 import 'push.dart';
 import 'screens/auth_screen.dart';
 import 'screens/bookmaker_screen.dart';
@@ -66,7 +69,11 @@ class _Root extends StatelessWidget {
         body: Center(child: CircularProgressIndicator()),
       );
     }
-    if (state.api.token == null) return const AuthScreen();
+    if (state.api.token == null) {
+      return MediaQuery.sizeOf(context).width >= desktopMinWidth
+          ? const DesktopWelcome(child: AuthScreen())
+          : const AuthScreen();
+    }
     return const HomeShell();
   }
 }
@@ -204,7 +211,21 @@ class HomeShellState extends State<HomeShell> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
   }
 
+  final _desk = GlobalKey<DesktopShellState>();
+
   void go(int i) {
+    final desk = _desk.currentState;
+    if (desk != null) {
+      const sections = [
+        DeskSection.matchs,
+        DeskSection.coupon,
+        DeskSection.montante,
+        DeskSection.bookmaker,
+        DeskSection.profil,
+      ];
+      desk.open(sections[i]);
+      return;
+    }
     if (i == index) return;
     setState(() {
       index = i;
@@ -216,6 +237,8 @@ class HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    // Version ordinateur : menu à gauche à la place de la barre flottante.
+    if (MediaQuery.sizeOf(context).width >= desktopMinWidth) return DesktopShell(key: _desk);
     const pages = [MatchesScreen(), CouponScreen(), MontanteListScreen(), BookmakerScreen(), ProfileScreen()];
     return Scaffold(
       backgroundColor: Colors.transparent,

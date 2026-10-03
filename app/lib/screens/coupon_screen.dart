@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../desktop/layout.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../format.dart';
@@ -198,7 +199,7 @@ class _CouponScreenState extends State<CouponScreen> {
         child: RefreshIndicator(
           onRefresh: _loadSteps,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 26, 18, 120),
+            padding: pagePadding(context, 26, 120, maxWidth: 1080),
             children: [
               const TwoToneTitle('Mon', 'coupon'),
               const SizedBox(height: 4),
@@ -237,199 +238,206 @@ class _CouponScreenState extends State<CouponScreen> {
                   icon: Icons.confirmation_number_outlined,
                 )
               else ...[
-                GlassCard.section(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
+                ...deskSplit(
+                  context,
+                  [
+                    GlassCard.section(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(
-                            child: Text(
-                              'Mon coupon · ${items.length} sélection${items.length > 1 ? 's' : ''}',
-                              style: Fp.title(15, weight: FontWeight.w600),
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: busy ? null : state.clearCoupon,
-                            child: Text(
-                              'Vider',
-                              style: Fp.body(13, color: Fp.accentLight, weight: FontWeight.w700),
-                            ),
-                          ),
-                        ],
-                      ),
-                      for (final c in items) ...[
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Row(
+                          Row(
                             children: [
                               Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${c.match.home.name} – ${c.match.away.name}',
-                                      style: Fp.body(13, color: Fp.text2),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      fullLabel(
-                                        c.offer.market,
-                                        c.offer.line,
-                                        c.offer.selection,
-                                        home: c.match.home.name,
-                                        away: c.match.away.name,
-                                      ),
-                                      style: Fp.body(15, weight: FontWeight.w700),
-                                    ),
-                                    if (explainSelection(
-                                          c.offer.market,
-                                          c.offer.line,
-                                          c.offer.selection,
-                                          home: c.match.home.name,
-                                          away: c.match.away.name,
-                                        )
-                                        case final e?)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 3),
-                                        child: Text(e, style: Fp.body(12, color: Fp.text3, height: 1.35)),
-                                      ),
-                                  ],
+                                child: Text(
+                                  'Mon coupon · ${items.length} sélection${items.length > 1 ? 's' : ''}',
+                                  style: Fp.title(15, weight: FontWeight.w600),
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  if (c.offer.modelProbability != null)
-                                    Text(
-                                      percent(c.offer.modelProbability!),
-                                      style: Fp.title(17, color: Fp.accentLight),
-                                    ),
-                                  Text(
-                                    'cote ${odds(c.offer.odds)}',
-                                    style: Fp.body(12, color: Fp.text2, weight: FontWeight.w600),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(width: 12),
-                              _SquareIconButton(
-                                icon: Icons.close_rounded,
-                                tooltip: 'Retirer',
-                                onTap: busy ? null : () => state.removeFromCoupon(c),
+                              GestureDetector(
+                                onTap: busy ? null : state.clearCoupon,
+                                child: Text(
+                                  'Vider',
+                                  style: Fp.body(13, color: Fp.accentLight, weight: FontWeight.w700),
+                                ),
                               ),
                             ],
                           ),
-                        ),
-                        const Divider(),
-                      ],
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: StatTile(
-                              'Probabilité combinée',
-                              modelProb != null ? pct(modelProb) : '—',
-                              valueColor: Fp.accentLight,
-                              valueSize: 22,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(child: StatTile('Cote totale', odds(total), valueSize: 22)),
-                        ],
-                      ),
-                      if (modelProb != null && modelProb > 0) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          'Soit environ 1 chance sur ${(1 / modelProb).round()} selon le moteur.',
-                          style: Fp.body(13, color: Fp.textSoft, weight: FontWeight.w600),
-                        ),
-                      ],
-                      if (items.length >= 6) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          '${items.length} sélections : même des choix sûrs, une fois multipliés, font un coupon '
-                          'risqué. La marge du bookmaker (environ 5 à 8 % par cote) se multiplie aussi.',
-                          style: Fp.body(12, color: Fp.warning, height: 1.4),
-                        ),
-                      ],
-                      if (modelProb != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          'Probabilité déduite de la cote : ${pct(1 / total)} '
-                          '(marge du bookmaker comprise). Probabilité combinée : produit des sélections, '
-                          'des matchs différents étant indépendants.',
-                          style: Fp.body(11, color: Fp.text3, height: 1.4),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                GlassCard.section(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text('Mise · bookmaker virtuel', style: Fp.title(15, weight: FontWeight.w600)),
-                      const SizedBox(height: 6),
-                      KeyValue('Solde disponible', me != null ? money(me.balance, currency) : '—'),
-                      if (step == null) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          'Montant',
-                          style: Fp.body(13, weight: FontWeight.w600, color: Fp.textStrong),
-                        ),
-                        const SizedBox(height: 7),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: stake,
-                                keyboardType: TextInputType.number,
-                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                onChanged: (_) => setState(() {}),
-                                style: Fp.title(17, weight: FontWeight.w600),
-                                decoration: InputDecoration(suffixText: currencyLabel(currency)),
+                          for (final c in items) ...[
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '${c.match.home.name} – ${c.match.away.name}',
+                                          style: Fp.body(13, color: Fp.text2),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          fullLabel(
+                                            c.offer.market,
+                                            c.offer.line,
+                                            c.offer.selection,
+                                            home: c.match.home.name,
+                                            away: c.match.away.name,
+                                          ),
+                                          style: Fp.body(15, weight: FontWeight.w700),
+                                        ),
+                                        if (explainSelection(
+                                              c.offer.market,
+                                              c.offer.line,
+                                              c.offer.selection,
+                                              home: c.match.home.name,
+                                              away: c.match.away.name,
+                                            )
+                                            case final e?)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 3),
+                                            child: Text(e, style: Fp.body(12, color: Fp.text3, height: 1.35)),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      if (c.offer.modelProbability != null)
+                                        Text(
+                                          percent(c.offer.modelProbability!),
+                                          style: Fp.title(17, color: Fp.accentLight),
+                                        ),
+                                      Text(
+                                        'cote ${odds(c.offer.odds)}',
+                                        style: Fp.body(12, color: Fp.text2, weight: FontWeight.w600),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 12),
+                                  _SquareIconButton(
+                                    icon: Icons.close_rounded,
+                                    tooltip: 'Retirer',
+                                    onTap: busy ? null : () => state.removeFromCoupon(c),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            _AddButton('+500', () => _addStake(500)),
-                            const SizedBox(width: 8),
-                            _AddButton('+1 000', () => _addStake(1000)),
+                            const Divider(),
                           ],
-                        ),
-                      ] else
-                        KeyValue('Mise imposée par la montante', money(step.stake, currency)),
-                      const SizedBox(height: 6),
-                      KeyValue('Gain possible', money(payout, currency), bold: true, valueColor: Fp.win),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: StatTile(
+                                  'Probabilité combinée',
+                                  modelProb != null ? pct(modelProb) : '—',
+                                  valueColor: Fp.accentLight,
+                                  valueSize: 22,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(child: StatTile('Cote totale', odds(total), valueSize: 22)),
+                            ],
+                          ),
+                          if (modelProb != null && modelProb > 0) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Soit environ 1 chance sur ${(1 / modelProb).round()} selon le moteur.',
+                              style: Fp.body(13, color: Fp.textSoft, weight: FontWeight.w600),
+                            ),
+                          ],
+                          if (items.length >= 6) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              '${items.length} sélections : même des choix sûrs, une fois multipliés, font un coupon '
+                              'risqué. La marge du bookmaker (environ 5 à 8 % par cote) se multiplie aussi.',
+                              style: Fp.body(12, color: Fp.warning, height: 1.4),
+                            ),
+                          ],
+                          if (modelProb != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Probabilité déduite de la cote : ${pct(1 / total)} '
+                              '(marge du bookmaker comprise). Probabilité combinée : produit des sélections, '
+                              'des matchs différents étant indépendants.',
+                              style: Fp.body(11, color: Fp.text3, height: 1.4),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                  [
+                    GlassCard.section(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text('Mise · bookmaker virtuel', style: Fp.title(15, weight: FontWeight.w600)),
+                          const SizedBox(height: 6),
+                          KeyValue('Solde disponible', me != null ? money(me.balance, currency) : '—'),
+                          if (step == null) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              'Montant',
+                              style: Fp.body(13, weight: FontWeight.w600, color: Fp.textStrong),
+                            ),
+                            const SizedBox(height: 7),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: stake,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                    onChanged: (_) => setState(() {}),
+                                    style: Fp.title(17, weight: FontWeight.w600),
+                                    decoration: InputDecoration(suffixText: currencyLabel(currency)),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                _AddButton('+500', () => _addStake(500)),
+                                const SizedBox(width: 8),
+                                _AddButton('+1 000', () => _addStake(1000)),
+                              ],
+                            ),
+                          ] else
+                            KeyValue('Mise imposée par la montante', money(step.stake, currency)),
+                          const SizedBox(height: 6),
+                          KeyValue('Gain possible', money(payout, currency), bold: true, valueColor: Fp.win),
+                        ],
+                      ),
+                    ),
+                    for (final s in steps) ...[
+                      const SizedBox(height: 12),
+                      _StepSwitch(
+                        step: s,
+                        total: total,
+                        on: step?.montanteId == s.montanteId,
+                        currency: currency,
+                        onChanged: (v) => setState(() => useStep = v ? s : null),
+                      ),
                     ],
-                  ),
-                ),
-                for (final s in steps) ...[
-                  const SizedBox(height: 12),
-                  _StepSwitch(
-                    step: s,
-                    total: total,
-                    on: step?.montanteId == s.montanteId,
-                    currency: currency,
-                    onChanged: (v) => setState(() => useStep = v ? s : null),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: busy || (step != null && items.length > 3) ? null : _place,
-                  child: busy
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : Text(step != null ? 'Jouer le palier ${step.step}' : 'Valider le coupon'),
-                ),
-                const SizedBox(height: 6),
-                TextButton(
-                  onPressed: busy ? null : _refreshOdds,
-                  child: const Text('Mettre à jour les cotes'),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: busy || (step != null && items.length > 3) ? null : _place,
+                      child: busy
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : Text(step != null ? 'Jouer le palier ${step.step}' : 'Valider le coupon'),
+                    ),
+                    const SizedBox(height: 6),
+                    TextButton(
+                      onPressed: busy ? null : _refreshOdds,
+                      child: const Text('Mettre à jour les cotes'),
+                    ),
+                  ],
+                  leftWidth: 520,
                 ),
               ],
             ],
