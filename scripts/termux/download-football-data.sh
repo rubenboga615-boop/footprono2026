@@ -6,7 +6,7 @@
 # aucune clé : l'archive peut être partagée telle quelle.
 #
 #   bash scripts/termux/download-football-data.sh              # échantillon : Portugal + Belgique
-#   bash scripts/termux/download-football-data.sh tout         # tous les championnats de la source
+#   bash scripts/termux/download-football-data.sh tout         # tous les championnats de la source, sauf les 5 déjà dans l'application
 #   bash scripts/termux/download-football-data.sh P1 B1 N1     # divisions au choix
 #   FP_FD_FROM=2005 bash scripts/termux/download-football-data.sh   # depuis 2005-06 (défaut 2010-11)
 #
@@ -49,12 +49,14 @@ EXTRA = {
     "RUS": "Russie", "SWE": "Suède", "SWZ": "Suisse", "USA": "États-Unis",
 }
 SAMPLE = ["P1", "B1"]
+# Déjà chargés par le serveur (championnats de l'application) : sautés par « tout ».
+IN_APP = {"E0", "SP1", "I1", "D1", "F1"}
 
 args = [a.upper() for a in sys.argv[1:]]
 if not args:
     label, main, extra = "echantillon", SAMPLE, []
 elif args == ["TOUT"]:
-    label, main, extra = "tout", list(MAIN), list(EXTRA)
+    label, main, extra = "tout", [d for d in MAIN if d not in IN_APP], list(EXTRA)
 else:
     unknown = [a for a in args if a not in MAIN and a not in EXTRA]
     if unknown:
@@ -115,23 +117,28 @@ summary = [f"football-data.co.uk, téléchargé le {date.today():%d/%m/%Y}, sais
            "Colonnes : nombre de matchs, part avec tirs (HS), arbitre, cotes Pinnacle.", ""]
 total = len(main) * len(seasons) + len(extra)
 done = 0
-for div in main:
-    print(f"\n== {div} · {MAIN[div]}", flush=True)
-    summary.append(f"{div} · {MAIN[div]}")
-    for y in seasons:
-        done += 1
-        path = os.path.join(out, "principaux", div, f"{code(y)}.csv")
-        status, raw = fetch(f"https://www.football-data.co.uk/mmz4281/{code(y)}/{div}.csv", path, y == current)
-        line = f"  {y}-{(y + 1) % 100:02d} : {status}" + (f" · {describe(raw)}" if raw else "")
-        print(f"[{done}/{total}]{line}", flush=True)
-        summary.append(line)
-for c in extra:
-    done += 1
-    path = os.path.join(out, "autres", f"{c}.csv")
-    status, raw = fetch(f"https://www.football-data.co.uk/new/{c}.csv", path, True)
-    line = f"{c} · {EXTRA[c]} : {status}" + (f" · {describe(raw)}" if raw else "")
-    print(f"[{done}/{total}] {line}", flush=True)
-    summary.append(line)
+if label == "tout":
+    print("Championnats déjà dans l'application, non téléchargés : " + ", ".join(MAIN[d] for d in sorted(IN_APP)))
+try:
+  for div in main:
+      print(f"\n== {div} · {MAIN[div]}", flush=True)
+      summary.append(f"{div} · {MAIN[div]}")
+      for y in seasons:
+          done += 1
+          path = os.path.join(out, "principaux", div, f"{code(y)}.csv")
+          status, raw = fetch(f"https://www.football-data.co.uk/mmz4281/{code(y)}/{div}.csv", path, y == current)
+          line = f"  {y}-{(y + 1) % 100:02d} : {status}" + (f" · {describe(raw)}" if raw else "")
+          print(f"[{done}/{total}]{line}", flush=True)
+          summary.append(line)
+  for c in extra:
+      done += 1
+      path = os.path.join(out, "autres", f"{c}.csv")
+      status, raw = fetch(f"https://www.football-data.co.uk/new/{c}.csv", path, True)
+      line = f"{c} · {EXTRA[c]} : {status}" + (f" · {describe(raw)}" if raw else "")
+      print(f"[{done}/{total}] {line}", flush=True)
+      summary.append(line)
+except KeyboardInterrupt:
+    sys.exit("\nInterrompu. Relance la même commande : les fichiers déjà téléchargés sont gardés.")
 
 with open(os.path.join(out, "RESUME.txt"), "w", encoding="utf-8") as f:
     f.write("\n".join(summary) + "\n")
