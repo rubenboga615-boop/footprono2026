@@ -702,3 +702,22 @@ restant meilleur que la référence naïve (1,088). Rien n'est corrigé pour l'i
 (enjeux propres à ces phases : points divisés par deux en Belgique, places européennes).
 Calibration du 1-N-2 (6 891 matchs) : écart de 0 à 2 points par tranche, sauf au-delà de
 90 % (annoncé 92,1 %, observé 88,3 %, 77 cas).
+
+## Historique API-Football pour les championnats sans tirs chez football-data (03/10/2026)
+
+Pour passer au niveau 2 les championnats que football-data ne fournit qu'en résultats
+(Suisse, Norvège, Suède, Danemark, Autriche, Pologne, Roumanie) et étudier ceux qu'il ne
+couvre pas (Australie, Tchéquie, Croatie, Serbie, Israël, Chypre) :
+`bash scripts/termux/api-football-history.sh [codes]` télécharge, saison par saison
+depuis 2018 (`FP_AF_FROM`), la liste des matchs avec leurs journées puis les
+statistiques de chaque match terminé (tirs, tirs cadrés, corners…), seulement pour les
+saisons où API-Football annonce ces statistiques. Environ 250 requêtes par saison : les
+13 championnats sur 9 saisons dépassent le quota d'un jour ; le script s'arrête en
+laissant `FP_AF_RESERVE` requêtes (1 500) au serveur et reprend où il s'était arrêté le
+lendemain. Il vérifie que chaque identifiant API-Football correspond au pays attendu.
+Archive : `~/storage/downloads/api-football-historique-<date>.tar.gz` ; le résumé liste
+aussi les noms de journées (seconde phase, barrages) vus pour chaque saison.
+
+Pour l'étude, les cotes de clôture viendront des fichiers « autres » de football-data
+pour les sept premiers ; Australie, Tchéquie, Croatie, Serbie, Israël et Chypre n'ont
+pas de source de cotes passées : comparaison à la seule référence naïve.
