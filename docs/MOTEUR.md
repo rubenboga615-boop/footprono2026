@@ -465,3 +465,41 @@ qu'à savoir quand s'arrêter) ; entre les trois coupons, celui dont la cote
 est la plus proche de la cible. Résultat sur les mêmes données : cote 10,07,
 moteur 9,6 %, cote 9,9 % ; aux cotes de 25 à 100, le moteur est plus prudent
 que la cote. L'application affiche toujours les deux.
+
+## Championnats sans xG : le moteur sans xG, et des xG « maison » tirés des tirs (03/10/2026)
+
+Expérience préalable à l'ouverture d'autres championnats : sur nos 5 championnats
+(export réel du 02/10/2026), on retire les xG et on mesure ce que le moteur perd.
+Les réglages sont choisis sur 2019-20 → 2021-22, puis figés pour le test 2022-23 → 2025-26
+(7 081 matchs). Script : `scratchpad/exp_tiers.py` (hors dépôt).
+
+- **A, moteur actuel** : xG Understat + passes dangereuses.
+- **B, buts seuls** : ce que le moteur fait sans aucune statistique.
+- **C, xG « maison »** : relation apprise là où on a les deux (saisons ≤ 2021) :
+  `xG ≈ 0,018 + 0,218 × tir cadré + 0,060 × tir non cadré − 0,016 × corner`.
+  Les tirs resserrent l'écart entre équipes (l'équipe menée tire plus, celle qui mène
+  moins) : sans correction, les favoris sont sous-estimés (48,8 % annoncés pour 52,2 %
+  réalisés, validation). Correction : chaque valeur est écartée de la moyenne du
+  championnat (domicile et extérieur à part) d'un facteur 1,5 ; poids 0,5 dans le signal.
+
+| Test 2022-26 (log loss, plus bas = mieux) | 1-N-2 | +2,5 buts | Les deux marquent | Calibration 1-N-2 |
+|---|---|---|---|---|
+| A, moteur actuel | 0,9818 | 0,6749 | 0,6853 | 1,1 pt |
+| C, xG « maison » | 0,9842 | 0,6783 | 0,6870 | 0,7 pt |
+| B, buts seuls | 0,9902 | 0,6838 | 0,6904 | 0,4 pt |
+| Référence naïve | 1,0731 | | | |
+| Cotes de clôture | 0,9665 | | | |
+
+Lecture : sans xG, le moteur reste nettement meilleur que la référence naïve et bien
+calibré (B). Les xG « maison » regagnent **71 %** de l'écart entre B et A sur le 1-N-2,
+**61 %** sur +2,5 buts et **66 %** sur « les deux marquent », sans dégrader la calibration.
+
+Transfert vers un championnat jamais vu (relation apprise sur 4 championnats, testée sur
+le 5e) : R² de 0,50 à 0,57 selon le championnat, biais moyen de −0,04 à +0,05 xG par
+équipe et par match (le moteur remet de toute façon les xG au niveau des vrais buts du
+championnat). La relation devrait donc se transposer aux championnats qui publient les tirs.
+
+Conséquence : niveaux de données par championnat (1 : xG + passes dangereuses ; 2 : tirs,
+xG « maison » ; 3 : buts seuls), chaque nouveau championnat étant mesuré sur ses saisons
+passées avant publication, avec sa fiabilité affichée. Rien n'est encore changé dans le
+moteur en service.
