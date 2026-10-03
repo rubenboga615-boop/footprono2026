@@ -208,9 +208,10 @@ connectés (jeton valable 30 jours) : à traiter avec la sécurité (phase 6).
 - **Niveau 2** : Liga Portugal (`POR`) et Pro League belge (`BEL`, saison régulière
   seulement) : xG tirés des tirs ; pas de « les deux marquent » (la liste des matchs
   affiche « — »), ni corners, cartons et tirs. Voir docs/MOTEUR.md.
-- Cotes : API-Football indique ne pas fournir de cotes pour ces deux championnats
-  (à vérifier avec `bash scripts/termux/check-odds.sh 94` et `144`). Sans cote réelle,
-  un match est prédit mais ne peut pas être joué au bookmaker fictif ni entrer dans un coupon.
+- Cotes : la couverture annoncée par API-Football dit « pas de cotes » pour ces deux
+  championnats, mais `check-odds.sh 94` et `144` ont renvoyé des cotes 1xBet le 03/10/2026
+  (mises à jour le jour même) : ce drapeau n'est pas fiable. Sans cote réelle, un match
+  est prédit mais ne peut pas être joué au bookmaker fictif ni entrer dans un coupon.
 - Ajout sur le serveur : `git pull`, puis
   `bash scripts/termux/ingest.sh football-data --competitions POR,BEL` (historique
   depuis 2016) et `bash scripts/termux/ingest.sh api-football --competitions POR,BEL --seasons 2026`.
