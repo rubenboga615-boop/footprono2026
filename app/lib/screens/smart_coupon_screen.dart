@@ -331,6 +331,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                         'NED',
                         'GRE',
                         'TUR',
+                        'SCO',
                       ])
                         FpChip(
                           competitionName(c),

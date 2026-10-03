@@ -673,3 +673,32 @@ presque rien (Autriche : moins bon que la référence ; Suisse et Danemark aussi
 avec les statistiques de match d'API-Football (tirs, corners), après deux travaux :
 plusieurs matchs par affiche et par saison (Suisse : trois tours ; Danemark, Autriche,
 Roumanie : seconde phase), et un téléchargement de l'historique API-Football.
+
+## Plusieurs rencontres d'une même affiche ; Écosse en service (03/10/2026)
+
+La base accepte maintenant qu'une affiche revienne dans la saison (`matches.leg` : 1re,
+2e, 3e rencontre par date ; migration 0019). Les phases finales belge et grecque sont
+chargées, l'Écosse (deux groupes de six après 33 journées, jusqu'à trois rencontres
+d'une affiche) entre au niveau 2 avec ses réglages, sans rien régler sur elle.
+
+Backtest 2022-26 sur les données chargées par le vrai chargeur, secondes phases
+comprises (log loss) :
+
+| Championnat | Matchs | 1-N-2 | naïf | clôture | +2,5 | naïf | clôture |
+|---|---|---|---|---|---|---|---|
+| Portugal | 1 224 | 0,9158 | 1,0703 | 0,8984 | 0,6741 | 0,6935 | 0,6667 |
+| Belgique | 1 241 | 0,9991 | 1,0779 | 0,9875 | 0,6810 | 0,6912 | 0,6759 |
+| Pays-Bas | 1 224 | 0,9515 | 1,0713 | 0,9321 | 0,6670 | 0,6743 | 0,6582 |
+| Grèce | 949 | 0,9437 | 1,0835 | 0,9280 | 0,6856 | 0,6963 | 0,6777 |
+| Turquie | 1 341 | 0,9762 | 1,0672 | 0,9459 | 0,6760 | 0,6903 | 0,6631 |
+| Écosse | 912 | 0,9444 | 1,0591 | 0,9324 | 0,6816 | 0,6919 | 0,6734 |
+| **Niveau 2** | 6 891 | 0,9565 | 1,0716 | 0,9382 | 0,6770 | 0,6892 | 0,6685 |
+
+Les matchs de seconde phase sont plus durs à prévoir. Par différence (approchée) avec la saison
+régulière seule (section précédente), sur les 215 matchs de phase finale belges le
+moteur est à 1,013 contre 0,988 pour la clôture (retard 0,025, contre 0,009 en saison
+régulière) ; sur les 221 grecs, 1,005 contre 0,977 (retard 0,028, contre 0,012), tout en
+restant meilleur que la référence naïve (1,088). Rien n'est corrigé pour l'instant
+(enjeux propres à ces phases : points divisés par deux en Belgique, places européennes).
+Calibration du 1-N-2 (6 891 matchs) : écart de 0 à 2 points par tranche, sauf au-delà de
+90 % (annoncé 92,1 %, observé 88,3 %, 77 cas).

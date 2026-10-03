@@ -238,7 +238,7 @@ async def _sync_calendars(
         fixtures = [
             api_football.parse_fixture(i)
             for i in body["response"]
-            if api_football.is_league_match(i)
+            if api_football.is_league_match(i, comp.playoffs)
         ]
         raw_id = await raw_store.archive(
             session,

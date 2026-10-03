@@ -21,8 +21,9 @@ class CompetitionRef:
     api_football_id: int
     # Nombres d'équipes admis selon les saisons (contrôle de qualité).
     team_counts: tuple[int, ...] = (18, 20)
-    # Phase finale après la saison régulière (Belgique) : plus de matchs qu'un simple
-    # aller-retour, calendrier non équilibré ; ces contrôles ne s'appliquent pas.
+    # Seconde phase après la saison régulière (Belgique, Grèce, Écosse) : la même affiche
+    # revient (Match.leg), plus de matchs qu'un simple aller-retour, calendrier non
+    # équilibré ; ces contrôles ne s'appliquent pas.
     playoffs: bool = False
 
 
@@ -43,6 +44,11 @@ COMPETITIONS: tuple[CompetitionRef, ...] = (
         "GRE", "Super League", "Greece", 14, "G1", None, 197, team_counts=(14, 16), playoffs=True
     ),
     CompetitionRef("TUR", "Süper Lig", "Turkey", 18, "T1", None, 203, team_counts=(18, 19, 20, 21)),
+    # Seconde phase : après 33 journées, chaque équipe joue cinq matchs de plus dans son
+    # groupe de six (haut ou bas du tableau).
+    CompetitionRef(
+        "SCO", "Premiership", "Scotland", 12, "SC0", None, 179, team_counts=(12,), playoffs=True
+    ),
 )
 COMPETITIONS_BY_CODE = {c.code: c for c in COMPETITIONS}
 
@@ -86,6 +92,10 @@ INTERRUPTED_SEASONS: dict[tuple[str, int], str] = {
         2019,
     ): "championnat arrêté en mars 2020 (COVID-19) après 29 journées, sans phase finale",
     ("GRE", 2018): "derby Panathinaïkos - Olympiakos du 17 mars 2019 jamais joué",
+    (
+        "SCO",
+        2019,
+    ): "championnat arrêté en mars 2020 (COVID-19) après 30 journées, sans seconde phase",
     ("NED", 2019): "championnat arrêté en mars 2020 (COVID-19) après 26 journées, sans classement",
 }
 

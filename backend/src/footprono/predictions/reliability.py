@@ -79,31 +79,31 @@ BACKTEST: dict[str, Any] = {
     ),
 }
 
-# Championnats de niveau 2 (Portugal, Belgique, Pays-Bas, Grèce, Turquie : xG tirés des
-# tirs, engine/tiers.py). Backtest du 03/10/2026 sur les données chargées par le serveur
-# (saison régulière), écart favori / outsider appris par championnat, chaque saison sur
-# les saisons précédentes.
+# Championnats de niveau 2 (Portugal, Belgique, Pays-Bas, Grèce, Turquie, Écosse : xG
+# tirés des tirs, engine/tiers.py). Backtest du 03/10/2026 sur les données chargées par le
+# serveur (secondes phases comprises), écart favori / outsider appris par championnat,
+# chaque saison sur les saisons précédentes.
 BACKTEST_LEVEL_2: dict[str, Any] = {
-    "label": "Backtest Portugal, Belgique, Pays-Bas, Grèce et Turquie : saisons passées",
+    "label": "Backtest des six championnats sans xG : simulation sur des saisons passées",
     "verified_on": "2026-10-03",
     "seasons": "2022-23 à 2025-26",
-    "matches": 5543,
+    "matches": 6891,
     "engine_version": "2.3",
     "log_loss": {
-        "1X2": {"model": 0.9544, "naive": 1.0725, "closing_odds": 0.9357},
-        "OU|2.5": {"model": 0.6755, "naive": 0.6884, "closing_odds": 0.6676},
+        "1X2": {"model": 0.9565, "naive": 1.0716, "closing_odds": 0.9382},
+        "OU|2.5": {"model": 0.6770, "naive": 0.6892, "closing_odds": 0.6685},
     },
     "calibration_1x2": [
-        {"range": "0,0-0,1", "count": 1076, "announced": 0.063, "observed": 0.065},
-        {"range": "0,1-0,2", "count": 2389, "announced": 0.155, "observed": 0.152},
-        {"range": "0,2-0,3", "count": 6000, "announced": 0.253, "observed": 0.265},
-        {"range": "0,3-0,4", "count": 2390, "announced": 0.345, "observed": 0.336},
-        {"range": "0,4-0,5", "count": 1799, "announced": 0.448, "observed": 0.418},
-        {"range": "0,5-0,6", "count": 1183, "announced": 0.547, "observed": 0.552},
-        {"range": "0,6-0,7", "count": 771, "announced": 0.648, "observed": 0.652},
-        {"range": "0,7-0,8", "count": 572, "announced": 0.747, "observed": 0.757},
-        {"range": "0,8-0,9", "count": 381, "announced": 0.843, "observed": 0.832},
-        {"range": "0,9-1,0", "count": 68, "announced": 0.923, "observed": 0.868},
+        {"range": "0,0-0,1", "count": 1308, "announced": 0.064, "observed": 0.067},
+        {"range": "0,1-0,2", "count": 2867, "announced": 0.156, "observed": 0.153},
+        {"range": "0,2-0,3", "count": 7546, "announced": 0.254, "observed": 0.263},
+        {"range": "0,3-0,4", "count": 3056, "announced": 0.345, "observed": 0.334},
+        {"range": "0,4-0,5", "count": 2317, "announced": 0.447, "observed": 0.427},
+        {"range": "0,5-0,6", "count": 1449, "announced": 0.546, "observed": 0.559},
+        {"range": "0,6-0,7", "count": 880, "announced": 0.647, "observed": 0.650},
+        {"range": "0,7-0,8", "count": 709, "announced": 0.748, "observed": 0.762},
+        {"range": "0,8-0,9", "count": 464, "announced": 0.843, "observed": 0.828},
+        {"range": "0,9-1,0", "count": 77, "announced": 0.921, "observed": 0.883},
     ],
     "note": (
         "Moins de données que dans les 5 grands championnats (pas de xG) : pourcentages un "

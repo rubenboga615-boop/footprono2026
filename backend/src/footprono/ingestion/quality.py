@@ -53,6 +53,7 @@ _SEASON_SUMMARY = text(
            count(m.id) AS n_matches,
            count(m.id) FILTER (WHERE m.status = 'finished') AS n_finished,
            count(m.id) FILTER (WHERE m.status = 'cancelled') AS n_cancelled,
+           count(m.id) FILTER (WHERE m.leg > 1) AS n_repeated,
            count(m.id) FILTER (WHERE m.status = 'scheduled' AND m.match_date < :stale_before)
                AS n_stale,
            count(DISTINCT m.home_team_id) AS n_home_teams,
@@ -215,6 +216,8 @@ async def run_quality_checks(session: AsyncSession, today: date | None = None) -
                 ).all()
                 for name, home, away in unbalanced:
                     add("error", "equilibre", f"{name} : {home} à domicile, {away} à l'extérieur")
+        if row["n_repeated"] and not playoffs:
+            add("error", "affiches", f"{row['n_repeated']} affiches jouées plus d'une fois")
         if row["n_cancelled"] and (code, year) not in INTERRUPTED_SEASONS:
             add("error", "annulations", f"{row['n_cancelled']} matchs annulés hors saison arrêtée")
         if row["n_stale"]:

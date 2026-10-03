@@ -120,6 +120,10 @@ def test_only_regular_season_finished_matches_are_kept() -> None:
     assert api_football.is_finished_league_match(item("FT", "Regular Season - 3"))
     assert not api_football.is_finished_league_match(item("NS", "Regular Season - 3"))
     assert not api_football.is_finished_league_match(item("FT", "Relegation Round"))
+    # Seconde phase (Belgique, Grèce…) : ses groupes comptent, pas les barrages.
+    assert api_football.is_finished_league_match(item("FT", "Championship Round - 2"), True)
+    assert api_football.is_finished_league_match(item("FT", "Relegation Round - 4"), True)
+    assert not api_football.is_finished_league_match(item("FT", "Play-offs"), True)
 
 
 # --- Chargement (vrai PostgreSQL) ----------------------------------------------

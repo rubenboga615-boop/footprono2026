@@ -8,6 +8,8 @@ annuler les autres. Le rapport complet est enregistré dans ``ingestion_runs``.
 import asyncio
 import json
 import logging
+import re
+from collections import Counter
 from collections.abc import Awaitable, Callable, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -184,8 +186,18 @@ async def _download_api_football(
     ) as client:
         await client.status()
         body = await client.get("/fixtures", {"league": comp.api_football_id, "season": year})
-        league = [i for i in body["response"] if api_football.is_league_match(i)]
-        items = [i for i in league if api_football.is_finished_league_match(i)]
+        league = [i for i in body["response"] if api_football.is_league_match(i, comp.playoffs)]
+        items = [i for i in league if api_football.is_finished_league_match(i, comp.playoffs)]
+        other_rounds = Counter(
+            re.sub(r" - \d+$", "", api_football.round_name(i))
+            for i in body["response"]
+            if not api_football.is_league_match(i, comp.playoffs)
+        )
+        if other_rounds:
+            notes.append(
+                "journées hors championnat ignorées : "
+                + ", ".join(f"{name} ({n})" for name, n in sorted(other_rounds.items()))
+            )
         # Lecture dans une session courte, fermée avant les téléchargements : une
         # transaction ouverte (et ses verrous) pendant de longues minutes ferait
         # attendre les migrations et les autres tâches jusqu'à la fin du fichier.

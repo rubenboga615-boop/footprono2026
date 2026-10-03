@@ -39,8 +39,8 @@ def test_current_season_start() -> None:
 def test_reference_teams_are_consistent() -> None:
     teams = load_teams()
     codes = {c.code for c in COMPETITIONS}
-    # 5 grands championnats, Portugal, Belgique, Pays-Bas, Grèce, Turquie
-    assert len(teams) == 165 + 38 + 31 + 28 + 26 + 39
+    # 5 grands championnats, Portugal, Belgique, Pays-Bas, Grèce, Turquie, Écosse
+    assert len(teams) == 165 + 38 + 31 + 28 + 26 + 39 + 17
     assert {t.competition for t in teams} == codes
     assert len({t.name for t in teams}) == len(teams)
     with_understat = {c.code for c in COMPETITIONS if c.understat_slug}

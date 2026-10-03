@@ -125,9 +125,11 @@ class RawFile(Base):
 class Match(Base):
     __tablename__ = "matches"
     __table_args__ = (
-        # Dans un championnat, une affiche domicile/extérieur n'a lieu qu'une fois par saison.
-        UniqueConstraint("season_id", "home_team_id", "away_team_id"),
+        # Une affiche domicile/extérieur revient parfois dans la saison (seconde phase,
+        # championnat en trois tours) : ``leg`` numérote ses rencontres par date.
+        UniqueConstraint("season_id", "home_team_id", "away_team_id", "leg"),
         CheckConstraint("home_team_id <> away_team_id", name="distinct_teams"),
+        CheckConstraint("leg >= 1", name="leg_positive"),
         CheckConstraint(
             "(status = 'finished') = (home_goals IS NOT NULL AND away_goals IS NOT NULL)",
             name="finished_has_score",
@@ -138,6 +140,8 @@ class Match(Base):
     season_id: Mapped[int] = mapped_column(ForeignKey("seasons.id", ondelete="CASCADE"), index=True)
     home_team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
     away_team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
+    # 1re, 2e… rencontre de cette affiche dans la saison (par date).
+    leg: Mapped[int] = mapped_column(SmallInteger, default=1, server_default="1")
     match_date: Mapped[date] = mapped_column(Date, index=True)
     # Heure de coup d'envoi telle que publiée par football-data (fuseau à confirmer).
     kickoff_time: Mapped[time | None] = mapped_column(Time)

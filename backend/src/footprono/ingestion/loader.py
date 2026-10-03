@@ -170,7 +170,7 @@ async def _reconcile_results(
       match déjà terminé en base.
     """
     finished = {
-        (m.home_team_id, m.away_team_id): m
+        (m.home_team_id, m.away_team_id, m.leg): m
         for m in (
             await session.scalars(
                 select(Match).where(Match.season_id == sid, Match.status == MatchStatus.FINISHED)
@@ -179,7 +179,7 @@ async def _reconcile_results(
     }
     kept = []
     for row in rows:
-        current = finished.get((row["home_team_id"], row["away_team_id"]))
+        current = finished.get((row["home_team_id"], row["away_team_id"], row["leg"]))
         if current is not None and row["status"] is not MatchStatus.FINISHED:
             continue
         if (
@@ -210,28 +210,21 @@ async def load_football_data(
     )
     sid = await season_id(session, competition_code, start_year)
 
-    # Une affiche par saison (contrainte de la base). Phase finale (Belgique) : la même
-    # affiche revient après la saison régulière ; seule la première (par date) est
-    # gardée, comme côté API-Football (journées « Regular Season » seulement).
-    seen: set[tuple[int, int]] = set()
-    kept: list[FootballDataMatch] = []
-    repeated: list[str] = []
-    for m in sorted(matches, key=lambda m: m.match_date):
-        key = (teams[m.home_team], teams[m.away_team])
-        if key in seen:
-            repeated.append(f"{m.home_team} - {m.away_team}")
-            continue
-        seen.add(key)
-        kept.append(m)
+    # Une affiche revient dans la saison là où le championnat a une seconde phase ou
+    # plusieurs tours (ref.playoffs) : ``leg`` numérote ses rencontres par date.
+    # Ailleurs, une affiche en double est une erreur du fichier : ignorée, signalée.
     ref = COMPETITIONS_BY_CODE.get(competition_code)
-    if repeated and ref is not None and ref.playoffs:
-        stats.issues.append(
-            f"phase finale : {len(repeated)} matchs non chargés "
-            "(affiches déjà jouées en saison régulière)"
-        )
-    else:
-        stats.issues.extend(f"affiche en double ignorée : {r}" for r in repeated)
-    matches = kept
+    several = ref is not None and ref.playoffs
+    legs: dict[tuple[int, int], int] = {}
+    kept: list[tuple[FootballDataMatch, int]] = []
+    for m in sorted(matches, key=lambda m: m.match_date):
+        pair = (teams[m.home_team], teams[m.away_team])
+        leg = legs.get(pair, 0) + 1
+        if leg > 1 and not several:
+            stats.issues.append(f"affiche en double ignorée : {m.home_team} - {m.away_team}")
+            continue
+        legs[pair] = leg
+        kept.append((m, leg))
 
     # Saison arrêtée ou match jamais joué (INTERRUPTED_SEASONS) : une ligne sans
     # résultat est un match annulé, pas un match à venir.
@@ -241,13 +234,13 @@ async def load_football_data(
         else MatchStatus.SCHEDULED
     )
     rows: list[dict[str, Any]] = []
-    for m in matches:
-        key = (teams[m.home_team], teams[m.away_team])
+    for m, leg in kept:
         rows.append(
             {
                 "season_id": sid,
-                "home_team_id": key[0],
-                "away_team_id": key[1],
+                "home_team_id": teams[m.home_team],
+                "away_team_id": teams[m.away_team],
+                "leg": leg,
                 "match_date": m.match_date,
                 "kickoff_time": m.kickoff_time,
                 "status": MatchStatus.FINISHED if m.finished else unplayed,
@@ -266,26 +259,22 @@ async def load_football_data(
         return stats
     await _drop_contradicted_fixtures(session, sid, rows, stats)
 
-    match_ids: dict[tuple[int, int], int] = {}
+    key_columns = ("season_id", "home_team_id", "away_team_id", "leg")
+    match_ids: dict[tuple[int, int, int], int] = {}
     for chunk in _chunks(rows):
         stmt = insert(Match).values(list(chunk))
-        updatable = {
-            k: stmt.excluded[k]
-            for k in chunk[0]
-            if k not in ("season_id", "home_team_id", "away_team_id")
-        }
+        updatable = {k: stmt.excluded[k] for k in chunk[0] if k not in key_columns}
         result: Result[Any] = await session.execute(
-            stmt.on_conflict_do_update(
-                index_elements=["season_id", "home_team_id", "away_team_id"], set_=updatable
-            ).returning(
+            stmt.on_conflict_do_update(index_elements=list(key_columns), set_=updatable).returning(
                 Match.id,
                 Match.home_team_id,
                 Match.away_team_id,
+                Match.leg,
                 literal_column("(xmax = 0)").label("inserted"),
             )
         )
-        for match_id, home_id, away_id, inserted in result.tuples():
-            match_ids[(home_id, away_id)] = match_id
+        for match_id, home_id, away_id, leg, inserted in result.tuples():
+            match_ids[(home_id, away_id, leg)] = match_id
             if inserted:
                 stats.matches_inserted += 1
             else:
@@ -293,7 +282,7 @@ async def load_football_data(
 
     odds_rows = [
         {
-            "match_id": match_ids[(teams[m.home_team], teams[m.away_team])],
+            "match_id": match_ids[(teams[m.home_team], teams[m.away_team], leg)],
             "source": DataSource.FOOTBALL_DATA,
             "bookmaker": q.bookmaker,
             "market": q.market,
@@ -302,8 +291,8 @@ async def load_football_data(
             "selection": q.selection,
             "price": q.price,
         }
-        for m in matches
-        if (teams[m.home_team], teams[m.away_team]) in match_ids
+        for m, leg in kept
+        if (teams[m.home_team], teams[m.away_team], leg) in match_ids
         for q in m.odds
     ]
     for chunk in _chunks(odds_rows):
@@ -329,7 +318,7 @@ async def _drop_contradicted_fixtures(
     jour, la date d'un de ses matchs pour l'une des deux équipes, c'est l'autre
     source qui se trompe (domicile/extérieur inversés, date erronée…).
     """
-    keys = {(r["home_team_id"], r["away_team_id"]) for r in rows}
+    keys = {(r["home_team_id"], r["away_team_id"], r["leg"]) for r in rows}
     days: dict[int, set[date]] = {}
     for r in rows:
         for team in (r["home_team_id"], r["away_team_id"]):
@@ -346,7 +335,7 @@ async def _drop_contradicted_fixtures(
         )
     ).all()
     for other in others:
-        if (other.home_team_id, other.away_team_id) in keys:
+        if (other.home_team_id, other.away_team_id, other.leg) in keys:
             continue
         if any(
             other.match_date in days.get(t, ()) for t in (other.home_team_id, other.away_team_id)
@@ -374,9 +363,12 @@ async def load_understat(
     sid = await season_id(session, competition_code, start_year)
     interrupted = (competition_code, start_year) in INTERRUPTED_SEASONS
 
+    # Understat ne couvre que les 5 grands championnats : une rencontre par affiche.
     existing = {
         (row.home_team_id, row.away_team_id): row
-        for row in (await session.execute(select(Match).where(Match.season_id == sid))).scalars()
+        for row in (
+            await session.execute(select(Match).where(Match.season_id == sid, Match.leg == 1))
+        ).scalars()
     }
 
     # Dates déjà occupées par chaque équipe : une rencontre Understat absente
@@ -470,7 +462,7 @@ async def load_understat(
         for mid, home, away in (
             await session.execute(
                 select(Match.id, Match.home_team_id, Match.away_team_id).where(
-                    Match.season_id == sid
+                    Match.season_id == sid, Match.leg == 1
                 )
             )
         ).tuples()
@@ -585,12 +577,11 @@ async def load_api_football(
     """
     stats = LoadStats()
     sid = await season_id(session, competition_code, start_year)
-    existing = {
-        (row.home_team_id, row.away_team_id): row
-        for row in (await session.execute(select(Match).where(Match.season_id == sid))).scalars()
-    }
+    existing: dict[tuple[int, int], list[Match]] = {}
+    for row in (await session.execute(select(Match).where(Match.season_id == sid))).scalars():
+        existing.setdefault((row.home_team_id, row.away_team_id), []).append(row)
     # Sans Understat (niveau 2), personne d'autre ne publie le calendrier complet :
-    # les matchs à venir d'API-Football (journées « Regular Season » seulement) sont créés.
+    # les matchs à venir d'API-Football (journées de championnat) sont créés.
     ref = COMPETITIONS_BY_CODE.get(competition_code)
     creates_fixtures = ref is not None and ref.understat_slug is None
     if not existing and not creates_fixtures:
@@ -613,59 +604,70 @@ async def load_api_football(
     if creates_fixtures:
         season_teams |= set(teams.values())
 
-    # Une même affiche peut apparaître deux fois (match d'appui ou de barrage entre
-    # deux équipes du championnat) : le match de championnat est celui dont la date
-    # est la plus proche de la base, l'autre est hors championnat.
-    closest: dict[tuple[int, int], int] = {}
-    for f in fixtures:
-        key = (teams.get(f.home_team, -1), teams.get(f.away_team, -1))
-        match = existing.get(key)
-        if match is not None:
-            gap = abs((match.match_date - f.match_date).days)
-            best = closest.get(key)
-            if best is None or gap < best:
-                closest[key] = gap
-
     playoffs = rescheduled = 0
-    rows: list[dict[str, Any]] = []
-    new_fixtures: list[dict[str, Any]] = []
-    created: set[tuple[int, int]] = set()
+    by_pair: dict[tuple[int, int], list[ApiFixture]] = {}
+    seen: set[int] = set()
     for f in fixtures:
+        if f.fixture_id in seen:  # même match reçu deux fois
+            continue
+        seen.add(f.fixture_id)
         home, away = teams.get(f.home_team), teams.get(f.away_team)
         if home is None or away is None or home not in season_teams or away not in season_teams:
             playoffs += 1
             continue
-        match = existing.get((home, away))
-        if (
-            match is not None
-            and abs((match.match_date - f.match_date).days) > closest[(home, away)]
+        by_pair.setdefault((home, away), []).append(f)
+
+    # Une affiche peut revenir dans la saison (seconde phase, plusieurs tours) : chaque
+    # match API-Football est rattaché à la rencontre de la même affiche la plus proche
+    # en date, chacune servant une fois. Un match de trop est hors championnat (match
+    # d'appui, barrage), ou une rencontre à venir à créer là où API-Football publie le
+    # calendrier (niveau 2) : elle prend le numéro suivant de l'affiche.
+    pairs: list[tuple[ApiFixture, Match, int, int]] = []
+    new_fixtures: list[dict[str, Any]] = []
+    for (home, away), group in by_pair.items():
+        group.sort(key=lambda f: f.match_date)
+        known_matches = existing.get((home, away), [])
+        partner: dict[int, Match] = {}
+        taken: set[int] = set()
+        for _, i, j in sorted(
+            (abs((m.match_date - f.match_date).days), i, j)
+            for i, f in enumerate(group)
+            for j, m in enumerate(known_matches)
         ):
-            playoffs += 1
-            continue
-        if match is None and creates_fixtures and not f.finished:
-            if (home, away) in created:
-                continue
-            created.add((home, away))
-            new_fixtures.append(
-                {
-                    "season_id": sid,
-                    "home_team_id": home,
-                    "away_team_id": away,
-                    "match_date": f.match_date,
-                    "status": MatchStatus.SCHEDULED,
-                    "api_football_id": f.fixture_id,
-                    "api_referee": f.referee,
-                    "kickoff_at": f.kickoff,
-                    "api_status": f.status or None,
-                }
-            )
-            continue
-        if match is None:
-            stats.issues.append(
-                f"match API-Football {f.fixture_id} {f.home_team}-{f.away_team} "
-                f"du {f.match_date} introuvable en base"
-            )
-            continue
+            if i not in partner and j not in taken:
+                partner[i] = known_matches[j]
+                taken.add(j)
+        next_leg = max((m.leg for m in known_matches), default=0) + 1
+        for i, f in enumerate(group):
+            match = partner.get(i)
+            if match is not None:
+                pairs.append((f, match, home, away))
+            elif creates_fixtures and not f.finished:
+                new_fixtures.append(
+                    {
+                        "season_id": sid,
+                        "home_team_id": home,
+                        "away_team_id": away,
+                        "leg": next_leg,
+                        "match_date": f.match_date,
+                        "status": MatchStatus.SCHEDULED,
+                        "api_football_id": f.fixture_id,
+                        "api_referee": f.referee,
+                        "kickoff_at": f.kickoff,
+                        "api_status": f.status or None,
+                    }
+                )
+                next_leg += 1
+            elif known_matches and not creates_fixtures:
+                playoffs += 1
+            else:
+                stats.issues.append(
+                    f"match API-Football {f.fixture_id} {f.home_team}-{f.away_team} "
+                    f"du {f.match_date} introuvable en base"
+                )
+
+    rows: list[dict[str, Any]] = []
+    for f, match, home, away in pairs:
         if not f.finished:
             rescheduled += await _update_upcoming(session, match, f, stats)
             continue

@@ -205,9 +205,9 @@ connectés (jeton valable 30 jours) : à traiter avec la sécurité (phase 6).
 ## Championnats (moteur 2.3)
 
 - **Niveau 1** : Premier League, Liga, Serie A, Bundesliga, Ligue 1 (xG Understat).
-- **Niveau 2** : Liga Portugal (`POR`), Pro League belge (`BEL`, saison régulière
-  seulement), Eredivisie (`NED`), Super League grecque (`GRE`, saison régulière
-  seulement), Süper Lig (`TUR`) : xG tirés des tirs ; pas de « les deux marquent » (la
+- **Niveau 2** : Liga Portugal (`POR`), Pro League belge (`BEL`), Eredivisie (`NED`),
+  Super League grecque (`GRE`), Süper Lig (`TUR`), Premiership écossaise (`SCO`) : xG
+  tirés des tirs ; pas de « les deux marquent » (la
   liste des matchs affiche « — »), ni corners, cartons et tirs. Voir docs/MOTEUR.md.
 - Les matchs à venir de ces championnats viennent d'API-Football (Understat ne les
   couvre pas) : sans la commande `api-football` ci-dessous, ou la collecte des cotes
@@ -216,10 +216,19 @@ connectés (jeton valable 30 jours) : à traiter avec la sécurité (phase 6).
   championnats, mais `check-odds.sh 94` et `144` ont renvoyé des cotes 1xBet le 03/10/2026
   (mises à jour le jour même) : ce drapeau n'est pas fiable. Sans cote réelle, un match
   est prédit mais ne peut pas être joué au bookmaker fictif ni entrer dans un coupon.
+- Seconde phase (Belgique, Grèce, Écosse) : la même affiche revient dans la saison ;
+  la base numérote ses rencontres (`matches.leg`, 1re, 2e, 3e par date, migration 0019).
+  football-data fournit les matchs joués ; API-Football les matchs à venir des journées
+  « Championship Round » et « Relegation Round ». Les autres journées d'API-Football
+  (barrages…) sont ignorées et nommées dans le rapport d'ingestion (« journées hors
+  championnat ignorées ») : si une journée de championnat y apparaît, l'ajouter à
+  `SECOND_PHASE_ROUNDS` (sources/api_football.py). Une affiche répétée ailleurs est une
+  erreur du contrôle de qualité (« affiches »).
 - Ajout sur le serveur : `git pull`, puis
   `bash scripts/termux/ingest.sh football-data --competitions NED,GRE,TUR` (historique
   depuis 2016) et `bash scripts/termux/ingest.sh api-football --competitions NED,GRE,TUR --seasons 2026`
-  (même chose avec `POR,BEL` pour le Portugal et la Belgique).
+  (même chose avec `POR,BEL` pour le Portugal et la Belgique, `SCO` pour l'Écosse ;
+  relancer `football-data --competitions BEL,GRE` pour charger leurs phases finales).
 - Cas particuliers : Turquie 2022-23, 29 matchs de Hatayspor et Gaziantep donnés 0-3
   sans être joués après le séisme (exclus de l'apprentissage) ; Grèce 2018-19, derby
   Panathinaïkos - Olympiakos jamais joué (annulé) ; Pays-Bas 2019-20 arrêté (COVID-19).

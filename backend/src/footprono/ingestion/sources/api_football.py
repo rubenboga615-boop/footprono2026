@@ -212,14 +212,40 @@ def parse_fixture(item: dict[str, Any]) -> ApiFixture:
     )
 
 
-def is_league_match(item: dict[str, Any]) -> bool:
-    """Match de la saison régulière, joué ou non (les barrages sont exclus)."""
-    return str(item.get("league", {}).get("round", "")).startswith("Regular Season")
+# Seconde phase d'un championnat (Belgique, Grèce, Écosse, Danemark…) : groupes de haut
+# et de bas de tableau, qui rejouent des affiches. Les barrages (« Play-offs », finales)
+# restent exclus. Noms vus chez API-Football ; ceux qui ne sont pas reconnus sont
+# comptés dans le rapport (round_names) pour vérification.
+SECOND_PHASE_ROUNDS = (
+    "Championship Round",
+    "Relegation Round",
+    "Championship Group",
+    "Relegation Group",
+)
 
 
-def is_finished_league_match(item: dict[str, Any]) -> bool:
-    """Match terminé de la saison régulière."""
-    return is_league_match(item) and item["fixture"]["status"]["short"] in FINISHED_STATUSES
+def round_name(item: dict[str, Any]) -> str:
+    return str(item.get("league", {}).get("round", ""))
+
+
+def is_league_match(item: dict[str, Any], second_phase: bool = False) -> bool:
+    """Match de championnat, joué ou non (les barrages sont exclus).
+
+    ``second_phase`` : le championnat a une seconde phase (``CompetitionRef.playoffs``),
+    ses journées comptent aussi. Ailleurs, « Relegation Round » désigne un barrage.
+    """
+    name = round_name(item)
+    return name.startswith("Regular Season") or (
+        second_phase and name.startswith(SECOND_PHASE_ROUNDS)
+    )
+
+
+def is_finished_league_match(item: dict[str, Any], second_phase: bool = False) -> bool:
+    """Match de championnat terminé."""
+    return (
+        is_league_match(item, second_phase)
+        and item["fixture"]["status"]["short"] in FINISHED_STATUSES
+    )
 
 
 def parse_statistics(

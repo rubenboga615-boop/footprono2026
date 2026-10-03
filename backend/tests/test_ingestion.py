@@ -1,6 +1,7 @@
 """Ingestion de bout en bout sur un vrai PostgreSQL, à partir de fichiers réels."""
 
 import shutil
+from collections import Counter
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -18,6 +19,7 @@ from footprono.football.models import (
     MatchOdds,
     MatchStatus,
     RawFile,
+    Season,
 )
 from footprono.ingestion import loader, raw_store, service
 from footprono.ingestion.quality import run_quality_checks
@@ -359,14 +361,22 @@ async def test_stale_running_run_is_marked_interrupted(db_factory: Factory, tmp_
     assert run.finished_at is not None
 
 
-async def test_belgian_playoffs_regular_season_only(db_factory: Factory, tmp_path: Path) -> None:
-    """Phase finale : les affiches rejouées ne sont pas chargées (une affiche par saison),
-    sans casser les cotes ; les contrôles d'un simple aller-retour ne s'appliquent pas."""
+async def test_belgian_playoffs_loaded_as_second_legs(db_factory: Factory, tmp_path: Path) -> None:
+    """Phase finale : les affiches rejouées sont des 2es rencontres (``leg``), avec leurs
+    cotes ; les contrôles d'un simple aller-retour ne s'appliquent pas."""
     report = await ingest(db_factory, tmp_path, fd("BEL", 2024))
     entry = report["files"][0]
     assert entry["status"] == "ok", entry
-    assert entry["matches_inserted"] == 240  # 16 équipes, aller-retour
-    assert any("phase finale : 72 matchs non chargés" in i for i in entry["issues"])
+    assert entry["matches_inserted"] == 240 + 72  # aller-retour à 16, puis phase finale
+    async with db_factory() as session:
+        legs = Counter((await session.scalars(select(Match.leg))).all())
+        with_odds = await session.scalar(
+            select(func.count(func.distinct(MatchOdds.match_id)))
+            .join(Match, Match.id == MatchOdds.match_id)
+            .where(Match.leg == 2)
+        )
+    assert legs == {1: 240, 2: 72}
+    assert with_odds == 72
     async with db_factory() as session:
         quality = await run_quality_checks(session)
     errors = [
@@ -386,7 +396,8 @@ async def test_api_football_creates_fixtures_where_understat_is_absent(
     db_factory: Factory, tmp_path: Path
 ) -> None:
     """Niveau 2 (sans Understat) : le calendrier d'API-Football crée les matchs à venir,
-    sans doublon ; un match terminé inconnu reste signalé (football-data fait foi)."""
+    sans doublon (même match API-Football reçu deux fois) ; un match terminé inconnu
+    reste signalé (football-data fait foi)."""
     from footprono.ingestion.sources.api_football import ApiFixture
 
     await ingest(db_factory, tmp_path, fd("BEL", 2024))  # référentiel et équipes en base
@@ -413,3 +424,60 @@ async def test_api_football_creates_fixtures_where_understat_is_absent(
     assert (match.status, match.match_date, match.kickoff_at) == (
         MatchStatus.SCHEDULED, kickoff.date(), kickoff,
     )  # fmt: skip
+
+
+async def test_api_football_second_phase_fixtures_are_second_legs(
+    db_factory: Factory, tmp_path: Path
+) -> None:
+    """Une affiche qui revient (seconde phase) : chaque match API-Football va à la
+    rencontre la plus proche en date ; la suivante est créée avec le numéro suivant,
+    et un nouveau passage du calendrier ne crée rien de plus."""
+    from footprono.ingestion.sources.api_football import ApiFixture
+
+    await ingest(db_factory, tmp_path, fd("BEL", 2024))
+
+    def fixture(fixture_id: int, day: datetime) -> ApiFixture:
+        return ApiFixture(
+            fixture_id=fixture_id, match_date=day.date(), home_team="Anderlecht",
+            away_team="Genk", home_goals=None, away_goals=None, home_goals_ht=None,
+            away_goals_ht=None, kickoff=day, status="NS",
+        )  # fmt: skip
+
+    autumn = fixture(999101, datetime(2030, 9, 14, 18, 0, tzinfo=UTC))
+    spring = fixture(999102, datetime(2031, 4, 20, 18, 0, tzinfo=UTC))
+    for _ in range(2):
+        async with db_factory() as session, session.begin():
+            resolver = await loader.TeamResolver.load(session)
+            await loader.load_api_football(session, "BEL", 2030, [spring, autumn], 0, resolver)
+    async with db_factory() as session:
+        rows = (
+            await session.execute(
+                select(Match.leg, Match.match_date, Match.api_football_id)
+                .join(Season, Season.id == Match.season_id)
+                .where(Season.start_year == 2030)
+                .order_by(Match.leg)
+            )
+        ).all()
+    assert [tuple(r) for r in rows] == [
+        (1, autumn.match_date, 999101),
+        (2, spring.match_date, 999102),
+    ]
+
+
+async def test_repeated_fixture_outside_second_phase_is_an_error(
+    db_factory: Factory, tmp_path: Path
+) -> None:
+    await ingest(db_factory, tmp_path, fd("EPL", 2024))
+    async with db_factory() as session, session.begin():
+        first = await session.scalar(select(Match).limit(1))
+        assert first is not None
+        session.add(
+            Match(
+                season_id=first.season_id, home_team_id=first.home_team_id,
+                away_team_id=first.away_team_id, leg=2, match_date=first.match_date,
+                status=MatchStatus.CANCELLED,
+            )
+        )  # fmt: skip
+    async with db_factory() as session:
+        quality = await run_quality_checks(session)
+    assert any(f["check"] == "affiches" and f["competition"] == "EPL" for f in quality["findings"])
