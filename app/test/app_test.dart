@@ -8,6 +8,7 @@ import 'package:footprono/format.dart';
 import 'package:footprono/main.dart';
 import 'package:footprono/screens/notifications_screen.dart';
 import 'package:footprono/state/app_state.dart';
+import 'package:footprono/theme.dart';
 import 'package:footprono/update/installer.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -874,6 +875,15 @@ void main() {
     expect(find.text("Pas encore d'analyse pour ce match."), findsNothing);
     expect(find.textContaining("L'analyse détaillée"), findsOneWidget);
     expect(state.premium, isFalse); // profil relu
+  });
+
+  testWidgets('ordinateur : colonne centrée de 680 pixels, téléphone inchangé', (tester) async {
+    await startApp(tester, loggedIn: true); // 430 pixels de large : téléphone
+    expect(tester.getSize(find.byType(Navigator).first).width, 430);
+    await tester.binding.setSurfaceSize(const Size(1400, 900));
+    await tester.pumpAndSettle();
+    expect(find.text('LEN'), findsOneWidget);
+    expect(tester.getSize(find.byType(Navigator).first).width, WideFrame.maxWidth - 2); // bordures
   });
 
   testWidgets('notifications push : téléphone enregistré, notification touchée, déconnexion', (tester) async {

@@ -40,7 +40,7 @@ bash scripts/termux/install-web.sh ~/storage/downloads/footprono-web.zip
 bash scripts/termux/stop.sh && bash scripts/termux/start.sh
 ```
 
-Puis ouvrir `http://127.0.0.1:8000/app/` dans le navigateur. L'API sert la
+Puis ouvrir `http://127.0.0.1:8000/app/` dans le navigateur. Sur un grand écran (ordinateur), l'application garde une colonne centrée de 680 pixels (`WideFrame`, `lib/theme.dart`). L'API sert la
 page elle-même (`FP_WEB_APP_DIR`) : même adresse, aucun réglage CORS.
 
 ## Mises à jour (hors Play Store)

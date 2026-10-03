@@ -47,7 +47,7 @@ class FootPronoApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: Fp.theme(),
         scaffoldMessengerKey: messengerKey,
-        builder: (context, child) => FpBackground(child: child ?? const SizedBox()),
+        builder: (context, child) => FpBackground(child: WideFrame(child: child ?? const SizedBox())),
         home: const _Root(),
       ),
     );

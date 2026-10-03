@@ -180,6 +180,38 @@ class Fp {
 
 /// Fond des maquettes : noir violacé, deux halos, rubans lumineux diagonaux.
 /// Dessiné une seule fois (aucune animation : économie de batterie).
+/// Grand écran (version web sur ordinateur) : l'application garde une largeur de tablette,
+/// centrée, avec le fond autour. Fenêtres, feuilles et messages restent dans la colonne.
+/// Sur téléphone (largeur sous [maxWidth] + marge), rien ne change.
+class WideFrame extends StatelessWidget {
+  const WideFrame({super.key, required this.child});
+  final Widget child;
+  static const maxWidth = 680.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth <= maxWidth + 80) return child;
+        final mq = MediaQuery.of(context);
+        return Center(
+          child: Container(
+            width: maxWidth,
+            decoration: const BoxDecoration(
+              color: Color(0x8C060509), // fond assombri derrière la colonne
+              border: Border.symmetric(vertical: BorderSide(color: Fp.line)),
+            ),
+            child: MediaQuery(
+              data: mq.copyWith(size: Size(maxWidth, mq.size.height)),
+              child: child,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class FpBackground extends StatelessWidget {
   const FpBackground({super.key, required this.child});
   final Widget child;
