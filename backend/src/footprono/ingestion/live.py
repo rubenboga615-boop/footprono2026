@@ -153,6 +153,9 @@ async def collect_odds(
     latest = await _latest_prices(session, list(matches.values()))
     added = 0
     still_offered: list[int] = []
+    # Date de mise à jour annoncée par la source pour les cotes inchangées : la source
+    # peut confirmer un prix sans le changer, la date affichée doit le refléter.
+    confirmed: dict[datetime, list[int]] = {}
     for q in quotes:
         match_id = matches.get(q.fixture_id)
         if match_id is None:
@@ -161,6 +164,8 @@ async def collect_odds(
         previous = latest.get(key)
         if previous is not None and previous[1] == q.price:
             still_offered.append(previous[0])  # inchangée : seulement « vue » à nouveau
+            if q.updated_at is not None and previous[0]:
+                confirmed.setdefault(q.updated_at, []).append(previous[0])
             continue
         latest[key] = (0, q.price)
         session.add(
@@ -184,6 +189,16 @@ async def collect_odds(
             .where(BookmakerOdds.id.in_(still_offered[start : start + 5000]))
             .values(last_seen_at=fetched_at)
         )
+    for updated, ids in confirmed.items():
+        for start in range(0, len(ids), 5000):
+            await session.execute(
+                update(BookmakerOdds)
+                .where(
+                    BookmakerOdds.id.in_(ids[start : start + 5000]),
+                    BookmakerOdds.source_updated_at.is_distinct_from(updated),
+                )
+                .values(source_updated_at=updated)
+            )
     await session.commit()
     # Paris dont au moins une sélection n'est pas traduite, avec quelques libellés
     # réels (pour compléter la traduction) et s'ils sont traduits en partie.

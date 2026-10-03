@@ -84,10 +84,12 @@ def test_handicap_diagnostics_finds_the_convention() -> None:
     assert check["home_line"]["share_plausible"] < 1.0
 
 
-def _odds_item(fixture_id: int, book: str, home: str) -> dict[str, Any]:
+def _odds_item(
+    fixture_id: int, book: str, home: str, updated: str = "2026-10-08T10:00:00+00:00"
+) -> dict[str, Any]:
     return {
         "fixture": {"id": fixture_id},
-        "update": "2026-10-08T10:00:00+00:00",
+        "update": updated,
         "bookmakers": [
             {
                 "id": 11,
@@ -118,7 +120,11 @@ def test_parse_odds_page_skips_invalid_prices() -> None:
     assert quotes[0].updated_at is not None
 
 
-def _transport(fixtures: list[int], home_price: list[str], calls: list[str]) -> httpx.MockTransport:
+def _transport(
+    fixtures: list[int], home_price: list[str], calls: list[str], updated: list[str] | None = None
+) -> httpx.MockTransport:
+    updated = updated or ["2026-10-08T10:00:00+00:00"]
+
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(request.url.path)
         headers = {"x-ratelimit-requests-remaining": "7000", "x-ratelimit-remaining": "290"}
@@ -129,7 +135,7 @@ def _transport(fixtures: list[int], home_price: list[str], calls: list[str]) -> 
         elif (
             request.url.params.get("league") == "39" and request.url.params.get("bookmaker") == "11"
         ):
-            items = [_odds_item(f, "1xBet", home_price[0]) for f in fixtures]
+            items = [_odds_item(f, "1xBet", home_price[0], updated[0]) for f in fixtures]
             body = {"response": items, "paging": {"current": 1, "total": 1}}
         else:
             body = {"response": [], "paging": {"current": 1, "total": 1}}
@@ -162,9 +168,10 @@ async def test_collect_odds_keeps_only_changes(
         await session.commit()
 
     price = ["1.85"]
+    stamp = ["2026-10-08T10:00:00+00:00"]
     calls: list[str] = []
     monkeypatch.setattr(
-        service, "api_football_transport", _transport([5000, 5001, 9999], price, calls)
+        service, "api_football_transport", _transport([5000, 5001, 9999], price, calls, stamp)
     )
     monkeypatch.setattr(api_football.ApiFootballClient, "__init__", _fast_init)
     settings = make_settings(raw_data_dir=tmp_path / "raw", api_football_key="k" * 32)
@@ -180,9 +187,13 @@ async def test_collect_odds_keeps_only_changes(
     # 5 championnats x 2 bookmakers trouvés = 10 pages, + la liste des bookmakers.
     assert calls.count("/odds") == 10
 
+    stamp[0] = "2026-10-08T13:00:00+00:00"  # la source confirme les mêmes prix plus tard
     async with db_factory() as session:
         again = await collect_odds(session, settings)
+        stamps = set(await session.scalars(select(BookmakerOdds.source_updated_at)))
     assert again["changed"] == 0  # rien n'a bougé : aucune ligne ajoutée
+    # … mais la date de mise à jour affichée suit la source.
+    assert {s.isoformat() for s in stamps} == {"2026-10-08T13:00:00+00:00"}
 
     price[0] = "1.90"
     async with db_factory() as session:
