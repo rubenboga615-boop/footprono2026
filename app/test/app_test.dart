@@ -864,6 +864,18 @@ void main() {
     expect(AppState.maxCoupon, 12);
   });
 
+  testWidgets('Premium retiré : cadenas affiché, jamais « pas encore d\'analyse »', (tester) async {
+    final (state, server) = await startApp(tester, loggedIn: true, premium: true);
+    server.premium = false; // retiré côté serveur, l'application ne le sait pas encore
+    await tester.tap(find.text('LEN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Analyse'));
+    await tester.pumpAndSettle();
+    expect(find.text("Pas encore d'analyse pour ce match."), findsNothing);
+    expect(find.textContaining("L'analyse détaillée"), findsOneWidget);
+    expect(state.premium, isFalse); // profil relu
+  });
+
   testWidgets('notifications push : téléphone enregistré, notification touchée, déconnexion', (tester) async {
     final push = FakePush();
     final (state, server) = await startApp(tester, loggedIn: true, push: push);

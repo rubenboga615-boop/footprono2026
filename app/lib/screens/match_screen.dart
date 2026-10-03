@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -16,7 +18,7 @@ import 'team_screen.dart';
 const staleOdds = Duration(days: 2);
 
 class MatchData {
-  MatchData(this.match, this.prediction, this.offers, this.analysis, [this.picks]);
+  MatchData(this.match, this.prediction, this.offers, this.analysis, [this.picks, this.locked = false]);
   final MatchInfo match;
   final Prediction? prediction;
   final List<Offer> offers;
@@ -26,6 +28,10 @@ class MatchData {
 
   /// « Les choix du moteur » : une sélection par profil (Sûr gratuit, les autres Premium).
   final Json? picks;
+
+  /// Le serveur a refusé l'analyse (Premium terminé ou retiré) : on montre le cadenas,
+  /// pas « pas encore d'analyse ».
+  final bool locked;
 }
 
 class MatchScreen extends StatelessWidget {
@@ -43,20 +49,28 @@ class MatchScreen extends StatelessWidget {
     }
     final offers = [for (final o in await api.get('/matches/$matchId/offer') as List) Offer(o as Json)];
     Json? analysis;
-    if (state.premium) {
+    // Le serveur fait foi : un Premium retiré depuis la dernière mise à jour du profil
+    // est refusé ici, et le profil est relu pour mettre l'application à jour.
+    var locked = !state.premium || (prediction != null && prediction.plan != 'premium');
+    if (!locked) {
       try {
         analysis = await api.get('/matches/$matchId/analysis') as Json;
       } on ApiException catch (e) {
-        if (e.status != 403 && e.status != 404) rethrow;
+        if (e.premiumRequired || e.status == 403) {
+          locked = true;
+        } else if (e.status != 404) {
+          rethrow;
+        }
       }
     }
+    if (locked && state.premium) unawaited(state.refreshMe().catchError((_) {}));
     Json? picks;
     try {
       picks = (await api.get('/matches/$matchId/picks') as Json)['picks'] as Json;
     } on ApiException {
       // Choix indisponibles : l'écran garde toutes les probabilités.
     }
-    return MatchData(match, prediction, offers, analysis, picks);
+    return MatchData(match, prediction, offers, analysis, picks, locked);
   }
 
   @override
@@ -439,7 +453,7 @@ class _MatchViewState extends State<_MatchView> {
   List<Widget> _analysis(MatchData d) {
     final p = d.prediction;
     final m = d.match;
-    if (!context.read<AppState>().premium) {
+    if (d.locked || !context.read<AppState>().premium) {
       return const [
         PremiumLock(
           text:

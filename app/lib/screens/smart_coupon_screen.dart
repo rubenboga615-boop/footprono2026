@@ -82,6 +82,11 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
       };
       final r = await state.api.get(_withLists(query)) as Json;
       if (mounted) setState(() => result = r);
+    } on ApiException catch (e) {
+      // Premium terminé ou retiré depuis la dernière mise à jour : le profil est relu,
+      // l'écran affiche alors le cadenas.
+      if (e.premiumRequired) await state.refreshMe().catchError((_) {});
+      if (mounted) setState(() => error = e.premiumRequired ? null : e);
     } catch (e) {
       if (mounted) setState(() => error = e);
     } finally {
