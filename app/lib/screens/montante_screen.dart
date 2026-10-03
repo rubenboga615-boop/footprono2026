@@ -68,7 +68,7 @@ class _MontanteListScreenState extends State<MontanteListScreen> {
             return RefreshIndicator(
               onRefresh: reload,
               child: ListView(
-                padding: pagePadding(context, 26, 120),
+                padding: pagePadding(context, 26, 120, maxWidth: 1000),
                 children: [
                   if (current != null)
                     MontanteView(montante: current, onChanged: _refresh)
@@ -296,15 +296,16 @@ class _CreateMontanteState extends State<_CreateMontante> {
                 ],
               ] else ...[
                 const SizedBox(height: 10),
-                const _TableHeader(),
-                for (final (i, r) in rows.indexed)
-                  _PlanRow(
-                    number: i + 1,
-                    state: _StepState.future,
-                    stake: r.$1 == r.$2 ? thousands(r.$1) : '${thousands(r.$1)}\nà ${thousands(r.$2)}',
-                    odds: '${odds(ranges[i].start)}–${odds(ranges[i].end)}',
-                    gain: r.$3 == r.$4 ? thousands(r.$3) : '${thousands(r.$3)}\nà ${thousands(r.$4)}',
-                  ),
+                ..._plan(context, [
+                  for (final (i, r) in rows.indexed)
+                    _PlanRow(
+                      number: i + 1,
+                      state: _StepState.future,
+                      stake: r.$1 == r.$2 ? thousands(r.$1) : '${thousands(r.$1)}\nà ${thousands(r.$2)}',
+                      odds: '${odds(ranges[i].start)}–${odds(ranges[i].end)}',
+                      gain: r.$3 == r.$4 ? thousands(r.$3) : '${thousands(r.$3)}\nà ${thousands(r.$4)}',
+                    ),
+                ]),
               ],
               const SizedBox(height: 8),
               Text(
@@ -408,6 +409,115 @@ class _SecureCard extends StatelessWidget {
 // --- Tableau ----------------------------------------------------------------------
 
 enum _StepState { won, lost, current, future }
+
+/// Plan d'une montante : tableau sur téléphone, escalier sur ordinateur.
+List<Widget> _plan(BuildContext context, List<_PlanRow> rows) =>
+    DesktopScope.of(context) ? [_Stairs(rows)] : [const _TableHeader(), ...rows];
+
+/// Version ordinateur : chaque palier est une marche, plus haute à mesure que le gain grandit.
+/// Palier gagné en vert, perdu en rose, en cours en violet.
+class _Stairs extends StatelessWidget {
+  const _Stairs(this.rows);
+  final List<_PlanRow> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = rows.length;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, bottom: 4),
+      child: SizedBox(
+        height: 300,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            for (final (i, r) in rows.indexed) ...[
+              if (i > 0) const SizedBox(width: 10),
+              Expanded(child: _Step(r, height: 165 + 135 * (n == 1 ? 1 : i / (n - 1)))),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Step extends StatelessWidget {
+  const _Step(this.r, {required this.height});
+  final _PlanRow r;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final (fill, border, accent) = switch (r.state) {
+      _StepState.won => (Fp.win.withValues(alpha: 0.14), Fp.win.withValues(alpha: 0.45), Fp.win),
+      _StepState.lost => (Fp.loss.withValues(alpha: 0.14), Fp.loss.withValues(alpha: 0.45), Fp.lossText),
+      _StepState.current => (Fp.accentAlpha(0.28), Fp.accentLight, Fp.accentLight),
+      _StepState.future => (Fp.fill, Fp.line10, Fp.textSoft),
+    };
+    final status = switch (r.state) {
+      _StepState.won => 'Gagné',
+      _StepState.lost => 'Perdu',
+      _StepState.current => 'En cours',
+      _StepState.future => '',
+    };
+    return Container(
+      height: height,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12), bottom: Radius.circular(4)),
+        border: Border.all(color: border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'PALIER ${r.number}',
+            style: Fp.body(10.5, color: Fp.text3, weight: FontWeight.w700),
+          ),
+          if (status.isNotEmpty)
+            Text(
+              status,
+              style: Fp.body(11.5, color: accent, weight: FontWeight.w700),
+            ),
+          // Bas de la marche : réduit plutôt que coupé si la marche est étroite.
+          Expanded(
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.bottomLeft,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'gain',
+                      style: Fp.body(10.5, color: Fp.text3, weight: FontWeight.w600),
+                    ),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(r.gain, style: Fp.title(15, color: accent).copyWith(height: 1.2)),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'mise ${r.stake}',
+                      style: Fp.body(11, color: Fp.text2, height: 1.3),
+                    ),
+                    Text('cote ${r.odds}', style: Fp.body(11, color: Fp.text2)),
+                    if (r.oddsRange != null)
+                      Text('plage ${r.oddsRange}', style: Fp.body(10.5, color: Fp.text3)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _TableHeader extends StatelessWidget {
   const _TableHeader();
@@ -648,22 +758,25 @@ class _MontanteViewState extends State<MontanteView> {
                 ],
               ),
               const SizedBox(height: 10),
-              const _TableHeader(),
-              for (final s in steps)
-                _PlanRow(
-                  number: s['number'] as int,
-                  state: stateOf(s),
-                  stake: s['stake'] != null
-                      ? thousands(s['stake'] as int)
-                      : _range(s['stake_range'] as List?, sep: '\nà '),
-                  odds: s['odds'] != null ? odds(s['odds']) : '${odds(s['odds_min'])}–${odds(s['odds_max'])}',
-                  oddsRange: s['odds'] != null ? '${odds(s['odds_min'])}–${odds(s['odds_max'])}' : null,
-                  gain: s['payout'] != null
-                      ? thousands(s['payout'] as int)
-                      : s['potential_payout'] != null
-                      ? thousands(s['potential_payout'] as int)
-                      : _range(s['payout_range'] as List?, sep: '\nà '),
-                ),
+              ..._plan(context, [
+                for (final s in steps)
+                  _PlanRow(
+                    number: s['number'] as int,
+                    state: stateOf(s),
+                    stake: s['stake'] != null
+                        ? thousands(s['stake'] as int)
+                        : _range(s['stake_range'] as List?, sep: '\nà '),
+                    odds: s['odds'] != null
+                        ? odds(s['odds'])
+                        : '${odds(s['odds_min'])}–${odds(s['odds_max'])}',
+                    oddsRange: s['odds'] != null ? '${odds(s['odds_min'])}–${odds(s['odds_max'])}' : null,
+                    gain: s['payout'] != null
+                        ? thousands(s['payout'] as int)
+                        : s['potential_payout'] != null
+                        ? thousands(s['potential_payout'] as int)
+                        : _range(s['payout_range'] as List?, sep: '\nà '),
+                  ),
+              ]),
               const SizedBox(height: 4),
               Text(
                 'Tout pari dont la cote est dans la plage du palier convient. Les gains à venir dépendent '

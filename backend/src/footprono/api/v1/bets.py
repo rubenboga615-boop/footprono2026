@@ -33,9 +33,40 @@ async def match_offer(match_id: int, session: SessionDep, user: OptionalUserDep)
     Pas de mention « value » : la probabilité du moteur est une information.
     Version gratuite (ou sans connexion) : marchés 1X2, OU et BTTS seulement.
     """
+    return await _offers_out(session, match_id, user)
+
+
+# Colonnes du tableau des matchs (version ordinateur).
+MAIN_KEYS = ("1X2||home", "1X2||draw", "1X2||away", "OU|2.5|over", "BTTS||yes")
+MAX_MAIN_MATCHES = 80
+
+
+@router.get("/offers/main", response_model=dict[int, list[OfferOut]])
+async def main_offers(
+    session: SessionDep,
+    user: OptionalUserDep,
+    match_ids: Annotated[list[int], Query(max_length=MAX_MAIN_MATCHES)],
+) -> dict[int, list[OfferOut]]:
+    """Cotes réelles des colonnes du tableau des matchs (1, N, 2, +2,5 buts, les deux
+    marquent), plusieurs matchs à la fois. Un match sans cote récente est absent."""
+    out = {}
+    for match_id in dict.fromkeys(match_ids):
+        offers = await _offers_out(session, match_id, user, MAIN_KEYS)
+        if offers:
+            out[match_id] = offers
+    return out
+
+
+async def _offers_out(
+    session: SessionDep, match_id: int, user: Any, keys: tuple[str, ...] | None = None
+) -> list[OfferOut]:
     offers = await service.match_offer(session, match_id)
     probs = await service.model_probabilities(session, match_id)
-    allowed = {k: o for k, o in offers.items() if market_allowed(user, o.market)}
+    allowed = {
+        k: o
+        for k, o in offers.items()
+        if market_allowed(user, o.market) and (keys is None or k in keys)
+    }
     history = await service.offer_history(session, [o.quote_id for o in allowed.values()])
     out = []
     for k, o in sorted(allowed.items()):

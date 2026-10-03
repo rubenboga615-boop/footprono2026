@@ -219,6 +219,22 @@ class FakeServer {
           ],
           'season': {'home': avg(), 'away': avg()},
         };
+      case 'GET /offers/main':
+        expect(r.url.queryParametersAll['match_ids'], ['7']);
+        body = {
+          '7': [
+            {
+              'market': '1X2',
+              'line': null,
+              'selection': 'home',
+              'odds': '1.850',
+              'bookmaker': '1xBet',
+              'label': 'Match Winner — Home',
+              'fetched_at': '2026-10-09T08:00:00Z',
+              'model_probability': 0.41,
+            },
+          ],
+        };
       case 'GET /matches/7/offer':
         body = [
           {
@@ -902,12 +918,16 @@ void main() {
     expect(find.text('57$nbsp%'), findsWidgets);
     expect(find.text('Miser sur ce coupon'), findsNothing); // coupon vide
 
+    // Cote réelle sous la probabilité : un clic l'ajoute au coupon, visible à droite.
+    await tester.tap(find.text('1,85'));
+    await tester.pumpAndSettle();
+    expect(state.coupon.single.offer.key, '1X2||home');
+    expect(find.text('Miser sur ce coupon'), findsOneWidget);
+
     // Un match s'ouvre dans la zone centrale ; le menu et le coupon restent.
     await tester.tap(find.text('LEN'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('1,85').first);
-    await tester.pumpAndSettle();
-    expect(state.coupon, hasLength(1));
+    expect(find.text('Résultat du match'), findsOneWidget);
     expect(find.text('Miser sur ce coupon'), findsOneWidget);
     expect(find.text('Fiabilité du moteur'), findsOneWidget);
 
@@ -926,6 +946,12 @@ void main() {
     await tester.tap(find.text('Mon bilan'));
     await tester.pumpAndSettle();
     expect(find.text('Tes paris fictifs réglés, visibles par toi seul.'), findsOneWidget);
+
+    // Montante : le plan devient un escalier.
+    await tester.tap(find.text('Montante'));
+    await tester.pumpAndSettle();
+    expect(find.text('PALIER 1'), findsOneWidget);
+    expect(find.text('PALIER'), findsNothing); // en-tête du tableau du téléphone
   });
 
   testWidgets('notifications push : téléphone enregistré, notification touchée, déconnexion', (tester) async {

@@ -36,9 +36,13 @@ class ApiClient {
 
   Uri uri(String path, [Map<String, Object?>? query]) {
     final root = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
-    final params = <String, String>{
+    // Une liste devient un paramètre répété (?match_ids=1&match_ids=2).
+    final params = <String, Object>{
       for (final e in (query ?? const {}).entries)
-        if (e.value != null) e.key: '${e.value}',
+        if (e.value case final Iterable<Object?> v)
+          e.key: [for (final x in v) '$x']
+        else if (e.value != null)
+          e.key: '${e.value}',
     };
     return Uri.parse('$root/api/v1$path').replace(queryParameters: params.isEmpty ? null : params);
   }

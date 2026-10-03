@@ -86,6 +86,7 @@ Argent **fictif**. Code : `backend/src/footprono/accounts/`, `bookmaker/`,
 | `POST /auth/register`, `POST /auth/login`, `GET /me` | compte |
 | `GET /me/wallet/entries`, `POST /me/wallet/refill` | portefeuille |
 | `GET /matches/{id}/offer` | sélections jouables : cote réelle et probabilité du moteur |
+| `GET /offers/main?match_ids=…` | cotes des colonnes du tableau des matchs (1, N, 2, +2,5, les deux marquent), 80 matchs au plus |
 | `POST /bets`, `GET /bets`, `GET /bets/{id}` | paris |
 | `POST /montantes`, `GET /montantes`, `GET /montantes/{id}` | montantes et plan |
 | `GET /montantes/{id}/suggestions`, `POST /montantes/{id}/bet`, `POST /montantes/{id}/cash-out` | paliers |

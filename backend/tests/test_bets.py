@@ -91,6 +91,25 @@ async def test_offer_uses_real_odds_only(world: dict[str, Any], client: AsyncCli
     assert ("BTTS", None, "yes") not in keys  # Pinnacle : référence interne, non jouable
 
 
+async def test_main_offers_for_match_table(world: dict[str, Any], client: AsyncClient) -> None:
+    """Tableau des matchs (ordinateur) : colonnes 1, N, 2, +2,5, les deux marquent."""
+    r = await client.get(
+        "/api/v1/offers/main", params={"match_ids": [world["m1"], world["m2"], world["m1"], 999999]}
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert set(body) == {str(world["m1"]), str(world["m2"])}  # match inconnu absent
+    keys = {(o["market"], o["line"], o["selection"]): o["odds"] for o in body[str(world["m1"])]}
+    assert keys == {
+        ("1X2", None, "home"): "1.850",
+        ("1X2", None, "draw"): "3.600",
+        ("1X2", None, "away"): "4.200",
+        ("OU", "2.5", "over"): "1.900",  # BTTS : Pinnacle seulement, non jouable
+    }
+    too_many = await client.get("/api/v1/offers/main", params={"match_ids": list(range(81))})
+    assert too_many.status_code == 422
+
+
 async def test_place_single_and_combo(
     world: dict[str, Any], client: AsyncClient, db_factory: Factory
 ) -> None:

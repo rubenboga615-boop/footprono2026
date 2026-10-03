@@ -241,22 +241,64 @@ class _MatchCard extends StatelessWidget {
 }
 
 /// Version ordinateur : un tableau, une ligne par match, une colonne par marché.
-/// Plus la case est violette, plus le moteur juge l'issue probable. Un clic ouvre le match.
-class _MatchTable extends StatelessWidget {
+/// Plus la case est violette, plus le moteur juge l'issue probable ; dessous, la cote réelle.
+/// Un clic sur une cote l'ajoute au coupon, un clic ailleurs ouvre le match.
+class _MatchTable extends StatefulWidget {
   const _MatchTable(this.rows);
   final List<Upcoming> rows;
 
-  static const _cell = 74.0;
+  static const cellWidth = 76.0;
+  static const keys = ['1X2||home', '1X2||draw', '1X2||away', 'OU|2.5|over', 'BTTS||yes'];
+
+  @override
+  State<_MatchTable> createState() => _MatchTableState();
+}
+
+class _MatchTableState extends State<_MatchTable> {
+  Map<int, Map<String, Offer>> offers = {};
+  String _loaded = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_MatchTable old) {
+    super.didUpdateWidget(old);
+    _load();
+  }
+
+  /// Cotes des matchs affichés (un seul appel ; sans cotes, le tableau garde les probabilités).
+  Future<void> _load() async {
+    final ids = [for (final u in widget.rows.take(80)) u.match.id];
+    final sig = ids.join(',');
+    if (sig == _loaded || ids.isEmpty) return;
+    _loaded = sig;
+    try {
+      final j = await context.read<AppState>().api.get('/offers/main', {'match_ids': ids}) as Json;
+      if (!mounted || sig != _loaded) return;
+      setState(
+        () => offers = {
+          for (final e in j.entries)
+            int.parse(e.key): {for (final o in (e.value as List).cast<Json>()) Offer(o).key: Offer(o)},
+        },
+      );
+    } on Object {
+      // Cotes indisponibles : seules les probabilités sont affichées.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final sorted = [...rows]
+    final sorted = [...widget.rows]
       ..sort((a, b) {
         final c = competitionName(a.match.competition).compareTo(competitionName(b.match.competition));
         return c != 0 ? c : a.match.date.compareTo(b.match.date);
       });
     Widget head(String t, {double? width}) => SizedBox(
-      width: width ?? _cell,
+      width: width ?? _MatchTable.cellWidth,
       child: Text(
         t,
         textAlign: TextAlign.center,
@@ -296,8 +338,15 @@ class _MatchTable extends StatelessWidget {
                   style: Fp.body(11, color: Fp.accentLight, weight: FontWeight.w700),
                 ),
               ),
-            _MatchRow(u),
+            _MatchRow(u, offers[u.match.id] ?? const {}),
           ],
+          const SizedBox(height: 10),
+          Text(
+            'En haut, la probabilité du moteur ; en bas, la cote réelle (1xBet, Bet365 en secours). '
+            'Clique sur une cote pour l\'ajouter au coupon, sur le match pour l\'ouvrir. '
+            'La probabilité du moteur est une information, pas un conseil de pari.',
+            style: Fp.body(11.5, color: Fp.text3, height: 1.4),
+          ),
         ],
       ),
     );
@@ -305,29 +354,60 @@ class _MatchTable extends StatelessWidget {
 }
 
 class _MatchRow extends StatelessWidget {
-  const _MatchRow(this.u);
+  const _MatchRow(this.u, this.offers);
   final Upcoming u;
+  final Map<String, Offer> offers;
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
     final m = u.match, s = u.summary;
-    Widget cell(double? p) => Container(
-      width: _MatchTable._cell - 6,
-      margin: const EdgeInsets.symmetric(horizontal: 3),
-      padding: const EdgeInsets.symmetric(vertical: 9),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(9),
-        color: p == null ? Fp.fill : Fp.accentAlpha(((p - 0.15) / 1.1).clamp(0.0, 0.6)),
-      ),
-      child: Text(p == null ? '—' : percent(p), style: Fp.title(14, weight: FontWeight.w600)),
-    );
+    final probs = [
+      s?.home.probability,
+      s?.draw.probability,
+      s?.away.probability,
+      s?.over25.probability,
+      s?.btts.probability,
+    ];
+    void open() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MatchScreen(matchId: m.id)));
+    Widget cell(double? p, Offer? o) {
+      final chosen = o != null && state.inCoupon(m.id, o.key);
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: Material(
+          color: p == null ? Fp.fill : Fp.accentAlpha(((p - 0.15) / 1.1).clamp(0.0, 0.6)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(9),
+            side: BorderSide(color: chosen ? Fp.accentLight : Colors.transparent, width: 1.5),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(9),
+            onTap: o == null ? open : () => addToCoupon(context, m, o),
+            child: SizedBox(
+              width: _MatchTable.cellWidth - 6,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Column(
+                  children: [
+                    Text(p == null ? '—' : percent(p), style: Fp.title(14, weight: FontWeight.w600)),
+                    Text(
+                      o == null ? ' ' : odds(o.odds),
+                      style: Fp.body(11.5, color: chosen ? Fp.text : Fp.text2, weight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
-        onTap: () =>
-            Navigator.of(context).push(MaterialPageRoute(builder: (_) => MatchScreen(matchId: m.id))),
+        onTap: open,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: Row(
@@ -373,11 +453,7 @@ class _MatchRow extends StatelessWidget {
                   ],
                 ),
               ),
-              cell(s?.home.probability),
-              cell(s?.draw.probability),
-              cell(s?.away.probability),
-              cell(s?.over25.probability),
-              cell(s?.btts.probability),
+              for (final (i, k) in _MatchTable.keys.indexed) cell(probs[i], offers[k]),
               SizedBox(
                 width: 86,
                 child: Text(

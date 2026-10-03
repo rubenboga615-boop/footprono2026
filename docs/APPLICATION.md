@@ -52,7 +52,11 @@ La disposition dépend de la largeur de la fenêtre :
   - menu à gauche (Jouer, Comprendre, Compte) et barre du haut (recherche, Premium, solde) ;
   - zone centrale avec sa propre navigation : un match ou une fiche s'ouvre dedans, le menu reste ;
   - **Matchs** en tableau : une ligne par match ; 1, N, 2, +2,5 buts et « les deux marquent »
-    colorés selon la probabilité du moteur ; buts attendus. Un clic ouvre le match ;
+    colorés selon la probabilité du moteur, avec la cote réelle dessous (`GET /offers/main`,
+    80 matchs au plus par appel) ; buts attendus. Un clic sur une cote l'ajoute au coupon, un
+    clic ailleurs ouvre le match ;
+  - **Montante** : le plan devient un escalier (une marche par palier, plus haute à mesure que
+    le gain grandit ; gagné en vert, perdu en rose, en cours en violet) ;
   - **coupon à droite** pendant qu'on parcourt les matchs (cote totale, chances selon le moteur et
     selon la cote), avec un lien vers la mise ;
   - **recherche** (Ctrl K ou la barre du haut) : matchs, équipes et rubriques, sans tenir compte
