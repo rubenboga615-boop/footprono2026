@@ -543,3 +543,19 @@ Limites constatées sur le test :
 - Favoris un peu sous-estimés au Portugal (54 % annoncé pour 56 % réalisé).
 
 Le profil de buts modéré n'a pas été essayé sur les 5 grands championnats.
+
+### Portugal : buts sous-estimés en 2022-26, deux corrections essayées, aucune retenue
+
+1. **Niveau de buts recalé sur les matchs récents** (mémoire courte de 45, 90 ou 180
+   jours pour le niveau du championnat, mémoire d'un an pour les équipes) : aucun gain
+   sur la validation 2019-22 ni sur une période jamais regardée, 2012-19 (1-N-2, +2,5 et
+   les deux marquent égaux ou un peu moins bons).
+2. **Décalage par championnat appris sur les 3 saisons précédentes** (+2,5 et les deux
+   marquent) : moins bon sur la validation, égal sur le test, mitigé sur 2016-19.
+
+Explication : avec environ 306 matchs par saison, la part réelle de « plus de 2,5 buts »
+varie d'environ ±3 points d'une saison à l'autre par simple hasard (Portugal : 44 %, 55 %,
+49 %, 54 % sur 2020-26 ; annoncé constamment autour de 47-49 %). Sur 2013-26, l'annonce
+moyenne reste proche de la réalité. Courir après le niveau récent ajoute du bruit au lieu
+d'en retirer. Réglage conservé pour ces championnats : xG « maison », mémoire d'un an,
+profil de buts modéré de moitié, sans recalage du niveau.
