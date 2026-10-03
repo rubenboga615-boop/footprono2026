@@ -380,3 +380,36 @@ async def test_understat_not_requested_where_it_covers_nothing(
 ) -> None:
     report = await ingest(db_factory, tmp_path, us("POR", 2024))
     assert report["files"] == []
+
+
+async def test_api_football_creates_fixtures_where_understat_is_absent(
+    db_factory: Factory, tmp_path: Path
+) -> None:
+    """Niveau 2 (sans Understat) : le calendrier d'API-Football crée les matchs à venir,
+    sans doublon ; un match terminé inconnu reste signalé (football-data fait foi)."""
+    from footprono.ingestion.sources.api_football import ApiFixture
+
+    await ingest(db_factory, tmp_path, fd("BEL", 2024))  # référentiel et équipes en base
+    kickoff = datetime(2030, 8, 10, 18, 30, tzinfo=UTC)
+    upcoming = ApiFixture(
+        fixture_id=999001, match_date=kickoff.date(), home_team="Anderlecht", away_team="Genk",
+        home_goals=None, away_goals=None, home_goals_ht=None, away_goals_ht=None,
+        kickoff=kickoff, status="NS",
+    )  # fmt: skip
+    played = ApiFixture(
+        fixture_id=999002, match_date=kickoff.date(), home_team="Gent", away_team="Charleroi",
+        home_goals=1, away_goals=0, home_goals_ht=0, away_goals_ht=0, kickoff=kickoff,
+    )  # fmt: skip
+    async with db_factory() as session, session.begin():
+        resolver = await loader.TeamResolver.load(session)
+        stats = await loader.load_api_football(
+            session, "BEL", 2030, [upcoming, upcoming, played], 0, resolver
+        )
+    assert stats.matches_inserted == 1
+    assert any("999002" in i and "introuvable" in i for i in stats.issues)
+    async with db_factory() as session:
+        match = await session.scalar(select(Match).where(Match.api_football_id == 999001))
+    assert match is not None
+    assert (match.status, match.match_date, match.kickoff_at) == (
+        MatchStatus.SCHEDULED, kickoff.date(), kickoff,
+    )  # fmt: skip

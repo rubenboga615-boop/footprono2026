@@ -582,7 +582,11 @@ async def load_api_football(
         (row.home_team_id, row.away_team_id): row
         for row in (await session.execute(select(Match).where(Match.season_id == sid))).scalars()
     }
-    if not existing:
+    # Sans Understat (niveau 2), personne d'autre ne publie le calendrier complet :
+    # les matchs à venir d'API-Football (journées « Regular Season » seulement) sont créés.
+    ref = COMPETITIONS_BY_CODE.get(competition_code)
+    creates_fixtures = ref is not None and ref.understat_slug is None
+    if not existing and not creates_fixtures:
         raise PrerequisiteMissingError(
             f"{competition_code} {start_year} absente de la base : charger football-data d'abord"
         )
@@ -599,6 +603,8 @@ async def load_api_football(
     if blocking:
         raise UnknownTeamsError(DataSource.API_FOOTBALL, blocking)
     teams = resolver.resolve_all(DataSource.API_FOOTBALL, known)
+    if creates_fixtures:
+        season_teams |= set(teams.values())
 
     # Une même affiche peut apparaître deux fois (match d'appui ou de barrage entre
     # deux équipes du championnat) : le match de championnat est celui dont la date
@@ -615,6 +621,8 @@ async def load_api_football(
 
     playoffs = rescheduled = 0
     rows: list[dict[str, Any]] = []
+    new_fixtures: list[dict[str, Any]] = []
+    created: set[tuple[int, int]] = set()
     for f in fixtures:
         home, away = teams.get(f.home_team), teams.get(f.away_team)
         if home is None or away is None or home not in season_teams or away not in season_teams:
@@ -626,6 +634,24 @@ async def load_api_football(
             and abs((match.match_date - f.match_date).days) > closest[(home, away)]
         ):
             playoffs += 1
+            continue
+        if match is None and creates_fixtures and not f.finished:
+            if (home, away) in created:
+                continue
+            created.add((home, away))
+            new_fixtures.append(
+                {
+                    "season_id": sid,
+                    "home_team_id": home,
+                    "away_team_id": away,
+                    "match_date": f.match_date,
+                    "status": MatchStatus.SCHEDULED,
+                    "api_football_id": f.fixture_id,
+                    "api_referee": f.referee,
+                    "kickoff_at": f.kickoff,
+                    "api_status": f.status or None,
+                }
+            )
             continue
         if match is None:
             stats.issues.append(
@@ -668,6 +694,10 @@ async def load_api_football(
                         **values,
                     }
                 )
+    if new_fixtures:
+        for chunk in _chunks(new_fixtures):
+            await session.execute(insert(Match).values(list(chunk)))
+        stats.matches_inserted += len(new_fixtures)
     if playoffs:
         stats.issues.append(f"{playoffs} matchs hors championnat (barrages) ignorés")
     if rescheduled:
