@@ -501,10 +501,7 @@ class _Step extends StatelessWidget {
                       child: Text(r.gain, style: Fp.title(15, color: accent).copyWith(height: 1.2)),
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      'mise ${r.stake}',
-                      style: Fp.body(11, color: Fp.text2, height: 1.3),
-                    ),
+                    Text('mise ${r.stake}', style: Fp.body(11, color: Fp.text2, height: 1.3)),
                     Text('cote ${r.odds}', style: Fp.body(11, color: Fp.text2)),
                     if (r.oddsRange != null)
                       Text('plage ${r.oddsRange}', style: Fp.body(10.5, color: Fp.text3)),
