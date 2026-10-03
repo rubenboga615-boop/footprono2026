@@ -215,11 +215,16 @@ async def predict_upcoming(
         # Correction apprise et appliquée sur les championnats de niveau 1 seulement.
         tier_1 = [c for c in competitions if tier(c).correction]
         correction = fit_live_correction(hist, day, ctx, tier_1) if tier_1 else NO_CORRECTION
-        # Niveau 2 : écart favori / outsider appris sur tous ses championnats.
-        stretch = NO_CORRECTION
-        if any(tier(c).level_stretch for c in competitions):
-            stretch = fit_level_stretch(hist, day, [c for c, t in TIERS.items() if t.level_stretch])
-        run.parameters = {**run.parameters, "level_stretch": stretch.coef}
+        # Niveau 2 : écart favori / outsider appris championnat par championnat (un
+        # championnat équilibré, comme une deuxième division, effacerait sinon celui
+        # d'un championnat dominé par quelques équipes ; docs/MOTEUR.md).
+        stretches = {
+            c: fit_level_stretch(hist, day, [c]) for c in competitions if tier(c).level_stretch
+        }
+        run.parameters = {
+            **run.parameters,
+            "level_stretch": {c: s.coef.get("stretch", 0.0) for c, s in stretches.items()},
+        }
         run.parameters = {**run.parameters, "correction": correction.coef}
         for comp in competitions:
             rows = upcoming[hist.competition[upcoming] == comp]
@@ -239,11 +244,7 @@ async def predict_upcoming(
                     hist,
                     int(i),
                     goals,
-                    correction
-                    if level.correction
-                    else stretch
-                    if level.level_stretch
-                    else NO_CORRECTION,
+                    correction if level.correction else stretches.get(comp, NO_CORRECTION),
                     ctx,
                     counts,
                 )

@@ -573,9 +573,13 @@ au chiffre près sur 2022-26. Niveau 2 (`POR`, `BEL`) :
   régularisation, ni l'étirement des xG, ni la couche de correction des 5 grands ne
   le corrigent. Retenu : `log λ_dom + s·d`, `log λ_ext − s·d` (d = écart de niveau),
   `s` choisi parmi 0 à 0,40 par la log loss du 1-N-2 sur toutes les prévisions hors
-  échantillon antérieures (`fit_level_stretch`). Appris saison par saison : 0,05 à 0,10.
-  Validation 2019-22 : 1-N-2 0,9793 → 0,9782 ; test 2022-26 : 0,9551 → 0,9538, plus/moins
-  2,5 0,6789 → 0,6760, favoris 73,2 % annoncé pour 73,4 % réalisé ;
+  échantillon antérieures, **championnat par championnat** (`fit_level_stretch`) :
+  Portugal 0,10 à 0,15, Belgique 0. Validation 2019-22 : 1-N-2 0,9793 → 0,9797 ;
+  test 2022-26 : 0,9551 → 0,9525, plus/moins 2,5 0,6789 → 0,6764, favoris 73,9 %
+  annoncé pour 75,0 % réalisé. Appris sur les deux championnats ensemble, l'écart
+  donnait 0,9782 et 0,9538 ; il est appris par championnat pour une raison de
+  structure : un championnat équilibré (deuxième division) l'efface pour tous (0 sur
+  les 9 candidats ci-dessous réunis, alors que la Grèce prend 0,10 seule) ;
 - pas de corners, cartons ni tirs (non mesurés) ; pas de « les deux marquent ».
 
 Belgique : la phase finale (après la 30e journée) n'est pas chargée. La base n'admet
@@ -583,5 +587,35 @@ qu'une affiche par saison et API-Football n'est lu que pour la saison régulièr
 matchs de la phase finale (de fin mars à mai) ne sont donc pas prédits.
 
 Backtest de bout en bout (données chargées par le serveur, 2022-26, 2 250 matchs) :
-1-N-2 0,9538 (naïf 1,0731, clôture 0,9389), plus/moins 2,5 0,6760 (naïf 0,6928,
+1-N-2 0,9525 (naïf 1,0731, clôture 0,9389), plus/moins 2,5 0,6764 (naïf 0,6928,
 clôture 0,6711). Affiché sur la page Fiabilité quand le Portugal ou la Belgique est choisi.
+
+## Championnats candidats (archive football-data, 03/10/2026)
+
+Réglages du niveau 2 appliqués tels quels (rien n'est réglé sur ces championnats),
+écart favori / outsider appris par championnat sur les saisons précédentes, une affiche
+par saison (comme le serveur). Script : `scratchpad/study_candidates.py` (hors dépôt).
+Test 2022-26 ; « gain » = log loss naïve − log loss du moteur (1-N-2), « retard » =
+log loss du moteur − log loss des cotes de clôture.
+
+| Championnat | Matchs | Gain | Retard | +2,5 / naïf | Calibration |
+|---|---|---|---|---|---|
+| Grèce | 728 | 0,157 | 0,012 | 0,6869 / 0,6950 | 2,8 pts |
+| Pays-Bas | 1 224 | 0,120 | 0,019 | 0,6670 / 0,6743 | 1,7 pt |
+| Écosse | 528 | 0,112 | 0,020 | 0,6972 / 0,6969 | 2,0 pts |
+| Turquie | 1 370 | 0,093 | 0,035 | 0,6758 / 0,6893 | 1,1 pt |
+| Championship | 2 208 | 0,032 | 0,011 | 0,6882 / 0,6927 | 0,9 pt |
+| 2. Bundesliga | 1 224 | 0,026 | 0,011 | 0,6760 / 0,6775 | 1,1 pt |
+| Liga 2 | 1 848 | 0,016 | 0,021 | 0,6725 / 0,6808 | 0,5 pt |
+| Ligue 2 | 1 370 | 0,016 | 0,025 | 0,6904 / 0,6919 | 0,7 pt |
+| Serie B | 1 520 | 0,018 | 0,027 | 0,6937 / 0,6902 | 1,2 pt |
+| *Repères : 5 grands* | 7 081 | 0,091 | 0,015 | | 1,1 pt |
+| *Portugal* | 1 224 | 0,155 | 0,017 | 0,6787 / 0,6935 | 1,8 pt |
+
+Lecture : les premières divisions (Grèce, Pays-Bas, Turquie, Écosse) se comportent
+comme le Portugal. La Turquie reste loin des cotes de clôture (0,035). Les deuxièmes
+divisions sont très équilibrées : le moteur y apporte peu face à la référence naïve
+(gain de 0,016 à 0,032), tout en restant bien calibré ; Serie B : plus/moins 2,5 moins
+bon que la référence naïve. Écosse : la phase finale (deuxième partie de saison) rejoue
+des affiches ; avec une affiche par saison, une grande partie des matchs n'est ni
+chargée ni prédite (528 matchs en 4 saisons, environ 230 par saison en réalité).
