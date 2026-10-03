@@ -503,3 +503,43 @@ Conséquence : niveaux de données par championnat (1 : xG + passes dangereuses 
 xG « maison » ; 3 : buts seuls), chaque nouveau championnat étant mesuré sur ses saisons
 passées avant publication, avec sa fiabilité affichée. Rien n'est encore changé dans le
 moteur en service.
+
+## Étude Portugal et Belgique (football-data, 03/10/2026)
+
+Fichiers football-data.co.uk 2010-11 → 2026-27 envoyés depuis le serveur
+(`scripts/termux/download-football-data.sh`). Tirs disponibles depuis 2017-18
+(niveau 2), cotes Pinnacle depuis 2012-13, pas d'arbitre. Étude hors application
+(`scratchpad/exp_newleagues.py`) : historique construit en mémoire avec le lecteur
+football-data du serveur. xG « maison » : relation apprise sur les 5 grands
+championnats seulement (jamais sur P1/B1), étirement 1,5, poids 0,5.
+
+Validation 2019-22 : le 1-N-2 bat nettement la référence naïve, mais « plus/moins
+2,5 » et « les deux marquent » font à peine aussi bien qu'elle. Le niveau moyen
+de buts est juste ; le moteur sépare trop les matchs « à buts » des matchs
+« fermés » (pente 0,4 à 0,6 : forces d'attaque et de défense plus bruitées, moins
+de matchs par équipe). Renforcer la régularisation aide ces marchés mais écrase
+les favoris. Retenu : **profil de buts modéré** (chaque équipe garde sa force,
+attaque − défense ; son profil, attaque + défense, est rapproché de la moyenne
+du championnat de moitié) et mémoire d'un an (demi-vie 365 jours).
+
+| Test 2022-26, 2 465 matchs (log loss) | 1-N-2 | +2,5 buts | Les deux marquent |
+|---|---|---|---|
+| Buts seuls, réglage d'origine | 0,9673 | 0,6885 | 0,6976 |
+| xG « maison », réglage d'origine | 0,9591 | 0,6834 | 0,6941 |
+| xG « maison », réglage retenu | 0,9602 | 0,6798 | 0,6912 |
+| Référence naïve | 1,0741 | 0,6923 | 0,6915 |
+| Cotes de clôture | 0,9432 | | |
+
+Écart au marché de clôture (1-N-2, xG « maison », réglage d'origine) : Portugal
+0,019, Belgique 0,013, du même ordre que les 5 grands (0,015 à 0,018).
+Calibration 1-N-2 : 1,9 à 2,4 points (1,1 dans les 5 grands).
+
+Limites constatées sur le test :
+- « Les deux marquent » n'apporte rien de plus que la fréquence du championnat
+  (0,6912 contre 0,6915) : à ne pas présenter comme un avis du moteur.
+- Portugal : buts sous-estimés en 2022-26 (+2,5 annoncé 47,8 % pour 51,5 % réalisé) ;
+  le niveau de buts du championnat a monté et la mémoire d'un an le suit lentement.
+  Piste : mémoire courte pour le niveau du championnat, longue pour les équipes.
+- Favoris un peu sous-estimés au Portugal (54 % annoncé pour 56 % réalisé).
+
+Le profil de buts modéré n'a pas été essayé sur les 5 grands championnats.
