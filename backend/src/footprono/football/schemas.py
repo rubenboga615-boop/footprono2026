@@ -29,6 +29,8 @@ class CompetitionOut(_Out):
     name: str
     country: str
     n_teams: int
+    # Absent hors des 5 grands championnats : pas de xG, donc pas de classement mérité.
+    understat_slug: str | None = None
     seasons: list[SeasonOut]
 
 

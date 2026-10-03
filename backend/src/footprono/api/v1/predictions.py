@@ -144,7 +144,7 @@ async def list_upcoming(
                 draw=_selection("1X2||draw", m["1X2||draw"]),
                 away=_selection("1X2||away", m["1X2||away"]),
                 over_2_5=_selection("OU|2.5|over", m["OU|2.5|over"]),
-                both_score=_selection("BTTS||yes", m["BTTS||yes"]),
+                both_score=_selection("BTTS||yes", m["BTTS||yes"]) if "BTTS||yes" in m else None,
             )
         out.append(UpcomingMatchOut(match=MatchOut(**_match_out(*row)), prediction=summary))
     return out

@@ -201,3 +201,16 @@ a déjà révélé des champs sans nom et un bouton annoncé « désactivé ».
 
 Changer de mot de passe ne déconnecte pas les autres appareils déjà
 connectés (jeton valable 30 jours) : à traiter avec la sécurité (phase 6).
+
+## Championnats (moteur 2.3)
+
+- **Niveau 1** : Premier League, Liga, Serie A, Bundesliga, Ligue 1 (xG Understat).
+- **Niveau 2** : Liga Portugal (`POR`) et Pro League belge (`BEL`, saison régulière
+  seulement) : xG tirés des tirs ; pas de « les deux marquent » (la liste des matchs
+  affiche « — »), ni corners, cartons et tirs. Voir docs/MOTEUR.md.
+- Cotes : API-Football indique ne pas fournir de cotes pour ces deux championnats
+  (à vérifier avec `bash scripts/termux/check-odds.sh 94` et `144`). Sans cote réelle,
+  un match est prédit mais ne peut pas être joué au bookmaker fictif ni entrer dans un coupon.
+- Ajout sur le serveur : `git pull`, puis
+  `bash scripts/termux/ingest.sh football-data --competitions POR,BEL` (historique
+  depuis 2016) et `bash scripts/termux/ingest.sh api-football --competitions POR,BEL --seasons 2026`.

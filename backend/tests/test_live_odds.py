@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from footprono.football.models import BookmakerOdds, DataSource, Match
 from footprono.ingestion import service
 from footprono.ingestion.live import collect_odds
+from footprono.ingestion.reference import COMPETITIONS
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.ingestion.sources import api_football
 from footprono.ingestion.sources.api_football_odds import (
@@ -184,8 +185,8 @@ async def test_collect_odds_keeps_only_changes(
     assert "bookmaker « Pinnacle » absent d'API-Football : non relevé" in first["issues"]
     assert "1 matchs API-Football inconnus en base : ignorés" in first["issues"]
     assert first["unmapped_bets"] == {"Player to Score": {"partial": False, "values": ["X"]}}
-    # 5 championnats x 2 bookmakers trouvés = 10 pages, + la liste des bookmakers.
-    assert calls.count("/odds") == 10
+    # Chaque championnat x 2 bookmakers trouvés = une page chacun, + la liste des bookmakers.
+    assert calls.count("/odds") == 2 * len(COMPETITIONS)
 
     stamp[0] = "2026-10-08T13:00:00+00:00"  # la source confirme les mêmes prix plus tard
     async with db_factory() as session:

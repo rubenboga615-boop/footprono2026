@@ -219,3 +219,41 @@ async def test_prediction_needed_catches_up_after_downtime_and_new_fixtures(
         run.report = {**run.report, "window": upcoming}
         await session.commit()
         assert await prediction_needed(session, now=now, days_ahead=30) is None
+
+
+async def test_level_2_league_predicted_without_btts(
+    db_factory: async_sessionmaker[AsyncSession], tmp_path: Path, client: AsyncClient
+) -> None:
+    """Belgique (niveau 2) : prédite avec les xG tirés des tirs, sans « les deux marquent »
+    ni corners/cartons ; la liste des matchs reste lisible (pas de « les deux marquent »)."""
+    await run_ingestion(
+        db_factory,
+        make_settings(raw_data_dir=tmp_path),
+        [IngestionRequest(DataSource.FOOTBALL_DATA, ["BEL"], [2024], FIXTURES / "football-data")],
+    )
+    as_of = date(2025, 2, 1)
+    async with db_factory() as session:
+        await session.execute(
+            update(Match)
+            .where(Match.match_date >= as_of)
+            .values(status=MatchStatus.SCHEDULED, home_goals=None, away_goals=None,
+                    home_goals_ht=None, away_goals_ht=None)
+        )  # fmt: skip
+        await session.commit()
+        run = await predict_upcoming(session, as_of, days_ahead=60)
+        assert run.status == "ok", run.report
+        assert run.report["competitions"]["BEL"]["data_level"] == 2
+        preds = list(await session.scalars(select(MatchPrediction)))
+    assert preds
+    for p in preds:
+        assert not any(k.startswith(("BTTS|", "1X2_BTTS|", "OU_BTTS|")) for k in p.markets)
+        assert "OU|2.5|over" in p.markets
+        assert not p.counts  # corners, cartons, tirs : non mesurés à ce niveau
+
+    listing = await client.get(
+        "/api/v1/predictions/upcoming", params={"date_from": "2025-02-01", "date_to": "2025-04-01"}
+    )
+    assert listing.status_code == 200
+    items = [i for i in listing.json() if i["prediction"] is not None]
+    assert items
+    assert all(i["prediction"]["both_score"] is None for i in items)

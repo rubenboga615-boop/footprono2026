@@ -3,7 +3,8 @@
 - **Niveau 1** (5 grands championnats) : xG Understat et passes dangereuses ;
   réglages ``GoalsConfig()`` d'origine, couche de correction, corners et cartons.
 - **Niveau 2** (tirs, sans xG) : xG « maison » tirés des tirs, mémoire d'un an,
-  profil de buts modéré ; ni correction (non étudiée sur ces championnats), ni
+  profil de buts modéré, écart favori / outsider recalé sur les saisons passées
+  du niveau 2 ; ni correction « sans enjeu » (sans effet sur ces championnats), ni
   corners/cartons/tirs (non mesurés), ni « les deux marquent » (pas mieux que
   la fréquence du championnat sur 2022-26).
 
@@ -35,6 +36,9 @@ class Tier:
     level: int
     goals: GoalsConfig = field(default_factory=GoalsConfig)
     correction: bool = True
+    # Écart favori / outsider recalé sur les saisons passées du même niveau
+    # (fit_level_stretch) : au niveau 2, le modèle des buts sous-estime les favoris.
+    level_stretch: bool = False
     counts: bool = True
     withdrawn: frozenset[str] = frozenset()
 
@@ -44,6 +48,7 @@ TIER_2 = Tier(
     level=2,
     goals=GoalsConfig(xg_weight=0.5, deep_weight=0.0, half_life_days=365.0, profile_shrink=0.5),
     correction=False,
+    level_stretch=True,
     counts=False,
     withdrawn=NO_BTTS,
 )

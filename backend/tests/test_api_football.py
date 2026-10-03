@@ -33,7 +33,7 @@ async def test_competitions(client: AsyncClient) -> None:
     response = await client.get("/api/v1/competitions")
     assert response.status_code == 200
     competitions = {c["code"]: c for c in response.json()}
-    assert set(competitions) == {"EPL", "LA_LIGA", "SERIE_A", "BUNDESLIGA", "LIGUE_1"}
+    assert set(competitions) == {"EPL", "LA_LIGA", "SERIE_A", "BUNDESLIGA", "LIGUE_1", "POR", "BEL"}
     assert competitions["EPL"]["seasons"] == [
         {"start_year": 2024, "label": "2024-25", "matches": 380, "finished": 380}
     ]

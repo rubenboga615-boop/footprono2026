@@ -95,6 +95,7 @@ async def _understat_file(
     from_dir: Path | None,
 ) -> FileResult:
     slug = comp.understat_slug
+    assert slug is not None  # championnats sans Understat écartés par run_ingestion
     if from_dir is None:
         origin = understat.league_url(slug, year)
         content = await raw_store.download(
@@ -319,6 +320,15 @@ def _describe(entry: FileResult) -> str:
     return f"{entry['status']} — {entry['error']}"
 
 
+def _codes(request: IngestionRequest) -> list[str]:
+    """Championnats à traiter : Understat n'est pas demandé là où il ne couvre rien."""
+    return [
+        c
+        for c in request.competitions
+        if request.source != DataSource.UNDERSTAT or COMPETITIONS_BY_CODE[c].understat_slug
+    ]
+
+
 async def run_ingestion(
     factory: async_sessionmaker[AsyncSession],
     settings: Settings,
@@ -359,14 +369,14 @@ async def run_ingestion(
 
     notify = progress or (lambda _message: None)
     _progress.set(notify)
-    total = sum(len(r.competitions) * len(r.seasons) for r in requests)
+    total = sum(len(_codes(r)) * len(r.seasons) for r in requests)
     done = 0
     files: list[FileResult] = []
     for request in requests:
         handler = _HANDLERS[request.source]
         downloading = request.from_dir is None
         consecutive_failures = 0
-        for code in request.competitions:
+        for code in _codes(request):
             comp = COMPETITIONS_BY_CODE[code]
             for year in request.seasons:
                 done += 1

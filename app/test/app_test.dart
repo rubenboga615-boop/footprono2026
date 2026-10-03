@@ -349,10 +349,21 @@ class FakeServer {
       case 'GET /competitions':
         body = [
           {
+            'code': 'POR',
+            'name': 'Liga Portugal',
+            'country': 'Portugal',
+            'n_teams': 18,
+            'understat_slug': null, // pas de xG : absent du classement mérité
+            'seasons': [
+              {'start_year': 2026, 'label': '2026-27', 'matches': 306, 'finished': 0},
+            ],
+          },
+          {
             'code': 'LIGUE_1',
             'name': 'Ligue 1',
             'country': 'France',
             'n_teams': 18,
+            'understat_slug': 'Ligue_1',
             'seasons': [
               {'start_year': 2025, 'label': '2025-26', 'matches': 306, 'finished': 306},
               {'start_year': 2026, 'label': '2026-27', 'matches': 306, 'finished': 0},
@@ -761,6 +772,7 @@ void main() {
     expect(find.text('2025-26'), findsOneWidget);
     expect(find.text('2026-27'), findsNothing); // aucun match terminé
     expect(find.text('+14,4'), findsOneWidget);
+    expect(find.text('Liga Portugal'), findsNothing); // pas de xG : pas de classement mérité
   });
 
   testWidgets('fiche arbitre : sévérité jugée seulement avec assez de matchs, classement', (tester) async {

@@ -30,7 +30,12 @@ from footprono.football.models import (
     Team,
     TeamAlias,
 )
-from footprono.ingestion.reference import COMPETITIONS, INTERRUPTED_SEASONS, load_teams
+from footprono.ingestion.reference import (
+    COMPETITIONS,
+    COMPETITIONS_BY_CODE,
+    INTERRUPTED_SEASONS,
+    load_teams,
+)
 from footprono.ingestion.sources.api_football import UNPLAYED_STATUSES, ApiFixture
 from footprono.ingestion.sources.football_data import FootballDataMatch
 from footprono.ingestion.sources.understat import UnderstatSeason
@@ -205,14 +210,32 @@ async def load_football_data(
     )
     sid = await season_id(session, competition_code, start_year)
 
+    # Une affiche par saison (contrainte de la base). Phase finale (Belgique) : la même
+    # affiche revient après la saison régulière ; seule la première (par date) est
+    # gardée, comme côté API-Football (journées « Regular Season » seulement).
     seen: set[tuple[int, int]] = set()
+    kept: list[FootballDataMatch] = []
+    repeated: list[str] = []
+    for m in sorted(matches, key=lambda m: m.match_date):
+        key = (teams[m.home_team], teams[m.away_team])
+        if key in seen:
+            repeated.append(f"{m.home_team} - {m.away_team}")
+            continue
+        seen.add(key)
+        kept.append(m)
+    ref = COMPETITIONS_BY_CODE.get(competition_code)
+    if repeated and ref is not None and ref.playoffs:
+        stats.issues.append(
+            f"phase finale : {len(repeated)} matchs non chargés "
+            "(affiches déjà jouées en saison régulière)"
+        )
+    else:
+        stats.issues.extend(f"affiche en double ignorée : {r}" for r in repeated)
+    matches = kept
+
     rows: list[dict[str, Any]] = []
     for m in matches:
         key = (teams[m.home_team], teams[m.away_team])
-        if key in seen:
-            stats.issues.append(f"affiche en double ignorée : {m.home_team} - {m.away_team}")
-            continue
-        seen.add(key)
         rows.append(
             {
                 "season_id": sid,

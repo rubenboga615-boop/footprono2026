@@ -320,7 +320,15 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                         selected: competitions.isEmpty,
                         onTap: () => setState(competitions.clear),
                       ),
-                      for (final c in const ['LIGUE_1', 'EPL', 'LA_LIGA', 'SERIE_A', 'BUNDESLIGA'])
+                      for (final c in const [
+                        'LIGUE_1',
+                        'EPL',
+                        'LA_LIGA',
+                        'SERIE_A',
+                        'BUNDESLIGA',
+                        'POR',
+                        'BEL',
+                      ])
                         FpChip(
                           competitionName(c),
                           selected: competitions.contains(c),

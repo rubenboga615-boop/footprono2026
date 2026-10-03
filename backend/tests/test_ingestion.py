@@ -357,3 +357,26 @@ async def test_stale_running_run_is_marked_interrupted(db_factory: Factory, tmp_
     assert run is not None
     assert run.status == "interrupted"
     assert run.finished_at is not None
+
+
+async def test_belgian_playoffs_regular_season_only(db_factory: Factory, tmp_path: Path) -> None:
+    """Phase finale : les affiches rejouées ne sont pas chargées (une affiche par saison),
+    sans casser les cotes ; les contrôles d'un simple aller-retour ne s'appliquent pas."""
+    report = await ingest(db_factory, tmp_path, fd("BEL", 2024))
+    entry = report["files"][0]
+    assert entry["status"] == "ok", entry
+    assert entry["matches_inserted"] == 240  # 16 équipes, aller-retour
+    assert any("phase finale : 72 matchs non chargés" in i for i in entry["issues"])
+    async with db_factory() as session:
+        quality = await run_quality_checks(session)
+    errors = [
+        f for f in quality["findings"] if f["competition"] == "BEL" and f["severity"] == "error"
+    ]
+    assert errors == []
+
+
+async def test_understat_not_requested_where_it_covers_nothing(
+    db_factory: Factory, tmp_path: Path
+) -> None:
+    report = await ingest(db_factory, tmp_path, us("POR", 2024))
+    assert report["files"] == []

@@ -559,3 +559,29 @@ varie d'environ ±3 points d'une saison à l'autre par simple hasard (Portugal :
 moyenne reste proche de la réalité. Courir après le niveau récent ajoute du bruit au lieu
 d'en retirer. Réglage conservé pour ces championnats : xG « maison », mémoire d'un an,
 profil de buts modéré de moitié, sans recalage du niveau.
+
+## Moteur 2.3 : Portugal et Belgique en service (niveau 2, 03/10/2026)
+
+Niveaux de données par championnat : `engine/tiers.py`. Niveau 1 (5 grands) inchangé,
+au chiffre près sur 2022-26. Niveau 2 (`POR`, `BEL`) :
+
+- xG « maison » tirés des tirs (relation des 5 grands, étirement 1,5), poids 0,5,
+  mémoire d'un an, profil de buts modéré de moitié ;
+- **écart favori / outsider** recalé : au niveau 2, le modèle des buts sous-estime les
+  favoris (favoris à 60 % ou plus : 70,7 % annoncé pour 76,5 % réalisé sur 2022-26),
+  y compris avec les buts seuls (ce ne sont donc pas les xG « maison »). Ni la
+  régularisation, ni l'étirement des xG, ni la couche de correction des 5 grands ne
+  le corrigent. Retenu : `log λ_dom + s·d`, `log λ_ext − s·d` (d = écart de niveau),
+  `s` choisi parmi 0 à 0,40 par la log loss du 1-N-2 sur toutes les prévisions hors
+  échantillon antérieures (`fit_level_stretch`). Appris saison par saison : 0,05 à 0,10.
+  Validation 2019-22 : 1-N-2 0,9793 → 0,9782 ; test 2022-26 : 0,9551 → 0,9538, plus/moins
+  2,5 0,6789 → 0,6760, favoris 73,2 % annoncé pour 73,4 % réalisé ;
+- pas de corners, cartons ni tirs (non mesurés) ; pas de « les deux marquent ».
+
+Belgique : la phase finale (après la 30e journée) n'est pas chargée. La base n'admet
+qu'une affiche par saison et API-Football n'est lu que pour la saison régulière ; les
+matchs de la phase finale (de fin mars à mai) ne sont donc pas prédits.
+
+Backtest de bout en bout (données chargées par le serveur, 2022-26, 2 250 matchs) :
+1-N-2 0,9538 (naïf 1,0731, clôture 0,9389), plus/moins 2,5 0,6760 (naïf 0,6928,
+clôture 0,6711). Affiché sur la page Fiabilité quand le Portugal ou la Belgique est choisi.

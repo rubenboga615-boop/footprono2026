@@ -131,10 +131,13 @@ class Summary {
       draw = Prob(j['draw'] as Json),
       away = Prob(j['away'] as Json),
       over25 = Prob(j['over_2_5'] as Json),
-      btts = Prob(j['both_score'] as Json),
+      btts = j['both_score'] == null ? null : Prob(j['both_score'] as Json),
       xgHome = _d((j['expected_goals'] as Json)['home']),
       xgAway = _d((j['expected_goals'] as Json)['away']);
-  final Prob home, draw, away, over25, btts;
+  final Prob home, draw, away, over25;
+
+  /// Absent quand le moteur ne donne pas d'avis (championnats de niveau 2).
+  final Prob? btts;
   final double xgHome, xgAway;
 }
 

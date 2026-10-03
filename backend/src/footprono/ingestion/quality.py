@@ -13,7 +13,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from footprono.ingestion.reference import INTERRUPTED_SEASONS
+from footprono.ingestion.reference import COMPETITIONS_BY_CODE, INTERRUPTED_SEASONS
 
 # Délai après lequel un match daté dans le passé et toujours « à venir » est signalé.
 STALE_SCHEDULED_DAYS = 2
@@ -177,11 +177,20 @@ async def run_quality_checks(session: AsyncSession, today: date | None = None) -
         ) -> None:
             findings.append(Finding(severity, code, year, check, message))
 
-        if n_teams not in (18, 20):
-            add("error", "equipes", f"{n_teams} équipes (18 ou 20 attendues)")
-        if n_matches > expected:
+        ref = COMPETITIONS_BY_CODE.get(code)
+        counts = ref.team_counts if ref else (18, 20)
+        if n_teams not in counts:
+            allowed = " ou ".join(str(n) for n in counts)
+            add("error", "equipes", f"{n_teams} équipes ({allowed} attendues)")
+        # Phase finale (Belgique) : plus de matchs qu'un aller-retour, calendrier non
+        # équilibré ; le nombre de matchs et l'équilibre ne se contrôlent pas ainsi.
+        playoffs = ref is not None and ref.playoffs
+        if n_matches > expected and not playoffs:
             add("error", "matchs", f"{n_matches} matchs pour {expected} possibles")
-        if complete:
+        if complete and playoffs:
+            if n_finished < expected and (code, year) not in INTERRUPTED_SEASONS:
+                add("error", "completude", f"{n_finished} matchs joués, moins qu'un aller-retour")
+        elif complete:
             known = INTERRUPTED_SEASONS.get((code, year))
             if n_finished != expected:
                 if known:
@@ -209,7 +218,7 @@ async def run_quality_checks(session: AsyncSession, today: date | None = None) -
             add("error", "doublons", f"{name} : matchs {first} et {second} autour du {day}")
         if row["n_bad_ht"]:
             add("error", "scores", f"{row['n_bad_ht']} matchs avec un score mi-temps > score final")
-        if xg_cov is not None and xg_cov < MIN_XG_COVERAGE:
+        if xg_cov is not None and xg_cov < MIN_XG_COVERAGE and (ref is None or ref.understat_slug):
             add("warning", "xg", f"xG disponibles pour {xg_cov:.1%} des matchs joués")
         if odds_cov is not None and odds_cov < MIN_ODDS_COVERAGE:
             add("warning", "cotes", f"cotes B365 pré-match pour {odds_cov:.1%} des matchs joués")

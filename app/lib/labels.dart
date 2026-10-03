@@ -287,6 +287,8 @@ const competitionNames = {
   'BUNDESLIGA': 'Bundesliga',
   'SERIE_A': 'Serie A',
   'LIGUE_1': 'Ligue 1',
+  'POR': 'Liga Portugal',
+  'BEL': 'Pro League belge',
 };
 
 String competitionName(String code) => competitionNames[code.toUpperCase()] ?? code;

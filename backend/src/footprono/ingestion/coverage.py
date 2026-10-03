@@ -15,7 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.ingestion.quality import current_season_start
-from footprono.ingestion.reference import COMPETITIONS
+from footprono.ingestion.reference import COMPETITIONS, COMPETITIONS_BY_CODE
 from footprono.ingestion.sources.api_football import HALF_SPLIT_FIRST_SEASON
 
 COLUMNS = {
@@ -71,7 +71,7 @@ def _todo(rows: list[dict[str, Any]]) -> list[str]:
             # La liste des matchs (1 requête par saison) donne l'arbitre ; les
             # statistiques déjà en base ne sont pas redemandées.
             by_fix[("api-football", "arbitres (liste des matchs API-Football)")][comp].add(season)
-        if r["xg"] < COMPLETE:
+        if r["xg"] < COMPLETE and COMPETITIONS_BY_CODE[comp].understat_slug:
             by_fix[("understat", "xG Understat")][comp].add(season)
         if min(r["fd_stats"], r["ht"], r["closing_odds"]) < COMPLETE or r["ah_odds"] < AH_COMPLETE:
             by_fix[

@@ -65,7 +65,8 @@ class PredictionSummary(BaseModel):
     draw: SelectionOut
     away: SelectionOut
     over_2_5: SelectionOut
-    both_score: SelectionOut
+    # Absent pour les championnats de niveau 2 (pas d'avis du moteur, engine/tiers.py).
+    both_score: SelectionOut | None
 
 
 class UpcomingMatchOut(BaseModel):

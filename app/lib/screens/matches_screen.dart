@@ -227,7 +227,7 @@ class _MatchCard extends StatelessWidget {
               runSpacing: 6,
               children: [
                 InfoPill('+2,5 buts · ${percent(s.over25.probability)}'),
-                InfoPill('Les deux marquent · ${percent(s.btts.probability)}'),
+                if (s.btts case final b?) InfoPill('Les deux marquent · ${percent(b.probability)}'),
               ],
             ),
           ] else if (!m.isLive) ...[
@@ -367,7 +367,7 @@ class _MatchRow extends StatelessWidget {
       s?.draw.probability,
       s?.away.probability,
       s?.over25.probability,
-      s?.btts.probability,
+      s?.btts?.probability,
     ];
     void open() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MatchScreen(matchId: m.id)));
     Widget cell(double? p, Offer? o) {

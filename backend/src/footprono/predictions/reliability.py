@@ -25,6 +25,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.engine.history import MARKET_BOOKMAKERS
+from footprono.engine.tiers import tier
 
 MIN_SAMPLE = 200
 EPS = 1e-12
@@ -51,7 +52,7 @@ OUTCOMES = {
 # 7 081 matchs jamais vus pendant le réglage, chaque match prédit avec les
 # seuls matchs joués avant lui. Log loss : plus bas = meilleur.
 BACKTEST: dict[str, Any] = {
-    "label": "Backtest : simulation sur des saisons passées, pas des prédictions publiées",
+    "label": "Backtest des 5 grands championnats : simulation sur des saisons passées",
     "verified_on": "2026-09-30",
     "seasons": "2022-23 à 2025-26",
     "matches": 7081,
@@ -77,6 +78,45 @@ BACKTEST: dict[str, Any] = {
         "clôture des bookmakers : il n'annonce pas de « bons coups » contre eux."
     ),
 }
+
+# Championnats de niveau 2 (Portugal, Belgique : xG tirés des tirs, engine/tiers.py).
+# Backtest du 03/10/2026 sur les données chargées par le serveur (saison régulière),
+# écart favori / outsider appris chaque saison sur les seules saisons précédentes.
+BACKTEST_LEVEL_2: dict[str, Any] = {
+    "label": "Backtest Portugal et Belgique : simulation sur des saisons passées",
+    "verified_on": "2026-10-03",
+    "seasons": "2022-23 à 2025-26",
+    "matches": 2250,
+    "engine_version": "2.3",
+    "log_loss": {
+        "1X2": {"model": 0.9538, "naive": 1.0731, "closing_odds": 0.9389},
+        "OU|2.5": {"model": 0.6760, "naive": 0.6928, "closing_odds": 0.6711},
+    },
+    "calibration_1x2": [
+        {"range": "0,0-0,1", "count": 461, "announced": 0.066, "observed": 0.082},
+        {"range": "0,1-0,2", "count": 1059, "announced": 0.155, "observed": 0.137},
+        {"range": "0,2-0,3", "count": 2368, "announced": 0.250, "observed": 0.276},
+        {"range": "0,3-0,4", "count": 882, "announced": 0.348, "observed": 0.323},
+        {"range": "0,4-0,5", "count": 735, "announced": 0.448, "observed": 0.431},
+        {"range": "0,5-0,6", "count": 452, "announced": 0.547, "observed": 0.507},
+        {"range": "0,6-0,7", "count": 333, "announced": 0.648, "observed": 0.652},
+        {"range": "0,7-0,8", "count": 264, "announced": 0.748, "observed": 0.750},
+        {"range": "0,8-0,9", "count": 172, "announced": 0.844, "observed": 0.843},
+    ],
+    "note": (
+        "Moins de données que dans les 5 grands championnats (pas de xG) : pourcentages un "
+        "peu moins précis, et pas d'avis du moteur sur « les deux marquent » (pas mieux que "
+        "la fréquence du championnat). Le moteur reste derrière les cotes de clôture."
+    ),
+}
+
+
+def backtest_for(competition: str | None) -> dict[str, Any]:
+    """Backtest à montrer pour un filtre de championnat (niveau de données)."""
+    if competition is not None and tier(competition.upper()).level == 2:
+        return BACKTEST_LEVEL_2
+    return BACKTEST
+
 
 _PREDICTIONS = text(
     """
@@ -144,6 +184,7 @@ def _log_loss(p: float) -> float:
 
 
 def _market_summary(rows: list[Scored], market: str) -> dict[str, Any]:
+    rows = [r for r in rows if market in r.probs]
     n = len(rows)
     size = len(MARKETS[market])
     if n == 0:
@@ -183,6 +224,8 @@ def _calibration(rows: list[Scored], market: str) -> list[dict[str, Any]]:
     """Probabilité annoncée (par tranche de 10 %) → fréquence observée, toutes issues."""
     bins: dict[int, list[float]] = defaultdict(lambda: [0, 0.0, 0.0])
     for r in rows:
+        if market not in r.probs:
+            continue
         for k, p in enumerate(r.probs[market]):
             b = bins[min(int(p * BINS), BINS - 1)]
             b[0] += 1
@@ -225,7 +268,11 @@ async def _closing_probs(
 def _versus_closing(
     rows: list[Scored], market: str, closing: dict[tuple[int, str], tuple[float, ...]]
 ) -> dict[str, Any] | None:
-    both = [(r, closing[(r.match_id, market)]) for r in rows if (r.match_id, market) in closing]
+    both = [
+        (r, closing[(r.match_id, market)])
+        for r in rows
+        if market in r.probs and (r.match_id, market) in closing
+    ]
     if not both:
         return None
     n = len(both)
@@ -247,14 +294,15 @@ async def load_scored(
     rows = (await session.execute(_PREDICTIONS, {"competition": competition, "since": since})).all()
     out = []
     for mid, day, comp, home, away, hg, ag, _created, version, ph, pd, pa, over, yes in rows:
-        if None in (ph, pd, pa, over, yes):
+        if None in (ph, pd, pa, over):
             continue
+        probs = {"1X2": (ph, pd, pa), "OU|2.5": (over, 1 - over)}
+        if yes is not None:  # absent au niveau de données 2 (engine/tiers.py)
+            probs["BTTS"] = (yes, 1 - yes)
         out.append(
             Scored(
                 match_id=mid, match_date=day, competition=comp, home=home, away=away,
-                score=(hg, ag), engine_version=version,
-                probs={"1X2": (ph, pd, pa), "OU|2.5": (over, 1 - over), "BTTS": (yes, 1 - yes)},
-                outcome=_outcomes(hg, ag),
+                score=(hg, ag), engine_version=version, probs=probs, outcome=_outcomes(hg, ag),
             )
         )  # fmt: skip
     out.sort(key=lambda r: (r.match_date, r.match_id))
@@ -334,5 +382,5 @@ async def reliability_report(
             }
             for r in reversed(rows[-recent:] if recent else [])
         ],
-        "backtest": BACKTEST,
+        "backtest": backtest_for(competition),
     }

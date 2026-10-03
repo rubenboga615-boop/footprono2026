@@ -15,8 +15,15 @@ class CompetitionRef:
     country: str
     n_teams: int
     football_data_division: str
-    understat_slug: str
+    # Understat (xG) ne couvre que les 5 grands championnats : None ailleurs
+    # (niveau de données 2, engine/tiers.py).
+    understat_slug: str | None
     api_football_id: int
+    # Nombres d'équipes admis selon les saisons (contrôle de qualité).
+    team_counts: tuple[int, ...] = (18, 20)
+    # Phase finale après la saison régulière (Belgique) : plus de matchs qu'un simple
+    # aller-retour, calendrier non équilibré ; ces contrôles ne s'appliquent pas.
+    playoffs: bool = False
 
 
 COMPETITIONS: tuple[CompetitionRef, ...] = (
@@ -25,6 +32,11 @@ COMPETITIONS: tuple[CompetitionRef, ...] = (
     CompetitionRef("SERIE_A", "Serie A", "Italy", 20, "I1", "Serie_A", 135),
     CompetitionRef("BUNDESLIGA", "Bundesliga", "Germany", 18, "D1", "Bundesliga", 78),
     CompetitionRef("LIGUE_1", "Ligue 1", "France", 18, "F1", "Ligue_1", 61),
+    # Niveau 2 (tirs, sans xG) : docs/MOTEUR.md, « Étude Portugal et Belgique ».
+    CompetitionRef("POR", "Liga Portugal", "Portugal", 18, "P1", None, 94, team_counts=(16, 18)),
+    CompetitionRef(
+        "BEL", "Pro League", "Belgium", 16, "B1", None, 144, team_counts=(16, 18), playoffs=True
+    ),
 )
 COMPETITIONS_BY_CODE = {c.code: c for c in COMPETITIONS}
 
@@ -61,7 +73,13 @@ def season_code(start_year: int) -> str:
 # Saisons arrêtées avant leur terme : les matchs non joués y sont « annulés »
 # (jamais « à venir ») et le contrôle de complétude en tient compte.
 _COVID_LIGUE_1 = "championnat arrêté en mars 2020 (COVID-19), classement figé après 28 journées"
-INTERRUPTED_SEASONS: dict[tuple[str, int], str] = {("LIGUE_1", 2019): _COVID_LIGUE_1}
+INTERRUPTED_SEASONS: dict[tuple[str, int], str] = {
+    ("LIGUE_1", 2019): _COVID_LIGUE_1,
+    (
+        "BEL",
+        2019,
+    ): "championnat arrêté en mars 2020 (COVID-19) après 29 journées, sans phase finale",
+}
 
 
 # Matchs perdus sur tapis vert : le score officiel n'est pas le score joué, et

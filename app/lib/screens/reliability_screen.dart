@@ -20,7 +20,7 @@ class ReliabilityScreen extends StatefulWidget {
 class _ReliabilityScreenState extends State<ReliabilityScreen> {
   static const _markets = ['1X2', 'OU|2.5', 'BTTS'];
   static const _marketNames = ['1X2', 'Plus/moins', 'Les deux marquent'];
-  static const _comps = ['', 'EPL', 'LA_LIGA', 'SERIE_A', 'BUNDESLIGA', 'LIGUE_1'];
+  static const _comps = ['', 'EPL', 'LA_LIGA', 'SERIE_A', 'BUNDESLIGA', 'LIGUE_1', 'POR', 'BEL'];
   int market = 0;
   String competition = '';
   bool backtest = false;

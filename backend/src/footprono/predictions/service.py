@@ -31,7 +31,7 @@ from footprono.engine.counts import (
 from footprono.engine.goals import GoalsConfig, fit_goals
 from footprono.engine.history import History, load_history
 from footprono.engine.markets import Selection, derive_markets, offered
-from footprono.engine.scores import score_distribution
+from footprono.engine.scores import dixon_coles_matrix, score_distribution
 from footprono.engine.tiers import TIERS, goals_config, market_allowed, tier
 from footprono.football.models import Match, MatchStatus
 from footprono.ingestion.sources.api_football import UNPLAYED_STATUSES
@@ -47,8 +47,46 @@ def _selection_row(s: Selection) -> list[float]:
     return [round(s.win, 6), round(s.half_win, 6), round(s.push, 6), round(s.half_loss, 6)]
 
 
-# Aucune correction (championnats de niveau 2, ou aucun championnat de niveau 1 à prédire).
+# Aucune correction (aucun championnat de niveau 1 à prédire).
 NO_CORRECTION = Correction(features=())
+# Écarts favori / outsider essayés au niveau 2 (log λ_dom ± s·d), docs/MOTEUR.md.
+LEVEL_STRETCH_GRID = tuple(round(0.05 * k, 2) for k in range(9))
+
+
+def fit_level_stretch(hist: History, as_of: np.datetime64, competitions: list[str]) -> Correction:
+    """Écart favori / outsider des championnats ``competitions`` (niveau 2).
+
+    Au niveau 2, le modèle des buts sous-estime les favoris. L'écart retenu est celui
+    de ``LEVEL_STRETCH_GRID`` qui donne la meilleure log loss du 1-N-2 sur toutes leurs
+    prévisions hors échantillon avant ``as_of`` ; les autres marchés suivent (même loi
+    des scores).
+    """
+    first = int(hist.season.min()) + 1
+    last = int(hist.season[hist.date < as_of].max())
+    pred = run_backtest(hist, BacktestConfig(competitions, list(range(first, last + 1))))
+    keep = hist.date[np.array(pred.row, dtype=np.int64)] < as_of
+    if keep.sum() < 300:
+        return NO_CORRECTION
+    lam_h, lam_a = np.array(pred.lam_h)[keep], np.array(pred.lam_a)[keep]
+    y = np.array(pred.outcome_1x2)[keep]
+    rho = np.array(pred.rho)[keep]
+    d = np.log(lam_h) - np.log(lam_a)
+
+    def loss(s: float) -> float:
+        total = 0.0
+        for k in range(len(y)):
+            # Score final seul (le 1-N-2 n'a pas besoin de la mi-temps) : bien plus rapide.
+            ft = dixon_coles_matrix(
+                float(lam_h[k] * np.exp(s * d[k])),
+                float(lam_a[k] * np.exp(-s * d[k])),
+                float(rho[k]),
+            )
+            p = (np.tril(ft, -1).sum(), np.trace(ft), np.triu(ft, 1).sum())[y[k]]
+            total -= float(np.log(max(float(p), 1e-12)))
+        return total
+
+    best = min(LEVEL_STRETCH_GRID, key=loss)
+    return Correction(features=(), coef={"stretch": best})
 
 
 def fit_live_correction(
@@ -177,6 +215,11 @@ async def predict_upcoming(
         # Correction apprise et appliquée sur les championnats de niveau 1 seulement.
         tier_1 = [c for c in competitions if tier(c).correction]
         correction = fit_live_correction(hist, day, ctx, tier_1) if tier_1 else NO_CORRECTION
+        # Niveau 2 : écart favori / outsider appris sur tous ses championnats.
+        stretch = NO_CORRECTION
+        if any(tier(c).level_stretch for c in competitions):
+            stretch = fit_level_stretch(hist, day, [c for c, t in TIERS.items() if t.level_stretch])
+        run.parameters = {**run.parameters, "level_stretch": stretch.coef}
         run.parameters = {**run.parameters, "correction": correction.coef}
         for comp in competitions:
             rows = upcoming[hist.competition[upcoming] == comp]
@@ -196,7 +239,11 @@ async def predict_upcoming(
                     hist,
                     int(i),
                     goals,
-                    correction if level.correction else NO_CORRECTION,
+                    correction
+                    if level.correction
+                    else stretch
+                    if level.level_stretch
+                    else NO_CORRECTION,
                     ctx,
                     counts,
                 )

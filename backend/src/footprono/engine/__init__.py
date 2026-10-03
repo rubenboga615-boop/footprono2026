@@ -14,5 +14,6 @@ backtest et la production, avec le même code (principe n° 2).
 
 # Version enregistrée avec chaque prédiction. À changer à chaque modification
 # du moteur qui change les probabilités (réglages, modèles, correction).
-ENGINE_VERSION = "2.2"  # 2.2 : passes dangereuses dans le signal d'occasions, arbitres regroupés
+ENGINE_VERSION = "2.3"  # 2.3 : niveaux de données (Portugal, Belgique, engine/tiers.py)
+# 2.2 : passes dangereuses dans le signal d'occasions, arbitres regroupés
 # 2.1 : écart de buts 1/2/3/4+, clean sheet non, plus/moins + BTTS

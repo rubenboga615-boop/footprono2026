@@ -32,7 +32,11 @@ class _MeritedScreenState extends State<MeritedScreen> {
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Loader<List<Json>>(
-          load: () async => (await api.get('/competitions') as List).cast<Json>(),
+          // Classement mérité : xG nécessaires (5 grands championnats seulement).
+          load: () async => [
+            for (final c in (await api.get('/competitions') as List).cast<Json>())
+              if (c['understat_slug'] != null) c,
+          ],
           builder: (context, comps, _) {
             if (comps.isEmpty) return const EmptyState('Aucun championnat.');
             final comp = comps.firstWhere((c) => c['code'] == competition, orElse: () => comps.first);

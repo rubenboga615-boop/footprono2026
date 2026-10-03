@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from footprono.football.models import DataSource, Match, MatchStatus, MatchTeamStats
 from footprono.ingestion import service
 from footprono.ingestion.live import collect_injuries, follow_live
+from footprono.ingestion.reference import COMPETITIONS
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.ingestion.sources import api_football
 
@@ -156,7 +157,7 @@ async def test_follow_live_updates_score_then_finishes(
     async with db_factory() as session:
         injuries = await collect_injuries(session, settings, today=NOW)
     assert injuries["status"] == "ok"
-    assert injuries["requests"] == 10  # 5 championnats x (aujourd'hui, demain)
+    assert injuries["requests"] == 2 * len(COMPETITIONS)  # (aujourd'hui, demain) par championnat
     assert (injuries["matches"], injuries["unknown_fixtures"]) == (1, 1)
     sheets = (await client.get(f"/api/v1/matches/{ids[0]}/team-sheets")).json()
     assert sheets["lineups"]["data"][0]["formation"] == "4-3-3"

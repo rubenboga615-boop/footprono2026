@@ -104,3 +104,12 @@ def test_profile_shrink_keeps_strength() -> None:
     lh1, la1 = full.rates(1, 3)
     lh2, la2 = half.rates(1, 3)
     assert (lh1 > la1) == (lh2 > la2)
+
+
+def test_reliability_backtest_matches_data_level() -> None:
+    from footprono.predictions.reliability import BACKTEST, BACKTEST_LEVEL_2, backtest_for
+
+    assert backtest_for(None) is BACKTEST
+    assert backtest_for("EPL") is BACKTEST
+    assert backtest_for("por") is BACKTEST_LEVEL_2
+    assert "BTTS" not in BACKTEST_LEVEL_2["log_loss"]  # pas d'avis du moteur à ce niveau
