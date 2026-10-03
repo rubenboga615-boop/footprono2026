@@ -9,7 +9,9 @@
   la fréquence du championnat sur 2022-26).
 
 Tout est mesuré dans docs/MOTEUR.md (« Championnats sans xG », « Étude Portugal
-et Belgique ») : réglages choisis sur 2019-22, vérifiés sur 2022-26.
+et Belgique », « Championnats candidats ») : réglages choisis sur 2019-22 (Portugal,
+Belgique), vérifiés sur 2022-26 et appliqués tels quels aux Pays-Bas, à la Grèce et
+à la Turquie.
 """
 
 from dataclasses import dataclass, field
@@ -53,7 +55,7 @@ TIER_2 = Tier(
     withdrawn=NO_BTTS,
 )
 
-TIERS: dict[str, Tier] = {"POR": TIER_2, "BEL": TIER_2}
+TIERS: dict[str, Tier] = {code: TIER_2 for code in ("POR", "BEL", "NED", "GRE", "TUR")}
 
 
 def tier(competition: str) -> Tier:

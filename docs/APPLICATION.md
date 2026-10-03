@@ -205,13 +205,21 @@ connectés (jeton valable 30 jours) : à traiter avec la sécurité (phase 6).
 ## Championnats (moteur 2.3)
 
 - **Niveau 1** : Premier League, Liga, Serie A, Bundesliga, Ligue 1 (xG Understat).
-- **Niveau 2** : Liga Portugal (`POR`) et Pro League belge (`BEL`, saison régulière
-  seulement) : xG tirés des tirs ; pas de « les deux marquent » (la liste des matchs
-  affiche « — »), ni corners, cartons et tirs. Voir docs/MOTEUR.md.
+- **Niveau 2** : Liga Portugal (`POR`), Pro League belge (`BEL`, saison régulière
+  seulement), Eredivisie (`NED`), Super League grecque (`GRE`, saison régulière
+  seulement), Süper Lig (`TUR`) : xG tirés des tirs ; pas de « les deux marquent » (la
+  liste des matchs affiche « — »), ni corners, cartons et tirs. Voir docs/MOTEUR.md.
+- Les matchs à venir de ces championnats viennent d'API-Football (Understat ne les
+  couvre pas) : sans la commande `api-football` ci-dessous, ou la collecte des cotes
+  qui la refait 8 fois par jour, ils n'ont aucun match à venir.
 - Cotes : la couverture annoncée par API-Football dit « pas de cotes » pour ces deux
   championnats, mais `check-odds.sh 94` et `144` ont renvoyé des cotes 1xBet le 03/10/2026
   (mises à jour le jour même) : ce drapeau n'est pas fiable. Sans cote réelle, un match
   est prédit mais ne peut pas être joué au bookmaker fictif ni entrer dans un coupon.
 - Ajout sur le serveur : `git pull`, puis
-  `bash scripts/termux/ingest.sh football-data --competitions POR,BEL` (historique
-  depuis 2016) et `bash scripts/termux/ingest.sh api-football --competitions POR,BEL --seasons 2026`.
+  `bash scripts/termux/ingest.sh football-data --competitions NED,GRE,TUR` (historique
+  depuis 2016) et `bash scripts/termux/ingest.sh api-football --competitions NED,GRE,TUR --seasons 2026`
+  (même chose avec `POR,BEL` pour le Portugal et la Belgique).
+- Cas particuliers : Turquie 2022-23, 29 matchs de Hatayspor et Gaziantep donnés 0-3
+  sans être joués après le séisme (exclus de l'apprentissage) ; Grèce 2018-19, derby
+  Panathinaïkos - Olympiakos jamais joué (annulé) ; Pays-Bas 2019-20 arrêté (COVID-19).

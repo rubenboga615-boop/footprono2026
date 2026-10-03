@@ -619,3 +619,57 @@ divisions sont très équilibrées : le moteur y apporte peu face à la référe
 bon que la référence naïve. Écosse : la phase finale (deuxième partie de saison) rejoue
 des affiches ; avec une affiche par saison, une grande partie des matchs n'est ni
 chargée ni prédite (528 matchs en 4 saisons, environ 230 par saison en réalité).
+
+## Pays-Bas, Grèce et Turquie en service (niveau 2, 03/10/2026)
+
+Recentrage demandé : premières divisions des pays des coupes d'Europe, pas les
+deuxièmes divisions des 5 grands (abandonnées). Les trois meilleurs candidats ci-dessus
+entrent au niveau 2 avec ses réglages, sans rien régler sur eux. L'Écosse attend que
+la base accepte plusieurs matchs par affiche et par saison (sa seconde phase).
+
+Backtest sur les données chargées par le vrai chargeur (saison régulière seulement,
+matchs sur tapis vert exclus), écart favori / outsider appris par championnat, chaque
+saison sur les saisons précédentes ; test 2022-26, log loss :
+
+| Championnat | Matchs | 1-N-2 | naïf | clôture | +2,5 | naïf | clôture | écart appris |
+|---|---|---|---|---|---|---|---|---|
+| Portugal | 1 224 | 0,9158 | 1,0703 | 0,8984 | 0,6741 | 0,6935 | 0,6667 | 0,10 à 0,15 |
+| Belgique | 1 026 | 0,9962 | 1,0765 | 0,9873 | 0,6791 | 0,6920 | 0,6763 | 0 |
+| Pays-Bas | 1 224 | 0,9515 | 1,0713 | 0,9321 | 0,6670 | 0,6743 | 0,6582 | 0 |
+| Grèce | 728 | 0,9250 | 1,0822 | 0,9130 | 0,6860 | 0,6950 | 0,6812 | 0,10 |
+| Turquie | 1 341 | 0,9762 | 1,0672 | 0,9459 | 0,6760 | 0,6903 | 0,6631 | 0,05 à 0,10 |
+| **Niveau 2** | 5 543 | 0,9544 | 1,0725 | 0,9357 | 0,6755 | 0,6884 | 0,6676 | |
+
+Partout mieux que la référence naïve sur les deux marchés, partout derrière les cotes
+de clôture (la Turquie le plus : 0,030). Calibration du 1-N-2 : écart de 1 à 3 points
+par tranche, sauf au-delà de 90 % (annoncé 92,3 %, observé 86,8 %, 68 cas). La page
+Fiabilité montre ce backtest groupé pour tout championnat de niveau 2.
+
+Calcul des pronostics : l'écart est réappris pour chaque championnat de niveau 2 à
+chaque exécution (une simulation des saisons passées par championnat) : 56 s ici pour
+quatre championnats, quelques minutes sur le téléphone, deux fois par jour.
+
+## Niveau 3 : résultats seuls (fichiers « autres » de football-data, 03/10/2026)
+
+Suisse, Norvège, Suède, Danemark, Autriche, Pologne, Roumanie : résultats et cotes de
+clôture seulement (ni tirs, ni mi-temps). Modèle des buts du niveau 2 sur les buts
+seuls, tous les matchs gardés (phases finales comprises). Script :
+`scratchpad/study_level3.py` (hors dépôt). Test 2022-26 :
+
+| Championnat | Matchs | Gain | Retard | +2,5 / naïf | Favoris ≥ 60 % annoncé / observé |
+|---|---|---|---|---|---|
+| Norvège | 966 | 0,060 | 0,029 | 0,6696 / 0,6717 | 69,2 / 66,9 |
+| Autriche | 774 | 0,063 | 0,010 | 0,6973 / 0,6934 | 69,2 / 66,9 |
+| Suède | 964 | 0,050 | 0,029 | 0,6849 / 0,6916 | 67,4 / 64,6 |
+| Danemark | 770 | 0,045 | 0,020 | 0,6817 / 0,6847 | 66,6 / 56,8 |
+| Roumanie | 1 278 | 0,040 | 0,022 | 0,6850 / 0,6874 | 67,3 / 65,4 |
+| Suisse | 868 | 0,024 | 0,021 | 0,6797 / 0,6825 | 66,9 / 63,3 |
+| Pologne | 1 224 | 0,017 | 0,022 | 0,6857 / 0,6936 | 66,0 / 59,8 |
+
+Lecture : sans les tirs, le moteur reste meilleur que la référence naïve sur le 1-N-2,
+mais bien moins qu'au niveau 2 ; il surestime un peu les favoris ; sur +2,5 il n'apporte
+presque rien (Autriche : moins bon que la référence ; Suisse et Danemark aussi sur
+2019-22). Décision : pas de niveau 3 en service. Ces championnats passeront au niveau 2
+avec les statistiques de match d'API-Football (tirs, corners), après deux travaux :
+plusieurs matchs par affiche et par saison (Suisse : trois tours ; Danemark, Autriche,
+Roumanie : seconde phase), et un téléchargement de l'historique API-Football.

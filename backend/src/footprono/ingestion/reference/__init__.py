@@ -37,6 +37,12 @@ COMPETITIONS: tuple[CompetitionRef, ...] = (
     CompetitionRef(
         "BEL", "Pro League", "Belgium", 16, "B1", None, 144, team_counts=(16, 18), playoffs=True
     ),
+    # docs/MOTEUR.md, « Championnats candidats ».
+    CompetitionRef("NED", "Eredivisie", "Netherlands", 18, "N1", None, 88, team_counts=(18,)),
+    CompetitionRef(
+        "GRE", "Super League", "Greece", 14, "G1", None, 197, team_counts=(14, 16), playoffs=True
+    ),
+    CompetitionRef("TUR", "Süper Lig", "Turkey", 18, "T1", None, 203, team_counts=(18, 19, 20, 21)),
 )
 COMPETITIONS_BY_CODE = {c.code: c for c in COMPETITIONS}
 
@@ -79,8 +85,26 @@ INTERRUPTED_SEASONS: dict[tuple[str, int], str] = {
         "BEL",
         2019,
     ): "championnat arrêté en mars 2020 (COVID-19) après 29 journées, sans phase finale",
+    ("GRE", 2018): "derby Panathinaïkos - Olympiakos du 17 mars 2019 jamais joué",
+    ("NED", 2019): "championnat arrêté en mars 2020 (COVID-19) après 26 journées, sans classement",
 }
 
+
+_TUR_2022_HATAY_HOME = (
+    "Konyaspor", "Sivasspor", "Fatih Karagümrük", "MKE Ankaragücü", "İstanbulspor",
+    "Fenerbahçe", "Ümraniyespor", "Galatasaray",
+)  # fmt: skip
+_TUR_2022_HATAY_AWAY = (
+    "Adana Demirspor", "Kayserispor", "Alanyaspor", "Beşiktaş", "Başakşehir",
+    "Giresunspor", "Antalyaspor",
+)  # fmt: skip
+_TUR_2022_GAZIANTEP_HOME = (
+    "Galatasaray", "Trabzonspor", "Kasımpaşa", "Konyaspor", "Alanyaspor",  # noqa: RUF001
+    "Fatih Karagümrük", "Giresunspor", "İstanbulspor",
+)  # fmt: skip
+_TUR_2022_GAZIANTEP_AWAY = (
+    "Ümraniyespor", "Adana Demirspor", "Kayserispor", "Beşiktaş", "Başakşehir", "Fenerbahçe",
+)  # fmt: skip
 
 # Matchs perdus sur tapis vert : le score officiel n'est pas le score joué, et
 # les sources ne suivent pas la même convention. Exclus de l'apprentissage.
@@ -92,4 +116,10 @@ AWARDED_MATCHES: frozenset[tuple[str, int, str, str]] = frozenset(
         ("BUNDESLIGA", 2024, "Union Berlin", "Bochum"),
         ("LIGUE_1", 2016, "SC Bastia", "Lyon"),
     }
+    # Turquie 2022-23 : Hatayspor et Gaziantep retirés après le séisme du 6 février
+    # 2023, leurs matchs restants donnés perdus 0-3 sans être joués.
+    | {("TUR", 2022, "Hatayspor", away) for away in _TUR_2022_HATAY_HOME}
+    | {("TUR", 2022, home, "Hatayspor") for home in _TUR_2022_HATAY_AWAY}
+    | {("TUR", 2022, "Gaziantep FK", away) for away in _TUR_2022_GAZIANTEP_HOME}
+    | {("TUR", 2022, home, "Gaziantep FK") for home in _TUR_2022_GAZIANTEP_AWAY}
 )

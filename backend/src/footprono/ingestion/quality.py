@@ -13,7 +13,11 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from footprono.ingestion.reference import COMPETITIONS_BY_CODE, INTERRUPTED_SEASONS
+from footprono.ingestion.reference import (
+    AWARDED_MATCHES,
+    COMPETITIONS_BY_CODE,
+    INTERRUPTED_SEASONS,
+)
 
 # Délai après lequel un match daté dans le passé et toujours « à venir » est signalé.
 STALE_SCHEDULED_DAYS = 2
@@ -104,6 +108,14 @@ _DOUBLE_MATCHES = text(
         AND abs(a.match_date - b.match_date) <= 1
     JOIN teams t ON t.id = a.team_id
     ORDER BY a.match_date, t.name
+    """
+)
+
+_FIXTURE_NAMES = text(
+    """
+    SELECT m.id, th.name, ta.name FROM matches m
+    JOIN teams th ON th.id = m.home_team_id JOIN teams ta ON ta.id = m.away_team_id
+    WHERE m.id = ANY(:ids)
     """
 )
 
@@ -212,9 +224,23 @@ async def run_quality_checks(session: AsyncSession, today: date | None = None) -
                 f"{row['n_stale']} matchs datés d'avant le {stale_before} toujours « à venir » "
                 "(report non daté ou résultat manquant)",
             )
-        for name, day, first, second in (
-            await session.execute(_DOUBLE_MATCHES, {"sid": sid})
-        ).all():
+        doubles = (await session.execute(_DOUBLE_MATCHES, {"sid": sid})).all()
+        # Un match donné sur tapis vert (jamais joué) peut tomber à côté d'un vrai match.
+        fixtures = (
+            {
+                mid: (code, year, home, away)
+                for mid, home, away in (
+                    await session.execute(
+                        _FIXTURE_NAMES, {"ids": [d[2] for d in doubles] + [d[3] for d in doubles]}
+                    )
+                ).tuples()
+            }
+            if doubles
+            else {}
+        )
+        for name, day, first, second in doubles:
+            if fixtures.get(first) in AWARDED_MATCHES or fixtures.get(second) in AWARDED_MATCHES:
+                continue
             add("error", "doublons", f"{name} : matchs {first} et {second} autour du {day}")
         if row["n_bad_ht"]:
             add("error", "scores", f"{row['n_bad_ht']} matchs avec un score mi-temps > score final")

@@ -328,6 +328,9 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                         'BUNDESLIGA',
                         'POR',
                         'BEL',
+                        'NED',
+                        'GRE',
+                        'TUR',
                       ])
                         FpChip(
                           competitionName(c),

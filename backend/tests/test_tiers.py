@@ -26,6 +26,8 @@ def test_settings_by_level() -> None:
         365.0,
         0.5,
     )
+    for code in ("NED", "GRE", "TUR"):
+        assert tier(code).level == 2
     assert not tier("BEL").correction
     assert not tier("BEL").counts
 

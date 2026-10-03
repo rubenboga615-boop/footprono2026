@@ -17,7 +17,7 @@ from footprono.football.models import DataSource, OddsTiming
 from footprono.ingestion import raw_store
 from footprono.ingestion.cli import build_parser, parse_competitions, parse_seasons
 from footprono.ingestion.quality import current_season_start
-from footprono.ingestion.reference import COMPETITIONS, load_teams, season_code
+from footprono.ingestion.reference import AWARDED_MATCHES, COMPETITIONS, load_teams, season_code
 from footprono.ingestion.sources import football_data, understat
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -39,7 +39,8 @@ def test_current_season_start() -> None:
 def test_reference_teams_are_consistent() -> None:
     teams = load_teams()
     codes = {c.code for c in COMPETITIONS}
-    assert len(teams) == 165 + 38 + 31  # 5 grands championnats, Portugal, Belgique
+    # 5 grands championnats, Portugal, Belgique, Pays-Bas, Grèce, Turquie
+    assert len(teams) == 165 + 38 + 31 + 28 + 26 + 39
     assert {t.competition for t in teams} == codes
     assert len({t.name for t in teams}) == len(teams)
     with_understat = {c.code for c in COMPETITIONS if c.understat_slug}
@@ -49,6 +50,12 @@ def test_reference_teams_are_consistent() -> None:
         aliases = [a for t in teams for a in t.aliases.get(DataSource(source), ())]
         assert all(DataSource(source) in t.aliases for t in concerned), f"alias {source} manquant"
         assert len(set(aliases)) == len(aliases), f"alias {source} en double"
+    # Matchs sur tapis vert : noms du référentiel (une faute les laisserait dans l'apprentissage).
+    names = {(t.competition, t.name) for t in teams}
+    for comp, _, home, away in AWARDED_MATCHES:
+        assert (comp, home) in names, home
+        assert (comp, away) in names, away
+    assert sum(1 for m in AWARDED_MATCHES if m[:2] == ("TUR", 2022)) == 29
 
 
 # --- football-data -----------------------------------------------------------

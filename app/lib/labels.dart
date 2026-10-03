@@ -289,6 +289,9 @@ const competitionNames = {
   'LIGUE_1': 'Ligue 1',
   'POR': 'Liga Portugal',
   'BEL': 'Pro League belge',
+  'NED': 'Eredivisie',
+  'GRE': 'Super League grecque',
+  'TUR': 'Süper Lig',
 };
 
 String competitionName(String code) => competitionNames[code.toUpperCase()] ?? code;

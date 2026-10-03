@@ -233,6 +233,13 @@ async def load_football_data(
         stats.issues.extend(f"affiche en double ignorée : {r}" for r in repeated)
     matches = kept
 
+    # Saison arrêtée ou match jamais joué (INTERRUPTED_SEASONS) : une ligne sans
+    # résultat est un match annulé, pas un match à venir.
+    unplayed = (
+        MatchStatus.CANCELLED
+        if (competition_code, start_year) in INTERRUPTED_SEASONS
+        else MatchStatus.SCHEDULED
+    )
     rows: list[dict[str, Any]] = []
     for m in matches:
         key = (teams[m.home_team], teams[m.away_team])
@@ -243,7 +250,7 @@ async def load_football_data(
                 "away_team_id": key[1],
                 "match_date": m.match_date,
                 "kickoff_time": m.kickoff_time,
-                "status": MatchStatus.FINISHED if m.finished else MatchStatus.SCHEDULED,
+                "status": MatchStatus.FINISHED if m.finished else unplayed,
                 "home_goals": m.home_goals,
                 "away_goals": m.away_goals,
                 "home_goals_ht": m.home_goals_ht,
