@@ -76,3 +76,10 @@ async def match_picks(match_id: int, session: SessionDep, user: OptionalUserDep)
 async def history(session: SessionDep) -> Any:
     """Public : les coupons du jour sont enregistrés avant les matchs, rien n'est effacé."""
     return await smart_coupon.history(session)
+
+
+@router.get("/smart-coupons/day")
+async def day_coupons(session: SessionDep, day: date | None = None) -> Any:
+    """Public : les coupons du jour d'une date (aujourd'hui par défaut), leur état en direct
+    et les codes de réservation saisis par l'administrateur."""
+    return await smart_coupon.day_coupons(session, day)

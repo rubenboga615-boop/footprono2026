@@ -135,7 +135,7 @@ les paris sont sur le serveur : rien n'est perdu), puis installer le nouvel APK.
 | Les arbitres (icône classement de la fiche arbitre) | arbitres d'une saison du plus sévère au plus clément, non classés sous 15 matchs, matchs sans arbitre connu signalés | `/competitions/{code}/seasons/{année}/referees` |
 | Coupon | jusqu'à 12 sélections, une par match (si une autre sélection du même match existe, l'application demande laquelle garder), « 1 chance sur N » ; sélections, probabilité combinée, cote totale, mise, gain ; utilisation pour un palier de montante | `/bets`, `/montantes/{id}/bet` |
 | Coupon intelligent (Premium) | profils Sûr / Équilibré / Audacieux et **Grosse cote** (cote visée 10, 25, 50, 100 ou libre : sélections les plus probables ajoutées jusqu'à l'atteindre, jamais choisies sur un désaccord avec la cote, 12 au plus) ; période (raccourcis, un seul jour, plusieurs jours), championnats, heure minimum ; 1 à 12 sélections ; « 1 chance sur N », rappel de la marge au-delà de 6 sélections ; remplacer ou exclure une sélection (match, ou équipe mémorisée sur le téléphone) ; partage du coupon en image (argent fictif) | `/smart-coupon` (`target_odds`, `day`, `date_from`, `date_to`, `after_hour`, `competitions`, `exclude_matches`, `exclude_teams`) |
-| Coupons du jour (public) | coupons enregistrés chaque matin avant les matchs, gagnés ou perdus, bilan annoncé / observé | `/smart-coupons/history` |
+| Coupons du jour (public ; carte en tête de l'onglet Coupon, rubrique du menu sur ordinateur) | hier ou aujourd'hui : un coupon par profil enregistré vers 8 h avant les matchs ; cote, chance estimée, sélections validées, état en direct de chaque sélection (minute et score, mis à jour chaque minute) ; code de réservation 1xBet à copier (« Code bientôt disponible » tant qu'il n'est pas saisi) ; détail : partage en image, ajout au coupon, rappel « sur 100 coupons comme celui-ci, environ N passent » ; bilan d'hier et des 30 derniers jours ; historique complet (bouton en haut) | `/smart-coupons/day?day=`, `/smart-coupons/history` |
 | Montante | création (mise, paliers, plages, part sécurisée), tableau, chances, encaisser, historique | `/montantes*` |
 | Pari du palier (Premium) | 3 suggestions, probabilité du modèle et selon la cote, côte à côte (aucun « bon plan ») | `/montantes/{id}/suggestions` |
 | Bookmaker | solde fictif, en jeu, rendement, paris en cours / réglés, mouvements | `/bets`, `/me/wallet/*` |
@@ -143,7 +143,7 @@ les paris sont sur le serveur : rien n'est perdu), puis installer le nouvel APK.
 | Profil | formule et prix, notifications, fiabilité, mot de passe, jeu responsable, serveur, administration ; numéro de version en bas | `/me`, `/me/password` |
 | Fiabilité | annoncé contre réalisé par marché et championnat, références, backtest séparé | `/reliability` |
 | Notifications | en direct (WebSocket) et historique | `/ws`, `/me/notifications` |
-| Administration | statistiques, recherche, Premium, désactivation | `/admin/*` |
+| Administration | statistiques, recherche, Premium, désactivation ; **codes 1xBet des coupons du jour** : l'administrateur recrée chaque coupon chez 1xBet et colle le code (4 à 16 lettres ou chiffres, espaces retirés, majuscules), visible aussitôt ; code vide pour le retirer | `/admin/*`, `/admin/smart-coupons?day=`, `PUT /admin/smart-coupons/{id}/booking-code` |
 
 Règles respectées dans l'application :
 

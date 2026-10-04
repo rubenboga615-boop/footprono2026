@@ -17,6 +17,7 @@ import '../screens/matches_screen.dart';
 import '../screens/merited_screen.dart';
 import '../screens/montante_screen.dart';
 import '../screens/notifications_screen.dart';
+import '../screens/daily_coupons_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/record_screen.dart';
 import '../screens/reliability_screen.dart';
@@ -29,6 +30,7 @@ import 'layout.dart';
 enum DeskSection {
   matchs('Matchs', Icons.sports_soccer_rounded, 'Jouer'),
   coupon('Mon coupon', Icons.confirmation_number_outlined, 'Jouer'),
+  jour('Coupons du jour', Icons.today_rounded, 'Jouer'),
   intelligent('Coupon intelligent', Icons.auto_awesome_rounded, 'Jouer'),
   montante('Montante', Icons.stairs_rounded, 'Jouer'),
   bookmaker('Bookmaker fictif', Icons.account_balance_wallet_outlined, 'Jouer'),
@@ -46,6 +48,7 @@ enum DeskSection {
   Widget get root => switch (this) {
     matchs => const MatchesScreen(),
     coupon => const CouponScreen(),
+    jour => const DailyCouponsScreen(),
     intelligent => const SmartCouponScreen(),
     montante => const MontanteListScreen(),
     bookmaker => const BookmakerScreen(),

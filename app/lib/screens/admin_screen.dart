@@ -7,6 +7,7 @@ import '../format.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'daily_coupons_screen.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -49,6 +50,26 @@ class _AdminScreenState extends State<AdminScreen> {
                     KeyValue('Paris (7 j)', '${s['bets_7d']}'),
                   ],
                 ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            GlassCard.section(
+              highlight: true,
+              onTap: () =>
+                  Navigator.of(context)
+                      .push(MaterialPageRoute(builder: (_) => const AdminDailyCodesScreen())),
+              child: Row(
+                children: [
+                  const Icon(Icons.qr_code_2_rounded, color: Fp.accentLight),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Codes 1xBet des coupons du jour',
+                      style: Fp.title(14, weight: FontWeight.w600),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, color: Fp.text3),
+                ],
               ),
             ),
             const SizedBox(height: 16),

@@ -2,7 +2,17 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Date, DateTime, Float, Numeric, SmallInteger, String, UniqueConstraint, func
+from sqlalchemy import (
+    Date,
+    DateTime,
+    Float,
+    Numeric,
+    SmallInteger,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -31,5 +41,10 @@ class SmartCoupon(Base):
     status: Mapped[str] = mapped_column(
         String(8), default="pending"
     )  # pending, won, lost, partial, void
+    # Codes de réservation saisis par l'administrateur après avoir recréé le coupon chez
+    # le bookmaker : {"1xbet": "7HQ2K"}. Le joueur copie le code et le colle chez lui.
+    booking_codes: Mapped[dict[str, str]] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb")
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

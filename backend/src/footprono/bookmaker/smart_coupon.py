@@ -25,6 +25,8 @@ match (elles sont liées).
   les données réelles le 03/10/2026).
 """
 
+import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -38,9 +40,10 @@ from footprono.bookmaker import service, settlement
 from footprono.bookmaker.models import BetSelection
 from footprono.bookmaker.rules import automatic
 from footprono.bookmaker.smart_models import SmartCoupon
-from footprono.core.errors import AppError
+from footprono.core.errors import AppError, NotFoundError
 from footprono.football.analysis import match_analysis
 from footprono.football.models import Competition, Match, MatchStatus, Season, Team
+from footprono.ingestion.live import LIVE_STATUSES
 
 
 @dataclass(frozen=True)
@@ -627,3 +630,122 @@ async def history(session: AsyncSession, limit: int = HISTORY_LIMIT) -> dict[str
             for c in rows
         ],
     }
+
+
+# Bookmakers dont l'administrateur peut saisir le code de réservation d'un coupon.
+BOOKING_BOOKMAKERS = {"1xbet": "1xBet"}
+BOOKING_CODE = re.compile(r"^[A-Z0-9]{4,16}$")
+WON_RESULTS = frozenset({"win", "half_win"})
+
+
+def _live_state(selection: dict[str, Any], match: Match | None) -> dict[str, Any]:
+    """État d'une sélection pour l'affichage : réglée, en cours (minute, score) ou à venir."""
+    result = selection.get("result", "pending")
+    out: dict[str, Any] = {"state": "settled" if result != "pending" else "upcoming"}
+    if match is None:
+        return out
+    if match.status is MatchStatus.FINISHED:
+        out["score"] = [match.home_goals, match.away_goals]
+        if result == "pending":
+            out["state"] = "finished"  # résultat connu, règlement au prochain passage
+    elif match.api_status in LIVE_STATUSES:
+        out["state"] = "live"
+        out["minute"] = match.live_minute
+        if match.live_home_goals is not None:
+            out["score"] = [match.live_home_goals, match.live_away_goals]
+    return out
+
+
+def _coupon_out(coupon: SmartCoupon, matches: dict[int, Match]) -> dict[str, Any]:
+    selections = [
+        {**sel, **_live_state(sel, matches.get(sel["match_id"]))} for sel in coupon.selections
+    ]
+    validated = sum(sel.get("result") in WON_RESULTS for sel in selections)
+    started = any(sel["state"] != "upcoming" for sel in selections)
+    # Affichage : réglé (gagné, perdu…), en cours dès qu'un match a commencé, sinon à venir.
+    display = coupon.status if coupon.status != "pending" else ("live" if started else "upcoming")
+    kickoffs = [sel["kickoff_at"] for sel in selections if sel.get("kickoff_at")]
+    return {
+        "id": coupon.id,
+        "day": coupon.day,
+        "profile": coupon.profile,
+        "profile_label": PROFILES[coupon.profile].label,
+        "selections": selections,
+        "total_odds": coupon.total_odds,
+        "probability": round(coupon.probability, 4),
+        "status": coupon.status,
+        "display_status": display,
+        "validated": validated,
+        "first_kickoff": min(kickoffs) if kickoffs else None,
+        "booking_codes": [
+            {"bookmaker": key, "label": BOOKING_BOOKMAKERS.get(key, key), "code": code}
+            for key, code in sorted(coupon.booking_codes.items())
+        ],
+        "settled_at": coupon.settled_at,
+    }
+
+
+def _record(coupons: Sequence[SmartCoupon]) -> dict[str, int]:
+    done = [c for c in coupons if c.status in ("won", "lost", "partial")]
+    return {"settled": len(done), "won": sum(c.status == "won" for c in done)}
+
+
+async def day_coupons(
+    session: AsyncSession, day: date | None = None, now: datetime | None = None
+) -> dict[str, Any]:
+    """Coupons du jour d'une date (aujourd'hui par défaut), avec l'état en direct de chaque
+    sélection, les codes de réservation, et le bilan de la veille et des 30 derniers jours."""
+    today = (now or datetime.now(UTC)).date()
+    day = day or today
+    coupons = (
+        await session.scalars(
+            select(SmartCoupon).where(SmartCoupon.day == day).order_by(SmartCoupon.id)
+        )
+    ).all()
+    ids = {sel["match_id"] for c in coupons for sel in c.selections}
+    matches = (
+        {m.id: m for m in (await session.scalars(select(Match).where(Match.id.in_(ids)))).all()}
+        if ids
+        else {}
+    )
+    recent = (
+        await session.scalars(
+            select(SmartCoupon).where(
+                SmartCoupon.day >= today - timedelta(days=30), SmartCoupon.day < today
+            )
+        )
+    ).all()
+    yesterday = today - timedelta(days=1)
+    order = list(PROFILES)
+    return {
+        "day": day,
+        "coupons": sorted(
+            (_coupon_out(c, matches) for c in coupons), key=lambda c: order.index(c["profile"])
+        ),
+        "summary": {
+            "yesterday": _record([c for c in recent if c.day == yesterday]),
+            "last_30_days": _record(recent),
+        },
+    }
+
+
+async def set_booking_code(
+    session: AsyncSession, coupon_id: int, bookmaker: str, code: str
+) -> dict[str, Any]:
+    """Enregistre (ou retire, code vide) le code de réservation d'un coupon du jour."""
+    if bookmaker not in BOOKING_BOOKMAKERS:
+        raise AppError(f"bookmaker inconnu : {bookmaker} ({', '.join(BOOKING_BOOKMAKERS)})")
+    coupon = await session.get(SmartCoupon, coupon_id)
+    if coupon is None:
+        raise NotFoundError("coupon du jour introuvable")
+    code = re.sub(r"\s+", "", code).upper()
+    if code and not BOOKING_CODE.match(code):
+        raise AppError("code invalide : 4 à 16 lettres ou chiffres, sans espace ni symbole")
+    codes = dict(coupon.booking_codes)
+    if code:
+        codes[bookmaker] = code
+    else:
+        codes.pop(bookmaker, None)
+    coupon.booking_codes = codes
+    await session.commit()
+    return await day_coupons(session, coupon.day)

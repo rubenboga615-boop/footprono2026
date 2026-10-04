@@ -65,6 +65,9 @@ class ApiClient {
   Future<dynamic> post(String path, [Object? body]) =>
       _send(() => _http.post(uri(path), headers: _headers, body: jsonEncode(body ?? const {})));
 
+  Future<dynamic> put(String path, [Object? body]) =>
+      _send(() => _http.put(uri(path), headers: _headers, body: jsonEncode(body ?? const {})));
+
   Future<dynamic> _send(Future<http.Response> Function() request) async {
     final http.Response res;
     try {

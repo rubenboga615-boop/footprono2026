@@ -10,6 +10,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'daily_coupons_screen.dart';
 import 'smart_coupon_screen.dart';
 
 /// Montante active dont le palier en cours attend son pari.
@@ -205,6 +206,32 @@ class _CouponScreenState extends State<CouponScreen> {
               const SizedBox(height: 4),
               Text('Compose ton pari : une ou plusieurs sélections.', style: Fp.body(14, color: Fp.text2)),
               const SizedBox(height: 16),
+              GlassCard.section(
+                highlight: true,
+                onTap: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen())),
+                child: Row(
+                  children: [
+                    const Icon(Icons.today_rounded, color: Fp.accentLight),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Coupons du jour', style: Fp.title(15, weight: FontWeight.w600)),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Un coupon par profil chaque matin, sa chance estimée et le code à copier.',
+                            style: Fp.body(12, color: Fp.text2),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: Fp.text3),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
               GlassCard.section(
                 highlight: true,
                 onTap: () =>

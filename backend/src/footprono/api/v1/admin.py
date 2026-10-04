@@ -1,6 +1,6 @@
 """Administration : comptes, Premium (activation manuelle avant Mobile Money), statistiques."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from footprono.accounts import admin
 from footprono.accounts.plans import plan_info
 from footprono.api.deps import AdminUserDep, SessionDep, SettingsDep
+from footprono.bookmaker import smart_coupon
 from footprono.notifications import push
 
 router = APIRouter(prefix="/admin", tags=["administration"])
@@ -121,3 +122,23 @@ async def set_active(
     await admin.set_active(session, me, user, body.active)
     await session.commit()
     return _out(user)
+
+
+class BookingCodeIn(BaseModel):
+    bookmaker: str = Field("1xbet", examples=["1xbet"])
+    code: str = Field(..., max_length=32, description="vide pour retirer le code")
+
+
+@router.get("/smart-coupons")
+async def admin_smart_coupons(
+    _: AdminUserDep, session: SessionDep, day: date | None = None
+) -> dict[str, Any]:
+    """Coupons du jour à recréer chez le bookmaker, avec les codes déjà saisis."""
+    return await smart_coupon.day_coupons(session, day)
+
+
+@router.put("/smart-coupons/{coupon_id}/booking-code")
+async def set_booking_code(
+    coupon_id: int, body: BookingCodeIn, _: AdminUserDep, session: SessionDep
+) -> dict[str, Any]:
+    return await smart_coupon.set_booking_code(session, coupon_id, body.bookmaker, body.code)

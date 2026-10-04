@@ -9,6 +9,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'daily_coupons_screen.dart';
 import 'share_coupon.dart';
 
 /// Coupon intelligent : la sélection la plus sûre de chaque match (selon le profil),
@@ -178,32 +179,10 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
     await _generate();
   }
 
-  /// Ajoute des sélections au coupon, aux cotes actuelles (relues sur le serveur).
   Future<void> _addToCoupon(List<Json> selections) async {
-    final state = context.read<AppState>();
     setState(() => busy = true);
-    var added = 0, missing = 0;
     try {
-      for (final s in selections) {
-        final id = s['match_id'] as int;
-        final match = MatchInfo(await state.api.get('/matches/$id') as Json);
-        final key = '${s['market']}|${s['line'] ?? ''}|${s['selection']}';
-        final offers = [for (final o in await state.api.get('/matches/$id/offer') as List) Offer(o as Json)];
-        final offer = offers.where((o) => o.key == key).firstOrNull;
-        if (offer == null) {
-          missing++;
-        } else if (!state.inCoupon(id, key)) {
-          state.toggleCoupon(match, offer);
-          added++;
-        }
-      }
-      showMessage(
-        missing > 0
-            ? '$added sélection(s) ajoutée(s) ; $missing sans cote disponible à présent.'
-            : '$added sélection(s) ajoutée(s) au coupon (onglet Coupon).',
-      );
-    } on ApiException catch (e) {
-      showMessage(e.message, error: true);
+      await addSelectionsToCoupon(context.read<AppState>(), selections);
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -234,7 +213,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                 icon: Icons.history_rounded,
                 tooltip: 'Coupons du jour',
                 onTap: () =>
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SmartHistoryScreen())),
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen())),
               ),
             ),
             const SizedBox(height: 18),
@@ -700,5 +679,33 @@ class SmartHistoryScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Ajoute des sélections (coupon intelligent ou coupon du jour) au coupon personnel, aux
+/// cotes actuelles relues sur le serveur ; une sélection sans cote disponible est comptée.
+Future<void> addSelectionsToCoupon(AppState state, List<Json> selections) async {
+  var added = 0, missing = 0;
+  try {
+    for (final s in selections) {
+      final id = s['match_id'] as int;
+      final match = MatchInfo(await state.api.get('/matches/$id') as Json);
+      final key = '${s['market']}|${s['line'] ?? ''}|${s['selection']}';
+      final offers = [for (final o in await state.api.get('/matches/$id/offer') as List) Offer(o as Json)];
+      final offer = offers.where((o) => o.key == key).firstOrNull;
+      if (offer == null) {
+        missing++;
+      } else if (!state.inCoupon(id, key)) {
+        state.toggleCoupon(match, offer);
+        added++;
+      }
+    }
+    showMessage(
+      missing > 0
+          ? '$added sélection(s) ajoutée(s) ; $missing sans cote disponible à présent.'
+          : '$added sélection(s) ajoutée(s) au coupon (onglet Coupon).',
+    );
+  } on ApiException catch (e) {
+    showMessage(e.message, error: true);
   }
 }

@@ -281,3 +281,59 @@ async def test_match_picks_free_and_premium(
     sel = full["equilibre"]["selection"]
     assert (sel["market"], sel["selection"]) == ("1X2", "home")
     assert full["equilibre"]["label"] == "Équilibré"
+
+
+async def test_day_coupons_live_state_and_booking_codes(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    """Coupons d'un jour : état en direct de chaque sélection ; code de réservation saisi
+    par l'administrateur seulement, nettoyé, vérifié, puis visible de tous."""
+    from footprono.accounts import admin
+
+    m1, m2 = world["m1"], world["m2"]
+    await _predict(db_factory, [m1, m2])
+    await _evening(db_factory, [m1, m2])
+    async with db_factory() as session:
+        await smart_coupon.create_daily(session, MORNING)
+        await session.execute(
+            update(Match).where(Match.id == m1).values(
+                api_status="2H", live_minute=58, live_home_goals=1, live_away_goals=0,
+            )
+        )  # fmt: skip
+        await session.commit()
+
+    day = (await client.get("/api/v1/smart-coupons/day", params={"day": str(DAY)})).json()
+    coupon = next(c for c in day["coupons"] if c["profile"] == "equilibre")
+    assert coupon["display_status"] == "live"
+    assert coupon["validated"] == 0
+    assert coupon["booking_codes"] == []
+    states = {s["match_id"]: s for s in coupon["selections"]}
+    assert (states[m1]["state"], states[m1]["minute"], states[m1]["score"]) == ("live", 58, [1, 0])
+    assert states[m2]["state"] == "upcoming"
+    assert set(day["summary"]) == {"yesterday", "last_30_days"}
+
+    url = f"/api/v1/admin/smart-coupons/{coupon['id']}/booking-code"
+    headers = await _login(client)
+    assert (await client.put(url, json={"code": "7HQ2K"}, headers=headers)).status_code == 403
+    async with db_factory() as session:
+        await admin.set_role(session, "+22997111111", "admin")
+        await session.commit()
+    saved = await client.put(url, json={"bookmaker": "1xbet", "code": " 7hq 2k "}, headers=headers)
+    assert saved.status_code == 200
+    bad = await client.put(url, json={"code": "AB-12"}, headers=headers)
+    assert bad.status_code == 400
+    unknown = await client.put(url, json={"bookmaker": "autre", "code": "AB12"}, headers=headers)
+    assert unknown.status_code == 400
+
+    public = (await client.get("/api/v1/smart-coupons/day", params={"day": str(DAY)})).json()
+    coupon = next(c for c in public["coupons"] if c["profile"] == "equilibre")
+    assert coupon["booking_codes"] == [{"bookmaker": "1xbet", "label": "1xBet", "code": "7HQ2K"}]
+
+    await client.put(url, json={"code": ""}, headers=headers)
+    listed = (
+        await client.get("/api/v1/admin/smart-coupons", params={"day": str(DAY)}, headers=headers)
+    ).json()
+    coupon = next(c for c in listed["coupons"] if c["profile"] == "equilibre")
+    assert coupon["booking_codes"] == []

@@ -25,6 +25,8 @@ class FakeServer {
   String paymentStatus = 'pending';
   final List<Map<String, String>> smartQueries = [];
   final List<Map<String, String>> teamQueries = [];
+  final List<Map<String, dynamic>> bookingCodes = [];
+  bool admin = false;
   int latestBuild = 50;
   bool deleted = false;
   int minimumBuild = 0;
@@ -87,7 +89,7 @@ class FakeServer {
     'country': 'BJ',
     'currency': 'XOF',
     'created_at': '2026-09-30T10:00:00Z',
-    'role': 'user',
+    'role': admin ? 'admin' : 'user',
     'plan': {
       'name': premium ? 'premium' : 'free',
       'premium_until': premium ? '2026-10-07T10:00:00Z' : null,
@@ -324,6 +326,61 @@ class FakeServer {
           'alternatives': [],
           'message': null,
         };
+      case 'GET /smart-coupons/day' || 'GET /admin/smart-coupons':
+        body = {
+          'day': '2026-10-10',
+          'coupons': [
+            {
+              'id': 1,
+              'day': '2026-10-10',
+              'profile': 'sur',
+              'profile_label': 'Sûr',
+              'selections': [
+                {...smartSel, 'result': 'pending', 'state': 'upcoming'},
+              ],
+              'total_odds': '1.30',
+              'probability': 0.8,
+              'status': 'pending',
+              'display_status': 'upcoming',
+              'validated': 0,
+              'first_kickoff': '2026-10-10T19:00:00Z',
+              'booking_codes': [],
+              'settled_at': null,
+            },
+            {
+              'id': 2,
+              'day': '2026-10-10',
+              'profile': 'equilibre',
+              'profile_label': 'Équilibré',
+              'selections': [
+                {
+                  ...smartSel,
+                  'result': 'pending',
+                  'state': 'live',
+                  'minute': 58,
+                  'score': [1, 0],
+                },
+              ],
+              'total_odds': '1.85',
+              'probability': 0.62,
+              'status': 'pending',
+              'display_status': 'live',
+              'validated': 0,
+              'first_kickoff': '2026-10-10T19:00:00Z',
+              'booking_codes': [
+                {'bookmaker': '1xbet', 'label': '1xBet', 'code': '7HQ2K'},
+              ],
+              'settled_at': null,
+            },
+          ],
+          'summary': {
+            'yesterday': {'settled': 3, 'won': 2},
+            'last_30_days': {'settled': 90, 'won': 49},
+          },
+        };
+      case 'PUT /admin/smart-coupons/1/booking-code':
+        bookingCodes.add((jsonDecode(r.body) as Map).cast<String, dynamic>());
+        body = {'day': '2026-10-10', 'coupons': [], 'summary': {}};
       case 'GET /smart-coupons/history':
         body = {
           'stats': {
@@ -1065,8 +1122,57 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Coupons du jour'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Historique complet'));
+    await tester.pumpAndSettle();
     expect(find.text('Gagné'), findsWidgets);
     expect(find.textContaining('1 gagné(s) sur 1'), findsOneWidget);
+  });
+
+  testWidgets('coupons du jour : chance, état en direct, code copié, détail', (tester) async {
+    await startApp(tester, loggedIn: true);
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') copied.add((call.arguments as Map)['text'] as String);
+      return null;
+    });
+    await tester.tap(find.text('Coupon'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Coupons du jour'));
+    await tester.pumpAndSettle();
+    expect(find.text('2 gagné(s) sur 3'), findsOneWidget);
+    expect(find.text('49 gagné(s) sur 90'), findsOneWidget);
+    expect(find.text('Code bientôt disponible'), findsOneWidget);
+    expect(find.text('En cours'), findsOneWidget);
+    expect(find.text('62$nbsp%'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Copier'));
+    await tester.tap(find.text('Copier'));
+    await tester.pumpAndSettle();
+    expect(copied, ['7HQ2K']);
+    expect(find.text('Code 7HQ2K copié : colle-le dans 1xBet.'), findsOneWidget);
+
+    await tester.tap(find.text('Équilibré'));
+    await tester.pumpAndSettle();
+    expect(find.text('en cours 58\' · 1-0'), findsOneWidget);
+    expect(find.textContaining('Sur 100 coupons comme celui-ci, environ 62 passent.'), findsOneWidget);
+  });
+
+  testWidgets('administration : code 1xBet saisi pour un coupon du jour', (tester) async {
+    final (_, server) = await startApp(tester, loggedIn: true);
+    server.admin = true;
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Administration'));
+    await tester.tap(find.text('Administration'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Codes 1xBet des coupons du jour'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 / 2'), findsOneWidget); // un code déjà saisi sur deux coupons
+    await tester.enterText(find.byType(TextField).first, 'k9dma');
+    await tester.tap(find.text('Enregistrer'));
+    await tester.pumpAndSettle();
+    expect(server.bookingCodes.single, {'bookmaker': '1xbet', 'code': 'k9dma'});
+    expect(find.text('Code enregistré.'), findsOneWidget);
   });
 
   testWidgets('Coupon intelligent : réservé à Premium', (tester) async {
