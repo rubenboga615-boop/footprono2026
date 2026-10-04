@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 # Historique d'API-Football (matchs, journées, statistiques de match : tirs, corners…)
-# pour étudier de nouveaux championnats AVANT de les ajouter à l'application.
+# pour étudier de nouvelles compétitions AVANT de les ajouter à l'application :
+# championnats, coupes d'Europe des clubs, compétitions de sélections nationales.
 # Rien n'est chargé dans la base : les fichiers sont rangés puis réunis dans une
 # archive à envoyer pour l'étude. Aucune donnée personnelle ; la clé API est lue dans
 # backend/.env et n'est jamais écrite ni affichée.
 #
-#   bash scripts/termux/api-football-history.sh               # tous les championnats ci-dessous
-#   bash scripts/termux/api-football-history.sh NOR SWE AUS   # championnats au choix
+#   bash scripts/termux/api-football-history.sh               # TOUT, par ordre de priorité
+#   bash scripts/termux/api-football-history.sh NOR SWE AUS   # compétitions au choix
+#   bash scripts/termux/api-football-history.sh COUPES        # groupe : CLUBS, COUPES ou SELECTIONS
 #   FP_AF_FROM=2016 bash scripts/termux/api-football-history.sh   # depuis 2016 (défaut 2018)
 #   FP_AF_RESERVE=3000 bash scripts/termux/api-football-history.sh  # requêtes laissées au serveur
 #
 # Coût : 1 requête par saison pour la liste des matchs, puis 1 par match terminé pour
-# ses statistiques (environ 250 par saison). Le script s'arrête de lui-même quand il ne
+# ses statistiques (environ 250 par saison de championnat). Coupes d'Europe : statistiques
+# de la phase principale seulement (pas des tours préliminaires) ; sélections nationales :
+# résultats seulement (la liste des matchs suffit, aucune statistique demandée). Le script s'arrête de lui-même quand il ne
 # reste plus que FP_AF_RESERVE requêtes du jour (défaut 1500, pour le serveur) : le
 # relancer le lendemain reprend où il s'était arrêté (rien n'est redemandé).
 # Résultat : ~/storage/downloads/api-football-historique-<date>.tar.gz (à envoyer).
@@ -28,35 +32,72 @@ from datetime import date
 import httpx
 from footprono.ingestion.quality import current_season_start
 
-# Premières divisions des pays habitués aux coupes d'Europe (et l'Australie).
-# code : (identifiant API-Football, pays chez API-Football, nom affiché)
-LEAGUES = {
-    "SWZ": (207, "Switzerland", "Suisse · Super League"),
-    "NOR": (103, "Norway", "Norvège · Eliteserien"),
-    "SWE": (113, "Sweden", "Suède · Allsvenskan"),
-    "DNK": (119, "Denmark", "Danemark · Superliga"),
-    "AUT": (218, "Austria", "Autriche · Bundesliga"),
-    "POL": (106, "Poland", "Pologne · Ekstraklasa"),
-    "ROU": (283, "Romania", "Roumanie · Liga I"),
-    "AUS": (188, "Australia", "Australie · A-League"),
-    "CZE": (345, "Czech-Republic", "Tchéquie · 1re division"),
-    "CRO": (210, "Croatia", "Croatie · HNL"),
-    "SRB": (286, "Serbia", "Serbie · Super Liga"),
-    "ISR": (383, "Israel", "Israël · Ligat ha'Al"),
-    "CYP": (318, "Cyprus", "Chypre · 1re division"),
+# code : (identifiant API-Football, pays chez API-Football, nom affiché, statistiques,
+#         mot attendu dans le nom chez API-Football)
+# statistiques : "all" tous les matchs terminés, "main" hors tours préliminaires et de
+# qualification, "none" aucune (résultats seulement). L'ordre est l'ordre de priorité.
+CLUBS = {
+    "SWZ": (207, "Switzerland", "Suisse · Super League", "all", ""),
+    "NOR": (103, "Norway", "Norvège · Eliteserien", "all", ""),
+    "SWE": (113, "Sweden", "Suède · Allsvenskan", "all", ""),
+    "DNK": (119, "Denmark", "Danemark · Superliga", "all", ""),
+    "AUT": (218, "Austria", "Autriche · Bundesliga", "all", ""),
+    "POL": (106, "Poland", "Pologne · Ekstraklasa", "all", ""),
+    "ROU": (283, "Romania", "Roumanie · Liga I", "all", ""),
+    "AUS": (188, "Australia", "Australie · A-League", "all", ""),
+    "CZE": (345, "Czech-Republic", "Tchéquie · 1re division", "all", ""),
+    "CRO": (210, "Croatia", "Croatie · HNL", "all", ""),
+    "SRB": (286, "Serbia", "Serbie · Super Liga", "all", ""),
+    "ISR": (383, "Israel", "Israël · Ligat ha'Al", "all", ""),
+    "CYP": (318, "Cyprus", "Chypre · 1re division", "all", ""),
 }
+COUPES = {
+    "UCL": (2, "World", "Ligue des Champions", "main", "champions league"),
+    "UEL": (3, "World", "Europa League", "main", "europa league"),
+    "UECL": (848, "World", "Conférence League", "main", "conference league"),
+}
+SELECTIONS = {
+    "CAN": (6, "World", "Coupe d'Afrique des Nations", "none", "africa cup of nations"),
+    "CANQ": (36, "World", "CAN · éliminatoires", "none", "qualification"),
+    "WC": (1, "World", "Coupe du Monde", "none", "world cup"),
+    "WCQ_AFR": (29, "World", "Coupe du Monde · éliminatoires Afrique", "none", "africa"),
+    "WCQ_EUR": (32, "World", "Coupe du Monde · éliminatoires Europe", "none", "europe"),
+    "WCQ_SAM": (34, "World", "Coupe du Monde · éliminatoires Amérique du Sud", "none", "south america"),
+    "EURO": (4, "World", "Euro", "none", "euro"),
+    "EUROQ": (960, "World", "Euro · éliminatoires", "none", "qualification"),
+    "UNL": (5, "World", "Ligue des Nations", "none", "nations league"),
+    "COPA": (9, "World", "Copa América", "none", "copa america"),
+    "AMICAL": (10, "World", "Matchs amicaux", "none", "friendlies"),
+}
+LEAGUES = {**CLUBS, **COUPES, **SELECTIONS}
+GROUPS = {"CLUBS": CLUBS, "COUPES": COUPES, "SELECTIONS": SELECTIONS, "TOUT": LEAGUES}
+PRELIMINARY = ("qualif", "preliminary")
+
+
+def wants_stats(code: str, item: dict) -> bool:
+    """Statistiques demandées pour ce match terminé ?"""
+    mode = LEAGUES[code][3]
+    if mode == "none":
+        return False
+    rnd = str(item["league"].get("round", "")).lower()
+    return mode == "all" or not any(word in rnd for word in PRELIMINARY)
+
+
 FINISHED = {"FT", "AET", "PEN"}
 
 key = os.environ.get("FP_API_FOOTBALL_KEY")
 if not key:
     sys.exit("FP_API_FOOTBALL_KEY absente de backend/.env")
-args = [a.upper() for a in sys.argv[1:]] or list(LEAGUES)
-unknown = [a for a in args if a not in LEAGUES]
+requested = [a.upper() for a in sys.argv[1:]] or ["TOUT"]
+unknown = [a for a in requested if a not in LEAGUES and a not in GROUPS]
 if unknown:
-    sys.exit(f"Inconnu : {', '.join(unknown)}. Choix possibles : {', '.join(LEAGUES)}")
+    sys.exit(f"Inconnu : {', '.join(unknown)}. Choix possibles : {', '.join([*GROUPS, *LEAGUES])}")
+args = list(dict.fromkeys(c for a in requested for c in (GROUPS[a] if a in GROUPS else [a])))
 first = int(os.environ.get("FP_AF_FROM", "2018"))
 reserve = int(os.environ.get("FP_AF_RESERVE", "1500"))
 current = current_season_start()
+# Saisons sur l'année civile (Norvège, Suède, sélections) : jusqu'à l'année en cours.
+last = max(current, date.today().year)
 out = os.path.expanduser("~/storage/downloads/api-football-historique")
 client = httpx.Client(
     base_url=os.environ.get("FP_AF_BASE_URL", "https://v3.football.api-sports.io"),
@@ -129,7 +170,7 @@ stopped = False
 try:
     # 1. Liste des matchs de chaque saison (peu de requêtes) : tout le tableau d'abord.
     for code in args:
-        league_id, country, label = LEAGUES[code]
+        league_id, country, label, mode, hint = LEAGUES[code]
         info_path = os.path.join(out, code, "league.json")
         if os.path.exists(info_path) and date.fromtimestamp(os.path.getmtime(info_path)) == date.today():
             info = load_json(info_path)
@@ -140,25 +181,29 @@ try:
             print(f"\n== {code} · {label} : championnat {league_id} inconnu d'API-Football, ignoré")
             continue
         got = info[0]["country"]["name"]
-        if got.replace("-", " ").lower() != country.replace("-", " ").lower():
-            print(f"\n== {code} : l'identifiant {league_id} est « {got} · {info[0]['league']['name']} », "
-                  f"pas {country} : ignoré (à signaler)")
+        name = info[0]["league"]["name"]
+        wrong_country = got.replace("-", " ").lower() != country.replace("-", " ").lower()
+        if wrong_country or hint not in name.lower():
+            print(f"\n== {code} : l'identifiant {league_id} est « {got} · {name} », "
+                  f"pas « {label} » : ignoré (à signaler)")
             continue
         print(f"\n== {code} · {got} · {info[0]['league']['name']}", flush=True)
         seasons = {s["year"]: s for s in info[0]["seasons"]}
-        for year in range(first, current + 1):
+        for year in range(first, last + 1):
             s = seasons.get(year)
             if s is None:
-                print(f"  {year} : saison absente d'API-Football")
+                if year <= current:  # pas d'édition cette année-là (Euro, CAN, Coupe du Monde…)
+                    print(f"  {year} : pas de saison chez API-Football")
                 continue
-            stats_ok = bool(((s.get("coverage") or {}).get("fixtures") or {}).get("statistics_fixtures"))
+            covered = bool(((s.get("coverage") or {}).get("fixtures") or {}).get("statistics_fixtures"))
+            stats_ok = covered and mode != "none"
             path = os.path.join(out, code, str(year), "fixtures.json")
             if not os.path.exists(path) or year >= current - 1:
                 save_json(path, get("/fixtures", league=league_id, season=year))
             fixtures = load_json(path)
             finished = sum(1 for f in fixtures if f["fixture"]["status"]["short"] in FINISHED)
-            print(f"  {year} : {len(fixtures)} matchs, {finished} terminés · "
-                  f"statistiques {'oui' if stats_ok else 'non'}", flush=True)
+            wanted = "résultats seulement" if mode == "none" else f"statistiques {'oui' if covered else 'non'}"
+            print(f"  {year} : {len(fixtures)} matchs, {finished} terminés · {wanted}", flush=True)
             plan.append((code, year, stats_ok))
 
     # 2. Statistiques de chaque match terminé (1 requête par match).
@@ -168,7 +213,7 @@ try:
             fixtures = load_json(os.path.join(out, code, str(year), "fixtures.json"))
             done = done_ids(os.path.join(out, code, str(year), "statistics.jsonl"))
             todo += sum(1 for f in fixtures if f["fixture"]["status"]["short"] in FINISHED
-                        and f["fixture"]["id"] not in done)
+                        and f["fixture"]["id"] not in done and wants_stats(code, f))
     left_today = "?" if remaining is None else max(0, remaining - reserve)
     print(f"\nStatistiques à demander : {todo} matchs (possibles aujourd'hui : {left_today})", flush=True)
     for code, year, stats_ok in plan:
@@ -179,7 +224,8 @@ try:
         stats_path = os.path.join(folder, "statistics.jsonl")
         done = done_ids(stats_path)
         pending = [f["fixture"]["id"] for f in fixtures
-                   if f["fixture"]["status"]["short"] in FINISHED and f["fixture"]["id"] not in done]
+                   if f["fixture"]["status"]["short"] in FINISHED and f["fixture"]["id"] not in done
+                   and wants_stats(code, f)]
         if not pending:
             continue
         print(f"  {code} {year} : {len(pending)} matchs", flush=True)
@@ -198,7 +244,7 @@ except KeyboardInterrupt:
     print("\nInterrompu : ce qui est téléchargé est gardé.")
 
 # 3. Résumé et archive (même partielle : utile pour commencer l'étude).
-lines = [f"API-Football, téléchargé le {date.today():%d/%m/%Y}, saisons {first}-{current}",
+lines = [f"API-Football, téléchargé le {date.today():%d/%m/%Y}, saisons {first}-{last}",
          "Par saison : matchs, terminés, avec statistiques (vides), journées.", ""]
 missing = 0
 for code in args:
@@ -209,7 +255,8 @@ for code in args:
     if not years:
         continue
     covered = {s["year"] for s in load_json(os.path.join(folder, "league.json"))[0]["seasons"]
-               if ((s.get("coverage") or {}).get("fixtures") or {}).get("statistics_fixtures")}
+               if ((s.get("coverage") or {}).get("fixtures") or {}).get("statistics_fixtures")
+               and LEAGUES[code][3] != "none"}
     lines.append(f"{code} · {LEAGUES[code][2]}")
     for year in years:
         fixtures = load_json(os.path.join(folder, str(year), "fixtures.json"))
@@ -224,12 +271,13 @@ for code in args:
         finished = [f for f in fixtures if f["fixture"]["status"]["short"] in FINISHED]
         empty = sum(1 for f in finished if f["fixture"]["id"] in stats and not stats[f["fixture"]["id"]])
         if year in covered:
-            missing += sum(1 for f in finished if f["fixture"]["id"] not in stats)
+            missing += sum(1 for f in finished if f["fixture"]["id"] not in stats and wants_stats(code, f))
         rounds = Counter(str(f["league"].get("round", "")).rsplit(" - ", 1)[0] for f in fixtures)
         lines.append(f"  {year} : {len(fixtures)} matchs, {len(finished)} terminés, "
                      + (f"{len(stats)} avec statistiques ({empty} vides) · " if year in covered
+                        else "résultats seulement · " if LEAGUES[code][3] == "none"
                         else "statistiques non couvertes · ")
-                     + ", ".join(f"{r} ({n})" for r, n in rounds.most_common()))
+                     + ", ".join(f"{r} ({n})" for r, n in rounds.most_common(8)))
 summary = os.path.join(out, "RESUME.txt")
 with open(summary, "w", encoding="utf-8") as f:
     f.write("\n".join(lines) + "\n")

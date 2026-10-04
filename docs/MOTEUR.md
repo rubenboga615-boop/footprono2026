@@ -785,3 +785,25 @@ championnat de niveau 2 à chaque exécution (une simulation de leurs saisons pa
 des 7 derniers jours (même version du moteur), et seulement calculé pour un championnat
 qui n'en a pas : 50 secondes ici. Chaque championnat commence sa simulation à sa propre
 première saison (2018 pour l'archive API-Football) ; sans cela le calcul échouait.
+
+## Collecte complète avant les études (04/10/2026)
+
+`api-football-history.sh` sans argument collecte maintenant **tout** ce qui a été
+décidé, par ordre de priorité, et se relance chaque jour jusqu'à la fin (reprise
+automatique, réserve de requêtes laissée au serveur) :
+
+1. Championnats (`CLUBS`) : Suisse, Norvège, Suède, Danemark, Autriche (déjà complets :
+   seules les saisons en cours sont relues), Pologne, Roumanie, Australie, Tchéquie,
+   Croatie, Serbie, Israël, Chypre — statistiques de chaque match.
+2. Coupes d'Europe (`COUPES`) : Ligue des Champions, Europa League, Conférence League —
+   tous les résultats, statistiques de la phase principale seulement (pas des tours
+   préliminaires et de qualification, aux équipes surtout hors des championnats couverts).
+3. Sélections nationales (`SELECTIONS`) : CAN et éliminatoires, Coupe du Monde et
+   éliminatoires (Afrique, Europe, Amérique du Sud), Euro et éliminatoires, Ligue des
+   Nations, Copa America, matchs amicaux — résultats seulement (le modèle des
+   sélections partira des résultats ; aucune statistique demandée).
+
+Groupes ou codes au choix : `api-football-history.sh COUPES`, `… CAN WC`. Le nom de chaque
+compétition chez API-Football est vérifié (pays, ou mot attendu pour les compétitions
+internationales) : un identifiant qui ne correspond pas est ignoré et signalé. Les
+études commencent quand la collecte est complète.
