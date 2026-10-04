@@ -30,6 +30,9 @@ x-backend: &backend
     FP_LOG_LEVEL: ${FP_LOG_LEVEL:-INFO}
     FP_API_FOOTBALL_KEY: ${FP_API_FOOTBALL_KEY:-}
     FP_RAW_DATA_DIR: /data/raw
+    # Historique API-Football de la console (collecte, import), envoyé depuis Termux
+    # par send-to-server.sh : la collecte reprend où elle en était.
+    FP_HISTORY_ARCHIVE_DIR: /data/history/api-football-historique
     # Politique de confidentialité (/confidentialite).
     FP_LEGAL_NAME: ${FP_LEGAL_NAME:-FootProba (société en cours d'immatriculation)}
     FP_CONTACT_EMAIL: ${FP_CONTACT_EMAIL:-[adresse e-mail à compléter]}
@@ -44,6 +47,7 @@ x-backend: &backend
     FP_CINETPAY_SITE_ID: ${FP_CINETPAY_SITE_ID:-}
   volumes:
     - raw-data:/data/raw
+    - history:/data/history
     - app-release:/data/app
     - ./secrets:/secrets:ro
   depends_on:
@@ -157,6 +161,7 @@ services:
 volumes:
   raw-data:
   app-release:
+  history:
   postgres-data:
   redis-data:
   caddy-data:

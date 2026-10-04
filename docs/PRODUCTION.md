@@ -30,14 +30,15 @@ git pull    # répondre « yes » à la première connexion
 
 1. Compte sur <https://www.hetzner.com/cloud> (carte bancaire ou PayPal).
 2. Nouveau projet → **Ajouter un serveur** :
-   emplacement au choix, image **Ubuntu 24.04**, type **CX22**,
+   emplacement au choix, image **Ubuntu 24.04**, type **CX22** (ou le plus petit type
+   « CX » à 4 Go de mémoire proposé au moment de l'achat, par ex. CX23),
    **Clé SSH** : coller la clé de l'étape 1. Le reste par défaut.
 3. Noter l'**adresse IPv4** du serveur.
 
 ## 3. Adresse DuckDNS
 
 1. <https://www.duckdns.org> → connexion (Google ou GitHub).
-2. Choisir un sous-domaine (par ex. `footprono`) → **add domain**.
+2. Choisir un sous-domaine (par ex. `footproba`) → **add domain**.
 3. Dans **current ip**, mettre l'IPv4 du serveur → **update ip**.
 
 L'IP d'un serveur Hetzner ne change pas : rien à mettre à jour ensuite.
@@ -72,7 +73,9 @@ bash scripts/termux/send-to-server.sh <ip du serveur>
 ```
 
 Copie la base complète (comptes, paris, montantes, matchs, statistiques
-collectées), la clé Firebase et la clé API-Football ; la base du serveur
+collectées), la clé Firebase, la clé API-Football et l'historique API-Football
+déjà collecté (la collecte de la console reprend sur le serveur, rien n'est
+retéléchargé) ; la base du serveur
 est sauvegardée avant d'être remplacée. Ensuite, **arrêter le serveur
 Termux** (`bash scripts/termux/stop.sh`) : sinon les deux collectent et le
 quota API-Football est consommé deux fois.

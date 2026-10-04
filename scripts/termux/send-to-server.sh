@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Transfère FootProba de Termux vers le serveur : base complète (comptes,
-# paris, données collectées), clé Firebase et clé API-Football.
+# paris, données collectées), clé Firebase, clé API-Football et historique
+# API-Football déjà collecté (la collecte de la console reprend sur le serveur).
 #   bash scripts/termux/send-to-server.sh <ip du serveur>
 # Le serveur doit être installé (deploy/install-server.sh). La base du serveur
 # est remplacée (sauvegardée avant). Termux n'est pas modifié.
@@ -36,6 +37,14 @@ key="$(grep -E '^FP_API_FOOTBALL_KEY=' "$BACKEND/.env" | cut -d= -f2- || true)"
 if [ -n "$key" ]; then
     printf '%s\n' "$key" | ssh "$REMOTE" \
         "read -r k && sed -i \"s|^FP_API_FOOTBALL_KEY=.*|FP_API_FOOTBALL_KEY=\$k|\" $DEPLOY/.env"
+fi
+
+HISTORY="$HOME/storage/downloads/api-football-historique"
+if [ -d "$HISTORY" ]; then
+    log "Envoi de l'historique API-Football ($(du -sh "$HISTORY" | cut -f1)) : rien ne sera retéléchargé"
+    tar -C "$(dirname "$HISTORY")" -czf - "$(basename "$HISTORY")" | ssh "$REMOTE" \
+        "cd $DEPLOY && docker compose -f docker-compose.yml --env-file .env run --rm -T --no-deps \
+            --entrypoint tar api -xzf - -C /data/history"
 fi
 
 log "Restauration sur le serveur"
