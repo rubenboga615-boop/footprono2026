@@ -7,6 +7,7 @@ import '../format.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'daily_coupons_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -26,6 +27,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   static IconData _icon(String kind) {
+    if (kind == 'daily_coupons') return Icons.today_rounded;
     if (kind.startsWith('montante')) return Icons.stairs_rounded;
     if (kind.startsWith('premium')) return Icons.workspace_premium_outlined;
     if (kind == 'bet_corrected') return Icons.edit_note_rounded;
@@ -78,12 +80,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               children.add(
                 GlassCard(
                   margin: const EdgeInsets.only(bottom: 12),
-                  onTap: !unread
+                  onTap: !unread && n['kind'] != 'daily_coupons'
                       ? null
                       : () async {
-                          await guard(context, () => state.api.post('/me/notifications/${n['id']}/read'));
-                          await state.refreshUnread();
-                          setState(() => _key = UniqueKey());
+                          if (unread) {
+                            await guard(context, () => state.api.post('/me/notifications/${n['id']}/read'));
+                            await state.refreshUnread();
+                            setState(() => _key = UniqueKey());
+                          }
+                          // Coupons du jour : ouvrir l'écran où copier les codes.
+                          if (n['kind'] == 'daily_coupons' && context.mounted) {
+                            await Navigator.of(context)
+                                .push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen()));
+                          }
                         },
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,

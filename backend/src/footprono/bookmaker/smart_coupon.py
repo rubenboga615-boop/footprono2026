@@ -36,6 +36,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from footprono.accounts.models import User
 from footprono.bookmaker import service, settlement
 from footprono.bookmaker.models import BetSelection
 from footprono.bookmaker.rules import automatic
@@ -44,6 +45,7 @@ from footprono.core.errors import AppError, NotFoundError
 from footprono.football.analysis import match_analysis
 from footprono.football.models import Competition, Match, MatchStatus, Season, Team
 from footprono.ingestion.live import LIVE_STATUSES
+from footprono.notifications import service as notifications
 
 
 @dataclass(frozen=True)
@@ -749,3 +751,48 @@ async def set_booking_code(
     coupon.booking_codes = codes
     await session.commit()
     return await day_coupons(session, coupon.day)
+
+
+async def notify_ready(session: AsyncSession, now: datetime | None = None) -> int:
+    """Notification « coupons du jour disponibles », une seule fois par jour, dès que chaque
+    coupon du jour a son code 1xBet ; aux comptes actifs qui ne l'ont pas désactivée.
+
+    Enregistrée dans la transaction ; l'appelant la diffuse ensuite (``publish_pending``).
+    Renvoie le nombre de comptes prévenus.
+    """
+    now = now or datetime.now(UTC)
+    coupons = (
+        await session.scalars(
+            select(SmartCoupon).where(SmartCoupon.day == now.date()).order_by(SmartCoupon.id)
+        )
+    ).all()
+    if (
+        not coupons
+        or any(c.notified_at is not None for c in coupons)
+        or not all("1xbet" in c.booking_codes for c in coupons)
+    ):
+        return 0
+    order = list(PROFILES)
+    parts = [
+        f"{PROFILES[c.profile].label} {str(c.total_odds).replace('.', ',')}"
+        for c in sorted(coupons, key=lambda c: order.index(c.profile))
+    ]
+    body = " · ".join(parts) + " : chance estimée et code 1xBet à copier dans l'application."
+    users = (
+        await session.scalars(
+            select(User.id).where(User.is_active, User.daily_coupons_notifications)
+        )
+    ).all()
+    for user_id in users:
+        notifications.add(
+            session,
+            user_id,
+            "daily_coupons",
+            "Coupons du jour disponibles",
+            body,
+            {"screen": "daily_coupons", "day": now.date().isoformat()},
+        )
+    for c in coupons:
+        c.notified_at = now
+    await session.commit()
+    return len(users)

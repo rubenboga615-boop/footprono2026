@@ -8,6 +8,7 @@ import 'package:footprono/api/client.dart';
 import 'package:footprono/format.dart';
 import 'package:footprono/desktop/desktop_shell.dart';
 import 'package:footprono/main.dart';
+import 'package:footprono/screens/daily_coupons_screen.dart';
 import 'package:footprono/screens/notifications_screen.dart';
 import 'package:footprono/state/app_state.dart';
 import 'package:footprono/theme.dart';
@@ -27,6 +28,7 @@ class FakeServer {
   final List<Map<String, String>> teamQueries = [];
   final List<Map<String, dynamic>> bookingCodes = [];
   bool admin = false;
+  bool dailyNotifications = true;
   int latestBuild = 50;
   bool deleted = false;
   int minimumBuild = 0;
@@ -99,6 +101,7 @@ class FakeServer {
       'premium_currency': 'XOF',
     },
     'wallet': {'currency': 'XOF', 'balance': 100000, 'last_refill_at': null},
+    'daily_coupons_notifications': dailyNotifications,
     'virtual_money': true,
   };
 
@@ -132,6 +135,9 @@ class FakeServer {
       case 'GET /payments/1':
         if (paymentStatus == 'accepted') premium = true;
         body = {'id': 1, 'status': paymentStatus};
+      case 'PUT /me/preferences':
+        dailyNotifications = (jsonDecode(r.body) as Map)['daily_coupons_notifications'] as bool;
+        return http.Response('', 204);
       case 'POST /me/devices':
         devices.add((jsonDecode(r.body) as Map)['token'] as String);
         return http.Response('', 204);
@@ -653,7 +659,7 @@ class FakeInstaller implements ApkInstaller {
 
 class FakePush implements PushBridge {
   final refresh = StreamController<String>.broadcast();
-  final tapped = StreamController<void>.broadcast();
+  final tapped = StreamController<String?>.broadcast();
   final received = StreamController<PushMessage>.broadcast();
   String? current = 'jeton-telephone-1';
 
@@ -662,7 +668,7 @@ class FakePush implements PushBridge {
   @override
   Stream<String> get tokenRefresh => refresh.stream;
   @override
-  Stream<void> get opened => tapped.stream;
+  Stream<String?> get opened => tapped.stream;
   @override
   Future<bool> openedAtLaunch() async => false;
   @override
@@ -1044,6 +1050,13 @@ void main() {
     Navigator.of(tester.element(find.byType(NotificationsScreen))).pop();
     await tester.pumpAndSettle();
 
+    // « Coupons du jour disponibles » touchée : directement l'écran des coupons du jour.
+    push.tapped.add('daily_coupons');
+    await tester.pumpAndSettle();
+    expect(find.byType(DailyCouponsScreen), findsOneWidget);
+    Navigator.of(tester.element(find.byType(DailyCouponsScreen))).pop();
+    await tester.pumpAndSettle();
+
     await state.logout();
     await tester.pumpAndSettle();
     expect(server.devices, ['jeton-telephone-1']);
@@ -1155,6 +1168,22 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('en cours 58\' · 1-0'), findsOneWidget);
     expect(find.textContaining('Sur 100 coupons comme celui-ci, environ 62 passent.'), findsOneWidget);
+  });
+
+  testWidgets('profil : notification des coupons du jour désactivée puis réactivée', (tester) async {
+    final (state, server) = await startApp(tester, loggedIn: true);
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+    final toggle = find.widgetWithText(SwitchListTile, 'Coupons du jour');
+    await tester.ensureVisible(toggle);
+    expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(server.dailyNotifications, isFalse);
+    expect(state.me!.dailyCouponsNotifications, isFalse);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(server.dailyNotifications, isTrue);
   });
 
   testWidgets('administration : code 1xBet saisi pour un coupon du jour', (tester) async {

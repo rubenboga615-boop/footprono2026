@@ -53,7 +53,12 @@ class MeOut(BaseModel):
     role: str
     plan: PlanOut
     wallet: WalletOut
+    daily_coupons_notifications: bool = True
     virtual_money: bool = True  # argent fictif : rappel pour l'application
+
+
+class PreferencesIn(BaseModel):
+    daily_coupons_notifications: bool
 
 
 class WalletEntryOut(BaseModel):

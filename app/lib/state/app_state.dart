@@ -52,8 +52,8 @@ abstract class PushBridge {
   Future<String?> token();
   Stream<String> get tokenRefresh;
 
-  /// Notification touchée alors que l'application tournait en arrière-plan.
-  Stream<void> get opened;
+  /// Notification touchée alors que l'application tournait en arrière-plan (son type).
+  Stream<String?> get opened;
 
   /// L'application a été lancée en touchant une notification.
   Future<bool> openedAtLaunch();
@@ -109,6 +109,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Incrémenté quand l'utilisateur touche une notification : l'écran des
   /// notifications s'ouvre.
   final notificationOpened = ValueNotifier<int>(0);
+
+  /// Type de la dernière notification touchée (« daily_coupons » : écran des coupons du jour).
+  String? openedKind;
   String? _pushToken;
   StreamSubscription<String>? _pushRefreshSub;
   StreamSubscription<void>? _pushOpenedSub;
@@ -244,6 +247,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     coupon.clear();
     unread = 0;
     await _prefs?.remove(_kToken);
+  }
+
+  /// Active ou coupe la notification quotidienne des coupons du jour.
+  Future<void> setDailyCouponsNotifications(bool on) async {
+    await api.put('/me/preferences', {'daily_coupons_notifications': on});
+    await refreshMe();
   }
 
   Future<void> refreshMe() async {
@@ -451,7 +460,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _registerPush({bool atLaunch = false}) async {
     final p = push;
     if (p == null || api.token == null) return;
-    _pushOpenedSub ??= p.opened.listen((_) => notificationOpened.value += 1);
+    _pushOpenedSub ??= p.opened.listen((kind) {
+      openedKind = kind;
+      notificationOpened.value += 1;
+    });
     // Les notifications de paris arrivent aussi par le direct (WebSocket) : pas de
     // doublon, sauf si le direct est coupé. L'essai de l'administrateur n'existe
     // qu'en push.
@@ -459,7 +471,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (m.kind == 'test' || _socket == null) showMessage(m.text);
     });
     try {
-      if (atLaunch && await p.openedAtLaunch()) notificationOpened.value += 1;
+      if (atLaunch && await p.openedAtLaunch()) {
+        openedKind = null;
+        notificationOpened.value += 1;
+      }
       final token = await p.token();
       if (token == null) return;
       await _sendPushToken(token);

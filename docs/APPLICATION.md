@@ -164,7 +164,13 @@ Projet Firebase « footprono-56616 », application Android `com.footprono.footpr
 - Le serveur envoie chaque notification (pari réglé, palier de montante…) en
   direct dans l'application **et** sur les téléphones enregistrés (Firebase
   Cloud Messaging, API HTTP v1), canal Android « Paris et montantes ».
-- Toucher la notification ouvre l'écran des notifications.
+- Toucher la notification ouvre l'écran des notifications (« Coupons du jour
+  disponibles » : directement l'écran des coupons du jour).
+- **Coupons du jour disponibles** : envoyée une seule fois par jour, au plus
+  2 minutes après la saisie du dernier code 1xBet du jour par l'administrateur
+  (tâche `follow_live`), à tous les comptes actifs sauf ceux qui l'ont coupée
+  (Profil → « Coupons du jour », `PUT /me/preferences`). Sans codes saisis, rien
+  n'est envoyé.
 - Côté serveur : clé du compte de service, secrète, hors du dépôt
   (`FP_FCM_CREDENTIALS_FILE`). Sur Termux :
   `bash scripts/termux/install-firebase.sh ~/storage/downloads/<clé>.json`,

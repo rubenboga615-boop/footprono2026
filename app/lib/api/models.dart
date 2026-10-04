@@ -33,7 +33,8 @@ class Me {
       role = j['role'] as String? ?? 'user',
       plan = Plan(j['plan'] as Json? ?? const {}),
       balance = (j['wallet'] as Json?)?['balance'] as int? ?? 0,
-      lastRefill = parseDate((j['wallet'] as Json?)?['last_refill_at']);
+      lastRefill = parseDate((j['wallet'] as Json?)?['last_refill_at']),
+      dailyCouponsNotifications = j['daily_coupons_notifications'] as bool? ?? true;
   final int id;
   final String phone;
   final String displayName;
@@ -43,6 +44,9 @@ class Me {
   final Plan plan;
   final int balance;
   final DateTime? lastRefill;
+
+  /// Notification quotidienne « coupons du jour disponibles ».
+  final bool dailyCouponsNotifications;
   bool get isAdmin => role == 'admin';
 }
 

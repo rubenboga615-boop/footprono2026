@@ -337,3 +337,51 @@ async def test_day_coupons_live_state_and_booking_codes(
     ).json()
     coupon = next(c for c in listed["coupons"] if c["profile"] == "equilibre")
     assert coupon["booking_codes"] == []
+
+
+async def test_daily_coupons_notification_once_all_codes_are_in(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    """« Coupons du jour disponibles » : rien tant qu'un code manque, puis une seule fois ;
+    jamais pour un compte qui l'a désactivée."""
+    from sqlalchemy import select
+
+    from footprono.notifications.models import Notification
+
+    m1, m2 = world["m1"], world["m2"]
+    await _predict(db_factory, [m1, m2])
+    await _evening(db_factory, [m1, m2])
+    async with db_factory() as session:
+        await smart_coupon.create_daily(session, MORNING)
+        day = await smart_coupon.day_coupons(session, DAY, MORNING)
+        ids = [c["id"] for c in day["coupons"]]
+        assert len(ids) == 2  # « sûr » : aucune sélection ce jour-là
+        await smart_coupon.set_booking_code(session, ids[0], "1xbet", "AAAA1")
+        assert await smart_coupon.notify_ready(session, MORNING) == 0  # un code manque
+        await smart_coupon.set_booking_code(session, ids[1], "1xbet", "BBBB2")
+        assert await smart_coupon.notify_ready(session, MORNING) == 1
+        assert await smart_coupon.notify_ready(session, MORNING) == 0  # une seule fois
+        note = await session.scalar(
+            select(Notification).where(Notification.kind == "daily_coupons")
+        )
+    assert note is not None
+    assert note.title == "Coupons du jour disponibles"
+    assert note.body.startswith("Équilibré ")
+    assert note.data == {"screen": "daily_coupons", "day": str(DAY)}
+
+    headers = await _login(client)
+    assert (await client.get("/api/v1/me", headers=headers)).json()["daily_coupons_notifications"]
+    off = await client.put(
+        "/api/v1/me/preferences", json={"daily_coupons_notifications": False}, headers=headers
+    )
+    assert off.status_code == 204
+    me = (await client.get("/api/v1/me", headers=headers)).json()
+    assert me["daily_coupons_notifications"] is False
+    async with db_factory() as session:
+        await session.execute(
+            update(smart_coupon.SmartCoupon).values(notified_at=None)
+        )  # nouveau jour simulé
+        await session.commit()
+        assert await smart_coupon.notify_ready(session, MORNING) == 0  # désactivée

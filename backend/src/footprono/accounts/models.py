@@ -17,6 +17,7 @@ from sqlalchemy import (
     Integer,
     String,
     func,
+    true,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,6 +35,10 @@ class User(Base):
     country: Mapped[str] = mapped_column(String(2))  # ISO 3166-1 alpha-2
     currency: Mapped[str] = mapped_column(String(3))  # ISO 4217
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Notification quotidienne « coupons du jour disponibles » (désactivable dans le profil).
+    daily_coupons_notifications: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true()
+    )
     # « user » ou « admin » (administration : abonnements, suivi des données).
     role: Mapped[str] = mapped_column(String(8), default="user")
     # Premium actif jusqu'à cette date (essai de 7 jours à l'inscription, puis

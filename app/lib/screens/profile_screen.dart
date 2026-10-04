@@ -237,6 +237,20 @@ class ProfileScreen extends StatelessWidget {
                           onTap: () => open(const NotificationsScreen()),
                         ),
                         const Divider(),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          secondary: const Icon(Icons.today_rounded, color: Fp.accentLight, size: 22),
+                          title: Text('Coupons du jour', style: Fp.body(16, weight: FontWeight.w700)),
+                          subtitle: Text(
+                            'Prévenir quand les codes du jour sont prêts',
+                            style: Fp.body(13, color: Fp.text2),
+                          ),
+                          value: me?.dailyCouponsNotifications ?? true,
+                          onChanged: me == null
+                              ? null
+                              : (on) => guard(context, () => state.setDailyCouponsNotifications(on)),
+                        ),
+                        const Divider(),
                         _Item(
                           icon: Icons.auto_awesome_outlined,
                           title: 'Fiabilité du modèle',

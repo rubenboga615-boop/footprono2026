@@ -36,6 +36,10 @@ async def _settle(engine: AsyncEngine, settings: Settings) -> dict[str, Any]:
             report = await settlement.settle_bets(session, redis=redis, push=push)
         async with create_session_factory(engine)() as session:
             report["smart_coupons"] = await smart_coupon.settle_pending(session)
+        # Tous les codes 1xBet du jour saisis : « coupons du jour disponibles » (une fois).
+        async with create_session_factory(engine)() as session:
+            report["daily_coupons_notified"] = await smart_coupon.notify_ready(session)
+            await notifications.publish_pending(session, redis, push)
         return report
     finally:
         await redis.aclose()

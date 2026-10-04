@@ -14,6 +14,7 @@ from footprono.accounts.schemas import (
     MeOut,
     PasswordIn,
     PlanOut,
+    PreferencesIn,
     RegisterIn,
     TokenOut,
     WalletEntryOut,
@@ -110,7 +111,15 @@ async def me(user: CurrentUserDep, session: SessionDep) -> MeOut:
         role=user.role,
         plan=PlanOut(**plan_info(user)),
         wallet=WalletOut.model_validate(wallet),
+        daily_coupons_notifications=user.daily_coupons_notifications,
     )
+
+
+@router.put("/me/preferences", status_code=status.HTTP_204_NO_CONTENT)
+async def set_preferences(body: PreferencesIn, user: CurrentUserDep, session: SessionDep) -> None:
+    """Réglages du compte : notification quotidienne des coupons du jour."""
+    user.daily_coupons_notifications = body.daily_coupons_notifications
+    await session.commit()
 
 
 @router.get("/me/wallet/entries", response_model=list[WalletEntryOut])

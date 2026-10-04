@@ -37,7 +37,7 @@ class FirebasePush implements PushBridge {
   Stream<String> get tokenRefresh => _fm.onTokenRefresh;
 
   @override
-  Stream<void> get opened => FirebaseMessaging.onMessageOpenedApp.map((_) {});
+  Stream<String?> get opened => FirebaseMessaging.onMessageOpenedApp.map((m) => m.data['kind']?.toString());
 
   @override
   Future<bool> openedAtLaunch() async => await _fm.getInitialMessage() != null;

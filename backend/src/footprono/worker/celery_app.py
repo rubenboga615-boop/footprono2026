@@ -8,7 +8,9 @@ Tâches planifiées (UTC) :
 - ``footprono.ingest_current_season`` chaque matin à 06:15 (football-data met
   à jour ses fichiers dans la nuit qui suit les matchs).
 - ``footprono.follow_live`` toutes les 2 minutes : score en direct, puis résultat
-  et statistiques dès la fin du match (aucune requête sans match en cours).
+  et statistiques dès la fin du match (aucune requête sans match en cours) ;
+  règlement des paris et des coupons du jour, et notification « coupons du jour
+  disponibles » dès que tous leurs codes 1xBet sont saisis.
 - ``footprono.collect_odds`` toutes les 3 heures (01:30, 04:30, 07:30… 22:30) :
   cotes des bookmakers des matchs à venir (20 à 50 requêtes par relevé).
 - ``footprono.predict_upcoming`` à 07:45 (après l'ingestion) et à 16:45 (nouveaux

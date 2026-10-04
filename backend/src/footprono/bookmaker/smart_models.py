@@ -46,5 +46,8 @@ class SmartCoupon(Base):
     booking_codes: Mapped[dict[str, str]] = mapped_column(
         JSONB, default=dict, server_default=text("'{}'::jsonb")
     )
+    # Notification « coupons du jour disponibles » envoyée (une fois, quand tous les
+    # coupons du jour ont leur code).
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

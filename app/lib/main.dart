@@ -15,6 +15,7 @@ import 'push.dart';
 import 'screens/auth_screen.dart';
 import 'screens/bookmaker_screen.dart';
 import 'screens/coupon_screen.dart';
+import 'screens/daily_coupons_screen.dart';
 import 'screens/matches_screen.dart';
 import 'screens/montante_screen.dart';
 import 'screens/notifications_screen.dart';
@@ -208,7 +209,10 @@ class HomeShellState extends State<HomeShell> {
     final n = _state.notificationOpened.value;
     if (!mounted || n == _openedSeen) return;
     _openedSeen = n;
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+    final page = _state.openedKind == 'daily_coupons'
+        ? const DailyCouponsScreen()
+        : const NotificationsScreen();
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
   final _desk = GlobalKey<DesktopShellState>();
