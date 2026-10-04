@@ -7,6 +7,11 @@
 # Relancer met à jour le code et redémarre (secrets et base conservés).
 # Voir docs/PRODUCTION.md.
 set -euo pipefail
+# Script lu sur l'entrée standard (« ssh … bash -s < install-server.sh ») : tout
+# le corps est entre accolades, donc lu en entier avant d'être exécuté. Sinon une
+# commande qui lit l'entrée standard (ssh lancé par git) avalerait la suite du
+# script, qui s'arrêterait sans message.
+{
 
 DOMAIN="${1:-}"
 REPO="${FP_REPO:-git@github.com:rubenboga615-boop/footprono2026.git}"
@@ -63,7 +68,7 @@ if ! grep -q "footprono_deploy" /root/.ssh/config 2>/dev/null; then
 fi
 ssh-keyscan -q github.com >> /root/.ssh/known_hosts 2>/dev/null
 sort -u -o /root/.ssh/known_hosts /root/.ssh/known_hosts
-if ! git ls-remote -q "$REPO" >/dev/null 2>&1; then
+if ! git ls-remote -q "$REPO" </dev/null >/dev/null 2>&1; then
     echo
     warn "le serveur n'a pas encore accès au dépôt privé. Sur GitHub : dépôt footprono2026"
     echo "  → Settings → Deploy keys → Add deploy key (titre : serveur, « Allow write » décoché),"
@@ -77,11 +82,11 @@ fi
 
 log "Code ($BRANCH)"
 if [ -d "$DIR/.git" ]; then
-    git -C "$DIR" fetch -q origin "$BRANCH"
+    git -C "$DIR" fetch -q origin "$BRANCH" </dev/null
     git -C "$DIR" checkout -q "$BRANCH"
     git -C "$DIR" reset -q --hard "origin/$BRANCH"
 else
-    git clone -q --branch "$BRANCH" "$REPO" "$DIR"
+    git clone -q --branch "$BRANCH" "$REPO" "$DIR" </dev/null
 fi
 cd "$DIR/deploy"
 
@@ -106,7 +111,7 @@ if [ -n "$ip" ] && [ "$dns" != "$ip" ]; then
 fi
 
 log "Construction et démarrage (première fois : quelques minutes)"
-docker compose -f docker-compose.yml --env-file .env up -d --build --remove-orphans
+docker compose -f docker-compose.yml --env-file .env up -d --build --remove-orphans </dev/null
 
 log "Attente de https://$DOMAIN/api/v1/ready"
 for _ in $(seq 1 60); do
@@ -120,3 +125,4 @@ done
 warn "pas de réponse en HTTPS après 5 minutes. Diagnostic :"
 echo "  docker compose -f $DIR/deploy/docker-compose.yml logs --tail 50 caddy api"
 exit 1
+}
