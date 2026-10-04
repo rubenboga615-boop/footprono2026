@@ -91,6 +91,13 @@ GitHub → dépôt → Settings → Secrets and variables → Actions → **Vari
 ensuite se connectent au serveur. Sur un téléphone déjà installé :
 Profil → Serveur → la même adresse.
 
+Publier une version sur le serveur (proposée aux téléphones à l'ouverture), depuis
+Termux, avec l'archive `footprono-apk.zip` téléchargée dans GitHub Actions :
+
+```bash
+FP_SERVEUR=<ip du serveur> bash scripts/termux/publish-apk.sh "Nouveautés…"
+```
+
 ## 7. Paiement Mobile Money (CinetPay)
 
 1. Compte marchand sur <https://cinetpay.com> (pièce d'identité ; validation
