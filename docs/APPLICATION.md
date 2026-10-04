@@ -241,6 +241,8 @@ connectés (jeton valable 30 jours) : à traiter avec la sécurité (phase 6).
   historique depuis 2018, importé de l'archive déjà téléchargée par
   `api-football-history.sh`, sans requête :
   `bash scripts/termux/ingest.sh api-football --from-dir ~/storage/downloads/api-football-historique --competitions SUI,NOR,SWE,DEN,AUT --seasons 2018-2026`.
+  Même import depuis la console d'administration (`/admin`, « Importer l'historique
+  API-Football »).
   Ensuite, la collecte habituelle (cotes, direct, ingestion du matin) les tient à jour.
   Norvège et Suède : saison sur l'année civile. Barrages contre une équipe de division
   inférieure écartés ; match donné sur tapis vert (« AWD » chez API-Football) : score

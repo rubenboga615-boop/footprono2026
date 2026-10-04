@@ -433,3 +433,20 @@ def test_history_collection_stops_at_reserve_and_on_request(
     )
     assert report.stopped == "admin"
     assert report.missing == 3
+
+
+async def test_console_pages_are_served_with_strict_headers(client: AsyncClient) -> None:
+    r = await client.get("/admin")
+    assert (r.status_code, r.headers["location"]) == (307, "/admin/")
+    page = await client.get("/admin/")
+    assert page.status_code == 200
+    assert '<script src="admin.js" defer></script>' in page.text
+    assert "script-src 'self'" in page.headers["content-security-policy"]
+    assert "frame-ancestors 'none'" in page.headers["content-security-policy"]
+    assert page.headers["x-frame-options"] == "DENY"
+    assert page.headers["cache-control"] == "no-store"
+    script = await client.get("/admin/admin.js")
+    assert script.status_code == 200
+    assert "/admin/console" in script.text
+    # Aucune donnée insérée en HTML brut.
+    assert "innerHTML" not in script.text

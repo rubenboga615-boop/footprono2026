@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>FootProno · Console</title>
+<link rel="stylesheet" href="admin.css">
+<script src="admin.js" defer></script>
+</head>
+<body>
+<div id="login" class="login" hidden>
+  <form id="login-form" class="login-card" autocomplete="on">
+    <div class="brand">Foot<span>Prono</span> · Console</div>
+    <p class="muted">Réservée aux comptes administrateur.</p>
+    <label class="lbl" for="phone">Numéro de téléphone</label>
+    <input id="phone" class="input" name="phone" type="tel" autocomplete="username" required>
+    <label class="lbl" for="password">Mot de passe</label>
+    <input id="password" class="input" name="password" type="password" autocomplete="current-password" required>
+    <p id="login-error" class="error" hidden></p>
+    <button class="btn" type="submit">Se connecter</button>
+  </form>
+</div>
+
+<div id="shell" class="shell" hidden>
+  <aside class="side" id="side">
+    <div class="brand">Foot<span>Prono</span> · Console</div>
+    <nav class="nav">
+      <a href="#/" data-page="dashboard">▣ Tableau de bord</a>
+      <a href="#/actions" data-page="actions">⚡ Actions</a>
+      <a href="#/journal" data-page="journal">☰ Journal</a>
+      <div class="grp">Exploitation</div>
+      <a href="#/codes" data-page="codes">🎟 Codes du jour</a>
+      <a href="#/comptes" data-page="comptes">👤 Comptes et Premium</a>
+    </nav>
+    <div class="side-foot">
+      <div id="who" class="muted small"></div>
+      <button id="logout" class="btn ghost small" type="button">Se déconnecter</button>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <button id="menu" class="btn ghost menu" type="button" aria-label="Menu">☰</button>
+      <h1 id="title">Console</h1>
+      <span id="status" class="chip"></span>
+    </header>
+    <main id="view" class="view"></main>
+  </div>
+</div>
+</body>
+</html>

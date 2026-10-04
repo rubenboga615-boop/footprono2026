@@ -807,3 +807,10 @@ Groupes ou codes au choix : `api-football-history.sh COUPES`, `… CAN WC`. Le n
 compétition chez API-Football est vérifié (pays, ou mot attendu pour les compétitions
 internationales) : un identifiant qui ne correspond pas est ignoré et signalé. Les
 études commencent quand la collecte est complète.
+
+La même collecte se lance maintenant depuis la console d'administration (`/admin`,
+action « Collecter l'historique API-Football ») : même code
+(`backend/src/footprono/ingestion/history.py`, utilisé aussi par le script), même
+dossier (`FP_HISTORY_ARCHIVE_DIR`), l'une reprend où l'autre s'est arrêtée ; journal
+et progression en direct, arrêt propre, archive pour l'étude, et import en base des
+compétitions déjà dans l'application.

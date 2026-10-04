@@ -4,6 +4,7 @@ import html
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,18 @@ from footprono.db.session import create_engine, create_session_factory
 # Date de la version en vigueur des pages légales (confidentialité, conditions) : à
 # changer à chaque modification importante du texte.
 LEGAL_EFFECTIVE_DATE = "2 octobre 2026"
+
+ADMIN_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+    ),
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Cache-Control": "no-store",
+    "X-Robots-Tag": "noindex, nofollow",
+}
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -110,6 +123,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     for route in pages:
         app.add_api_route(route, legal_page, methods=["GET"], include_in_schema=False)
+
+    # Console d'administration (pages statiques ; les données passent par /api/v1/admin,
+    # réservé au rôle administrateur). En-têtes stricts : aucun script ni style venu
+    # d'ailleurs, pas d'affichage dans un cadre, rien en cache.
+    admin_dir = Path(__file__).parent / "web" / "admin"
+    app.mount("/admin", StaticFiles(directory=admin_dir, html=True), name="admin")
+
+    @app.get("/admin", include_in_schema=False)
+    async def admin_home() -> RedirectResponse:
+        return RedirectResponse("/admin/")
+
+    @app.middleware("http")
+    async def admin_headers(request: Request, call_next: Any) -> Response:
+        response: Response = await call_next(request)
+        if request.url.path.startswith("/admin"):
+            response.headers.update(ADMIN_HEADERS)
+        return response
 
     @app.get("/metrics", include_in_schema=False)
     async def metrics() -> Response:

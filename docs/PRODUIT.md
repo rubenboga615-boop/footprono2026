@@ -31,6 +31,53 @@ Code : `backend/src/footprono/accounts/plans.py`, `accounts/admin.py`,
 - `GET /me` renvoie le rôle et la formule : `plan.name` (free / premium),
   `premium_until`, `days_left`, marchés gratuits, prix.
 
+## Console d'administration (/admin)
+
+Outil web réservé aux comptes administrateur, servi par le serveur à l'adresse
+`/admin` (ex. `http://<serveur>:8000/admin`), sur ordinateur et sur téléphone, sans
+rien installer. Connexion avec le numéro et le mot de passe d'un compte
+administrateur (`admin.sh make-admin`). L'application des joueurs ne contient aucun
+outil de la console.
+
+- **Tableau de bord** : services (base, Redis, worker), disque, comptes, dernières
+  exécutions des tâches automatiques (ingestion, pronostics, cotes, coupons du jour),
+  qualité, et **ce qui est à traiter** (codes 1xBet à saisir, erreurs de qualité,
+  paiements en attente, cotes non relevées depuis 7 h, service arrêté).
+- **Actions** : catalogue fourni par le serveur (`backend/src/footprono/console/actions.py`).
+  Chaque action indique sa famille, son risque (lecture seule, modifie les données,
+  irréversible — confirmation obligatoire), son coût en requêtes et sa durée, et ses
+  réglages. **Une action ajoutée par une mise à jour du serveur apparaît d'elle-même**
+  après le `git pull` et le redémarrage, sans nouvelle version de l'application.
+  Premières actions : mettre à jour la saison en cours, collecter l'historique
+  API-Football (reprise automatique, arrêt à la réserve du jour, archive pour les études,
+  import en base des compétitions déjà intégrées), importer l'historique, relever les
+  cotes, recalculer les pronostics, créer les coupons du jour, notification d'essai,
+  couverture, qualité, quota API-Football.
+- **Suivi** : une action lancée est exécutée par le worker ; la page de la tâche montre
+  la progression et le journal en direct, permet d'arrêter une tâche longue (collecte)
+  et de la relancer avec les mêmes réglages. Notification de l'administrateur à la fin.
+  Une seule grosse tâche à la fois (collecte, import, pronostics, mise à jour) ; une
+  tâche sans signe de vie depuis 30 minutes (serveur redémarré) est marquée interrompue
+  et n'est jamais relancée d'elle-même.
+- **Journal** : toutes les actions lancées, avec leur auteur, leurs réglages et leur résumé.
+- **Codes du jour** et **Comptes et Premium** : les écrans d'administration existants
+  (saisie des codes 1xBet, recherche de compte, Premium, désactivation).
+
+Restent hors de la console, sur le serveur : mise à jour (`git pull`), redémarrage,
+secrets (`backend/.env`, clés), sauvegardes. Sécurité : routes `/api/v1/admin/console`
+réservées au rôle administrateur ; pages servies avec une politique de contenu stricte
+(aucun script ni style extérieur, pas d'affichage dans un cadre, rien en cache) ; jeton
+gardé seulement le temps de l'onglet.
+
+| Route (administrateur seulement) | Rôle |
+|---|---|
+| `GET /admin/console/actions` | catalogue des actions et de leurs réglages |
+| `GET /admin/console/dashboard` | tableau de bord |
+| `POST /admin/console/jobs` | lancer une action (`confirmed` pour une action irréversible) |
+| `GET /admin/console/jobs` | journal des actions |
+| `GET /admin/console/jobs/{id}?after=n` | état, progression et lignes de journal après la n° `n` |
+| `POST /admin/console/jobs/{id}/stop` | annuler (en attente) ou arrêter proprement (en cours) |
+
 ## Administration
 
 Chaque changement d'abonnement est inscrit dans `subscription_events`

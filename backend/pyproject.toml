@@ -68,6 +68,7 @@ footprono = [
     "db/migrations/versions/*.py",
     "ingestion/reference/*.csv",
     "web/*.html",
+    "web/admin/*",
 ]
 
 [tool.pytest.ini_options]
