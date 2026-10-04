@@ -84,6 +84,8 @@ class Settings(BaseSettings):
 
     # Fichiers bruts archivés (football-data, Understat…), nommés par empreinte.
     raw_data_dir: Path = Path("data/raw")
+    # Archive de l'historique API-Football (collecte de la console, import) ; « ~ » accepté.
+    history_archive_dir: Path = Path("~/storage/downloads/api-football-historique")
     # Politique de confidentialité (/confidentialite) : identité et contact du responsable.
     legal_name: str = "FootProno (société en cours d'immatriculation)"
     contact_email: str = "[adresse e-mail à compléter]"

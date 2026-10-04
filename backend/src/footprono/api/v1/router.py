@@ -5,6 +5,7 @@ from footprono.api.v1 import (
     admin,
     app_release,
     bets,
+    console,
     football,
     health,
     montantes,
@@ -19,6 +20,7 @@ api_router.include_router(health.router)
 api_router.include_router(app_release.router)
 api_router.include_router(accounts.router)
 api_router.include_router(admin.router)
+api_router.include_router(console.router)
 api_router.include_router(bets.router)
 api_router.include_router(montantes.router)
 api_router.include_router(notifications.router)

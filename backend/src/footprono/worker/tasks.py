@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from footprono import __version__
 from footprono.bookmaker import settlement, smart_coupon
 from footprono.cache.redis import create_redis
+from footprono.console import jobs as console_jobs
 from footprono.core.config import Settings, get_settings
 from footprono.core.errors import AppError
 from footprono.db.session import create_engine, create_session_factory
@@ -222,6 +223,25 @@ async def _check_payments() -> dict[str, Any]:
             await push.aclose()
         await engine.dispose()
     return {"status": "ok", "checked": len(pending), **counts}
+
+
+# Acquittée dès la réception : une action de la console (collecte de plusieurs heures)
+# n'est jamais relancée d'elle-même après un redémarrage ; elle est marquée interrompue
+# et l'administrateur décide (console/jobs.py).
+@celery_app.task(name="footprono.run_admin_job", acks_late=False)
+def run_admin_job(job_id: int) -> dict[str, Any]:
+    """Exécute une action lancée depuis la console d'administration."""
+    return asyncio.run(_run_admin_job(job_id))
+
+
+async def _run_admin_job(job_id: int) -> dict[str, Any]:
+    settings = get_settings()
+    engine = create_engine(settings)
+    try:
+        status = await console_jobs.run_job(create_session_factory(engine), settings, job_id)
+    finally:
+        await engine.dispose()
+    return {"job_id": job_id, "status": status}
 
 
 @worker_ready.connect
