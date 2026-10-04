@@ -29,8 +29,8 @@ from footprono.db.session import create_engine, create_session_factory
 from footprono.football.models import DataSource
 from footprono.ingestion.coverage import coverage_report, format_coverage
 from footprono.ingestion.live import collect_injuries, collect_odds, follow_live
-from footprono.ingestion.quality import current_season_start, run_quality_checks
-from footprono.ingestion.reference import COMPETITIONS, COMPETITIONS_BY_CODE
+from footprono.ingestion.quality import run_quality_checks
+from footprono.ingestion.reference import COMPETITIONS, COMPETITIONS_BY_CODE, current_season
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.ingestion.sources.api_football import HALF_SPLIT_FIRST_SEASON
 
@@ -110,7 +110,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def build_requests(args: argparse.Namespace) -> list[IngestionRequest]:
-    current = current_season_start()
+    # Saison la plus récente parmi les championnats (l'année civile en Norvège et en Suède
+    # peut avoir un an d'avance de janvier à juin).
+    current = max(current_season(c) for c in COMPETITIONS)
     seasons = args.seasons or list(range(FIRST_SEASON, current + 1))
     # API-Football ne fournit le découpage par mi-temps qu'à partir de 2024 :
     # sans --seasons explicite, on ne dépense pas de quota sur les saisons antérieures.

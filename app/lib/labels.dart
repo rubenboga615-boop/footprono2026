@@ -293,6 +293,11 @@ const competitionNames = {
   'GRE': 'Super League grecque',
   'TUR': 'Süper Lig',
   'SCO': 'Premiership écossaise',
+  'SUI': 'Super League suisse',
+  'NOR': 'Eliteserien',
+  'SWE': 'Allsvenskan',
+  'DEN': 'Superliga danoise',
+  'AUT': 'Bundesliga autrichienne',
 };
 
 String competitionName(String code) => competitionNames[code.toUpperCase()] ?? code;

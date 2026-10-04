@@ -70,6 +70,8 @@ COUNT_COLUMNS = frozenset(
         "goalkeeper_saves",
     }
 )
+# Statistiques publiées par API-Football mais inutilisées : ignorées sans signalement.
+UNUSED_STATS = frozenset({"Free Kicks"})
 DECIMAL_COLUMNS = frozenset({"possession", "passes_pct", "expected_goals", "goals_prevented"})
 # Jamais fournis par mi-temps : ``None``, pas 0.
 NOT_PER_HALF = frozenset({"fouls", "goals_prevented"})
@@ -106,6 +108,8 @@ class ApiFixture:
     # des matchs terminés.
     kickoff: datetime | None = None
     status: str = "FT"
+    # Journée (« Regular Season - 12 », « Championship Round - 3 »…), vide si inconnue.
+    round: str = ""
 
     @property
     def finished(self) -> bool:
@@ -126,6 +130,8 @@ def normalize(raw: dict[str, Any], period: StatPeriod, issues: ParseIssues) -> T
     out: TeamStats = {}
     for label, value in raw.items():
         column = STAT_COLUMNS.get(label)
+        if column is None and label in UNUSED_STATS:
+            continue
         if column is None:
             issues.add(f"statistique API-Football inconnue ignorée : {label!r}")
             continue
@@ -202,6 +208,7 @@ def parse_fixture(item: dict[str, Any]) -> ApiFixture:
         fixture_id=int(item["fixture"]["id"]),
         kickoff=kickoff,
         status=str(item["fixture"].get("status", {}).get("short") or ""),
+        round=round_name(item),
         match_date=kickoff.date(),
         home_team=item["teams"]["home"]["name"],
         away_team=item["teams"]["away"]["name"],

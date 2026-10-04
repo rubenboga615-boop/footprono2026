@@ -55,7 +55,10 @@ TIER_2 = Tier(
     withdrawn=NO_BTTS,
 )
 
-TIERS: dict[str, Tier] = {code: TIER_2 for code in ("POR", "BEL", "NED", "GRE", "TUR", "SCO")}
+TIERS: dict[str, Tier] = {
+    code: TIER_2
+    for code in ("POR", "BEL", "NED", "GRE", "TUR", "SCO", "SUI", "NOR", "SWE", "DEN", "AUT")
+}
 
 
 def tier(competition: str) -> Tier:

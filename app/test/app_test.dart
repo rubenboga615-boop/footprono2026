@@ -1118,7 +1118,12 @@ void main() {
     await tester.tap(find.text('Coupon intelligent'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ce week-end'));
-    await tester.ensureVisible(find.text('Composer le coupon'));
+    // Seize championnats : le bouton est plus bas, la liste ne le construit qu'une fois atteint.
+    await tester.scrollUntilVisible(
+      find.text('Composer le coupon'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Composer le coupon'));
     await tester.pumpAndSettle();
     expect(server.smartQueries.single, {'profile': 'equilibre', 'period': 'weekend', 'size': '3'});

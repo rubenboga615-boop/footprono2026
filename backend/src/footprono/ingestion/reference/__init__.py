@@ -2,6 +2,7 @@
 
 import csv
 from dataclasses import dataclass
+from datetime import date
 from functools import cache
 from importlib import resources
 
@@ -14,7 +15,9 @@ class CompetitionRef:
     name: str
     country: str
     n_teams: int
-    football_data_division: str
+    # Division football-data ; None : API-Football est la source des résultats et des
+    # tirs (championnats que football-data ne détaille pas).
+    football_data_division: str | None
     # Understat (xG) ne couvre que les 5 grands championnats : None ailleurs
     # (niveau de données 2, engine/tiers.py).
     understat_slug: str | None
@@ -25,6 +28,9 @@ class CompetitionRef:
     # revient (Match.leg), plus de matchs qu'un simple aller-retour, calendrier non
     # équilibré ; ces contrôles ne s'appliquent pas.
     playoffs: bool = False
+    # Saison sur l'année civile (Norvège, Suède : mars à novembre) : la saison 2026 est
+    # celle de 2026, et non celle qui commence en juillet.
+    calendar_year: bool = False
 
 
 COMPETITIONS: tuple[CompetitionRef, ...] = (
@@ -49,8 +55,43 @@ COMPETITIONS: tuple[CompetitionRef, ...] = (
     CompetitionRef(
         "SCO", "Premiership", "Scotland", 12, "SC0", None, 179, team_counts=(12,), playoffs=True
     ),
+    # Résultats et tirs d'API-Football (historique depuis 2018) : docs/MOTEUR.md,
+    # « Suisse, Norvège, Suède… avec les tirs d'API-Football ».
+    CompetitionRef(
+        "SUI",
+        "Super League",
+        "Switzerland",
+        12,
+        None,
+        None,
+        207,
+        team_counts=(10, 12),
+        playoffs=True,
+    ),
+    CompetitionRef(
+        "NOR", "Eliteserien", "Norway", 16, None, None, 103, team_counts=(16,), calendar_year=True
+    ),
+    CompetitionRef(
+        "SWE", "Allsvenskan", "Sweden", 16, None, None, 113, team_counts=(16,), calendar_year=True
+    ),
+    CompetitionRef(
+        "DEN", "Superliga", "Denmark", 12, None, None, 119, team_counts=(12, 14), playoffs=True
+    ),
+    CompetitionRef(
+        "AUT", "Bundesliga", "Austria", 12, None, None, 218, team_counts=(12,), playoffs=True
+    ),
 )
 COMPETITIONS_BY_CODE = {c.code: c for c in COMPETITIONS}
+
+
+def current_season(competition: "CompetitionRef | str", today: date | None = None) -> int:
+    """Saison en cours d'un championnat : année civile (Norvège, Suède) ou année de
+    début d'une saison qui reprend en juillet-août."""
+    ref = COMPETITIONS_BY_CODE[competition] if isinstance(competition, str) else competition
+    today = today or date.today()
+    if ref.calendar_year:
+        return today.year
+    return today.year if today.month >= 7 else today.year - 1
 
 
 @dataclass(frozen=True)

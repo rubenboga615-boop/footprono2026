@@ -584,6 +584,11 @@ async def load_api_football(
     # les matchs à venir d'API-Football (journées de championnat) sont créés.
     ref = COMPETITIONS_BY_CODE.get(competition_code)
     creates_fixtures = ref is not None and ref.understat_slug is None
+    # Sans football-data, API-Football est aussi la source des résultats : les matchs
+    # terminés sont créés (ou complétés) avec leur score.
+    results_from_api = ref is not None and ref.football_data_division is None
+    stale_before = date.today() - timedelta(days=30)
+    stale = 0
     if not existing and not creates_fixtures:
         raise PrerequisiteMissingError(
             f"{competition_code} {start_year} absente de la base : charger football-data d'abord"
@@ -602,7 +607,16 @@ async def load_api_football(
         raise UnknownTeamsError(DataSource.API_FOOTBALL, blocking)
     teams = resolver.resolve_all(DataSource.API_FOOTBALL, known)
     if creates_fixtures:
-        season_teams |= set(teams.values())
+        # Équipes de la saison régulière : un barrage contre une équipe de division
+        # inférieure (journée « Relegation Round » de certains championnats) en est exclu.
+        regular = {
+            teams[name]
+            for f in fixtures
+            if f.round.startswith("Regular Season")
+            for name in (f.home_team, f.away_team)
+            if name in teams
+        }
+        season_teams |= regular or set(teams.values())
 
     playoffs = rescheduled = 0
     by_pair: dict[tuple[int, int], list[ApiFixture]] = {}
@@ -642,6 +656,29 @@ async def load_api_football(
             match = partner.get(i)
             if match is not None:
                 pairs.append((f, match, home, away))
+            elif results_from_api and (f.finished or f.status == "AWD"):
+                # « AWD » : match donné sur tapis vert, score officiel enregistré et exclu
+                # de l'apprentissage (engine/history.py).
+                created = await session.scalar(
+                    insert(Match)
+                    .values(
+                        season_id=sid, home_team_id=home, away_team_id=away, leg=next_leg,
+                        match_date=f.match_date, status=MatchStatus.FINISHED,
+                        home_goals=f.home_goals, away_goals=f.away_goals,
+                        # Tapis vert : la mi-temps jouée ne correspond pas au score officiel.
+                        home_goals_ht=None if f.status == "AWD" else f.home_goals_ht,
+                        away_goals_ht=None if f.status == "AWD" else f.away_goals_ht,
+                        result_source="api_football", api_football_id=f.fixture_id,
+                        api_referee=f.referee, kickoff_at=f.kickoff, api_status=f.status or None,
+                    )
+                    .returning(Match)
+                )  # fmt: skip
+                assert created is not None
+                stats.matches_inserted += 1
+                next_leg += 1
+                pairs.append((f, created, home, away))
+            elif creates_fixtures and not f.finished and f.match_date < stale_before:
+                stale += 1  # saison passée : match jamais joué (annulé, doublon de la source)
             elif creates_fixtures and not f.finished:
                 new_fixtures.append(
                     {
@@ -668,7 +705,19 @@ async def load_api_football(
 
     rows: list[dict[str, Any]] = []
     for f, match, home, away in pairs:
-        if not f.finished:
+        played = f.finished or f.status == "AWD"
+        if results_from_api and played and match.status is not MatchStatus.FINISHED:
+            # Résultat d'API-Football, source des résultats de ce championnat.
+            match.status = MatchStatus.FINISHED
+            match.home_goals, match.away_goals = f.home_goals, f.away_goals
+            if f.status == "AWD":  # tapis vert : pas de mi-temps cohérente avec le score
+                match.home_goals_ht = match.away_goals_ht = None
+            else:
+                match.home_goals_ht, match.away_goals_ht = f.home_goals_ht, f.away_goals_ht
+            match.result_source = "api_football"
+            match.match_date = f.match_date
+            stats.matches_updated += 1
+        if not played:
             rescheduled += await _update_upcoming(session, match, f, stats)
             continue
         if abs((match.match_date - f.match_date).days) > 3:
@@ -709,6 +758,8 @@ async def load_api_football(
         stats.matches_inserted += len(new_fixtures)
     if playoffs:
         stats.issues.append(f"{playoffs} matchs hors championnat (barrages) ignorés")
+    if stale:
+        stats.issues.append(f"{stale} matchs non joués d'il y a plus de 30 jours ignorés")
     if rescheduled:
         stats.issues.append(f"{rescheduled} matchs à venir déplacés à la date d'API-Football")
 

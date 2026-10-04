@@ -17,6 +17,7 @@ from footprono.ingestion.reference import (
     AWARDED_MATCHES,
     COMPETITIONS_BY_CODE,
     INTERRUPTED_SEASONS,
+    current_season,
 )
 
 # Délai après lequel un match daté dans le passé et toujours « à venir » est signalé.
@@ -167,7 +168,9 @@ async def run_quality_checks(session: AsyncSession, today: date | None = None) -
     for row in (await session.execute(_SEASON_SUMMARY, {"stale_before": stale_before})).mappings():
         code, year, sid = row["code"], row["start_year"], row["season_id"]
         n_teams, n_matches, n_finished = row["n_teams"], row["n_matches"], row["n_finished"]
-        complete = year < current
+        # Saison terminée : avant la saison en cours de ce championnat (année civile en
+        # Norvège et en Suède).
+        complete = year < (current_season(code, today) if code in COMPETITIONS_BY_CODE else current)
         expected = n_teams * (n_teams - 1)
         xg_cov = row["n_with_xg"] / n_finished if n_finished else None
         odds_cov = row["n_with_odds"] / n_finished if n_finished else None
@@ -249,7 +252,8 @@ async def run_quality_checks(session: AsyncSession, today: date | None = None) -
             add("error", "scores", f"{row['n_bad_ht']} matchs avec un score mi-temps > score final")
         if xg_cov is not None and xg_cov < MIN_XG_COVERAGE and (ref is None or ref.understat_slug):
             add("warning", "xg", f"xG disponibles pour {xg_cov:.1%} des matchs joués")
-        if odds_cov is not None and odds_cov < MIN_ODDS_COVERAGE:
+        with_fd = ref is None or ref.football_data_division is not None
+        if with_fd and odds_cov is not None and odds_cov < MIN_ODDS_COVERAGE:
             add("warning", "cotes", f"cotes B365 pré-match pour {odds_cov:.1%} des matchs joués")
         if year >= API_STATS_FIRST_SEASON and n_finished:
             api_cov = row["n_with_api_stats"] / n_finished

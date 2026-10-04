@@ -46,7 +46,8 @@ class History:
     axg: FloatArray
     # Cotes de référence (préférence MARKET_BOOKMAKERS), ``nan`` si absentes.
     odds: dict[str, FloatArray] = field(default_factory=dict)
-    # Statistiques de match (football-data) : nom -> (domicile, extérieur), voir STATS.
+    # Statistiques de match (football-data ; API-Football là où football-data n'a pas de
+    # fichier) : nom -> (domicile, extérieur), voir STATS.
     stats: dict[str, tuple[FloatArray, FloatArray]] = field(default_factory=dict)
     # Arbitre : API-Football si connu (même écriture partout), sinon football-data.
     referee: NDArray[np.str_] = field(default_factory=lambda: np.array([], dtype=np.str_))
@@ -80,19 +81,34 @@ _MATCHES = text(
            m.status::text, m.home_goals, m.away_goals, m.home_goals_ht, m.away_goals_ht,
            h.name, a.name,
            xh.xg AS hxg, xa.xg AS axg,
-           m.home_corners, m.away_corners, m.home_yellow_cards, m.away_yellow_cards,
-           m.home_red_cards, m.away_red_cards, m.home_shots, m.away_shots,
-           m.home_shots_on_target, m.away_shots_on_target, m.home_fouls, m.away_fouls,
-           m.api_referee, m.referee, xh.deep AS hdeep, xa.deep AS adeep
+           CASE WHEN src.api THEN sh.corners ELSE m.home_corners END,
+           CASE WHEN src.api THEN sa.corners ELSE m.away_corners END,
+           CASE WHEN src.api THEN sh.yellow_cards ELSE m.home_yellow_cards END,
+           CASE WHEN src.api THEN sa.yellow_cards ELSE m.away_yellow_cards END,
+           CASE WHEN src.api THEN sh.red_cards ELSE m.home_red_cards END,
+           CASE WHEN src.api THEN sa.red_cards ELSE m.away_red_cards END,
+           CASE WHEN src.api THEN sh.total_shots ELSE m.home_shots END,
+           CASE WHEN src.api THEN sa.total_shots ELSE m.away_shots END,
+           CASE WHEN src.api THEN sh.shots_on_goal ELSE m.home_shots_on_target END,
+           CASE WHEN src.api THEN sa.shots_on_goal ELSE m.away_shots_on_target END,
+           CASE WHEN src.api THEN sh.fouls ELSE m.home_fouls END,
+           CASE WHEN src.api THEN sa.fouls ELSE m.away_fouls END,
+           m.api_referee, m.referee, xh.deep AS hdeep, xa.deep AS adeep, m.api_status
     FROM matches m
     JOIN seasons s ON s.id = m.season_id
     JOIN competitions c ON c.id = s.competition_id
+    CROSS JOIN LATERAL (SELECT c.football_data_division IS NULL AS api) src
     JOIN teams h ON h.id = m.home_team_id
     JOIN teams a ON a.id = m.away_team_id
     LEFT JOIN match_advanced_stats xh ON xh.match_id = m.id AND xh.team_id = m.home_team_id
         AND xh.source = 'understat'
     LEFT JOIN match_advanced_stats xa ON xa.match_id = m.id AND xa.team_id = m.away_team_id
         AND xa.source = 'understat'
+    -- Championnats sans football-data : statistiques de match d'API-Football (match entier).
+    LEFT JOIN match_team_stats sh ON sh.match_id = m.id AND sh.team_id = m.home_team_id
+        AND sh.source = 'api_football' AND sh.period = 'full'
+    LEFT JOIN match_team_stats sa ON sa.match_id = m.id AND sa.team_id = m.away_team_id
+        AND sa.source = 'api_football' AND sa.period = 'full'
     ORDER BY m.match_date, m.id
     """
 )
@@ -131,7 +147,13 @@ async def load_history(session: AsyncSession) -> History:
         away=np.array([r[5] for r in rows], dtype=np.int64),
         finished=np.array([r[6] == "finished" for r in rows], dtype=bool),
         excluded=np.array(
-            [r[6] == "cancelled" or (r[1], r[2], r[11], r[12]) in AWARDED_MATCHES for r in rows],
+            # Annulé, ou donné sur tapis vert (liste connue, ou « AWD » chez API-Football).
+            [
+                r[6] == "cancelled"
+                or r[31] == "AWD"
+                or (r[1], r[2], r[11], r[12]) in AWARDED_MATCHES
+                for r in rows
+            ],
             dtype=bool,
         ),
         hg=np.array([_nan(r[7]) for r in rows]),

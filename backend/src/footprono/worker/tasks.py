@@ -15,8 +15,7 @@ from footprono.core.errors import AppError
 from footprono.db.session import create_engine, create_session_factory
 from footprono.football.models import DataSource
 from footprono.ingestion import live
-from footprono.ingestion.quality import current_season_start
-from footprono.ingestion.reference import COMPETITIONS
+from footprono.ingestion.reference import COMPETITIONS, current_season
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.notifications import service as notifications
 from footprono.notifications.push import sender_or_none as push_sender_or_none
@@ -67,15 +66,22 @@ async def _ingest_current_season() -> dict[str, Any]:
     settings = get_settings()
     engine = create_engine(settings)
     try:
-        season = current_season_start()
-        competitions = [c.code for c in COMPETITIONS]
+        # Saison en cours de chaque championnat (année civile en Norvège et en Suède) :
+        # une demande par saison.
+        by_season: dict[int, list[str]] = {}
+        for c in COMPETITIONS:
+            by_season.setdefault(current_season(c), []).append(c.code)
         report = await run_ingestion(
             create_session_factory(engine),
             settings,
             [
-                IngestionRequest(DataSource.FOOTBALL_DATA, competitions, [season]),
-                IngestionRequest(DataSource.UNDERSTAT, competitions, [season]),
-                IngestionRequest(DataSource.API_FOOTBALL, competitions, [season]),
+                IngestionRequest(source, codes, [season])
+                for season, codes in sorted(by_season.items())
+                for source in (
+                    DataSource.FOOTBALL_DATA,
+                    DataSource.UNDERSTAT,
+                    DataSource.API_FOOTBALL,
+                )
             ],
         )
         # Scores confirmés par football-data : paris récents revus si un score a changé.

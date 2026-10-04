@@ -61,7 +61,12 @@ def fit_level_stretch(hist: History, as_of: np.datetime64, competitions: list[st
     prévisions hors échantillon avant ``as_of`` ; les autres marchés suivent (même loi
     des scores).
     """
-    first = int(hist.season.min()) + 1
+    # Première saison simulée : celle qui suit la première de ces championnats (chacun
+    # son historique : 2016 pour football-data, 2018 pour l'archive API-Football).
+    present = [c for c in competitions if (hist.competition == c).any()]
+    if not present:
+        return NO_CORRECTION
+    first = max(int(hist.season[hist.competition == c].min()) + 1 for c in present)
     last = int(hist.season[hist.date < as_of].max())
     pred = run_backtest(hist, BacktestConfig(competitions, list(range(first, last + 1))))
     keep = hist.date[np.array(pred.row, dtype=np.int64)] < as_of
@@ -93,7 +98,12 @@ def fit_live_correction(
     hist: History, as_of: np.datetime64, ctx: MatchContext, competitions: list[str]
 ) -> Correction:
     """Correction apprise sur toutes les prévisions hors échantillon avant ``as_of``."""
-    first = int(hist.season.min()) + 1
+    # Première saison simulée : celle qui suit la première de ces championnats (chacun
+    # son historique : 2016 pour football-data, 2018 pour l'archive API-Football).
+    present = [c for c in competitions if (hist.competition == c).any()]
+    if not present:
+        return NO_CORRECTION
+    first = max(int(hist.season[hist.competition == c].min()) + 1 for c in present)
     last = int(hist.season[hist.date < as_of].max())
     pred = run_backtest(hist, BacktestConfig(competitions, list(range(first, last + 1))))
     rows = np.array(pred.row, dtype=np.int64)

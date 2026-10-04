@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -481,3 +482,103 @@ async def test_repeated_fixture_outside_second_phase_is_an_error(
     async with db_factory() as session:
         quality = await run_quality_checks(session)
     assert any(f["check"] == "affiches" and f["competition"] == "EPL" for f in quality["findings"])
+
+
+def _af_item(
+    fixture_id: int, day: str, home: tuple[int, str], away: tuple[int, str],
+    goals: tuple[int | None, int | None], status: str = "FT", round_: str = "Regular Season - 1",
+    ht: tuple[int | None, int | None] = (None, None),
+) -> dict[str, Any]:  # fmt: skip
+    return {
+        "fixture": {"id": fixture_id, "date": f"{day}T16:00:00+00:00", "status": {"short": status}},
+        "league": {"round": round_},
+        "teams": {
+            "home": {"id": home[0], "name": home[1]},
+            "away": {"id": away[0], "name": away[1]},
+        },
+        "goals": {"home": goals[0], "away": goals[1]},
+        "score": {"halftime": {"home": ht[0], "away": ht[1]}},
+    }
+
+
+async def test_api_football_archive_is_the_results_source(
+    db_factory: Factory, tmp_path: Path
+) -> None:
+    """Championnat sans football-data (Suisse) importé de l'archive de l'historique :
+    matchs terminés créés avec leur score et leurs tirs, match à venir créé ; barrage
+    contre une équipe de division inférieure, vieux match jamais joué : ignorés ; match
+    donné sur tapis vert (« AWD ») : score officiel, exclu de l'apprentissage."""
+    import json
+
+    from footprono.engine.history import load_history
+    from footprono.football.models import MatchTeamStats
+
+    yb, basel = (565, "BSC Young Boys"), (551, "FC Basel 1893")
+    lugano, luzern = (606, "FC Lugano"), (644, "FC Luzern")
+    xamax = (1015, "Neuchatel Xamax FC")  # division inférieure cette saison-là
+    folder = tmp_path / "archive" / "SWZ"
+    (folder / "2024").mkdir(parents=True)
+    (folder / "league.json").write_text(json.dumps([{"league": {"id": 207}}]))
+    items = [
+        _af_item(1, "2024-08-10", yb, basel, (2, 1), ht=(1, 0)),
+        _af_item(2, "2024-08-11", lugano, luzern, (0, 0), ht=(0, 0)),
+        _af_item(3, "2024-08-18", basel, lugano, (3, 0), status="AWD", ht=(1, 1)),
+        _af_item(4, "2024-09-01", luzern, yb, (None, None), status="NS"),  # jamais joué
+        _af_item(5, "2030-05-01", luzern, basel, (None, None), status="NS"),  # à venir
+        _af_item(6, "2025-06-01", basel, xamax, (2, 0), round_="Relegation Round"),
+    ]
+    (folder / "2024" / "fixtures.json").write_text(json.dumps(items))
+    stats = [
+        {"team": {"id": yb[0]}, "statistics": [
+            {"type": "Total Shots", "value": 15}, {"type": "Shots on Goal", "value": 6},
+            {"type": "Corner Kicks", "value": 7}, {"type": "Free Kicks", "value": 12},
+        ]},
+        {"team": {"id": basel[0]}, "statistics": [
+            {"type": "Total Shots", "value": 8}, {"type": "Shots on Goal", "value": 2},
+            {"type": "Corner Kicks", "value": 3},
+        ]},
+    ]  # fmt: skip
+    (folder / "2024" / "statistics.jsonl").write_text(
+        json.dumps({"fixture": 1, "response": stats}) + "\n"
+    )
+
+    request = IngestionRequest(DataSource.API_FOOTBALL, ["SUI"], [2024], tmp_path / "archive")
+    report = await ingest(db_factory, tmp_path, request)
+    entry = report["files"][0]
+    assert entry["status"] == "incomplete", entry  # le match 2 n'a pas de statistiques
+    assert entry["matches_inserted"] == 4  # 1, 2, 3 (tapis vert) et 5 (à venir)
+    assert any("1 matchs hors championnat" in i for i in entry["issues"])
+    assert any("1 matchs non joués d'il y a plus de 30 jours" in i for i in entry["issues"])
+    assert not any("Free Kicks" in i for i in entry["issues"])
+    async with db_factory() as session:
+        rows = {
+            m.api_football_id: m
+            for m in (await session.scalars(select(Match).order_by(Match.match_date))).all()
+        }
+        assert set(rows) == {1, 2, 3, 5}
+        assert (rows[1].status, rows[1].home_goals, rows[1].away_goals, rows[1].home_goals_ht) == (
+            MatchStatus.FINISHED, 2, 1, 1,
+        )  # fmt: skip
+        assert rows[1].result_source == "api_football"
+        assert (rows[3].status, rows[3].home_goals, rows[3].home_goals_ht) == (
+            MatchStatus.FINISHED, 3, None,
+        )  # fmt: skip
+        assert rows[5].status is MatchStatus.SCHEDULED
+        assert await session.scalar(select(func.count()).select_from(MatchTeamStats)) == 2
+        hist = await load_history(session)
+    i = int(np.where(hist.match_id == rows[1].id)[0][0])
+    assert (hist.stats["shots"][0][i], hist.stats["shots"][1][i]) == (15, 8)
+    assert (hist.stats["shots_on_target"][0][i], hist.stats["corners"][1][i]) == (6, 3)
+    awarded = int(np.where(hist.match_id == rows[3].id)[0][0])
+    assert hist.excluded[awarded]
+    assert not hist.excluded[i]
+
+
+def test_current_season_calendar_year() -> None:
+    from datetime import date
+
+    from footprono.ingestion.reference import current_season
+
+    assert current_season("NOR", date(2027, 3, 15)) == 2027  # année civile
+    assert current_season("SUI", date(2027, 3, 15)) == 2026  # saison 2026-27
+    assert current_season("SUI", date(2027, 8, 1)) == 2027

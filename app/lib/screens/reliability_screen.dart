@@ -33,6 +33,11 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
     'GRE',
     'TUR',
     'SCO',
+    'SUI',
+    'NOR',
+    'SWE',
+    'DEN',
+    'AUT',
   ];
   int market = 0;
   String competition = '';

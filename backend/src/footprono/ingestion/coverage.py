@@ -14,8 +14,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from footprono.ingestion.quality import current_season_start
-from footprono.ingestion.reference import COMPETITIONS, COMPETITIONS_BY_CODE
+from footprono.ingestion.reference import COMPETITIONS, COMPETITIONS_BY_CODE, current_season
 from footprono.ingestion.sources.api_football import HALF_SPLIT_FIRST_SEASON
 
 COLUMNS = {
@@ -73,14 +72,17 @@ def _todo(rows: list[dict[str, Any]]) -> list[str]:
             by_fix[("api-football", "arbitres (liste des matchs API-Football)")][comp].add(season)
         if r["xg"] < COMPLETE and COMPETITIONS_BY_CODE[comp].understat_slug:
             by_fix[("understat", "xG Understat")][comp].add(season)
-        if min(r["fd_stats"], r["ht"], r["closing_odds"]) < COMPLETE or r["ah_odds"] < AH_COMPLETE:
+        # Championnats sans football-data (API-Football source des résultats) : rien à
+        # demander à football-data.
+        with_fd = COMPETITIONS_BY_CODE[comp].football_data_division is not None
+        if with_fd and (
+            min(r["fd_stats"], r["ht"], r["closing_odds"]) < COMPLETE or r["ah_odds"] < AH_COMPLETE
+        ):
             by_fix[
                 ("football-data", "statistiques, mi-temps ou cotes (dont handicap) football-data")
             ][comp].add(season)
     # Ce que couvre une commande sans --seasons ni --competitions.
-    every = {
-        (c.code, y) for c in COMPETITIONS for y in range(FIRST_SEASON, current_season_start() + 1)
-    }
+    every = {(c.code, y) for c in COMPETITIONS for y in range(FIRST_SEASON, current_season(c) + 1)}
     for (source, what), comps in by_fix.items():
         seasons = sorted({y for ys in comps.values() for y in ys})
         if source != "api-football" and {(c, y) for c, ys in comps.items() for y in ys} >= every:

@@ -39,14 +39,20 @@ def test_current_season_start() -> None:
 def test_reference_teams_are_consistent() -> None:
     teams = load_teams()
     codes = {c.code for c in COMPETITIONS}
-    # 5 grands championnats, Portugal, Belgique, Pays-Bas, Grèce, Turquie, Écosse
-    assert len(teams) == 165 + 38 + 31 + 28 + 26 + 39 + 17
+    # 5 grands championnats, Portugal, Belgique, Pays-Bas, Grèce, Turquie, Écosse ;
+    # Suisse, Norvège, Suède, Danemark, Autriche (API-Football seulement)
+    assert len(teams) == 165 + 38 + 31 + 28 + 26 + 39 + 17 + 105
     assert {t.competition for t in teams} == codes
     assert len({t.name for t in teams}) == len(teams)
-    with_understat = {c.code for c in COMPETITIONS if c.understat_slug}
+    covered = {
+        "football_data": {c.code for c in COMPETITIONS if c.football_data_division},
+        "understat": {c.code for c in COMPETITIONS if c.understat_slug},
+        "api_football": {c.code for c in COMPETITIONS},
+    }
     for source in ("football_data", "understat", "api_football"):
-        # Understat ne couvre que les championnats qui ont un identifiant chez lui.
-        concerned = [t for t in teams if source != "understat" or t.competition in with_understat]
+        # Chaque source ne couvre que ses championnats (Understat : les 5 grands ;
+        # football-data : pas les championnats importés d'API-Football).
+        concerned = [t for t in teams if t.competition in covered[source]]
         aliases = [a for t in teams for a in t.aliases.get(DataSource(source), ())]
         assert all(DataSource(source) in t.aliases for t in concerned), f"alias {source} manquant"
         assert len(set(aliases)) == len(aliases), f"alias {source} en double"

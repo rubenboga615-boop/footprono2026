@@ -31,8 +31,7 @@ from footprono.football.models import (
     StatPeriod,
 )
 from footprono.ingestion import loader, raw_store, service
-from footprono.ingestion.quality import current_season_start
-from footprono.ingestion.reference import COMPETITIONS, COMPETITIONS_BY_CODE
+from footprono.ingestion.reference import COMPETITIONS, COMPETITIONS_BY_CODE, current_season
 from footprono.ingestion.sources import api_football
 from footprono.ingestion.sources.api_football_odds import (
     OddsQuote,
@@ -83,7 +82,8 @@ async def collect_odds(
     """Relève les cotes des matchs à venir et enregistre celles qui ont changé."""
     if settings.api_football_key is None:
         return {"status": "unavailable", "error": "FP_API_FOOTBALL_KEY absente"}
-    season = current_season_start()
+    # Saison en cours par championnat (année civile en Norvège et en Suède).
+    seasons = {comp.code: current_season(comp) for comp in COMPETITIONS}
     fetched_at = datetime.now(UTC)
     quotes: list[OddsQuote] = []
     pages: list[dict[str, Any]] = []
@@ -99,7 +99,7 @@ async def collect_odds(
         # venir à leur identifiant API-Football avant d'y rattacher les cotes.
         calendars = {
             comp.code: await client.get(
-                "/fixtures", {"league": comp.api_football_id, "season": season}
+                "/fixtures", {"league": comp.api_football_id, "season": seasons[comp.code]}
             )
             for comp in COMPETITIONS
         }
@@ -118,7 +118,7 @@ async def collect_odds(
                         "/odds",
                         {
                             "league": comp.api_football_id,
-                            "season": season,
+                            "season": seasons[comp.code],
                             "bookmaker": book_id,
                             "page": page,
                         },
@@ -130,7 +130,7 @@ async def collect_odds(
                 progress(f"{comp.code} {name} : {len(quotes)} cotes relevées au total")
         report["requests"] = client.used
 
-    report["calendar"] = await _sync_calendars(session, settings, season, calendars, fetched_at)
+    report["calendar"] = await _sync_calendars(session, settings, seasons, calendars, fetched_at)
     by_fixture = {q.fixture_id for q in quotes}
     rows = await session.execute(
         select(Match.api_football_id, Match.id).where(Match.api_football_id.in_(by_fixture))
@@ -226,7 +226,7 @@ async def collect_odds(
 async def _sync_calendars(
     session: AsyncSession,
     settings: Settings,
-    season: int,
+    seasons: dict[str, int],
     calendars: dict[str, dict[str, Any]],
     fetched_at: datetime,
 ) -> dict[str, Any]:
@@ -235,6 +235,7 @@ async def _sync_calendars(
     out: dict[str, Any] = {}
     for code, body in calendars.items():
         comp = COMPETITIONS_BY_CODE[code]
+        season = seasons[code]
         fixtures = [
             api_football.parse_fixture(i)
             for i in body["response"]
@@ -450,7 +451,6 @@ async def collect_injuries(
     if settings.api_football_key is None:
         return {"status": "unavailable", "error": "FP_API_FOOTBALL_KEY absente"}
     now = today or datetime.now(UTC)
-    season = current_season_start()
     by_fixture: dict[int, list[Any]] = {}
     async with api_football.ApiFootballClient(
         settings.api_football_key.get_secret_value(),
@@ -465,7 +465,11 @@ async def collect_injuries(
                     break
                 body = await client.get(
                     "/injuries",
-                    {"league": comp.api_football_id, "season": season, "date": day.isoformat()},
+                    {
+                        "league": comp.api_football_id,
+                        "season": current_season(comp, now.date()),
+                        "date": day.isoformat(),
+                    },
                 )
                 for entry in body["response"]:
                     fixture_id = (entry.get("fixture") or {}).get("id")

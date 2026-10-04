@@ -61,6 +61,7 @@ async def _football_data_file(
 ) -> FileResult:
     code = season_code(year)
     division = comp.football_data_division
+    assert division is not None  # championnats sans football-data écartés par run_ingestion
     if from_dir is None:
         origin = football_data.file_url(code, division)
         content = await raw_store.download(origin, headers={"Accept": "text/csv,text/plain,*/*"})
@@ -257,6 +258,52 @@ async def _download_api_football(
     return content, fixtures, notes + issues.items, left
 
 
+def _history_folder(root: Path, comp: CompetitionRef) -> Path | None:
+    """Dossier du championnat dans l'archive de l'historique (``<code>/league.json``),
+    reconnu par son identifiant API-Football ; None si le dossier n'a pas cette forme."""
+    for league_file in sorted(root.glob("*/league.json")):
+        try:
+            info = json.loads(league_file.read_text(encoding="utf-8"))
+        except ValueError:
+            continue
+        if info and info[0].get("league", {}).get("id") == comp.api_football_id:
+            return league_file.parent
+    return None
+
+
+def _read_history(
+    folder: Path, comp: CompetitionRef, year: int
+) -> tuple[str, bytes, list[api_football.ApiFixture], list[str], int]:
+    """Une saison de l'archive : matchs de championnat et statistiques déjà téléchargées.
+
+    Renvoie aussi le nombre de matchs terminés sans statistiques dans l'archive.
+    """
+    path = folder / str(year) / "fixtures.json"
+    if not path.exists():
+        raise raw_store.SourceUnavailableError(f"{path} : fichier absent", transient=False)
+    items = json.loads(path.read_text(encoding="utf-8"))
+    statistics: dict[int, Any] = {}
+    stats_path = folder / str(year) / "statistics.jsonl"
+    if stats_path.exists():
+        for line in stats_path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                row = json.loads(line)
+                statistics[int(row["fixture"])] = row["response"]
+    issues = ParseIssues()
+    fixtures = []
+    league = [i for i in items if api_football.is_league_match(i, comp.playoffs)]
+    for item in league:
+        fixture = api_football.parse_fixture(item)
+        if statistics.get(fixture.fixture_id):
+            fixture.stats = api_football.parse_statistics(
+                statistics[fixture.fixture_id], item["teams"]["home"]["id"], issues
+            )
+        fixtures.append(fixture)
+    missing = sum(1 for f in fixtures if f.finished and f.fixture_id not in statistics)
+    content = json.dumps({"fixtures": items, "statistics": statistics}).encode()
+    return str(path), content, fixtures, issues.items, missing
+
+
 async def _api_football_file(
     session: AsyncSession,
     settings: Settings,
@@ -270,6 +317,10 @@ async def _api_football_file(
             session, settings, comp, year
         )
         name = f"{comp.api_football_id}/{year}-{datetime.now(UTC):%Y%m%dT%H%M%S}.json"
+    elif (archive := _history_folder(from_dir, comp)) is not None:
+        # Archive de scripts/termux/api-football-history.sh, déjà téléchargée.
+        origin, content, fixtures, notes, stats_missing = _read_history(archive, comp, year)
+        name = f"{comp.api_football_id}/{year}-historique.json"
     else:
         # Disposition du collecteur : <dossier>/<id de ligue>/<saison>.json
         path = from_dir / str(comp.api_football_id) / f"{year}.json"
@@ -333,12 +384,18 @@ def _describe(entry: FileResult) -> str:
 
 
 def _codes(request: IngestionRequest) -> list[str]:
-    """Championnats à traiter : Understat n'est pas demandé là où il ne couvre rien."""
-    return [
-        c
-        for c in request.competitions
-        if request.source != DataSource.UNDERSTAT or COMPETITIONS_BY_CODE[c].understat_slug
-    ]
+    """Championnats à traiter : une source n'est pas demandée là où elle ne couvre rien
+    (Understat hors des 5 grands, football-data là où API-Football le remplace)."""
+
+    def covered(code: str) -> bool:
+        ref = COMPETITIONS_BY_CODE[code]
+        if request.source == DataSource.UNDERSTAT:
+            return ref.understat_slug is not None
+        if request.source == DataSource.FOOTBALL_DATA:
+            return ref.football_data_division is not None
+        return True
+
+    return [c for c in request.competitions if covered(c)]
 
 
 async def run_ingestion(
