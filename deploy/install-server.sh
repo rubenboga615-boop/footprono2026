@@ -23,6 +23,8 @@ BRANCH="${FP_BRANCH:-$(git -C "$DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || 
 log() { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33mAttention :\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31mErreur :\033[0m %s\n' "$*" >&2; exit 1; }
+# Un arrêt sur erreur n'est jamais silencieux : ligne et commande affichées.
+trap 'printf "\033[1;31mErreur :\033[0m arrêt ligne %s : %s\n" "$LINENO" "$BASH_COMMAND" >&2' ERR
 
 [ "$(id -u)" = 0 ] || die "lancer en root (ssh root@<ip du serveur>)"
 [ -n "$DOMAIN" ] || die "adresse manquante : bash install-server.sh monsousdomaine.duckdns.org"
@@ -36,9 +38,14 @@ apt-get install -yq git curl ca-certificates ufw fail2ban unattended-upgrades \
 systemctl enable --now docker fail2ban unattended-upgrades
 
 # 2 Go d'échange : marge pour le moteur de prédiction (4 Go de mémoire).
-if ! swapon --show | grep -q /swapfile; then
-    fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null
-    swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab
+# (/proc/swaps lu directement : avec pipefail, « swapon --show | grep -q » échoue
+# quand grep s'arrête au premier résultat, et le script recréait l'échange actif.)
+if ! grep -q '^/swapfile ' /proc/swaps; then
+    [ -f /swapfile ] || fallocate -l 2G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile >/dev/null
+    swapon /swapfile
+    grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 
 # Seuls SSH et le site (HTTP pour le certificat, HTTPS) sont ouverts.
