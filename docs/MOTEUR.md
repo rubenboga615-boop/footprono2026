@@ -750,3 +750,21 @@ championnats (football-data n'y a pas de fichier détaillé).
 
 API-Football fournit aussi un xG (« expected_goals ») depuis 2023, pour 60 à 97 % des
 matchs selon la saison : trop récent et incomplet pour l'apprentissage, à revoir plus tard.
+
+## Danemark et Autriche avec les tirs d'API-Football ; Suède complète (04/10/2026)
+
+Même méthode que la section précédente (seconde phase comprise ; barrages, finales et
+« play-offs » européens exclus). Test 2022-25, tirs / buts seuls :
+
+| Championnat | Matchs | Gain (tirs / buts seuls) | Retard (tirs / buts seuls) | +2,5 / naïf | Favoris ≥ 60 % annoncé / observé |
+|---|---|---|---|---|---|
+| Autriche | 768 | 0,069 / 0,062 | 0,004 / 0,011 | 0,6954 / 0,6933 | 68,7 / 66,9 |
+| Suède (2022-25) | 960 | 0,056 / 0,049 | 0,023 / 0,029 | 0,6840 / 0,6917 | 66,8 / 65,1 |
+| Danemark | 768 | 0,047 / 0,044 | 0,018 / 0,020 | 0,6785 / 0,6845 | 66,9 / 61,9 |
+
+Lecture : les tirs améliorent encore les trois. Autriche : presque au niveau des cotes de
+clôture sur le 1-N-2 (retard 0,004, sur 742 matchs), mais plus/moins 2,5 à peine moins
+bon que la référence naïve sur 2022-25 (meilleur sur 2019-22) : à surveiller.
+Danemark : favoris encore un peu surestimés (5 points, 105 cas). Les trois passent le
+même filtre que les championnats déjà en service : niveau 2 proposé. Restent la Pologne
+(saison 2025 incomplète) et la Roumanie (à télécharger).
