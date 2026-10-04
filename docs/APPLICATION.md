@@ -212,8 +212,9 @@ connectés (jeton valable 30 jours) : à traiter avec la sécurité (phase 6).
 
 - **Niveau 1** : Premier League, Liga, Serie A, Bundesliga, Ligue 1 (xG Understat).
 - **Niveau 2** : Liga Portugal (`POR`), Pro League belge (`BEL`), Eredivisie (`NED`),
-  Super League grecque (`GRE`), Süper Lig (`TUR`), Premiership écossaise (`SCO`) : xG
-  tirés des tirs ; pas de « les deux marquent » (la
+  Super League grecque (`GRE`), Süper Lig (`TUR`), Premiership écossaise (`SCO`), et,
+  sans football-data, Super League suisse (`SUI`), Eliteserien (`NOR`), Allsvenskan
+  (`SWE`), Superliga danoise (`DEN`), Bundesliga autrichienne (`AUT`) : xG tirés des tirs ; pas de « les deux marquent » (la
   liste des matchs affiche « — »), ni corners, cartons et tirs. Voir docs/MOTEUR.md.
 - Les matchs à venir de ces championnats viennent d'API-Football (Understat ne les
   couvre pas) : sans la commande `api-football` ci-dessous, ou la collecte des cotes
@@ -235,6 +236,15 @@ connectés (jeton valable 30 jours) : à traiter avec la sécurité (phase 6).
   depuis 2016) et `bash scripts/termux/ingest.sh api-football --competitions NED,GRE,TUR --seasons 2026`
   (même chose avec `POR,BEL` pour le Portugal et la Belgique, `SCO` pour l'Écosse ;
   relancer `football-data --competitions BEL,GRE` pour charger leurs phases finales).
+- **Suisse, Norvège, Suède, Danemark, Autriche** : API-Football est la source des
+  résultats, des tirs et des corners (football-data n'a pas de fichier détaillé) ;
+  historique depuis 2018, importé de l'archive déjà téléchargée par
+  `api-football-history.sh`, sans requête :
+  `bash scripts/termux/ingest.sh api-football --from-dir ~/storage/downloads/api-football-historique --competitions SUI,NOR,SWE,DEN,AUT --seasons 2018-2026`.
+  Ensuite, la collecte habituelle (cotes, direct, ingestion du matin) les tient à jour.
+  Norvège et Suède : saison sur l'année civile. Barrages contre une équipe de division
+  inférieure écartés ; match donné sur tapis vert (« AWD » chez API-Football) : score
+  officiel, exclu de l'apprentissage.
 - Cas particuliers : Turquie 2022-23, 29 matchs de Hatayspor et Gaziantep donnés 0-3
   sans être joués après le séisme (exclus de l'apprentissage) ; Grèce 2018-19, derby
   Panathinaïkos - Olympiakos jamais joué (annulé) ; Pays-Bas 2019-20 arrêté (COVID-19).

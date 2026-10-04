@@ -768,3 +768,20 @@ bon que la référence naïve sur 2022-25 (meilleur sur 2019-22) : à surveiller
 Danemark : favoris encore un peu surestimés (5 points, 105 cas). Les trois passent le
 même filtre que les championnats déjà en service : niveau 2 proposé. Restent la Pologne
 (saison 2025 incomplète) et la Roumanie (à télécharger).
+
+## Suisse, Norvège, Suède, Danemark, Autriche en service (niveau 2, 04/10/2026)
+
+Résultats, tirs, tirs cadrés et corners d'API-Football (``match_team_stats``, match
+entier) là où football-data n'a pas de fichier ; mêmes réglages du niveau 2. Backtest
+sur la base chargée par le vrai chargeur depuis l'archive (test 2022-25) : chiffres
+identiques à l'étude (1-N-2 : Suisse 1,0423, Norvège 0,9808, Suède 1,0088, Danemark
+1,0351, Autriche 1,0190). Les onze championnats de niveau 2 réunis : 11 210 matchs,
+1-N-2 0,9795 (naïf 1,0714), plus/moins 2,5 0,6782 (naïf 0,6873) ; face aux cotes de
+clôture, sur les 6 891 matchs qui en ont : 0,9567 contre 0,9382.
+
+Calcul des pronostics : l'écart favori / outsider était recalculé pour chaque
+championnat de niveau 2 à chaque exécution (une simulation de leurs saisons passées) :
+18 minutes ici pour neuf championnats. Il est désormais repris d'une exécution réussie
+des 7 derniers jours (même version du moteur), et seulement calculé pour un championnat
+qui n'en a pas : 50 secondes ici. Chaque championnat commence sa simulation à sa propre
+première saison (2018 pour l'archive API-Football) ; sans cela le calcul échouait.

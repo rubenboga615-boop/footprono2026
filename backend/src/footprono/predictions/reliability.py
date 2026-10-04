@@ -79,36 +79,42 @@ BACKTEST: dict[str, Any] = {
     ),
 }
 
-# Championnats de niveau 2 (Portugal, Belgique, Pays-Bas, Grèce, Turquie, Écosse : xG
-# tirés des tirs, engine/tiers.py). Backtest du 03/10/2026 sur les données chargées par le
-# serveur (secondes phases comprises), écart favori / outsider appris par championnat,
-# chaque saison sur les saisons précédentes.
+# Championnats de niveau 2 (sans xG : tirs de football-data, ou d'API-Football pour la
+# Suisse, la Norvège, la Suède, le Danemark et l'Autriche ; engine/tiers.py). Backtest du
+# 04/10/2026 sur les données chargées par le serveur (secondes phases comprises), écart
+# favori / outsider appris par championnat, chaque saison sur les saisons précédentes.
+# Pas de cotes de clôture passées pour les championnats d'API-Football : la comparaison
+# au marché porte sur les 6891 matchs qui en ont (note).
 BACKTEST_LEVEL_2: dict[str, Any] = {
-    "label": "Backtest des six championnats sans xG : simulation sur des saisons passées",
-    "verified_on": "2026-10-03",
+    "label": "Backtest des onze championnats sans xG : simulation sur des saisons passées",
+    "verified_on": "2026-10-04",
     "seasons": "2022-23 à 2025-26",
-    "matches": 6891,
+    "matches": 11210,
     "engine_version": "2.3",
     "log_loss": {
-        "1X2": {"model": 0.9565, "naive": 1.0716, "closing_odds": 0.9382},
-        "OU|2.5": {"model": 0.6770, "naive": 0.6892, "closing_odds": 0.6685},
+        "1X2": {"model": 0.9795, "naive": 1.0714, "closing_odds": None},
+        "OU|2.5": {"model": 0.6782, "naive": 0.6873, "closing_odds": None},
     },
     "calibration_1x2": [
-        {"range": "0,0-0,1", "count": 1308, "announced": 0.064, "observed": 0.067},
-        {"range": "0,1-0,2", "count": 2867, "announced": 0.156, "observed": 0.153},
-        {"range": "0,2-0,3", "count": 7546, "announced": 0.254, "observed": 0.263},
-        {"range": "0,3-0,4", "count": 3056, "announced": 0.345, "observed": 0.334},
-        {"range": "0,4-0,5", "count": 2317, "announced": 0.447, "observed": 0.427},
-        {"range": "0,5-0,6", "count": 1449, "announced": 0.546, "observed": 0.559},
-        {"range": "0,6-0,7", "count": 880, "announced": 0.647, "observed": 0.650},
-        {"range": "0,7-0,8", "count": 709, "announced": 0.748, "observed": 0.762},
-        {"range": "0,8-0,9", "count": 464, "announced": 0.843, "observed": 0.828},
-        {"range": "0,9-1,0", "count": 77, "announced": 0.921, "observed": 0.883},
+        {"range": "0,0-0,1", "count": 1509, "announced": 0.065, "observed": 0.072},
+        {"range": "0,1-0,2", "count": 4369, "announced": 0.158, "observed": 0.160},
+        {"range": "0,2-0,3", "count": 13109, "announced": 0.252, "observed": 0.260},
+        {"range": "0,3-0,4", "count": 5042, "announced": 0.347, "observed": 0.340},
+        {"range": "0,4-0,5", "count": 4004, "announced": 0.448, "observed": 0.427},
+        {"range": "0,5-0,6", "count": 2588, "announced": 0.546, "observed": 0.555},
+        {"range": "0,6-0,7", "count": 1476, "announced": 0.645, "observed": 0.631},
+        {"range": "0,7-0,8", "count": 934, "announced": 0.746, "observed": 0.757},
+        {"range": "0,8-0,9", "count": 518, "announced": 0.843, "observed": 0.830},
+        {"range": "0,9-1,0", "count": 81, "announced": 0.921, "observed": 0.877},
     ],
     "note": (
         "Moins de données que dans les 5 grands championnats (pas de xG) : pourcentages un "
         "peu moins précis, et pas d'avis du moteur sur « les deux marquent » (pas mieux que "
-        "la fréquence du championnat). Le moteur reste derrière les cotes de clôture."
+        "la fréquence du championnat). Face aux cotes de clôture, sur les 6 891 matchs "
+        "qui en ont (pas d'historique de cotes pour la Suisse, la Norvège, la Suède, le "
+        "Danemark et l'Autriche) : 1-N-2 0,9567 pour le moteur contre "
+        "0,9382 pour la clôture ; plus/moins 2,5 0,6769 contre "
+        "0,6685. Le moteur reste derrière les cotes de clôture."
     ),
 }
 

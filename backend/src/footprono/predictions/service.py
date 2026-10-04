@@ -174,6 +174,30 @@ def predict_match(
     }
 
 
+# Écart favori / outsider repris d'une exécution récente plutôt que recalculé.
+STRETCH_REUSE_DAYS = 7
+
+
+async def _recent_stretches(session: AsyncSession, as_of: date) -> dict[str, float]:
+    """Écart de chaque championnat de niveau 2 appris par une exécution réussie de la
+    même version du moteur au cours des ``STRETCH_REUSE_DAYS`` derniers jours."""
+    rows = await session.scalars(
+        select(PredictionRun.parameters)
+        .where(
+            PredictionRun.status.in_(("ok", "partial")),
+            PredictionRun.engine_version == ENGINE_VERSION,
+            PredictionRun.as_of > as_of - timedelta(days=STRETCH_REUSE_DAYS),
+            PredictionRun.as_of <= as_of,
+        )
+        .order_by(PredictionRun.id.desc())
+    )
+    out: dict[str, float] = {}
+    for params in rows:
+        for code, value in (params.get("level_stretch") or {}).items():
+            out.setdefault(code, float(value))
+    return out
+
+
 async def predict_upcoming(
     session: AsyncSession,
     as_of: date | None = None,
@@ -228,8 +252,15 @@ async def predict_upcoming(
         # Niveau 2 : écart favori / outsider appris championnat par championnat (un
         # championnat équilibré, comme une deuxième division, effacerait sinon celui
         # d'un championnat dominé par quelques équipes ; docs/MOTEUR.md).
+        # Long à calculer (une simulation des saisons passées par championnat) et presque
+        # immobile d'un jour à l'autre : repris d'une exécution des 7 derniers jours.
+        recent = await _recent_stretches(session, as_of)
         stretches = {
-            c: fit_level_stretch(hist, day, [c]) for c in competitions if tier(c).level_stretch
+            c: Correction(features=(), coef={"stretch": recent[c]})
+            if c in recent
+            else fit_level_stretch(hist, day, [c])
+            for c in competitions
+            if tier(c).level_stretch
         }
         run.parameters = {
             **run.parameters,

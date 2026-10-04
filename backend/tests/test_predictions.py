@@ -257,3 +257,32 @@ async def test_level_2_league_predicted_without_btts(
     items = [i for i in listing.json() if i["prediction"] is not None]
     assert items
     assert all(i["prediction"]["both_score"] is None for i in items)
+
+
+async def test_level_stretch_reused_from_a_recent_run(
+    db_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """L'écart favori / outsider (long à calculer) est repris d'une exécution réussie de la
+    même version du moteur au cours des 7 derniers jours ; sinon il est recalculé."""
+    from footprono.predictions.models import PredictionRun
+    from footprono.predictions.service import _recent_stretches
+
+    today = date(2026, 10, 10)
+
+    def run(as_of: date, stretch: dict[str, float], version: str = ENGINE_VERSION) -> PredictionRun:
+        return PredictionRun(
+            engine_version=version, as_of=as_of, status="ok", report={},
+            parameters={"level_stretch": stretch},
+        )  # fmt: skip
+
+    async with db_factory() as session:
+        session.add_all(
+            [
+                run(today - timedelta(days=9), {"BEL": 0.2}),  # trop ancienne
+                run(today - timedelta(days=3), {"POR": 0.1, "NED": 0.0}),
+                run(today - timedelta(days=1), {"POR": 0.15}),  # la plus récente l'emporte
+                run(today, {"GRE": 0.3}, version="0.0"),  # autre version du moteur
+            ]
+        )
+        await session.commit()
+        assert await _recent_stretches(session, today) == {"POR": 0.15, "NED": 0.0}
