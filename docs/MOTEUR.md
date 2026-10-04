@@ -721,3 +721,32 @@ aussi les noms de journées (seconde phase, barrages) vus pour chaque saison.
 Pour l'étude, les cotes de clôture viendront des fichiers « autres » de football-data
 pour les sept premiers ; Australie, Tchéquie, Croatie, Serbie, Israël et Chypre n'ont
 pas de source de cotes passées : comparaison à la seule référence naïve.
+
+## Suisse, Norvège, Suède avec les tirs d'API-Football (04/10/2026)
+
+Historique téléchargé par `api-football-history.sh` (2018 à 2025 ; Suède jusqu'à 2024,
+2025 pas encore complète) : matchs de championnat (seconde phase suisse comprise ;
+barrages contre une équipe de division inférieure et finales exclus), tirs, tirs
+cadrés et corners de chaque match ; cotes de clôture des fichiers « autres » de
+football-data reliées par date, score et noms (1 583 / 1 584, 1 919 / 1 919,
+1 678 / 1 680). Réglages du niveau 2 tels quels, écart favori / outsider appris par
+championnat sur les saisons précédentes. Script : `scratchpad/study_api.py` (hors dépôt).
+Test 2022-25, et la même chose sans les tirs (buts seuls) pour mesurer leur apport :
+
+| Championnat | Matchs | Gain (tirs / buts seuls) | Retard (tirs / buts seuls) | +2,5 / naïf | Favoris ≥ 60 % annoncé / observé |
+|---|---|---|---|---|---|
+| Norvège | 959 | 0,072 / 0,062 | 0,017 / 0,028 | 0,6665 / 0,6711 | 69,4 / 69,3 |
+| Suède | 720 | 0,055 / 0,047 | 0,022 / 0,030 | 0,6806 / 0,6908 | 67,0 / 67,9 |
+| Suisse | 864 | 0,032 / 0,026 | 0,013 / 0,020 | 0,6792 / 0,6824 | 66,5 / 67,2 |
+
+Lecture : les tirs améliorent les trois championnats (retard sur la clôture réduit d'un
+tiers environ) et corrigent la surestimation des favoris vue au niveau 3 ; plus/moins
+2,5 meilleur que la référence naïve partout. Retards de 0,013 à 0,022 : dans la
+fourchette des championnats déjà en service au niveau 2 (0,009 à 0,030). Gains plus
+faibles, ces championnats étant plus équilibrés. Calibration du 1-N-2 : 0,9 à 2,4 points.
+Décision proposée : niveau 2. Intégration : historique importé depuis l'archive déjà
+téléchargée (aucune requête de plus), API-Football source des résultats pour ces
+championnats (football-data n'y a pas de fichier détaillé).
+
+API-Football fournit aussi un xG (« expected_goals ») depuis 2023, pour 60 à 97 % des
+matchs selon la saison : trop récent et incomplet pour l'apprentissage, à revoir plus tard.
