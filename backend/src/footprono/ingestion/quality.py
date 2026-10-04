@@ -260,13 +260,19 @@ async def run_quality_checks(session: AsyncSession, today: date | None = None) -
             half_cov = row["n_with_api_halves"] / n_finished
             seasons[-1]["api_stats_coverage"] = round(api_cov, 4)
             seasons[-1]["api_halves_coverage"] = round(half_cov, 4)
-            if api_cov < MIN_API_STATS_COVERAGE:
+            # Niveau 2 avec football-data (Portugal, Belgique…) : tirs de football-data,
+            # les stats API-Football ne servent pas au moteur. Championnats importés de
+            # l'archive (Suisse, Norvège…) : stats du match entier, sans découpage par
+            # mi-temps (inutilisé par le moteur). Rien à signaler dans ces deux cas.
+            big_five = ref is None or ref.understat_slug is not None
+            api_source = ref is not None and ref.football_data_division is None
+            if (big_five or api_source) and api_cov < MIN_API_STATS_COVERAGE:
                 add(
                     "warning",
                     "stats_api",
                     f"stats API-Football pour {api_cov:.1%} des matchs joués",
                 )
-            elif half_cov < MIN_API_STATS_COVERAGE:
+            elif big_five and half_cov < MIN_API_STATS_COVERAGE:
                 add(
                     "warning", "stats_api", f"découpage par mi-temps pour {half_cov:.1%} des matchs"
                 )
