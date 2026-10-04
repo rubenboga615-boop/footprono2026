@@ -95,7 +95,7 @@ await check('bookmaker : pari en cours, solde débité', async () => {
 
 await check('profil : essai Premium de 7 jours', async () => {
   await nav('Profil');
-  await visible(text('FootProno Premium'));
+  await visible(text('FootProba Premium'));
   await visible(text('Actif'));
 });
 

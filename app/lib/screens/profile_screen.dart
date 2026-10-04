@@ -157,7 +157,7 @@ class ProfileScreen extends StatelessWidget {
     builder: (context) => AlertDialog(
       title: const Text('Jeu responsable'),
       content: const Text(
-        'FootProno utilise uniquement de l\'argent fictif : rien n\'est misé ni gagné pour de vrai.\n\n'
+        'FootProba utilise uniquement de l\'argent fictif : rien n\'est misé ni gagné pour de vrai.\n\n'
         'Les probabilités sont des estimations : même un pari probable peut perdre, et aucun pronostic ne '
         'garantit un gain.\n\n'
         'Si tu paries de l\'argent réel ailleurs, fixe-toi une limite, fais des pauses et ne cherche jamais à '
@@ -331,7 +331,7 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 18),
                   Text(
-                    appBuild > 0 ? 'FootProno · version $appBuild' : 'FootProno · version de développement',
+                    appBuild > 0 ? 'FootProba · version $appBuild' : 'FootProba · version de développement',
                     textAlign: TextAlign.center,
                     style: Fp.body(12, color: Fp.text3),
                   ),
@@ -401,7 +401,7 @@ class _PlanCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(plan.premium ? 'FootProno Premium' : 'Version gratuite', style: Fp.title(20)),
+                child: Text(plan.premium ? 'FootProba Premium' : 'Version gratuite', style: Fp.title(20)),
               ),
               plan.premium ? const Tag.win('Actif') : const Tag('Gratuit', color: Fp.textSoft),
             ],

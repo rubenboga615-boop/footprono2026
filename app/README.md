@@ -1,4 +1,4 @@
-# FootProno — application
+# FootProba — application
 
-Application Flutter (Android et web) de FootProno. Installation, écrans et
+Application Flutter (Android et web) de FootProba. Installation, écrans et
 développement : [docs/APPLICATION.md](../docs/APPLICATION.md).

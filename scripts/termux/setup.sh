@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installation de FootProno dans Termux natif. Idempotent : peut être relancé
+# Installation de FootProba dans Termux natif. Idempotent : peut être relancé
 # après une mise à jour du dépôt.
 #   bash scripts/termux/setup.sh         # ce qu'il faut pour faire tourner le serveur
 #   bash scripts/termux/setup.sh --dev   # + outils de test (pytest, mypy, ruff)

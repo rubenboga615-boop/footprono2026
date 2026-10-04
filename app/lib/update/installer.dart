@@ -15,10 +15,10 @@ abstract class ApkInstaller {
     required void Function(double progress) onProgress,
   });
 
-  /// Android 8 et plus : FootProno doit être autorisée à installer des applications.
+  /// Android 8 et plus : FootProba doit être autorisée à installer des applications.
   Future<bool> canInstall();
 
-  /// Ouvre le réglage « Installer des applications inconnues » de FootProno.
+  /// Ouvre le réglage « Installer des applications inconnues » de FootProba.
   Future<void> openSettings();
 
   /// Ouvre l'écran d'installation d'Android pour l'APK téléchargé.

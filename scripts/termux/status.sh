@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# État des services FootProno.
+# État des services FootProba.
 set -uo pipefail
 # shellcheck source=common.sh
 . "$(dirname "$0")/common.sh"

@@ -3,7 +3,7 @@
 ## Vue d'ensemble
 
 ```
-Sources                    Serveur FootProno                               Clients
+Sources                    Serveur FootProba                               Clients
 ───────                    ─────────────────                               ───────
 football-data.co.uk ─┐
 Understat ───────────┼─► ingestion ─► données normalisées (PostgreSQL)

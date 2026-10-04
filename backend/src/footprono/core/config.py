@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     )
 
     environment: Environment = Environment.DEVELOPMENT
-    app_name: str = "FootProno"
+    app_name: str = "FootProba"
     api_prefix: str = "/api/v1"
 
     database_url: PostgresDsn = Field(
@@ -87,7 +87,7 @@ class Settings(BaseSettings):
     # Archive de l'historique API-Football (collecte de la console, import) ; « ~ » accepté.
     history_archive_dir: Path = Path("~/storage/downloads/api-football-historique")
     # Politique de confidentialité (/confidentialite) : identité et contact du responsable.
-    legal_name: str = "FootProno (société en cours d'immatriculation)"
+    legal_name: str = "FootProba (société en cours d'immatriculation)"
     contact_email: str = "[adresse e-mail à compléter]"
     privacy_hosting: str = "Hetzner Online GmbH, Allemagne"
     privacy_payment_provider: str = "CinetPay"

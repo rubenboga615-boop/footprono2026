@@ -48,7 +48,7 @@ class FirebasePush implements PushBridge {
       .where((m) => m.notification != null)
       .map(
         (m) => (
-          text: '${m.notification!.title ?? 'FootProno'} — ${m.notification!.body ?? ''}',
+          text: '${m.notification!.title ?? 'FootProba'} — ${m.notification!.body ?? ''}',
           kind: m.data['kind']?.toString(),
         ),
       );

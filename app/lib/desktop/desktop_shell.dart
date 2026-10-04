@@ -1,4 +1,4 @@
-// Version ordinateur (maquette « FootProno sur ordinateur » validée le 03/10/2026) :
+// Version ordinateur (maquette « FootProba sur ordinateur » validée le 03/10/2026) :
 // menu à gauche, barre du haut (recherche, Premium, solde), zone centrale avec sa
 // propre navigation, coupon à droite pendant qu'on parcourt les matchs.
 import 'dart:math' as math;

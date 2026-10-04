@@ -112,7 +112,7 @@ async def notify(
 
 
 _RETURN_PAGE = """<!doctype html><html lang="fr"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>FootProno</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>FootProba</title>
 <style>body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#060509;
 color:#f4f2f8;font-family:system-ui,sans-serif;text-align:center;padding:24px}}
 h1{{color:#b793f5;font-size:22px}}p{{color:#c9c3d6;line-height:1.5}}</style></head>
@@ -135,7 +135,7 @@ async def return_page(
     title, text = (
         "Paiement en cours de vérification",
         (
-            "Retourne dans l'application FootProno : ton abonnement s'affiche dès que "
+            "Retourne dans l'application FootProba : ton abonnement s'affiche dès que "
             "CinetPay confirme le paiement."
         ),
     )
@@ -147,7 +147,7 @@ async def return_page(
         if payment is not None and payment.status == "accepted":
             title, text = (
                 "Paiement reçu",
-                "Premium est activé. Retourne dans l'application FootProno.",
+                "Premium est activé. Retourne dans l'application FootProba.",
             )
         elif payment is not None and payment.status == "refused":
             title, text = (

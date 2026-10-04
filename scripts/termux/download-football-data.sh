@@ -70,7 +70,7 @@ code = lambda y: f"{y % 100:02d}{(y + 1) % 100:02d}"  # 2026 -> « 2627 »
 
 out = os.path.expanduser("~/storage/downloads/football-data")
 os.makedirs(out, exist_ok=True)
-client = httpx.Client(timeout=60, follow_redirects=True, headers={"User-Agent": "FootProno (etude)"})
+client = httpx.Client(timeout=60, follow_redirects=True, headers={"User-Agent": "FootProba (etude)"})
 
 
 def fetch(url: str, path: str, refresh: bool) -> tuple[str, bytes | None]:

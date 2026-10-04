@@ -76,7 +76,7 @@ async def test_delete_without_app(
 ) -> None:
     page = await client.get("/suppression-compte")
     assert page.status_code == 200
-    assert "Supprimer mon compte FootProno" in page.text
+    assert "Supprimer mon compte FootProba" in page.text
     bad = await client.post(
         "/api/v1/account/delete", json={"phone": "+22997111111", "password": "x"}
     )

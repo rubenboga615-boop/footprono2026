@@ -206,7 +206,7 @@ class Offer {
   final DateTime? openedAt;
 
   /// Dernière mise à jour de la cote chez la source (API-Football) ; peut être bien
-  /// plus ancienne que le dernier relevé de FootProno ([checkedAt]).
+  /// plus ancienne que le dernier relevé de FootProba ([checkedAt]).
   final DateTime? sourceUpdatedAt;
   final DateTime? checkedAt;
   bool get moved => openingOdds != null && (openingOdds! - odds).abs() >= 0.005;

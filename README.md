@@ -1,4 +1,4 @@
-# FootProno 2026
+# FootProba 2026
 
 Serveur de probabilités et d'analyses de matchs de football, par abonnement.
 Nouveau projet, reconstruit de zéro à partir de l'audit de l'ancienne version
@@ -56,7 +56,7 @@ bash scripts/termux/ingest.sh quality   # contrôles de qualité seuls
 bash scripts/termux/stop.sh     # arrête API/worker/beat (--all : aussi PostgreSQL et Redis)
 ```
 
-FootProno utilise **ses propres instances**, isolées des autres projets Termux :
+FootProba utilise **ses propres instances**, isolées des autres projets Termux :
 PostgreSQL dans `$PREFIX/var/lib/footprono/postgresql` (port 5433) et Redis
 (port 6380). Les fichiers bruts téléchargés sont archivés dans
 `$PREFIX/var/lib/footprono/raw`. Un PostgreSQL ou un Redis existant n'est jamais modifié. Ports

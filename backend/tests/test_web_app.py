@@ -11,7 +11,7 @@ from .conftest import make_settings
 
 
 async def test_web_app_served_under_app(tmp_path: Path) -> None:
-    (tmp_path / "index.html").write_text("<title>FootProno</title>", encoding="utf-8")
+    (tmp_path / "index.html").write_text("<title>FootProba</title>", encoding="utf-8")
     (tmp_path / "main.dart.js").write_text("// app", encoding="utf-8")
     app = create_app(make_settings(web_app_dir=tmp_path))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http:
@@ -20,7 +20,7 @@ async def test_web_app_served_under_app(tmp_path: Path) -> None:
         assert home.headers["location"] == "/app/"
         page = await http.get("/app/")
         assert page.status_code == 200
-        assert "FootProno" in page.text
+        assert "FootProba" in page.text
         assert (await http.get("/app/main.dart.js")).status_code == 200
 
 

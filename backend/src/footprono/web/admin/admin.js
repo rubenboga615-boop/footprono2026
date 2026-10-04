@@ -1,4 +1,4 @@
-// Console d'administration FootProno : tableau de bord, actions, journal, exploitation.
+// Console d'administration FootProba : tableau de bord, actions, journal, exploitation.
 // Le catalogue des actions vient du serveur : une action ajoutée côté serveur apparaît
 // ici sans modifier ce fichier. Aucune donnée n'est insérée en HTML brut (textContent).
 "use strict";
@@ -223,7 +223,7 @@ function stopTimer() {
 
 function setPage(page, title) {
   document.getElementById("title").textContent = title;
-  document.title = "FootProno · " + title;
+  document.title = "FootProba · " + title;
   for (const a of document.querySelectorAll(".nav a")) a.classList.toggle("on", a.dataset.page === page);
   document.getElementById("side").classList.remove("open");
 }

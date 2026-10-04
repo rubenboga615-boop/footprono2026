@@ -138,7 +138,7 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            'Quand FootProno annonce 60 %, l\'événement doit se produire environ 6 fois sur 10. '
+                            'Quand FootProba annonce 60 %, l\'événement doit se produire environ 6 fois sur 10. '
                             'Les deux barres doivent rester à la même hauteur.',
                             style: Fp.body(13, color: Fp.text2, height: 1.45),
                           ),

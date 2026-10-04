@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Transfère FootProno de Termux vers le serveur : base complète (comptes,
+# Transfère FootProba de Termux vers le serveur : base complète (comptes,
 # paris, données collectées), clé Firebase et clé API-Football.
 #   bash scripts/termux/send-to-server.sh <ip du serveur>
 # Le serveur doit être installé (deploy/install-server.sh). La base du serveur

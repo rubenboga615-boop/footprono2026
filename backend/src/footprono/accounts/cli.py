@@ -44,7 +44,7 @@ async def _push_test(session: AsyncSession, phone: str) -> str:
         result = await sender.send_to_user(
             session,
             user.id,
-            "FootProno",
+            "FootProba",
             "Notification d'essai : tout fonctionne.",
             {"kind": "test"},
         )

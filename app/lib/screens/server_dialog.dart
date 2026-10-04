@@ -5,7 +5,7 @@ import '../api/client.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 
-/// Adresse du serveur FootProno (Termux sur ce téléphone par défaut).
+/// Adresse du serveur FootProba (Termux sur ce téléphone par défaut).
 Future<void> showServerDialog(BuildContext context) async {
   final state = context.read<AppState>();
   final controller = TextEditingController(text: state.api.baseUrl);

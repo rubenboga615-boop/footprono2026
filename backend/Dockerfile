@@ -1,4 +1,4 @@
-# Image de production du backend FootProno (API, worker et beat partagent l'image).
+# Image de production du backend FootProba (API, worker et beat partagent l'image).
 FROM python:3.12-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

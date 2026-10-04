@@ -1,4 +1,4 @@
-# Déploiement serveur de FootProno (voir docs/PRODUCTION.md).
+# Déploiement serveur de FootProba (voir docs/PRODUCTION.md).
 #
 #   bash deploy/install-server.sh        # première installation (Ubuntu 24.04)
 #   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
@@ -31,7 +31,7 @@ x-backend: &backend
     FP_API_FOOTBALL_KEY: ${FP_API_FOOTBALL_KEY:-}
     FP_RAW_DATA_DIR: /data/raw
     # Politique de confidentialité (/confidentialite).
-    FP_LEGAL_NAME: ${FP_LEGAL_NAME:-FootProno (société en cours d'immatriculation)}
+    FP_LEGAL_NAME: ${FP_LEGAL_NAME:-FootProba (société en cours d'immatriculation)}
     FP_CONTACT_EMAIL: ${FP_CONTACT_EMAIL:-[adresse e-mail à compléter]}
     FP_BACKUP_KEEP_DAYS: ${FP_BACKUP_KEEP_DAYS:-14}
     # APK proposé en mise à jour (footprono-admin publish-apk).

@@ -12,7 +12,7 @@ VENV="$BACKEND/.venv"
 RUN="${FP_RUN_DIR:-$ROOT/.run}"
 PORT="${FP_PORT:-8000}"
 
-# Instances DÉDIÉES à FootProno (dossier et ports propres) : un PostgreSQL ou
+# Instances DÉDIÉES à FootProba (dossier et ports propres) : un PostgreSQL ou
 # un Redis déjà utilisé par d'autres projets Termux n'est jamais touché.
 FP_DATA="${FP_DATA_DIR:-$PREFIX/var/lib/footprono}"
 PGDATA="${FP_PGDATA:-$FP_DATA/postgresql}"

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
-/// Version ordinateur, avant connexion : à gauche ce qu'est FootProno, à droite le formulaire.
+/// Version ordinateur, avant connexion : à gauche ce qu'est FootProba, à droite le formulaire.
 class DesktopWelcome extends StatelessWidget {
   const DesktopWelcome({super.key, required this.child});
   final Widget child;

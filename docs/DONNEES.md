@@ -190,7 +190,7 @@ entre sources n'a pas de xG rattachés, voir ci-dessus).
 - ~~Hypothèse~~ **Vérifié (29/09/2026)** : l'absence de statistiques API-Football
   avant 2024-25 dans les fichiers du collecteur venait du paramètre `half=true`.
   Hull - Leicester (13/08/2016, fixture 17696) : réponse vide avec `half=true`,
-  statistiques du match complet sans. Le téléchargement de FootProno demande les
+  statistiques du match complet sans. Le téléchargement de FootProba demande les
   saisons antérieures à 2024 sans `half` : match complet seulement, pas de
   découpage par mi-temps.
 

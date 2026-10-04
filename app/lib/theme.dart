@@ -508,7 +508,7 @@ class IconSquare extends StatelessWidget {
   }
 }
 
-/// Logo : ballon dans un carré violet et « FootProno ».
+/// Logo : ballon dans un carré violet et « FootProba ».
 class FpLogo extends StatelessWidget {
   const FpLogo({super.key, this.size = 18});
   final double size;
@@ -525,7 +525,7 @@ class FpLogo extends StatelessWidget {
             children: [
               TextSpan(text: 'Foot', style: Fp.title(size)),
               TextSpan(
-                text: 'Prono',
+                text: 'Proba',
                 style: Fp.title(size, color: Fp.accentLight),
               ),
             ],

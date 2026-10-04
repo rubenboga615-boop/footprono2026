@@ -72,7 +72,7 @@ nomenclature est attribué par le CEPICI.
 - **Compte bancaire au nom de la société** : souvent exigé par les
   prestataires de paiement pour les reversements.
 
-## Après l'immatriculation, pour FootProno
+## Après l'immatriculation, pour FootProba
 
 1. Envoyer RCCM, IDU/DFE et RIB à Paystack, CinetPay ou GeniusPay.
 2. Données personnelles : se renseigner auprès de l'ARTCI (loi n° 2013-450)

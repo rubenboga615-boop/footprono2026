@@ -17,7 +17,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Faux serveur FootProno : mêmes formes de réponse que l'API réelle.
+/// Faux serveur FootProba : mêmes formes de réponse que l'API réelle.
 class FakeServer {
   FakeServer({this.premium = false});
   bool premium;
@@ -696,7 +696,7 @@ Future<(AppState, FakeServer)> startApp(
     installer: installer,
   );
   await tester.binding.setSurfaceSize(const Size(430, 1400));
-  await tester.pumpWidget(FootPronoApp(state: state));
+  await tester.pumpWidget(FootProbaApp(state: state));
   await state.init();
   await tester.pumpAndSettle();
   return (state, server);
@@ -928,7 +928,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Chances du moteur'), findsOneWidget);
     expect(
-      find.text('Probabilités calculées par FootProno. Argent fictif : aucun gain réel.'),
+      find.text('Probabilités calculées par FootProba. Argent fictif : aucun gain réel.'),
       findsOneWidget,
     );
   });
@@ -1038,10 +1038,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(server.devices, ['jeton-telephone-1', 'jeton-telephone-2']);
 
-    push.received.add((text: 'FootProno — Notification d\'essai', kind: 'test'));
+    push.received.add((text: 'FootProba — Notification d\'essai', kind: 'test'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('FootProno — Notification d\'essai'), findsOneWidget);
+    expect(find.text('FootProba — Notification d\'essai'), findsOneWidget);
     await tester.pumpAndSettle(const Duration(seconds: 5));
 
     push.tapped.add(null);
@@ -1081,7 +1081,7 @@ void main() {
       },
     );
     await tester.binding.setSurfaceSize(const Size(430, 1400));
-    await tester.pumpWidget(FootPronoApp(state: state));
+    await tester.pumpWidget(FootProbaApp(state: state));
     await state.init();
     await tester.pumpAndSettle();
     await tester.tap(find.text('Profil'));

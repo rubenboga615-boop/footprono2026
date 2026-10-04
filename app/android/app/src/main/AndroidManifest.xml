@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Serveur FootProno (API et notifications en direct). -->
+    <!-- Serveur FootProba (API et notifications en direct). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Notifications push (Android 13 et plus : autorisation demandée à la connexion). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -9,7 +9,7 @@
     <!-- HTTP en clair autorisé : le serveur Termux du téléphone (127.0.0.1)
          n'a pas de certificat. À retirer quand le serveur distant sera en HTTPS. -->
     <application
-        android:label="FootProno"
+        android:label="FootProba"
         android:usesCleartextTraffic="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

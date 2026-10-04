@@ -76,7 +76,7 @@ Depuis la version 47, l'application télécharge elle-même l'APK
 (`GET /app/download`, APK arm64) avec une barre de progression, vérifie son
 empreinte SHA-256 (celle de `/app/version`) puis ouvre directement l'écran
 d'installation d'Android (même clé de signature : compte et paris conservés).
-La première fois, Android demande d'autoriser FootProno à installer des
+La première fois, Android demande d'autoriser FootProba à installer des
 applications (réglage ouvert par l'application). Une confirmation reste
 toujours nécessaire : hors Play Store, aucune application ne peut
 s'installer en silence. En cas d'échec (connexion coupée, fichier altéré),

@@ -1,7 +1,7 @@
 [project]
 name = "footprono"
 version = "0.1.0"
-description = "FootProno — serveur d'API de probabilités et d'analyses de matchs de football"
+description = "FootProba — serveur d'API de probabilités et d'analyses de matchs de football"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115,<1.0",

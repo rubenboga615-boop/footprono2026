@@ -16,7 +16,7 @@ if [ -e "$KEY" ]; then
 else
     command -v keytool >/dev/null 2>&1 || pkg install -y openjdk-17
     echo "Choisis un mot de passe solide (12 caractères ou plus) et NOTE-LE : il sera demandé deux fois."
-    echo "Les questions (nom, organisation, ville…) : réponses libres, « FootProno » et « CI » suffisent."
+    echo "Les questions (nom, organisation, ville…) : réponses libres, « FootProba » et « CI » suffisent."
     keytool -genkeypair -v -storetype PKCS12 -keystore "$KEY" -alias "$ALIAS" \
         -keyalg RSA -keysize 4096 -validity 10000
 fi

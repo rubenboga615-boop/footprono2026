@@ -40,7 +40,7 @@ Future<void> shareCoupon(BuildContext context, List<Json> sels, Json coupon, Str
                   final data = await image.toByteData(format: ui.ImageByteFormat.png);
                   await ShareBridge.shareImage(
                     data!.buffer.asUint8List(),
-                    'Mon coupon FootProno (argent fictif)',
+                    'Mon coupon FootProba (argent fictif)',
                   );
                 } catch (_) {
                   showMessage('Partage impossible sur cet appareil.', error: true);
@@ -88,7 +88,7 @@ class CouponImage extends StatelessWidget {
                     children: [
                       TextSpan(text: 'Foot', style: Fp.title(17)),
                       TextSpan(
-                        text: 'Prono',
+                        text: 'Proba',
                         style: Fp.title(17, color: Fp.accentLight),
                       ),
                     ],
@@ -146,7 +146,7 @@ class CouponImage extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Probabilités calculées par FootProno. Argent fictif : aucun gain réel.',
+            'Probabilités calculées par FootProba. Argent fictif : aucun gain réel.',
             style: Fp.body(11, color: Fp.text3),
           ),
         ],

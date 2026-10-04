@@ -34,12 +34,12 @@ Future<void> main() async {
     api: ApiClient(baseUrl: defaultServer()),
     push: await FirebasePush.start(),
   );
-  runApp(FootPronoApp(state: state));
+  runApp(FootProbaApp(state: state));
   state.init();
 }
 
-class FootPronoApp extends StatelessWidget {
-  const FootPronoApp({super.key, required this.state});
+class FootProbaApp extends StatelessWidget {
+  const FootProbaApp({super.key, required this.state});
   final AppState state;
 
   @override
@@ -47,7 +47,7 @@ class FootPronoApp extends StatelessWidget {
     return ChangeNotifierProvider.value(
       value: state,
       child: MaterialApp(
-        title: 'FootProno',
+        title: 'FootProba',
         debugShowCheckedModeBanner: false,
         theme: Fp.theme(),
         scaffoldMessengerKey: messengerKey,
@@ -132,7 +132,7 @@ class HomeShellState extends State<HomeShell> {
           [
             if (u.notes.isNotEmpty) u.notes,
             u.mandatory
-                ? 'Cette mise à jour est nécessaire pour continuer à utiliser FootProno.'
+                ? 'Cette mise à jour est nécessaire pour continuer à utiliser FootProba.'
                 : 'Téléchargement de ${u.sizeMb} Mo dans l\'application, puis Android te demande de '
                       'confirmer l\'installation. Tes paris et ton compte sont conservés.',
           ].join('\n\n'),
@@ -171,7 +171,7 @@ class HomeShellState extends State<HomeShell> {
           title: const Text('Autorisation nécessaire'),
           content: const Text(
             'Une seule fois : dans le réglage qui vient de s\'ouvrir, active « Autoriser cette source » '
-            'pour FootProno, reviens ici puis touche « Installer ».',
+            'pour FootProba, reviens ici puis touche « Installer ».',
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Plus tard')),

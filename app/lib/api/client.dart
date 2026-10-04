@@ -1,4 +1,4 @@
-// Client de l'API FootProno (/api/v1). Les erreurs du serveur arrivent
+// Client de l'API FootProba (/api/v1). Les erreurs du serveur arrivent
 // toujours sous la forme {"error": {"code", "message", "details"}} : le
 // message (en français) est montré tel quel à l'utilisateur.
 import 'dart:async';

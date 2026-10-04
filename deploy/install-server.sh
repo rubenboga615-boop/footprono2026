@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installation (ou mise à jour) du serveur FootProno sur Ubuntu 24.04, lancée
+# Installation (ou mise à jour) du serveur FootProba sur Ubuntu 24.04, lancée
 # depuis Termux (le dépôt est privé : le script part du téléphone) :
 #   ssh root@<ip> 'bash -s -- monsousdomaine.duckdns.org' < deploy/install-server.sh
 # La première fois, le serveur crée sa clé de lecture du dépôt (« deploy key »)

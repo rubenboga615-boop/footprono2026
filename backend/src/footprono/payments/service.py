@@ -62,7 +62,7 @@ async def start_premium(
         transaction_id=payment.transaction_id,
         amount=payment.amount,
         currency=payment.currency,
-        description=f"FootProno Premium {PREMIUM_DAYS} jours",
+        description=f"FootProba Premium {PREMIUM_DAYS} jours",
         notify_url=notify_url,
         # CinetPay revient sur cette page ; elle vérifie aussitôt le paiement.
         return_url=f"{return_url}?transaction_id={payment.transaction_id}",

@@ -62,7 +62,7 @@ class _AuthScreenState extends State<AuthScreen> {
     });
     try {
       if (register) {
-        if (!adult) throw ApiException(400, 'adult', 'Il faut avoir 18 ans ou plus pour utiliser FootProno.');
+        if (!adult) throw ApiException(400, 'adult', 'Il faut avoir 18 ans ou plus pour utiliser FootProba.');
         await state.register(
           phone: phone.text,
           password: password.text,
@@ -106,7 +106,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         const SizedBox(height: 6),
                         Text(
                           register
-                              ? 'Rejoins FootProno et suis tes pronostics en temps réel.'
+                              ? 'Rejoins FootProba et suis tes pronostics en temps réel.'
                               : 'Connecte-toi pour retrouver tes pronostics, coupons et montantes.',
                           style: Fp.body(14, color: Fp.text2, height: 1.4),
                         ),
