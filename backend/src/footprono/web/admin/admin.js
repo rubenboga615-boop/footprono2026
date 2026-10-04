@@ -169,10 +169,15 @@ async function login(event) {
   event.preventDefault();
   const form = event.target;
   const button = form.querySelector("button");
+  const phone = form.phone.value.trim();
+  if (!phone.startsWith("+") && !phone.startsWith("00")) {
+    showLogin("Numéro sans indicatif : écris-le avec l'indicatif du pays, ex. +225 " + phone);
+    return;
+  }
   button.disabled = true;
   try {
     const data = await api("POST", "/auth/login", {
-      phone: form.phone.value.trim(),
+      phone,
       password: form.password.value,
     });
     token = data.access_token;
