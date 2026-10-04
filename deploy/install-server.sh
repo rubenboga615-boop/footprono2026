@@ -73,7 +73,11 @@ fi
 if ! grep -q "footprono_deploy" /root/.ssh/config 2>/dev/null; then
     printf 'Host github.com\n  IdentityFile %s\n  IdentitiesOnly yes\n' "$DEPLOY_KEY" >> /root/.ssh/config
 fi
-ssh-keyscan -q github.com >> /root/.ssh/known_hosts 2>/dev/null
+# Clé publique de GitHub (publiée par GitHub) : pas de ssh-keyscan, qui peut échouer
+# selon le réseau et accepterait n'importe quelle clé.
+GITHUB_KEY="github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"
+touch /root/.ssh/known_hosts
+grep -qxF "$GITHUB_KEY" /root/.ssh/known_hosts || echo "$GITHUB_KEY" >> /root/.ssh/known_hosts
 sort -u -o /root/.ssh/known_hosts /root/.ssh/known_hosts
 if ! git ls-remote -q "$REPO" </dev/null >/dev/null 2>&1; then
     echo
