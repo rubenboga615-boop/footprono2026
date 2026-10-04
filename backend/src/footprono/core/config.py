@@ -89,7 +89,7 @@ class Settings(BaseSettings):
     # Politique de confidentialité (/confidentialite) : identité et contact du responsable.
     legal_name: str = "FootProba (société en cours d'immatriculation)"
     contact_email: str = "[adresse e-mail à compléter]"
-    privacy_hosting: str = "Hetzner Online GmbH, Allemagne"
+    privacy_hosting: str = "Hetzner Online GmbH (Allemagne), serveur à Helsinki, Finlande (Union européenne)"
     privacy_payment_provider: str = "CinetPay"
     backup_keep_days: int = Field(default=14, ge=1)
     # APK publié par « footprono-admin publish-apk » (mise à jour de l'application).
