@@ -52,6 +52,10 @@ cd ~/footprono2026 && git pull
 ssh root@<ip du serveur> 'bash -s -- <sous-domaine>.duckdns.org' < deploy/install-server.sh
 ```
 
+Branche installée : `main` par défaut. Pour une autre branche, la première fois :
+`ssh root@<ip> 'FP_BRANCH=<branche> bash -s -- <sous-domaine>.duckdns.org' < deploy/install-server.sh`
+(les mises à jour suivantes gardent la branche installée).
+
 La première fois, le script s'arrête et affiche la **clé du serveur** :
 GitHub → dépôt footprono2026 → Settings → **Deploy keys** → Add deploy key
 (titre « serveur », « Allow write access » **décoché**), coller la clé,

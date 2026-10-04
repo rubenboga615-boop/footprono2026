@@ -9,10 +9,11 @@
 set -euo pipefail
 
 DOMAIN="${1:-}"
-BRANCH="${FP_BRANCH:-main}"
 REPO="${FP_REPO:-git@github.com:rubenboga615-boop/footprono2026.git}"
 DEPLOY_KEY=/root/.ssh/footprono_deploy
 DIR=/opt/footprono
+# Branche : FP_BRANCH, sinon celle déjà installée (une mise à jour la garde), sinon main.
+BRANCH="${FP_BRANCH:-$(git -C "$DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)}"
 
 log() { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33mAttention :\033[0m %s\n' "$*"; }
