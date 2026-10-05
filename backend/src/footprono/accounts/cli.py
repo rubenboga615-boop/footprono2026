@@ -98,6 +98,17 @@ async def _run(args: argparse.Namespace) -> str:
                     f"{user.display_name} ({user.phone}) : mot de passe provisoire {password}\n"
                     "À changer dans l'application : Profil → Changer le mot de passe."
                 )
+            elif args.command == "disable-2fa":
+                found = await session.scalar(
+                    select(User).where(User.phone == normalize_phone(args.phone))
+                )
+                if found is None:
+                    raise AppError(f"aucun compte avec le numéro {args.phone}")
+                found.totp_secret = None
+                message = (
+                    f"{found.display_name} : code de sécurité de la console désactivé "
+                    "(à réactiver dans la console, page Sécurité)"
+                )
             elif args.command == "push-test":
                 message = await _push_test(session, args.phone)
             else:
@@ -123,6 +134,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     set_phone.add_argument("old")
     set_phone.add_argument("new")
     sub.add_parser("reset-password", help="mot de passe provisoire").add_argument("phone")
+    sub.add_parser(
+        "disable-2fa", help="désactiver le code de sécurité de la console (téléphone perdu)"
+    ).add_argument("phone")
     sub.add_parser("push-test", help="notification d'essai sur ses téléphones").add_argument(
         "phone"
     )

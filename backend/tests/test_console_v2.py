@@ -42,7 +42,9 @@ async def headers(client: AsyncClient, db_factory: Factory) -> dict[str, str]:
         )  # fmt: skip
         await admin.set_role(session, PHONE, "admin")
         await session.commit()
-    r = await client.post("/api/v1/auth/login", json={"phone": PHONE, "password": "12345678"})
+    r = await client.post(
+        "/api/v1/auth/console-login", json={"phone": PHONE, "password": "12345678"}
+    )
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
 
 
@@ -130,7 +132,7 @@ async def test_accounts_admin_role_phone_and_temporary_password(
         )  # fmt: skip
         await session.commit()
         player_id = player.id
-    me = (await client.get("/api/v1/me", headers=headers)).json()
+    me = (await client.get(f"{API}/me", headers=headers)).json()
 
     refused = await client.post(
         f"/api/v1/admin/users/{me['id']}/role", json={"role": "user"}, headers=headers

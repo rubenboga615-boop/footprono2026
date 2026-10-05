@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import jwt
 
@@ -51,20 +52,47 @@ def _secret(settings: Settings) -> str:
     return secret
 
 
-def create_access_token(user_id: int, settings: Settings) -> str:
+# Session de la console : 12 heures, annulable (liste des sessions dans Redis).
+CONSOLE_HOURS = 12
+
+
+def create_access_token(
+    user_id: int, settings: Settings, *, console_session: str | None = None
+) -> str:
+    """Jeton de l'application (30 jours), ou de la console si ``console_session``."""
     now = datetime.now(UTC)
-    payload = {
-        "sub": str(user_id),
-        "iat": now,
-        "exp": now + timedelta(days=settings.access_token_days),
-    }
+    lifetime = (
+        timedelta(hours=CONSOLE_HOURS)
+        if console_session
+        else timedelta(days=settings.access_token_days)
+    )
+    payload: dict[str, Any] = {"sub": str(user_id), "iat": now, "exp": now + lifetime}
+    if console_session:
+        payload["scope"], payload["sid"] = "console", console_session
     return jwt.encode(payload, _secret(settings), algorithm="HS256")
 
 
-def read_access_token(token: str, settings: Settings) -> int | None:
-    """Identifiant de l'utilisateur, ou None si le jeton est invalide ou expiré."""
+def read_token(token: str, settings: Settings) -> dict[str, Any] | None:
+    """Contenu d'un jeton valide (``sub`` entier), ou None (invalide, expiré)."""
     try:
-        payload = jwt.decode(token, _secret(settings), algorithms=["HS256"])
-        return int(payload["sub"])
+        payload: dict[str, Any] = jwt.decode(token, _secret(settings), algorithms=["HS256"])
+        payload["sub"] = int(payload["sub"])
+        payload["iat"] = int(payload.get("iat", 0))
     except (jwt.PyJWTError, KeyError, ValueError):
         return None
+    return payload
+
+
+def read_access_token(token: str, settings: Settings) -> int | None:
+    """Identifiant de l'utilisateur d'un jeton de l'application, ou None."""
+    payload = read_token(token, settings)
+    if payload is None or payload.get("scope", "app") != "app":
+        return None
+    sub: int = payload["sub"]
+    return sub
+
+
+def revoked(user: Any, issued_at: int) -> bool:
+    """Jeton émis avant « déconnecter partout » (mot de passe changé…) : refusé."""
+    after = user.tokens_valid_after
+    return after is not None and issued_at < int(after.timestamp())

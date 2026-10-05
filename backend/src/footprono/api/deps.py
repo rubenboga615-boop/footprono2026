@@ -9,7 +9,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from footprono.accounts.models import User
-from footprono.accounts.security import read_access_token
+from footprono.accounts.security import read_token, revoked
 from footprono.accounts.service import UnauthorizedError
 from footprono.core.config import Settings
 from footprono.core.errors import ForbiddenError
@@ -55,9 +55,11 @@ async def get_current_user(
     """Utilisateur du jeton « Authorization: Bearer … » ; 401 sinon."""
     if credentials is None:
         raise UnauthorizedError("connexion requise")
-    user_id = read_access_token(credentials.credentials, settings)
-    user = await session.get(User, user_id) if user_id is not None else None
-    if user is None or not user.is_active:
+    claims = read_token(credentials.credentials, settings)
+    if claims is None or claims.get("scope", "app") != "app":
+        raise UnauthorizedError("session expirée ou invalide : se reconnecter")
+    user = await session.get(User, claims["sub"])
+    if user is None or not user.is_active or revoked(user, claims["iat"]):
         raise UnauthorizedError("session expirée ou invalide : se reconnecter")
     return user
 
@@ -79,7 +81,29 @@ async def get_optional_user(
 OptionalUserDep = Annotated[User | None, Depends(get_optional_user)]
 
 
-async def get_admin_user(user: CurrentUserDep) -> User:
+def console_session_key(session_id: str) -> str:
+    return f"console:session:{session_id}"
+
+
+async def get_admin_user(
+    session: SessionDep,
+    settings: SettingsDep,
+    redis: RedisDep,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+) -> User:
+    """Administrateur connecté à la console : jeton de la console (12 h), session
+    encore ouverte (déconnexion = session effacée). Un jeton de l'application ne suffit pas."""
+    if credentials is None:
+        raise UnauthorizedError("connexion requise")
+    claims = read_token(credentials.credentials, settings)
+    if claims is None or claims.get("scope") != "console":
+        raise UnauthorizedError("session de la console expirée : se reconnecter")
+    owner = await redis.get(console_session_key(str(claims.get("sid"))))
+    if owner is None or int(owner) != claims["sub"]:
+        raise UnauthorizedError("session de la console fermée : se reconnecter")
+    user = await session.get(User, claims["sub"])
+    if user is None or not user.is_active or revoked(user, claims["iat"]):
+        raise UnauthorizedError("session de la console expirée : se reconnecter")
     if user.role != "admin":
         raise ForbiddenError("réservé à l'administrateur")
     return user

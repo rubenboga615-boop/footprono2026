@@ -227,4 +227,6 @@ async def change_password(session: AsyncSession, user: User, current: str, new: 
     if new == current:
         raise AppError("le nouveau mot de passe doit être différent de l'actuel")
     user.password_hash = hash_password(new)
+    # Les autres téléphones connectés à ce compte sont déconnectés.
+    user.tokens_valid_after = datetime.now(UTC)
     await session.flush()

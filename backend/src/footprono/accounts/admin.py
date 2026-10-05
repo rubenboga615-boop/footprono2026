@@ -156,6 +156,7 @@ async def reset_password(session: AsyncSession, phone: str) -> tuple[User, str]:
 async def apply_password_reset(session: AsyncSession, user: User) -> tuple[User, str]:
     password = secrets.token_urlsafe(9)  # 12 caractères
     user.password_hash = hash_password(password)
+    user.tokens_valid_after = datetime.now(UTC)  # téléphones connectés : déconnectés
     await session.flush()
     return user, password
 

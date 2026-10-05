@@ -101,7 +101,7 @@ async def test_admin_grants_and_revokes_premium(
     db_factory: Factory,
 ) -> None:
     player = await _login(client)
-    assert (await client.get("/api/v1/admin/stats", headers=player)).status_code == 403
+    assert (await client.get("/api/v1/admin/stats", headers=player)).status_code == 401
 
     async with db_factory() as session:
         boss = await accounts.register(
@@ -112,7 +112,7 @@ async def test_admin_grants_and_revokes_premium(
         await session.commit()
         boss_id = boss.id
     r = await client.post(
-        "/api/v1/auth/login", json={"phone": "+22997222222", "password": "87654321"}
+        "/api/v1/auth/console-login", json={"phone": "+22997222222", "password": "87654321"}
     )
     headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
 

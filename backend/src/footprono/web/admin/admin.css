@@ -254,3 +254,19 @@ tbody tr.link:hover td { background: rgba(255,255,255,.025); }
   .tabbar .fab svg { width: 21px; height: 21px; }
   .palette { padding-top: 8vh; }
 }
+
+/* Connexion : code de sécurité à 6 chiffres */
+.login-step { display: grid; gap: 8px; }
+.code-step { text-align: center; justify-items: center; }
+.code-step h2 { margin: 4px 0 0; font: 700 24px var(--display); }
+.code-step h2 span { color: var(--accent2); }
+.code-icon { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; color: var(--accent2); background: rgba(124,58,237,.14); border: 1px solid rgba(183,147,245,.45); }
+.code-icon svg { width: 22px; height: 22px; }
+.otp { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; width: 100%; margin-top: 6px; }
+.otp input { min-width: 0; height: 54px; text-align: center; font: 700 22px var(--display); color: var(--text); background: rgba(0,0,0,.4); border: 1px solid var(--line); border-radius: 12px; }
+.otp input:focus { outline: none; border: 2px solid var(--accent2); box-shadow: 0 0 18px rgba(124,58,237,.45); }
+.link-btn { background: none; border: 0; color: var(--accent2); font: 600 13px var(--body); cursor: pointer; padding: 8px; min-height: 44px; }
+.howto { margin: 0 0 14px; padding-left: 20px; color: var(--text2); font-size: 14px; line-height: 1.5; }
+.howto li { margin-bottom: 8px; }
+.howto b { color: var(--text); }
+.howto a { color: var(--accent2); font-weight: 600; }

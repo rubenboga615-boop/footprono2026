@@ -37,6 +37,7 @@
     <symbol id="i-dots" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></symbol>
     <symbol id="i-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H3"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14 9l2 2"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
     <symbol id="i-ball" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="m12 7 4 3-1.5 4.5h-5L8 10z"/><path d="M12 7V3M16 10l3.8-1.2M14.5 14.5l2.4 3.4M9.5 14.5l-2.4 3.4M8 10 4.2 8.8"/></symbol>
@@ -47,13 +48,30 @@
   <form id="login-form" class="login-card" autocomplete="on">
     <div class="logo big"><span class="mark"><svg><use href="#i-ball"/></svg></span><span><b>Foot<span>Proba</span></b><small>Console</small></span></div>
     <p class="muted">Réservée aux comptes administrateur.</p>
-    <label class="lbl" for="phone">Numéro de téléphone</label>
-    <input id="phone" class="input" name="phone" type="tel" autocomplete="username" placeholder="+225 05 00 00 00 00" required>
-    <p class="help">Avec l'indicatif du pays, comme dans l'application (ex. +225, +229).</p>
-    <label class="lbl" for="password">Mot de passe</label>
-    <input id="password" class="input" name="password" type="password" autocomplete="current-password" required>
+    <div id="login-creds" class="login-step">
+      <label class="lbl" for="phone">Numéro de téléphone</label>
+      <input id="phone" class="input" name="phone" type="tel" autocomplete="username" placeholder="+225 05 00 00 00 00" required>
+      <p class="help">Avec l'indicatif du pays, comme dans l'application (ex. +225, +229).</p>
+      <label class="lbl" for="password">Mot de passe</label>
+      <input id="password" class="input" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <div id="login-code" class="login-step code-step" hidden>
+      <span class="code-icon"><svg><use href="#i-key"/></svg></span>
+      <h2>Code de <span>sécurité</span></h2>
+      <p class="muted">Entre le code à 6 chiffres affiché par ton application d'authentification.</p>
+      <div class="otp" role="group" aria-label="Code à 6 chiffres">
+        <input inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-label="Chiffre 1">
+        <input inputmode="numeric" maxlength="1" aria-label="Chiffre 2">
+        <input inputmode="numeric" maxlength="1" aria-label="Chiffre 3">
+        <input inputmode="numeric" maxlength="1" aria-label="Chiffre 4">
+        <input inputmode="numeric" maxlength="1" aria-label="Chiffre 5">
+        <input inputmode="numeric" maxlength="1" aria-label="Chiffre 6">
+      </div>
+      <p class="help">Le code change toutes les 30 secondes.</p>
+      <button class="link-btn" id="login-back" type="button">Changer de compte</button>
+    </div>
     <p id="login-error" class="error" hidden></p>
-    <button class="btn wide" type="submit">Se connecter</button>
+    <button class="btn wide" id="login-submit" type="submit">Se connecter</button>
   </form>
 </div>
 
@@ -70,6 +88,7 @@
       <a href="#/comptes" data-page="comptes"><svg><use href="#i-user"/></svg>Comptes</a>
       <a href="#/paiements" data-page="paiements"><svg><use href="#i-card"/></svg>Paiements</a>
       <a href="#/versions" data-page="versions"><svg><use href="#i-phone"/></svg>Versions de l'app</a>
+      <a href="#/securite" data-page="securite"><svg><use href="#i-shield"/></svg>Sécurité<span class="count warn" id="nav-security" hidden>!</span></a>
     </nav>
     <div class="me">
       <span class="avatar" id="me-avatar"></span>

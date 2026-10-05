@@ -340,6 +340,26 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// Nouveau mot de passe : les autres téléphones sont déconnectés, celui-ci reçoit
+  /// un nouveau jeton.
+  Future<void> changePassword(String current, String next) async {
+    final r = await api.post('/me/password', {'current_password': current, 'new_password': next});
+    await _replaceToken(r['access_token'] as String);
+  }
+
+  /// Déconnecte tous les autres téléphones (téléphone perdu ou prêté).
+  Future<void> logoutOtherDevices() async {
+    final r = await api.post('/me/logout-everywhere');
+    await _replaceToken(r['access_token'] as String);
+  }
+
+  Future<void> _replaceToken(String token) async {
+    api.token = token;
+    await _prefs?.setString(_kToken, token);
+    _disconnectSocket();
+    _connectSocket();
+  }
+
   /// Suppression définitive du compte (mot de passe, ou Google pour un compte
   /// créé avec Google, redemandé par le serveur).
   Future<void> deleteAccount(String password) async {

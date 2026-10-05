@@ -155,6 +155,8 @@ class FakeServer {
       case 'DELETE /me/google':
         googleLinked = false;
         body = me;
+      case 'POST /me/password' || 'POST /me/logout-everywhere':
+        body = {'access_token': 'jeton', 'token_type': 'bearer'};
       case 'GET /app/support':
         body = {'whatsapp': '+2250500649904', 'whatsapp_url': 'https://wa.me/2250500649904'};
       case 'GET /me':

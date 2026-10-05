@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from footprono import app_release
+from footprono.accounts import audit
 from footprono.accounts.models import User
 from footprono.api.deps import AdminUserDep, RedisDep, SessionDep, SettingsDep
 from footprono.console import files, jobs
@@ -59,6 +60,7 @@ async def create_job(
     if action.risk == "irreversible" and not body.confirmed:
         raise ConfirmationRequiredError(f"« {action.title} » est irréversible : confirmer")
     job = await jobs.create_job(session, body.action, body.params, admin)
+    audit.record(session, admin, "job", f"action lancée : {action.title} (tâche {job.id})")
     await session.commit()
     dispatch: jobs.Dispatcher = getattr(request.app.state, "console_dispatch", jobs.celery_dispatch)
     try:
@@ -94,8 +96,9 @@ async def get_job(
 
 
 @router.post("/jobs/{job_id}/stop")
-async def stop_job(job_id: int, _admin: AdminUserDep, session: SessionDep) -> dict[str, Any]:
+async def stop_job(job_id: int, admin: AdminUserDep, session: SessionDep) -> dict[str, Any]:
     job = await jobs.request_stop(session, job_id)
+    audit.record(session, admin, "job_stop", f"arrêt demandé : tâche {job_id}")
     await session.commit()
     return jobs.job_out(job)
 
@@ -129,8 +132,12 @@ async def download_file(
 
 
 @router.delete("/files/{name}", status_code=204)
-async def delete_file(name: str, _admin: AdminUserDep, settings: SettingsDep) -> None:
+async def delete_file(
+    name: str, admin: AdminUserDep, settings: SettingsDep, session: SessionDep
+) -> None:
     files.safe_path(settings, name).unlink()
+    audit.record(session, admin, "file_delete", f"fichier supprimé : {name}")
+    await session.commit()
 
 
 # --- Versions de l'application -------------------------------------------------
@@ -146,8 +153,9 @@ async def app_release_info(_admin: AdminUserDep, settings: SettingsDep) -> dict[
 @router.post("/app-release")
 async def publish_app_release(
     request: Request,
-    _admin: AdminUserDep,
+    admin: AdminUserDep,
     settings: SettingsDep,
+    session: SessionDep,
     notes: Annotated[str, Query(max_length=500)] = "",
     minimum: Annotated[int, Query(ge=0)] = 0,
 ) -> dict[str, Any]:
@@ -169,6 +177,8 @@ async def publish_app_release(
         )
     finally:
         part.unlink(missing_ok=True)
+    audit.record(session, admin, "app_release", f"version publiée : n°{info.get('build')}")
+    await session.commit()
     return {"current": info}
 
 

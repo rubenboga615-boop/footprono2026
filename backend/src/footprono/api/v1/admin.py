@@ -6,7 +6,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, ConfigDict, Field
 
-from footprono.accounts import admin
+from footprono.accounts import admin, audit
 from footprono.accounts.plans import plan_info
 from footprono.api.deps import AdminUserDep, SessionDep, SettingsDep
 from footprono.bookmaker import smart_coupon
@@ -103,6 +103,9 @@ async def grant_premium(
 ) -> AdminUserOut:
     user = await admin.get_user(session, user_id)
     await admin.grant_premium(session, me, user, body.days, note=body.note)
+    audit.record(
+        session, me, "premium_grant", f"Premium +{body.days} j pour {audit.who(user)}", user
+    )
     await session.commit()
     return _out(user)
 
@@ -113,6 +116,7 @@ async def revoke_premium(
 ) -> AdminUserOut:
     user = await admin.get_user(session, user_id)
     await admin.revoke_premium(session, me, user, note=body.note)
+    audit.record(session, me, "premium_revoke", f"Premium retiré à {audit.who(user)}", user)
     await session.commit()
     return _out(user)
 
@@ -123,6 +127,8 @@ async def set_active(
 ) -> AdminUserOut:
     user = await admin.get_user(session, user_id)
     await admin.set_active(session, me, user, body.active)
+    state = "réactivé" if body.active else "désactivé"
+    audit.record(session, me, "account_active", f"compte {state} : {audit.who(user)}", user)
     await session.commit()
     return _out(user)
 
@@ -142,9 +148,15 @@ async def admin_smart_coupons(
 
 @router.put("/smart-coupons/{coupon_id}/booking-code")
 async def set_booking_code(
-    coupon_id: int, body: BookingCodeIn, _: AdminUserDep, session: SessionDep
+    coupon_id: int, body: BookingCodeIn, me: AdminUserDep, session: SessionDep
 ) -> dict[str, Any]:
-    return await smart_coupon.set_booking_code(session, coupon_id, body.bookmaker, body.code)
+    result = await smart_coupon.set_booking_code(session, coupon_id, body.bookmaker, body.code)
+    audit.record(
+        session, me, "booking_code",
+        f"code {body.bookmaker} du coupon {coupon_id} : {body.code.strip() or 'retiré'}",
+    )  # fmt: skip
+    await session.commit()
+    return result
 
 
 class RoleIn(BaseModel):
@@ -164,24 +176,33 @@ async def set_user_role(
     if user.id == me.id and body.role != "admin":
         raise AppError("impossible de retirer ton propre rôle d'administrateur")
     await admin.apply_role(session, user, body.role)
+    audit.record(session, me, "role", f"rôle {body.role} pour {audit.who(user)}", user)
     await session.commit()
     return _out(user)
 
 
 @router.post("/users/{user_id}/phone", response_model=AdminUserOut)
 async def set_user_phone(
-    user_id: int, body: PhoneIn, _: AdminUserDep, session: SessionDep
+    user_id: int, body: PhoneIn, me: AdminUserDep, session: SessionDep
 ) -> AdminUserOut:
     user = await admin.get_user(session, user_id)
+    old = audit.who(user)
     await admin.apply_phone(session, user, body.phone)
+    audit.record(session, me, "phone", f"numéro changé : {old} → {user.phone}", user)
     await session.commit()
     return _out(user)
 
 
 @router.post("/users/{user_id}/password-reset")
-async def reset_user_password(user_id: int, _: AdminUserDep, session: SessionDep) -> dict[str, str]:
-    """Mot de passe provisoire, affiché une seule fois (jamais enregistré en clair)."""
+async def reset_user_password(
+    user_id: int, me: AdminUserDep, session: SessionDep
+) -> dict[str, str]:
+    """Mot de passe provisoire, affiché une seule fois (jamais enregistré en clair) ;
+    les téléphones déjà connectés à ce compte sont déconnectés."""
     user = await admin.get_user(session, user_id)
     _, password = await admin.apply_password_reset(session, user)
+    audit.record(
+        session, me, "password_reset", f"mot de passe provisoire : {audit.who(user)}", user
+    )
     await session.commit()
     return {"password": password}

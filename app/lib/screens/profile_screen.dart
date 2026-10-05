@@ -104,6 +104,31 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _logoutOthers(BuildContext context, AppState state) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Déconnecter mes autres téléphones ?'),
+        content: Text(
+          'Les autres téléphones et navigateurs connectés à ton compte devront se reconnecter. '
+          'Celui-ci reste connecté.',
+          style: Fp.body(13, color: Fp.text2, height: 1.4),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Déconnecter')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await state.logoutOtherDevices();
+      showMessage('Tes autres téléphones sont déconnectés.');
+    } on ApiException catch (e) {
+      showMessage(e.message, error: true);
+    }
+  }
+
   Future<void> _changePassword(BuildContext context, AppState state) async {
     final current = TextEditingController(),
         next = TextEditingController(),
@@ -145,10 +170,7 @@ class ProfileScreen extends StatelessWidget {
                   return;
                 }
                 try {
-                  await state.api.post('/me/password', {
-                    'current_password': current.text,
-                    'new_password': next.text,
-                  });
+                  await state.changePassword(current.text, next.text);
                   if (context.mounted) Navigator.pop(context);
                   showMessage('Mot de passe changé.');
                 } on ApiException catch (e) {
@@ -281,6 +303,13 @@ class ProfileScreen extends StatelessWidget {
                           ),
                           const Divider(),
                         ],
+                        _Item(
+                          icon: Icons.phonelink_erase_rounded,
+                          title: 'Déconnecter mes autres téléphones',
+                          subtitle: 'Téléphone perdu ou prêté',
+                          onTap: () => _logoutOthers(context, state),
+                        ),
+                        const Divider(),
                         _Item(
                           icon: Icons.support_agent_rounded,
                           title: 'Aide',

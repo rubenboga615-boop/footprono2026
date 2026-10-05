@@ -36,6 +36,10 @@ class User(Base):
     # Compte Google lié (identifiant Google stable, adresse vérifiée par Google).
     google_sub: Mapped[str | None] = mapped_column(String(128), unique=True)
     email: Mapped[str | None] = mapped_column(String(254))
+    # Console : clé du code de sécurité à 6 chiffres (chiffrée), vide si non activé.
+    totp_secret: Mapped[str | None] = mapped_column(String(255))
+    # Jetons émis avant cette date refusés (mot de passe changé, « déconnecter partout »).
+    tokens_valid_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     display_name: Mapped[str] = mapped_column(String(40))
     country: Mapped[str] = mapped_column(String(2))  # ISO 3166-1 alpha-2
     currency: Mapped[str] = mapped_column(String(3))  # ISO 4217
@@ -99,3 +103,21 @@ class WalletEntry(Base):
     bet_id: Mapped[int | None] = mapped_column(Integer, index=True)
     note: Mapped[str | None] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AdminAction(Base):
+    """Journal des actions d'administration (qui a fait quoi, sur quel compte)."""
+
+    __tablename__ = "admin_actions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    admin_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    action: Mapped[str] = mapped_column(String(40))
+    # Sans clé étrangère : la ligne reste si le compte visé est supprimé.
+    target_user_id: Mapped[int | None] = mapped_column(Integer)
+    summary: Mapped[str] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )

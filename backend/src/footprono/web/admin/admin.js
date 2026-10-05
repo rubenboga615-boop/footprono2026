@@ -17,6 +17,7 @@ const PAGES = [
   { id: "comptes", hash: "#/comptes", title: "Comptes", icon: "i-user" },
   { id: "paiements", hash: "#/paiements", title: "Paiements", icon: "i-card" },
   { id: "versions", hash: "#/versions", title: "Versions de l'app", icon: "i-phone" },
+  { id: "securite", hash: "#/securite", title: "Sécurité", icon: "i-shield" },
 ];
 
 let token = readToken();
@@ -51,7 +52,7 @@ async function api(method, path, body, extra) {
   const response = await fetch(API + path, { method, headers, body: payload, ...(extra || {}) });
   let data = null;
   try { data = await response.json(); } catch { /* réponse vide */ }
-  if (response.status === 401 && path !== "/auth/login") { logout(); throw new ApiError("Session expirée : reconnecte-toi.", 401); }
+  if (response.status === 401 && path !== "/auth/console-login") { logout(); throw new ApiError("Session expirée : reconnecte-toi.", 401); }
   if (!response.ok) {
     const error = data && data.error ? data.error : {};
     throw new ApiError(error.message || `Erreur ${response.status}`, response.status, error.code);
@@ -227,36 +228,78 @@ function showLogin(message) {
   error.textContent = message || "";
 }
 function logout() {
-  token = null; me = null; catalog = null; writeToken(null); stopTimer(); showLogin();
+  if (token) {
+    // Session fermée côté serveur : le jeton ne sert plus, même copié ailleurs.
+    fetch(API + CONSOLE + "/logout", { method: "POST", headers: { Authorization: "Bearer " + token } }).catch(() => {});
+  }
+  token = null; me = null; catalog = null; writeToken(null); stopTimer(); codeStep(false); showLogin();
+}
+function otpInputs() { return [...document.querySelectorAll("#login-code .otp input")]; }
+function codeStep(on) {
+  document.getElementById("login-creds").hidden = on;
+  document.getElementById("login-code").hidden = !on;
+  document.getElementById("login-submit").textContent = on ? "Vérifier et entrer" : "Se connecter";
+  for (const input of otpInputs()) input.value = "";
+  if (on) otpInputs()[0].focus();
+}
+function otpValue() { return otpInputs().map((i) => i.value).join(""); }
+function wireOtp() {
+  const inputs = otpInputs();
+  inputs.forEach((input, i) => {
+    input.addEventListener("input", () => {
+      const digits = input.value.replace(/\D/g, "");
+      if (digits.length > 1) { // code collé ou proposé par le téléphone
+        digits.slice(0, 6).split("").forEach((d, k) => { if (inputs[k]) inputs[k].value = d; });
+        inputs[Math.min(digits.length, 6) - 1].focus();
+      } else {
+        input.value = digits;
+        if (digits && inputs[i + 1]) inputs[i + 1].focus();
+      }
+      if (otpValue().length === 6) document.getElementById("login-form").requestSubmit();
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Backspace" && !input.value && inputs[i - 1]) inputs[i - 1].focus();
+    });
+  });
 }
 async function login(event) {
   event.preventDefault();
   const form = event.target;
-  const button = form.querySelector("button");
+  const button = document.getElementById("login-submit");
   const phone = form.phone.value.trim();
+  const withCode = !document.getElementById("login-code").hidden;
   if (!phone.startsWith("+") && !phone.startsWith("00")) {
     showLogin("Numéro sans indicatif : écris-le avec l'indicatif du pays, ex. +225 " + phone);
     return;
   }
+  const body = { phone, password: form.password.value };
+  if (withCode) {
+    body.code = otpValue();
+    if (body.code.length !== 6) { showLogin("Entre les 6 chiffres du code."); return; }
+  }
   button.disabled = true;
   try {
-    const data = await api("POST", "/auth/login", { phone, password: form.password.value });
+    const data = await api("POST", "/auth/console-login", body);
     token = data.access_token;
     await start();
-    if (me) { writeToken(token); form.password.value = ""; }
+    if (me) { writeToken(token); form.password.value = ""; codeStep(false); }
   } catch (err) {
-    showLogin(err.message);
+    if (err.code === "totp_required") { showLogin(); codeStep(true); }
+    else {
+      showLogin(err.message);
+      if (withCode) { for (const input of otpInputs()) input.value = ""; otpInputs()[0].focus(); }
+    }
   } finally {
     button.disabled = false;
   }
 }
 async function start() {
-  try { me = await api("GET", "/me"); } catch (err) { token = null; showLogin(err.status === 401 ? null : err.message); return; }
-  if (me.role !== "admin") { token = null; me = null; writeToken(null); showLogin("Ce compte n'est pas administrateur."); return; }
+  try { me = await api("GET", CONSOLE + "/me"); } catch (err) { token = null; showLogin(err.status === 401 ? null : err.message); return; }
   document.getElementById("login").hidden = true;
   document.getElementById("shell").hidden = false;
   document.getElementById("me-name").textContent = me.display_name;
   document.getElementById("me-avatar").textContent = me.display_name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+  document.getElementById("nav-security").hidden = !!me.totp_enabled;
   route();
 }
 
@@ -296,6 +339,7 @@ async function route() {
     else if (parts[0] === "comptes") await accountsPage();
     else if (parts[0] === "paiements") await paymentsPage();
     else if (parts[0] === "versions") await versionsPage();
+    else if (parts[0] === "securite") await securityPage();
     else if (parts[0] === "plus") plusPage();
     else await dashboardPage();
   } catch (err) {
@@ -858,6 +902,73 @@ async function versionsPage() {
       progress, h("div", { class: "btns", style: "margin-top:10px" }, send))));
 }
 
+// --- Sécurité : code à 6 chiffres, sessions, historique des actions -----------------------
+
+async function securityPage() {
+  setPage("securite", "Sécurité");
+  const [status, journal] = await Promise.all([api("GET", "/admin/security"), api("GET", CONSOLE + "/audit")]);
+  me.totp_enabled = status.totp_enabled;
+  document.getElementById("nav-security").hidden = status.totp_enabled;
+
+  const codeCard = status.totp_enabled
+    ? card(["Code de sécurité", pill("Activé", "ok")],
+      h("p", { class: "note", text: "Chaque connexion à la console demande le code à 6 chiffres de ton application d'authentification, après le mot de passe." }),
+      h("div", { class: "btns" }, h("button", { class: "btn ghost", type: "button", text: "Désactiver", onclick: async () => {
+        const code = await promptBox("Désactiver le code de sécurité", "Entre le code actuel de ton application d'authentification.", "123456");
+        if (!code) return;
+        try { await api("POST", "/admin/security/totp/disable", { code }); toast("Code de sécurité désactivé."); securityPage(); } catch (err) { toast(err.message); }
+      } })))
+    : card(["Code de sécurité", pill("Désactivé", "bad")],
+      h("p", { class: "note", text: "Sans code, un mot de passe volé suffit pour ouvrir la console. Active-le : chaque connexion demandera aussi un code à 6 chiffres, renouvelé toutes les 30 secondes sur ton téléphone." }),
+      h("div", { class: "btns" }, h("button", { class: "btn", type: "button", onclick: () => enableTotp() }, icon("i-key"), "Activer")));
+
+  const sessionsCard = card("Sessions de la console",
+    h("div", { class: "row" }, h("span", { class: "t", text: "Sessions ouvertes" }), h("b", { text: String(status.sessions) })),
+    h("div", { class: "row" }, h("span", { class: "t", text: "Durée d'une session" }), h("b", { text: status.session_hours + " h" })),
+    h("p", { class: "note", text: "Téléphone ou ordinateur perdu : ferme toutes les sessions, puis reconnecte-toi ici." }),
+    h("div", { class: "btns" }, h("button", { class: "btn ghost", type: "button", onclick: async () => {
+      if (!(await confirmBox("Déconnecter toutes les sessions ?", "Toutes les sessions de la console de ce compte sont fermées, celle-ci comprise.", "Tout déconnecter", true))) return;
+      try { await api("POST", CONSOLE + "/logout-all"); } catch { /* déjà fermée */ }
+      logout();
+    } }, icon("i-out"), "Déconnecter toutes mes sessions")));
+
+  const rows = journal.map((a) => h("tr", {},
+    h("td", { class: "hide-sm", text: when(a.at) }),
+    h("td", {}, h("div", { style: "font-weight:600", text: a.summary }), h("div", { class: "note", text: a.admin + " · " + ago(a.at) })),
+    h("td", { class: "hide-sm mono", text: a.action })));
+  const auditCard = card("Historique des actions",
+    journal.length ? h("div", { class: "scroll" }, h("table", {},
+      h("thead", {}, h("tr", {}, h("th", { class: "hide-sm", text: "Date" }), h("th", { text: "Action" }), h("th", { class: "hide-sm", text: "Type" }))),
+      h("tbody", {}, ...rows))) : h("div", { class: "empty", text: "Aucune action enregistrée pour l'instant." }));
+  view(h("div", { class: "grid-2e", style: "margin-top:0" }, codeCard, sessionsCard), h("div", { style: "margin-top:12px" }, auditCard));
+}
+
+async function enableTotp() {
+  let setup;
+  try { setup = await api("POST", "/admin/security/totp/setup"); } catch (err) { toast(err.message); return; }
+  const done = await modal((close) => {
+    const input = h("input", { class: "input", type: "text", inputmode: "numeric", autocomplete: "one-time-code", maxlength: "6", placeholder: "123456" });
+    const error = h("p", { class: "error", hidden: true });
+    const form = h("form", { onsubmit: async (e) => {
+      e.preventDefault();
+      try { await api("POST", "/admin/security/totp/enable", { code: input.value.trim() }); close(true); }
+      catch (err) { error.textContent = err.message; error.hidden = false; }
+    } }, input, error,
+      h("div", { class: "btns", style: "margin-top:12px" }, h("button", { class: "btn", type: "submit", text: "Activer" }),
+        h("button", { class: "btn ghost", type: "button", text: "Annuler", onclick: () => close(false) })));
+    return [h("h3", { text: "Activer le code de sécurité" }),
+      h("ol", { class: "howto" },
+        h("li", {}, "Installe ", h("b", { text: "Google Authenticator" }), " (ou Microsoft Authenticator) sur ton téléphone."),
+        h("li", {}, "Ajoute la console : ", h("a", { href: setup.uri }, "ouvrir dans l'application"),
+          " (sur ce téléphone), ou saisis cette clé à la main :")),
+      h("div", { class: "secret", text: setup.secret.replace(/(.{4})/g, "$1 ").trim() }),
+      h("p", { class: "note", text: "Ne partage jamais cette clé : elle n'est affichée qu'une fois et valable 10 minutes." }),
+      h("ol", { class: "howto", start: "3" }, h("li", {}, "Entre le code à 6 chiffres affiché par l'application.")),
+      form];
+  });
+  if (done) { toast("Code de sécurité activé : il sera demandé à chaque connexion."); securityPage(); }
+}
+
 // --- Plus (téléphone) -------------------------------------------------------------------
 
 function plusPage() {
@@ -871,6 +982,8 @@ function plusPage() {
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("login-form").addEventListener("submit", login);
+  document.getElementById("login-back").addEventListener("click", () => { codeStep(false); showLogin(); });
+  wireOtp();
   document.getElementById("logout").addEventListener("click", logout);
   document.getElementById("open-palette").addEventListener("click", openPalette);
   document.getElementById("fab").addEventListener("click", openPalette);

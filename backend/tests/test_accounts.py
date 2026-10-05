@@ -142,7 +142,8 @@ async def test_change_password(client: AsyncClient) -> None:
         headers=headers,
         json={"current_password": SIGNUP["password"], "new_password": "nouveau-mdp"},
     )
-    assert ok.status_code == 204
+    assert ok.status_code == 200  # nouveau jeton : les autres téléphones sont déconnectés
+    assert ok.json()["access_token"]
     phone = SIGNUP["phone"]
     old = await client.post(
         "/api/v1/auth/login", json={"phone": phone, "password": SIGNUP["password"]}

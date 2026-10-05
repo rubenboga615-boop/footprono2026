@@ -228,7 +228,8 @@ async def test_console_manages_a_google_account_without_phone(
     boss = _auth(
         (
             await client.post(
-                f"{API}/auth/login", json={"phone": "+22505000000099", "password": "admin-123"}
+                f"{API}/auth/console-login",
+                json={"phone": "+22505000000099", "password": "admin-123"},
             )
         ).json()["access_token"]
     )

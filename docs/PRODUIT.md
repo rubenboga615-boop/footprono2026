@@ -43,6 +43,23 @@ dans la console), pas d'adresse du serveur, pas de version du moteur, pas de
 notification de la console (le suivi des tâches reste dans la console), et des
 messages d'erreur simples pour le joueur (le détail technique reste dans le
 journal du serveur : `AppError(..., public=...)`).
+**Sécurité de la console** (page Sécurité, `api/v1/console_auth.py`) :
+- connexion propre à la console (`POST /auth/console-login`) : numéro, mot de passe, puis
+  **code de sécurité à 6 chiffres** (Google Authenticator, Microsoft Authenticator… ;
+  TOTP RFC 6238, clé chiffrée en base, code déjà utilisé refusé) une fois activé ;
+- **sessions de 12 h**, enregistrées dans Redis : « Se déconnecter » ferme la session,
+  « Déconnecter toutes mes sessions » les ferme toutes ; un jeton de l'application des
+  joueurs (30 jours) n'ouvre jamais la console ;
+- **historique des actions** (table `admin_actions`, jamais exportée) : connexions, codes
+  refusés, Premium, rôles, numéros, mots de passe provisoires, désactivations, codes 1xBet,
+  actions lancées ou arrêtées, fichiers supprimés, versions publiées, code de sécurité ;
+- téléphone perdu : sur le serveur, `docker compose -f /opt/footprono/deploy/docker-compose.yml exec api footprono-admin disable-2fa <numéro>`
+  (puis réactiver le code dans la console).
+
+Joueurs : changer son mot de passe (ou un mot de passe provisoire donné par la console)
+déconnecte les autres téléphones ; Profil → « Déconnecter mes autres téléphones »
+(`POST /me/logout-everywhere`).
+
 Aussi installable sur Android : **FootProba Console** (`console-android/`, artefact
 `footproba-console-apk` de la CI), fenêtre dédiée sur `/admin` du serveur.
 

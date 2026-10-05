@@ -605,7 +605,7 @@ def _today() -> str:
 PERSONAL_TABLES = (
     "users", "wallets", "wallet_entries", "bets", "bet_selections", "montantes",
     "montante_steps", "notifications", "push_devices", "payments", "subscription_events",
-    "admin_jobs", "admin_job_lines",
+    "admin_jobs", "admin_job_lines", "admin_actions",
 )  # fmt: skip
 
 

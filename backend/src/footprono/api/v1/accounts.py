@@ -1,5 +1,6 @@
 """Comptes : inscription, connexion, profil, portefeuille fictif."""
 
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, status
@@ -219,10 +220,24 @@ async def refill(user: CurrentUserDep, session: SessionDep, settings: SettingsDe
     return entry
 
 
-@router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)
-async def change_password(body: PasswordIn, user: CurrentUserDep, session: SessionDep) -> None:
+@router.post("/me/password", response_model=TokenOut)
+async def change_password(
+    body: PasswordIn, user: CurrentUserDep, session: SessionDep, settings: SettingsDep
+) -> TokenOut:
+    """Les autres téléphones sont déconnectés ; nouveau jeton pour celui-ci."""
     await service.change_password(session, user, body.current_password, body.new_password)
     await session.commit()
+    return TokenOut(access_token=create_access_token(user.id, settings))
+
+
+@router.post("/me/logout-everywhere", response_model=TokenOut)
+async def logout_everywhere(
+    user: CurrentUserDep, session: SessionDep, settings: SettingsDep
+) -> TokenOut:
+    """Déconnecte tous les autres téléphones (téléphone perdu, prêté…)."""
+    user.tokens_valid_after = datetime.now(UTC)
+    await session.commit()
+    return TokenOut(access_token=create_access_token(user.id, settings))
 
 
 class DeleteIn(BaseModel):

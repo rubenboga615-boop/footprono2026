@@ -17,7 +17,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from footprono.accounts.models import User
-from footprono.accounts.security import read_access_token
+from footprono.accounts.security import read_token, revoked
 from footprono.api.deps import CurrentUserDep, SessionDep
 from footprono.core.config import Settings
 from footprono.core.errors import NotFoundError
@@ -113,12 +113,13 @@ async def remove_device(body: DeviceTokenIn, user: CurrentUserDep, session: Sess
 async def notifications_socket(websocket: WebSocket, token: str = "") -> None:
     settings: Settings = websocket.app.state.settings
     factory: async_sessionmaker = websocket.app.state.session_factory  # type: ignore[type-arg]
-    user_id = read_access_token(token, settings) if token else None
-    if user_id is not None:
+    claims = read_token(token, settings) if token else None
+    user_id: int | None = None
+    if claims is not None and claims.get("scope", "app") == "app":
         async with factory() as session:
-            user = await session.get(User, user_id)
-        if user is None or not user.is_active:
-            user_id = None
+            user = await session.get(User, claims["sub"])
+        if user is not None and user.is_active and not revoked(user, claims["iat"]):
+            user_id = user.id
     if user_id is None:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="connexion requise")
         return

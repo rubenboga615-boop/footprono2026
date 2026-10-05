@@ -315,11 +315,15 @@ async def test_day_coupons_live_state_and_booking_codes(
     assert set(day["summary"]) == {"yesterday", "last_30_days"}
 
     url = f"/api/v1/admin/smart-coupons/{coupon['id']}/booking-code"
-    headers = await _login(client)
-    assert (await client.put(url, json={"code": "7HQ2K"}, headers=headers)).status_code == 403
+    player = await _login(client)
+    assert (await client.put(url, json={"code": "7HQ2K"}, headers=player)).status_code == 401
     async with db_factory() as session:
         await admin.set_role(session, "+22997111111", "admin")
         await session.commit()
+    console = await client.post(
+        "/api/v1/auth/console-login", json={"phone": "+22997111111", "password": "12345678"}
+    )
+    headers = {"Authorization": f"Bearer {console.json()['access_token']}"}
     saved = await client.put(url, json={"bookmaker": "1xbet", "code": " 7hq 2k "}, headers=headers)
     assert saved.status_code == 200
     bad = await client.put(url, json={"code": "AB-12"}, headers=headers)

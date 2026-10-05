@@ -71,14 +71,18 @@ async def admin_headers(client: AsyncClient, db_factory: Factory) -> dict[str, s
             display_name="Admin", country="TG", adult=True,
         )  # fmt: skip
         await session.commit()
-    r = await client.post("/api/v1/auth/login", json={"phone": PHONE, "password": "12345678"})
-    headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    login = {"phone": PHONE, "password": "12345678"}
+    r = await client.post("/api/v1/auth/login", json=login)
+    app_token = {"Authorization": f"Bearer {r.json()['access_token']}"}
     # Compte ordinaire : la console est refusée.
-    assert (await client.get(f"{API}/actions", headers=headers)).status_code == 403
+    assert (await client.post("/api/v1/auth/console-login", json=login)).status_code == 403
     async with db_factory() as session:
         await admin.set_role(session, PHONE, "admin")
         await session.commit()
-    return headers
+    # Même administrateur : le jeton de l'application (30 jours) n'ouvre pas la console.
+    assert (await client.get(f"{API}/actions", headers=app_token)).status_code == 401
+    r = await client.post("/api/v1/auth/console-login", json=login)
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
 
 
 def _inline(app: FastAPI) -> list[int]:
