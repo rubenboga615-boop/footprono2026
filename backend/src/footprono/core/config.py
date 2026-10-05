@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     # Aide aux joueurs (bouton « Aide » et « Mot de passe oublié ») : numéro WhatsApp
     # public, format international.
     support_whatsapp: str | None = "+2250500649904"
+    # Alertes de l'administrateur (application ntfy) : serveur de publication.
+    alerts_ntfy_url: str = "https://ntfy.sh"
 
     # Comptes et bookmaker virtuel (argent fictif, montants entiers en devise).
     access_token_days: int = Field(default=30, ge=1)

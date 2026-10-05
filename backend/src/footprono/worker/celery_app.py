@@ -78,6 +78,17 @@ def create_celery(settings: Settings | None = None) -> Celery:
                 "task": "footprono.daily_smart_coupons",
                 "schedule": crontab(hour=8, minute=5),
             },
+            # Alertes de l'administrateur (ntfy) : pannes, tâches en échec, quota, sauvegarde.
+            "alerts-watchdog": {
+                "task": "footprono.alerts_watchdog",
+                "schedule": crontab(minute="3,13,23,33,43,53"),
+                "options": {"expires": 500},
+            },
+            # Rappel avant la fin de Premium (3 jours avant, la veille), en fin de matinée.
+            "premium-reminders": {
+                "task": "footprono.premium_reminders",
+                "schedule": crontab(hour=10, minute=5),
+            },
             # Paiements dont la notification CinetPay n'est pas arrivée.
             "check-payments": {
                 "task": "footprono.check_payments",

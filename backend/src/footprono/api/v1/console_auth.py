@@ -13,6 +13,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 
+from footprono import alerts
 from footprono.accounts import audit, service, totp
 from footprono.accounts.models import User
 from footprono.accounts.security import CONSOLE_HOURS, create_access_token, read_token
@@ -239,3 +240,57 @@ async def admin_audit(
 ) -> list[dict[str, Any]]:
     """Journal des actions d'administration, de la plus récente à la plus ancienne."""
     return await audit.recent(session, limit)
+
+
+# --- Alertes sur le téléphone (ntfy) ----------------------------------------------
+
+
+async def _alerts_info(session: SessionDep, settings: Settings) -> dict[str, Any]:
+    name = await alerts.topic(session)
+    return {
+        "enabled": name is not None,
+        "topic": name,
+        "server": settings.alerts_ntfy_url,
+        "subscribe_url": alerts.subscribe_url(settings, name) if name else None,
+    }
+
+
+@router.get("/admin/alerts")
+async def alerts_status(
+    _admin: AdminUserDep, session: SessionDep, settings: SettingsDep
+) -> dict[str, Any]:
+    return await _alerts_info(session, settings)
+
+
+@router.post("/admin/alerts/setup")
+async def alerts_setup(
+    admin: AdminUserDep, session: SessionDep, settings: SettingsDep
+) -> dict[str, Any]:
+    """Nouveau canal d'alertes (l'ancien ne reçoit plus rien)."""
+    await alerts.new_topic(session)
+    audit.record(session, admin, "alerts_channel", "nouveau canal d'alertes ntfy")
+    await session.commit()
+    return await _alerts_info(session, settings)
+
+
+@router.post("/admin/alerts/test")
+async def alerts_test(
+    _admin: AdminUserDep, session: SessionDep, settings: SettingsDep
+) -> dict[str, bool]:
+    name = await alerts.topic(session)
+    if name is None:
+        raise AppError("active d'abord les alertes")
+    ok = await alerts.send(
+        settings, name, "FootProba : alerte d'essai",
+        "Les alertes arrivent bien sur ce téléphone.", tags=["white_check_mark"],
+    )  # fmt: skip
+    if not ok:
+        raise AppError("envoi impossible : ntfy injoignable depuis le serveur, réessaie")
+    return {"sent": True}
+
+
+@router.delete("/admin/alerts", status_code=status.HTTP_204_NO_CONTENT)
+async def alerts_disable(admin: AdminUserDep, session: SessionDep) -> None:
+    await alerts.disable(session)
+    audit.record(session, admin, "alerts_disabled", "alertes ntfy désactivées")
+    await session.commit()

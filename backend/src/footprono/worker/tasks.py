@@ -7,7 +7,8 @@ from typing import Any
 from celery.signals import worker_ready
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from footprono import __version__
+from footprono import __version__, alerts
+from footprono.accounts.reminders import send_premium_reminders
 from footprono.bookmaker import settlement, smart_coupon
 from footprono.cache.redis import create_redis
 from footprono.console import jobs as console_jobs
@@ -259,3 +260,45 @@ def _catch_up_on_start(sender: Any = None, **_: Any) -> None:
     if getattr(sender, "app", None) is not celery_app:
         return
     predict_if_needed.apply_async(countdown=30)
+
+
+@celery_app.task(name="footprono.premium_reminders")
+@tracked("premium_reminders")
+def premium_reminders() -> dict[str, Any]:
+    """Rappels « ton Premium se termine dans 3 jours / demain »."""
+    return asyncio.run(_premium_reminders())
+
+
+async def _premium_reminders() -> dict[str, Any]:
+    settings = get_settings()
+    engine = create_engine(settings)
+    redis = create_redis(settings)
+    push = push_sender_or_none(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            sent = await send_premium_reminders(session)
+            await notifications.publish_pending(session, redis, push)
+    finally:
+        await redis.aclose()
+        if push is not None:
+            await push.aclose()
+        await engine.dispose()
+    return {"status": "ok", "sent": sent}
+
+
+@celery_app.task(name="footprono.alerts_watchdog")
+def alerts_watchdog() -> dict[str, Any]:
+    """Toutes les 10 minutes : alertes de l'administrateur sur son téléphone (ntfy)."""
+    return asyncio.run(_alerts_watchdog())
+
+
+async def _alerts_watchdog() -> dict[str, Any]:
+    settings = get_settings()
+    engine = create_engine(settings)
+    redis = create_redis(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            return await alerts.watchdog(session, redis, settings)
+    finally:
+        await redis.aclose()
+        await engine.dispose()

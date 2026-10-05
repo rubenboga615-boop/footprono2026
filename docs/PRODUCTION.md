@@ -135,8 +135,12 @@ Fonctionnement :
 ## Supervision
 
 - `https://<sous-domaine>.duckdns.org/api/v1/ready` : base et Redis.
-- Surveillance externe gratuite : <https://uptimerobot.com>, moniteur HTTPS
-  sur cette adresse toutes les 5 minutes, alerte par e-mail.
+- `https://<sous-domaine>.duckdns.org/api/v1/health/tasks` : 503 si les tâches
+  planifiées (worker + beat) n'ont pas tourné depuis 10 minutes.
+- Surveillance externe gratuite : <https://uptimerobot.com>, deux moniteurs HTTPS
+  (`/api/v1/ready` et `/api/v1/health/tasks`) toutes les 5 minutes, alerte par
+  e-mail ou par l'application UptimeRobot : elle prévient même si le serveur entier
+  est éteint (les alertes ntfy de la console, elles, partent du serveur).
 - État des services : `docker compose -f /opt/footprono/deploy/docker-compose.yml ps`
 - Journaux : `… logs --tail 100 api` (worker, beat, caddy, backup) ;
   limités à 30 Mo par service.

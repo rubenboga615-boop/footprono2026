@@ -56,6 +56,14 @@ journal du serveur : `AppError(..., public=...)`).
 - téléphone perdu : sur le serveur, `docker compose -f /opt/footprono/deploy/docker-compose.yml exec api footprono-admin disable-2fa <numéro>`
   (puis réactiver le code dans la console).
 
+**Alertes sur le téléphone de l'administrateur** (page Sécurité, `alerts.py`) : par
+l'application gratuite **ntfy** (sans compte), sur un canal au nom aléatoire créé dans la
+console (table `app_settings`). Toutes les 10 minutes (tâche `alerts_watchdog`) : la liste
+« à traiter » du tableau de bord (service arrêté, quota API-Football bas, sauvegarde
+manquante, disque presque plein, codes 1xBet à saisir, cotes non relevées…) et les tâches
+planifiées en échec ; immédiatement : une action de la console en échec. Une même alerte
+au plus toutes les 12 h ; aucune donnée de joueur ; rien ne passe par l'application des joueurs.
+
 Joueurs : changer son mot de passe (ou un mot de passe provisoire donné par la console)
 déconnecte les autres téléphones ; Profil → « Déconnecter mes autres téléphones »
 (`POST /me/logout-everywhere`).

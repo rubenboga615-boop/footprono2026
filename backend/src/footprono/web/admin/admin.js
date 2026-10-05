@@ -906,7 +906,7 @@ async function versionsPage() {
 
 async function securityPage() {
   setPage("securite", "Sécurité");
-  const [status, journal] = await Promise.all([api("GET", "/admin/security"), api("GET", CONSOLE + "/audit")]);
+  const [status, journal, alertInfo] = await Promise.all([api("GET", "/admin/security"), api("GET", CONSOLE + "/audit"), api("GET", "/admin/alerts")]);
   me.totp_enabled = status.totp_enabled;
   document.getElementById("nav-security").hidden = status.totp_enabled;
 
@@ -940,7 +940,34 @@ async function securityPage() {
     journal.length ? h("div", { class: "scroll" }, h("table", {},
       h("thead", {}, h("tr", {}, h("th", { class: "hide-sm", text: "Date" }), h("th", { text: "Action" }), h("th", { class: "hide-sm", text: "Type" }))),
       h("tbody", {}, ...rows))) : h("div", { class: "empty", text: "Aucune action enregistrée pour l'instant." }));
-  view(h("div", { class: "grid-2e", style: "margin-top:0" }, codeCard, sessionsCard), h("div", { style: "margin-top:12px" }, auditCard));
+  view(h("div", { class: "grid-2e", style: "margin-top:0" }, codeCard, sessionsCard),
+    h("div", { style: "margin-top:12px" }, alertsCard(alertInfo)), h("div", { style: "margin-top:12px" }, auditCard));
+}
+
+function alertsCard(info) {
+  const act = async (fn, done) => { try { await fn(); if (done) toast(done); securityPage(); } catch (err) { toast(err.message); } };
+  if (!info.enabled) {
+    return card(["Alertes sur ton téléphone", pill("Désactivées", "mute")],
+      h("p", { class: "note", text: "Reçois une notification quand un service tombe, qu'une tâche échoue, que le quota API-Football baisse ou qu'une sauvegarde manque. Par l'application gratuite ntfy, sans compte : rien ne passe par l'application des joueurs." }),
+      h("ol", { class: "howto" },
+        h("li", {}, "Installe ", h("b", { text: "ntfy" }), " depuis le Play Store."),
+        h("li", {}, "Crée ton canal d'alertes ci-dessous, puis abonne-toi dans ntfy.")),
+      h("div", { class: "btns" }, h("button", { class: "btn", type: "button", onclick: () => act(() => api("POST", "/admin/alerts/setup")) }, icon("i-warn"), "Créer mon canal d'alertes")));
+  }
+  return card(["Alertes sur ton téléphone", pill("Activées", "ok")],
+    h("ol", { class: "howto" },
+      h("li", {}, "Sur ce téléphone : ", h("a", { href: info.subscribe_url }, "s'abonner dans ntfy"), "."),
+      h("li", {}, "Ou dans ntfy : ", h("b", { text: "+" }), " → nom du sujet ci-dessous (serveur ntfy.sh par défaut).")),
+    h("div", { class: "secret", text: info.topic }),
+    h("p", { class: "note", text: "Garde ce nom pour toi : quiconque le connaît peut lire les alertes (aucune donnée de joueur n'y figure). Vérifications toutes les 10 minutes ; une même alerte au plus toutes les 12 h." }),
+    h("div", { class: "btns" },
+      h("button", { class: "btn", type: "button", onclick: () => act(() => api("POST", "/admin/alerts/test"), "Alerte d'essai envoyée : regarde ton téléphone.") }, "Envoyer une alerte d'essai"),
+      h("button", { class: "btn ghost", type: "button", onclick: async () => {
+        if (await confirmBox("Changer de canal ?", "L'ancien canal ne recevra plus rien : il faudra t'abonner au nouveau dans ntfy.", "Changer")) act(() => api("POST", "/admin/alerts/setup"));
+      } }, "Changer de canal"),
+      h("button", { class: "btn ghost", type: "button", onclick: async () => {
+        if (await confirmBox("Désactiver les alertes ?", "Plus aucune alerte ne sera envoyée.", "Désactiver", true)) act(() => api("DELETE", "/admin/alerts"), "Alertes désactivées.");
+      } }, "Désactiver")));
 }
 
 async function enableTotp() {

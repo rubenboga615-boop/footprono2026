@@ -247,7 +247,26 @@ async def run_job(
             if result_status == "succeeded":
                 job.progress = 1.0
         await _publish(session, settings)
+        if result_status == "failed":
+            await _alert_failure(session, settings, action_id, summary)
     return result_status
+
+
+async def _alert_failure(
+    session: AsyncSession, settings: Settings, action_id: str, summary: str
+) -> None:
+    from footprono import alerts  # évite une importation circulaire (alerts → dashboard)
+
+    redis = create_redis(settings)
+    try:
+        await alerts.notify(
+            session, settings, redis, "FootProba : action en échec",
+            f"« {action_id_title(action_id)} » : {summary[:300]}", priority=4, tags=["x"],
+        )  # fmt: skip
+    except Exception:
+        logger.exception("console_alert_failed")
+    finally:
+        await redis.aclose()
 
 
 def action_id_title(action_id: str) -> str:

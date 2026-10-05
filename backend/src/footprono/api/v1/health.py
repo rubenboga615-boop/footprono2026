@@ -7,7 +7,9 @@
 """
 
 import asyncio
+import json
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from typing import Literal
 
@@ -72,3 +74,19 @@ async def ready(settings: SettingsDep, engine: EngineDep, redis: RedisDep) -> JS
     all_ok = all(c.ok for c in checks.values())
     body = ReadinessResponse(status="ready" if all_ok else "unavailable", checks=checks)
     return JSONResponse(body.model_dump(), status_code=200 if all_ok else 503)
+
+
+@router.get("/health/tasks")
+async def tasks_alive(redis: RedisDep) -> JSONResponse:
+    """Pour la surveillance extérieure : 503 si le suivi du direct (toutes les 2 min,
+    worker + beat) n'a pas tourné depuis 10 minutes, ou si Redis ne répond pas."""
+    from footprono.console.runs import PREFIX
+
+    try:
+        last = await redis.lindex(PREFIX + "follow_live", 0)  # type: ignore[misc]
+    except Exception:
+        last = None
+    at = json.loads(last)["at"] if last else None
+    alive = at is not None and time.time() - at < 600
+    body = {"status": "ok" if alive else "stopped", "last_run": at}
+    return JSONResponse(body, status_code=200 if alive else 503)

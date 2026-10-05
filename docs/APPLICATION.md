@@ -213,6 +213,8 @@ Projet Firebase « footprono-56616 », application Android `com.footprono.footpr
   redémarrer, puis `bash scripts/termux/admin.sh push-test <numéro>`.
 - Sans clé, rien n'est envoyé et `/admin/stats` l'indique (`push.enabled`) ;
   les notifications restent visibles dans l'application.
+- **Fin de Premium** : « Ton Premium (ou ton essai Premium) se termine dans 3 jours »,
+  puis « … demain », une seule fois chacun (tâche `premium_reminders`, 10:05 GMT).
 - Version web : pas de notifications push (Android seulement).
 
 ## Pas encore disponible
