@@ -6,10 +6,12 @@ from fastapi import APIRouter, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from footprono.accounts import deletion, service
+from footprono.accounts import deletion, google, service
 from footprono.accounts.models import Wallet, WalletEntry
 from footprono.accounts.plans import plan_info
 from footprono.accounts.schemas import (
+    GoogleIn,
+    GoogleRegisterIn,
     LoginIn,
     MeOut,
     PasswordIn,
@@ -24,7 +26,7 @@ from footprono.accounts.security import create_access_token
 from footprono.accounts.service import UnauthorizedError
 from footprono.api.deps import CurrentUserDep, RedisDep, SessionDep, SettingsDep
 from footprono.core import ratelimit
-from footprono.core.errors import AppError
+from footprono.core.errors import AppError, NotFoundError
 
 router = APIRouter(tags=["comptes"])
 
@@ -98,12 +100,85 @@ async def login(
     return TokenOut(access_token=create_access_token(user.id, settings))
 
 
+class GoogleUnknownError(NotFoundError):
+    code = "google_account_unknown"
+
+
+@router.post("/auth/google", response_model=TokenOut)
+async def login_google(body: GoogleIn, session: SessionDep, settings: SettingsDep) -> TokenOut:
+    """Connexion avec Google. Compte inconnu : 404 ``google_account_unknown`` avec
+    l'adresse et le nom, pour l'écran « première connexion »."""
+    identity = await google.verify(settings, body.id_token)
+    user = await service.find_by_google(session, identity.sub)
+    if user is None:
+        raise GoogleUnknownError(
+            "pas encore de compte FootProba pour ce compte Google",
+            details={"email": identity.email, "name": identity.name},
+        )
+    if not user.is_active:
+        raise UnauthorizedError("compte désactivé : contacte l'aide FootProba")
+    return TokenOut(access_token=create_access_token(user.id, settings))
+
+
+@router.post("/auth/google/register", response_model=TokenOut, status_code=201)
+async def register_google(
+    body: GoogleRegisterIn,
+    request: Request,
+    session: SessionDep,
+    settings: SettingsDep,
+    redis: RedisDep,
+) -> TokenOut:
+    ip = _client_ip(request)
+    if settings.registrations_per_ip:
+        await ratelimit.check(
+            redis, "register-ip", ip, settings.registrations_per_ip, REGISTER_WINDOW
+        )
+    identity = await google.verify(settings, body.id_token)
+    user = await service.register_google(
+        session, settings, identity, country=body.country, adult=body.adult
+    )
+    token = create_access_token(user.id, settings)
+    await session.commit()
+    if settings.registrations_per_ip:
+        await ratelimit.hit(redis, "register-ip", ip, REGISTER_WINDOW)
+    return TokenOut(access_token=token)
+
+
+@router.post("/me/google", response_model=MeOut)
+async def link_google(
+    body: GoogleIn, user: CurrentUserDep, session: SessionDep, settings: SettingsDep
+) -> MeOut:
+    """Lie un compte Google : connexion sans mot de passe, Premium et solde inchangés."""
+    identity = await google.verify(settings, body.id_token)
+    await service.link_google(session, user, identity)
+    await session.commit()
+    return await me(user, session)
+
+
+@router.delete("/me/google", response_model=MeOut)
+async def unlink_google(user: CurrentUserDep, session: SessionDep) -> MeOut:
+    await service.unlink_google(session, user)
+    await session.commit()
+    return await me(user, session)
+
+
+@router.get("/app/support")
+async def support(settings: SettingsDep) -> dict[str, str | None]:
+    """Aide aux joueurs (public) : numéro WhatsApp et lien direct."""
+    number = settings.support_whatsapp
+    digits = "".join(c for c in number or "" if c.isdigit())
+    return {"whatsapp": number, "whatsapp_url": f"https://wa.me/{digits}" if digits else None}
+
+
 @router.get("/me", response_model=MeOut)
 async def me(user: CurrentUserDep, session: SessionDep) -> MeOut:
     wallet = await session.get(Wallet, user.id)
     return MeOut(
         id=user.id,
         phone=user.phone,
+        email=user.email,
+        google_linked=user.google_sub is not None,
+        has_password=bool(user.password_hash),
         display_name=user.display_name,
         country=user.country,
         currency=user.currency,
@@ -151,7 +226,9 @@ async def change_password(body: PasswordIn, user: CurrentUserDep, session: Sessi
 
 
 class DeleteIn(BaseModel):
-    password: str
+    password: str | None = None
+    # Compte créé avec Google (sans mot de passe) : nouvelle connexion Google demandée.
+    google_id_token: str | None = None
 
 
 class DeleteByPhoneIn(BaseModel):
@@ -160,9 +237,17 @@ class DeleteByPhoneIn(BaseModel):
 
 
 @router.post("/me/delete", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_me(body: DeleteIn, user: CurrentUserDep, session: SessionDep) -> None:
-    """Suppression définitive du compte (mot de passe redemandé)."""
-    await deletion.delete_account(session, user, body.password)
+async def delete_me(
+    body: DeleteIn, user: CurrentUserDep, session: SessionDep, settings: SettingsDep
+) -> None:
+    """Suppression définitive du compte (mot de passe, ou Google, redemandé)."""
+    if not user.password_hash and body.google_id_token:
+        identity = await google.verify(settings, body.google_id_token)
+        if identity.sub != user.google_sub:
+            raise UnauthorizedError("ce n'est pas le compte Google de ce compte FootProba")
+        await deletion.delete_account(session, user, None)
+    else:
+        await deletion.delete_account(session, user, body.password or "")
     await session.commit()
 
 

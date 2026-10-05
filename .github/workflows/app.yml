@@ -47,9 +47,10 @@ jobs:
             exit 0
           fi
           echo "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/footprono-release.jks"
-          # Empreinte publique du certificat (rien de secret) : contrôle que c'est la bonne clé.
-          keytool -list -keystore "$RUNNER_TEMP/footprono-release.jks" \
-            -storepass "$FP_KEYSTORE_PASSWORD" -alias "$FP_KEY_ALIAS" | grep -i "SHA-256"
+          # Empreintes publiques du certificat (rien de secret) : contrôle que c'est la bonne
+          # clé, et à coller dans Firebase (connexion Google, docs/APPLICATION.md).
+          keytool -list -v -keystore "$RUNNER_TEMP/footprono-release.jks" \
+            -storepass "$FP_KEYSTORE_PASSWORD" -alias "$FP_KEY_ALIAS" | grep -E "SHA1:|SHA256:"
           echo "FP_KEYSTORE_FILE=$RUNNER_TEMP/footprono-release.jks" >> "$GITHUB_ENV"
       - name: APK Android
         # Serveur distant intégré à l'APK : variable FP_SERVER_URL du dépôt

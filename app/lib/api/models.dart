@@ -26,7 +26,10 @@ class Plan {
 class Me {
   Me(Json j)
     : id = j['id'] as int,
-      phone = j['phone'] as String,
+      phone = j['phone'] as String?,
+      email = j['email'] as String?,
+      googleLinked = j['google_linked'] as bool? ?? false,
+      hasPassword = j['has_password'] as bool? ?? true,
       displayName = j['display_name'] as String,
       country = j['country'] as String,
       currency = j['currency'] as String,
@@ -36,7 +39,14 @@ class Me {
       lastRefill = parseDate((j['wallet'] as Json?)?['last_refill_at']),
       dailyCouponsNotifications = j['daily_coupons_notifications'] as bool? ?? true;
   final int id;
-  final String phone;
+
+  /// Vide pour un compte créé avec Google.
+  final String? phone;
+  final String? email;
+  final bool googleLinked;
+
+  /// Faux pour un compte créé avec Google (pas de connexion par numéro).
+  final bool hasPassword;
   final String displayName;
   final String country;
   final String currency;

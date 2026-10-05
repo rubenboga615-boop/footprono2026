@@ -369,6 +369,17 @@ class GlassCard extends StatelessWidget {
   }) : cut = 30,
        ornaments = true;
 
+  /// Carte des écrans de connexion : grands coins coupés et triangles décoratifs.
+  const GlassCard.hero({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.fromLTRB(24, 36, 24, 34),
+    this.onTap,
+    this.highlight = false,
+    this.margin = EdgeInsets.zero,
+  }) : cut = 44,
+       ornaments = true;
+
   const GlassCard.section({
     super.key,
     required this.child,
@@ -917,8 +928,12 @@ class FpField extends StatelessWidget {
     this.helper,
     this.textCapitalization = TextCapitalization.none,
     this.maxLength,
+    this.prefix,
   });
   final String label;
+
+  /// À la place de l'icône : par exemple le choix de l'indicatif du pays.
+  final Widget? prefix;
   final TextEditingController controller;
   final IconData? icon;
   final String? hint;
@@ -955,7 +970,7 @@ class FpField extends StatelessWidget {
               hintText: hint,
               helperText: helper,
               counterText: '',
-              prefixIcon: icon == null ? null : Icon(icon, size: 20),
+              prefixIcon: prefix ?? (icon == null ? null : Icon(icon, size: 20)),
               suffixIcon: suffix,
             ),
           ),

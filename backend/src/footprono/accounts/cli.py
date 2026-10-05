@@ -82,7 +82,7 @@ async def _run(args: argparse.Namespace) -> str:
             elif args.command == "users":
                 users = await admin.search_users(session, args.query, limit=200)
                 lines = [
-                    f"{u.phone:<16} {u.role:<6} "
+                    f"{u.phone or u.email or '-':<16} {u.role:<6} "
                     + (f"Premium jusqu'au {u.premium_until:%d/%m/%Y}" if u.premium_until
                        and u.premium_until > datetime.now(UTC) else "gratuit")
                     + f"  {u.display_name}" + ("" if u.is_active else "  (désactivé)")

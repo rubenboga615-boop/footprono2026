@@ -125,7 +125,8 @@ les paris sont sur le serveur : rien n'est perdu), puis installer le nouvel APK.
 
 | Onglet / écran | Contenu | Données |
 |---|---|---|
-| Connexion, inscription | téléphone + mot de passe, pays (F CFA), case 18 ans | `/auth/*` |
+| Connexion, inscription | **Continuer avec Google** en premier (APK Android), sinon numéro : indicatif **+225 déjà mis** (Côte d'Ivoire, changeable : le joueur tape seulement son numéro ; un numéro en « +… » est gardé tel quel), mot de passe ; « Mot de passe oublié ? » ouvre WhatsApp (aide FootProba, message prérempli) ; inscription par numéro : nom, pays (Côte d'Ivoire par défaut), case 18 ans ; carte en verre aux coins coupés sur le fond FootProba | `/auth/*`, `/app/support` |
+| Première connexion Google | adresse Gmail, pays (Côte d'Ivoire par défaut), case 18 ans, 7 jours de Premium ; puis « Connexion réussie » | `/auth/google`, `/auth/google/register` |
 | Matchs | jours, championnats, direct, carte par match (1 / N / 2, +2,5 buts, les deux marquent) | `/predictions/upcoming`, `/live` |
 | Match · Probabilités | « Les choix du moteur » en tête (une sélection par profil, Sûr gratuit, les trois en Premium, jamais présentée comme une bonne affaire) ; 1 / N / 2, scores les plus probables, tous les marchés (Premium) avec cote juste et cote réelle jouable | `/matches/{id}/picks`, `/matches/{id}/prediction`, `/offer` |
 | Match · Cotes | cotes réelles 1xBet (Bet365 en secours) et probabilité du moteur ; si la cote a bougé, « ▼ 2,04 → 1,91 · historique » ouvre la liste des relevés (seuls les changements sont enregistrés), sans conseil | `/matches/{id}/offer` (`opening_odds`, `opened_at`), `/matches/{id}/odds-history?market=&line=&selection=` |
@@ -153,6 +154,41 @@ Règles respectées dans l'application :
   marché, le moteur ne gagne pas : `MOTEUR.md`, handicap asiatique).
 - Argent fictif rappelé sur le bookmaker, le coupon et le profil.
 - Marchés Premium signalés (verrou), jamais masqués en silence.
+
+## Connexion avec Google
+
+Firebase Authentication (projet « footprono-56616 ») : l'application ouvre le choix
+du compte Google (`signInWithProvider`), puis envoie au serveur le jeton d'identité
+Firebase. Le serveur le vérifie lui-même (`accounts/google.py` : signature RS256 avec
+les certificats publics de Google, projet, émetteur, expiration, adresse vérifiée) ;
+aucun secret n'est nécessaire.
+
+- Compte Google inconnu : `POST /auth/google` répond 404 `google_account_unknown`
+  avec l'adresse et le nom → écran « Presque prêt » (pays, 18 ans) →
+  `POST /auth/google/register` (même essai Premium et solde de départ que par numéro).
+- Compte créé avec Google : ni numéro ni mot de passe (le Mobile Money se règle sur
+  le guichet CinetPay). Suppression du compte : nouvelle connexion Google demandée.
+- Profil → « Lier mon compte Google » (`POST /me/google`) : le même compte se
+  connecte ensuite avec Google ou avec le numéro (Premium, solde, paris inchangés).
+  « Délier » (`DELETE /me/google`) seulement si le compte a un numéro et un mot de passe.
+- Console : les comptes Google apparaissent avec leur adresse ; l'administrateur
+  peut leur donner un numéro.
+- Version web : pas encore de bouton Google (application web à déclarer dans Firebase).
+
+**À faire une fois dans Firebase** (console.firebase.google.com → projet footprono-56616) :
+
+1. Authentication → Commencer → Sign-in method → **Google** → Activer, choisir
+   l'adresse d'assistance → Enregistrer.
+2. Paramètres du projet → Vos applications → application Android
+   `com.footprono.footprono` → **Ajouter une empreinte** : coller le **SHA1**, puis
+   le **SHA256**, affichés par GitHub Actions (exécution « Application », étape
+   « Clé de signature de production »). Ce sont des empreintes publiques, pas des secrets.
+
+## Aide (WhatsApp)
+
+Numéro public de l'aide : `FP_SUPPORT_WHATSAPP` (par défaut +225 05 00 64 99 04),
+donné par `GET /app/support`. Profil → « Aide » et « Mot de passe oublié ? »
+ouvrent WhatsApp avec un message prérempli.
 
 ## Notifications push (téléphone fermé)
 
@@ -183,6 +219,7 @@ Projet Firebase « footprono-56616 », application Android `com.footprono.footpr
 
 - Paiement Mobile Money : en place (Profil → Passer Premium) dès que CinetPay est configuré sur le serveur.
 - Vérification du numéro par SMS.
+- Connexion Google sur la version web.
 
 ## Développement
 

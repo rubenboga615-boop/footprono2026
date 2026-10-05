@@ -11,6 +11,15 @@ class RegisterIn(BaseModel):
     adult: bool = Field(description="l'utilisateur déclare avoir 18 ans ou plus")
 
 
+class GoogleIn(BaseModel):
+    id_token: str = Field(description="jeton d'identité Firebase (connexion Google)")
+
+
+class GoogleRegisterIn(GoogleIn):
+    country: str = Field(min_length=2, max_length=2, examples=["CI"])
+    adult: bool = Field(description="l'utilisateur déclare avoir 18 ans ou plus")
+
+
 class LoginIn(BaseModel):
     phone: str
     password: str
@@ -45,7 +54,10 @@ class PlanOut(BaseModel):
 
 class MeOut(BaseModel):
     id: int
-    phone: str
+    phone: str | None
+    email: str | None = None
+    google_linked: bool = False
+    has_password: bool = True
     display_name: str
     country: str
     currency: str

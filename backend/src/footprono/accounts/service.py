@@ -2,6 +2,7 @@
 
 import re
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from fastapi import status
 from sqlalchemy import select
@@ -11,6 +12,9 @@ from footprono.accounts.models import SubscriptionEvent, User, Wallet, WalletEnt
 from footprono.accounts.security import hash_password, verify_password
 from footprono.core.config import Settings
 from footprono.core.errors import AppError
+
+if TYPE_CHECKING:
+    from footprono.accounts.google import GoogleIdentity
 
 # Pays du lancement (Afrique de l'Ouest, zone franc CFA UEMOA) → devise.
 COUNTRIES: dict[str, tuple[str, str]] = {
@@ -64,27 +68,51 @@ async def register(
     country: str,
     adult: bool,
 ) -> User:
-    if not adult:
-        raise AppError("l'application est réservée aux personnes de 18 ans ou plus")
-    country = country.upper()
-    if country not in COUNTRIES:
-        raise AppError(f"pays non disponible : {country} (disponibles : {', '.join(COUNTRIES)})")
+    country = _check_country(country, adult)
     if len(password) < MIN_PASSWORD:
         raise AppError(f"mot de passe trop court ({MIN_PASSWORD} caractères minimum)")
     phone = normalize_phone(phone)
     if await session.scalar(select(User.id).where(User.phone == phone)) is not None:
         raise ConflictError("un compte existe déjà avec ce numéro")
+    user = User(phone=phone, password_hash=hash_password(password), display_name=display_name)
+    return await _create(session, settings, user, country)
+
+
+async def register_google(
+    session: AsyncSession,
+    settings: Settings,
+    identity: "GoogleIdentity",
+    *,
+    country: str,
+    adult: bool,
+) -> User:
+    """Compte créé avec Google : ni numéro (demandé au paiement) ni mot de passe."""
+    country = _check_country(country, adult)
+    if await find_by_google(session, identity.sub) is not None:
+        raise ConflictError("ce compte Google a déjà un compte FootProba : connecte-toi")
+    user = User(
+        phone=None, password_hash="", display_name=identity.name,
+        google_sub=identity.sub, email=identity.email,
+    )  # fmt: skip
+    return await _create(session, settings, user, country)
+
+
+def _check_country(country: str, adult: bool) -> str:
+    if not adult:
+        raise AppError("l'application est réservée aux personnes de 18 ans ou plus")
+    country = country.upper()
+    if country not in COUNTRIES:
+        raise AppError(f"pays non disponible : {country} (disponibles : {', '.join(COUNTRIES)})")
+    return country
+
+
+async def _create(session: AsyncSession, settings: Settings, user: User, country: str) -> User:
     currency = COUNTRIES[country][1]
     trial_end = datetime.now(UTC) + timedelta(days=TRIAL_DAYS)
-    user = User(
-        phone=phone,
-        password_hash=hash_password(password),
-        display_name=display_name.strip()[:40],
-        country=country,
-        currency=currency,
-        role="user",
-        premium_until=trial_end,
-    )
+    user.display_name = user.display_name.strip()[:40] or "Joueur"
+    user.country, user.currency, user.role, user.premium_until = (
+        country, currency, "user", trial_end,
+    )  # fmt: skip
     session.add(user)
     await session.flush()
     session.add(
@@ -97,6 +125,29 @@ async def register(
     await session.flush()
     await move(session, user.id, settings.starting_balance, "opening", note="solde de départ")
     return user
+
+
+async def find_by_google(session: AsyncSession, sub: str) -> User | None:
+    user: User | None = await session.scalar(select(User).where(User.google_sub == sub))
+    return user
+
+
+async def link_google(session: AsyncSession, user: User, identity: "GoogleIdentity") -> None:
+    """Rattache un compte Google au compte (Premium, solde et paris restent)."""
+    owner = await find_by_google(session, identity.sub)
+    if owner is not None and owner.id != user.id:
+        raise ConflictError("ce compte Google est déjà lié à un autre compte FootProba")
+    user.google_sub, user.email = identity.sub, identity.email
+    await session.flush()
+
+
+async def unlink_google(session: AsyncSession, user: User) -> None:
+    if user.phone is None or not user.password_hash:
+        raise AppError(
+            "impossible de délier Google : ce compte n'a pas de numéro avec mot de passe"
+        )
+    user.google_sub, user.email = None, None
+    await session.flush()
 
 
 async def authenticate(session: AsyncSession, phone: str, password: str) -> User:
@@ -167,6 +218,8 @@ async def refill(session: AsyncSession, settings: Settings, user_id: int) -> Wal
 
 
 async def change_password(session: AsyncSession, user: User, current: str, new: str) -> None:
+    if not user.password_hash:
+        raise AppError("compte créé avec Google : pas de mot de passe à changer")
     if not verify_password(current, user.password_hash):
         raise UnauthorizedError("mot de passe actuel incorrect")
     if len(new) < MIN_PASSWORD:

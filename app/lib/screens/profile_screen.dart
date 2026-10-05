@@ -9,7 +9,7 @@ import '../format.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
-import 'auth_screen.dart' show countries;
+import 'auth_screen.dart' show GlowButton, GoogleMark, countries;
 import 'notifications_screen.dart';
 import 'reliability_screen.dart';
 import 'server_dialog.dart';
@@ -34,6 +34,7 @@ class ProfileScreen extends StatelessWidget {
 
   Future<void> _deleteAccount(BuildContext context, AppState state) async {
     final password = TextEditingController();
+    final withPassword = state.me?.hasPassword ?? true;
     String? error;
     var busy = false;
     await showDialog<void>(
@@ -54,7 +55,13 @@ class ProfileScreen extends StatelessWidget {
                   style: Fp.body(13, color: Fp.text2, height: 1.4),
                 ),
                 const SizedBox(height: 14),
-                FpField(label: 'Mot de passe', controller: password, obscure: true),
+                if (withPassword)
+                  FpField(label: 'Mot de passe', controller: password, obscure: true)
+                else
+                  Text(
+                    'Pour confirmer, reconnecte-toi avec ton compte Google.',
+                    style: Fp.body(13, color: Fp.textStrong, height: 1.4),
+                  ),
                 if (error != null) ...[
                   const SizedBox(height: 12),
                   Text(error!, style: Fp.body(13, color: Fp.lossText)),
@@ -74,7 +81,12 @@ class ProfileScreen extends StatelessWidget {
                         error = null;
                       });
                       try {
-                        await state.deleteAccount(password.text);
+                        if (withPassword) {
+                          await state.deleteAccount(password.text);
+                        } else if (!await state.deleteAccountWithGoogle()) {
+                          setState(() => busy = false);
+                          return;
+                        }
                         if (context.mounted) Navigator.pop(context);
                         showMessage('Compte supprimé. Tes données personnelles ont été effacées.');
                       } on ApiException catch (e) {
@@ -212,7 +224,7 @@ class ProfileScreen extends StatelessWidget {
                             children: [
                               Text(me.displayName, style: Fp.title(24)),
                               const SizedBox(height: 2),
-                              Text(me.phone, style: Fp.body(14, color: Fp.text2)),
+                              Text(me.phone ?? me.email ?? '', style: Fp.body(14, color: Fp.text2)),
                             ],
                           ),
                         ),
@@ -220,6 +232,10 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 18),
                     const _PlanCard(),
+                    if (me.googleLinked || state.google != null) ...[
+                      const SizedBox(height: 14),
+                      const _GoogleCard(),
+                    ],
                   ],
                 ],
                 [
@@ -256,11 +272,20 @@ class ProfileScreen extends StatelessWidget {
                           onTap: () => open(const ReliabilityScreen()),
                         ),
                         const Divider(),
+                        if (me?.hasPassword ?? true) ...[
+                          _Item(
+                            icon: Icons.key_outlined,
+                            title: 'Mot de passe',
+                            subtitle: 'Changer mon mot de passe',
+                            onTap: () => _changePassword(context, state),
+                          ),
+                          const Divider(),
+                        ],
                         _Item(
-                          icon: Icons.key_outlined,
-                          title: 'Mot de passe',
-                          subtitle: 'Changer mon mot de passe',
-                          onTap: () => _changePassword(context, state),
+                          icon: Icons.support_agent_rounded,
+                          title: 'Aide',
+                          subtitle: 'Nous écrire sur WhatsApp',
+                          onTap: () => state.openSupport('Bonjour FootProba, '),
                         ),
                         const Divider(),
                         _Item(
@@ -475,6 +500,91 @@ class _Item extends StatelessWidget {
             if (onTap != null) const Icon(Icons.arrow_forward_rounded, size: 20, color: Fp.textSoft),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Compte Google : lier (connexion sans mot de passe) ou délier.
+class _GoogleCard extends StatefulWidget {
+  const _GoogleCard();
+
+  @override
+  State<_GoogleCard> createState() => _GoogleCardState();
+}
+
+class _GoogleCardState extends State<_GoogleCard> {
+  bool busy = false;
+
+  Future<void> _do(Future<void> Function() action) async {
+    setState(() => busy = true);
+    try {
+      await action();
+    } on ApiException catch (e) {
+      showMessage(e.message, error: true);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final me = state.me!;
+    if (me.googleLinked) {
+      final canUnlink = me.hasPassword && me.phone != null;
+      return GlassCard.section(
+        child: Row(
+          children: [
+            const Icon(Icons.verified_user_outlined, color: Fp.win, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Google lié', style: Fp.body(15, weight: FontWeight.w700)),
+                  Text(me.email ?? '', style: Fp.body(13, color: Fp.text2)),
+                ],
+              ),
+            ),
+            if (canUnlink)
+              TextButton(
+                onPressed: busy ? null : () => _do(state.unlinkGoogle),
+                style: TextButton.styleFrom(foregroundColor: Fp.lossText),
+                child: const Text('Délier'),
+              ),
+          ],
+        ),
+      );
+    }
+    return GlassCard.main(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(left: 20),
+            child: TwoToneTitle('Lier mon compte', 'Google', size: 20),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Ensuite tu te connectes d\'un seul appui, sans mot de passe. Ton Premium, ton solde '
+            'et tes paris restent sur ce compte.',
+            style: Fp.body(13, color: Fp.textSoft, height: 1.5),
+          ),
+          const SizedBox(height: 14),
+          GlowButton(
+            busy: busy,
+            onPressed: busy
+                ? null
+                : () => _do(() async {
+                    if (await state.linkGoogle()) showMessage('Compte Google lié.');
+                  }),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [GoogleMark(size: 26), SizedBox(width: 10), Text('Lier avec Google')],
+            ),
+          ),
+        ],
       ),
     );
   }

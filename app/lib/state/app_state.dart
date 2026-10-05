@@ -66,6 +66,16 @@ abstract class PushBridge {
   Stream<PushMessage> get foreground;
 }
 
+/// Connexion avec Google (Firebase sur Android ; absent sur le web et en test).
+abstract class GoogleAuthBridge {
+  /// Jeton d'identité Firebase, ou null si le joueur ferme la fenêtre de Google.
+  Future<String?> idToken();
+  Future<void> signOut();
+}
+
+/// Compte Google sans compte FootProba : écran « Presque prêt » (pays, 18 ans).
+typedef GoogleSignup = ({String token, String email, String name});
+
 /// Ouvre une page dans le navigateur (guichet de paiement) ; faux en test.
 typedef UrlOpener = Future<bool> Function(Uri url);
 
@@ -76,6 +86,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     required this.api,
     this.socketFactory,
     this.push,
+    this.google,
     UrlOpener? openUrl,
     this.build = appBuild,
     this.android = !kIsWeb,
@@ -99,7 +110,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   final ApiClient api;
   final SocketFactory? socketFactory;
   final PushBridge? push;
+  final GoogleAuthBridge? google;
   final UrlOpener openUrl;
+
+  /// Compte Google à compléter (pays, 18 ans) avant de créer le compte.
+  GoogleSignup? googleSignup;
+
+  /// Écran « Connexion réussie » juste après une connexion avec Google.
+  bool welcome = false;
+  Uri? _support;
 
   /// Paiement Premium ouvert dans le navigateur, vérifié au retour dans l'application.
   int? pendingPayment;
@@ -211,6 +230,92 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await _startSession(r['access_token'] as String);
   }
 
+  Future<String?> _googleToken() async {
+    final g = google;
+    if (g == null) return null;
+    try {
+      return await g.idToken();
+    } catch (_) {
+      throw ApiException(0, 'google', 'Connexion Google impossible. Réessaie ou utilise ton numéro.');
+    }
+  }
+
+  /// Connexion avec Google. Compte Google encore inconnu : [googleSignup] est rempli
+  /// (écran « Presque prêt »). Faux si le joueur a fermé la fenêtre de Google.
+  Future<bool> signInWithGoogle() async {
+    final token = await _googleToken();
+    if (token == null) return false;
+    try {
+      final r = await api.post('/auth/google', {'id_token': token});
+      welcome = true;
+      await _startSession(r['access_token'] as String);
+    } on ApiException catch (e) {
+      if (e.code != 'google_account_unknown') rethrow;
+      final d = e.details is Map ? e.details as Map : const {};
+      googleSignup = (token: token, email: '${d['email'] ?? ''}', name: '${d['name'] ?? ''}');
+      notifyListeners();
+    }
+    return true;
+  }
+
+  Future<void> registerWithGoogle({required String country, required bool adult}) async {
+    final signup = googleSignup;
+    if (signup == null) return;
+    final r = await api.post('/auth/google/register', {
+      'id_token': signup.token,
+      'country': country,
+      'adult': adult,
+    });
+    googleSignup = null;
+    welcome = true;
+    await _startSession(r['access_token'] as String);
+  }
+
+  void cancelGoogleSignup() {
+    googleSignup = null;
+    unawaited(google?.signOut());
+    notifyListeners();
+  }
+
+  void closeWelcome() {
+    welcome = false;
+    notifyListeners();
+  }
+
+  /// Lie le compte Google au compte connecté (Premium et solde inchangés).
+  Future<bool> linkGoogle() async {
+    final token = await _googleToken();
+    if (token == null) return false;
+    me = Me(await api.post('/me/google', {'id_token': token}) as Json);
+    notifyListeners();
+    return true;
+  }
+
+  Future<void> unlinkGoogle() async {
+    me = Me(await api.delete('/me/google') as Json);
+    unawaited(google?.signOut());
+    notifyListeners();
+  }
+
+  /// Aide FootProba sur WhatsApp (numéro donné par le serveur), message prérempli.
+  Future<bool> openSupport(String message) async {
+    if (_support == null) {
+      try {
+        final r = await api.get('/app/support') as Json;
+        final url = r['whatsapp_url'] as String?;
+        if (url != null) _support = Uri.parse(url);
+      } on ApiException {
+        // serveur injoignable : message ci-dessous
+      }
+    }
+    final base = _support;
+    if (base == null) {
+      showMessage('Aide indisponible pour le moment. Réessaie plus tard.', error: true);
+      return false;
+    }
+    return openUrl(base.replace(queryParameters: {'text': message}));
+  }
+
   Future<void> _startSession(String token) async {
     api.token = token;
     await _prefs?.setString(_kToken, token);
@@ -221,6 +326,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> logout() async {
+    unawaited(google?.signOut());
     // Ce téléphone ne reçoit plus les notifications de ce compte.
     final pushToken = _pushToken;
     if (pushToken != null) {
@@ -234,11 +340,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  /// Suppression définitive du compte (mot de passe redemandé par le serveur).
+  /// Suppression définitive du compte (mot de passe, ou Google pour un compte
+  /// créé avec Google, redemandé par le serveur).
   Future<void> deleteAccount(String password) async {
     await api.post('/me/delete', {'password': password});
     await _clearSession();
     notifyListeners();
+  }
+
+  /// Compte créé avec Google : nouvelle connexion Google pour confirmer. Faux si annulé.
+  Future<bool> deleteAccountWithGoogle() async {
+    final token = await _googleToken();
+    if (token == null) return false;
+    await api.post('/me/delete', {'google_id_token': token});
+    await _clearSession();
+    notifyListeners();
+    return true;
   }
 
   Future<void> _clearSession() async {

@@ -11,6 +11,7 @@ import 'api/client.dart';
 import 'desktop/desktop_shell.dart';
 import 'desktop/layout.dart';
 import 'desktop/welcome.dart';
+import 'google_auth.dart';
 import 'push.dart';
 import 'screens/auth_screen.dart';
 import 'screens/bookmaker_screen.dart';
@@ -33,6 +34,7 @@ Future<void> main() async {
   final state = AppState(
     api: ApiClient(baseUrl: defaultServer()),
     push: await FirebasePush.start(),
+    google: FirebaseGoogleAuth.start(),
   );
   runApp(FootProbaApp(state: state));
   state.init();
@@ -75,6 +77,7 @@ class _Root extends StatelessWidget {
           ? const DesktopWelcome(child: AuthScreen())
           : const AuthScreen();
     }
+    if (state.welcome) return const WelcomeScreen();
     return const HomeShell();
   }
 }

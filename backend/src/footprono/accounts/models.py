@@ -29,8 +29,13 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     # Numéro au format international E.164 (« +22997000000 »), identifiant de connexion.
-    phone: Mapped[str] = mapped_column(String(16), unique=True)
+    # Vide pour un compte créé avec Google (demandé seulement au paiement).
+    phone: Mapped[str | None] = mapped_column(String(16), unique=True)
+    # Vide ("") : compte créé avec Google, sans mot de passe (connexion par numéro impossible).
     password_hash: Mapped[str] = mapped_column(String(255))
+    # Compte Google lié (identifiant Google stable, adresse vérifiée par Google).
+    google_sub: Mapped[str | None] = mapped_column(String(128), unique=True)
+    email: Mapped[str | None] = mapped_column(String(254))
     display_name: Mapped[str] = mapped_column(String(40))
     country: Mapped[str] = mapped_column(String(2))  # ISO 3166-1 alpha-2
     currency: Mapped[str] = mapped_column(String(3))  # ISO 4217

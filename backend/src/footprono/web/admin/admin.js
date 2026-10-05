@@ -770,17 +770,17 @@ async function accountsPage(query) {
     if (!(await confirmBox("Mot de passe provisoire", `Un nouveau mot de passe va remplacer celui de ${u.display_name}. Il ne s'affichera qu'une fois.`, "Générer", true))) return;
     try {
       const { password } = await api("POST", `/admin/users/${u.id}/password-reset`);
-      await secretBox("Mot de passe provisoire", `À transmettre à ${u.display_name} (${u.phone}). À changer dans l'application : Profil → Changer le mot de passe.`, password);
+      await secretBox("Mot de passe provisoire", `À transmettre à ${u.display_name} (${u.phone || u.email || "Google"}). À changer dans l'application : Profil → Changer le mot de passe.`, password);
     } catch (err) { toast(err.message); }
   }
   const rows = users.map((u) => h("tr", {},
-    h("td", {}, h("div", { style: "font-weight:600" }, u.display_name, u.role === "admin" ? [" ", pill("admin", "acc")] : null), h("div", { class: "note mono", text: u.phone })),
+    h("td", {}, h("div", { style: "font-weight:600" }, u.display_name, u.role === "admin" ? [" ", pill("admin", "acc")] : null), h("div", { class: "note mono", text: u.phone || ("Google · " + (u.email || "")) })),
     h("td", { class: "hide-sm" }, pill(u.plan, u.plan === "free" ? "" : "ok"), u.premium_until ? h("div", { class: "note", text: "jusqu'au " + fmtDateTime.format(new Date(u.premium_until)) }) : null),
     h("td", { class: "hide-sm" }, u.is_active ? pill("actif", "ok") : pill("désactivé", "bad")),
     h("td", {}, h("div", { class: "acct-tools" },
       h("button", { class: "btn sm", type: "button", text: "+30 j", title: "Offrir 30 jours de Premium", onclick: () => act("Offrir 30 jours de Premium ?", u.display_name, () => api("POST", `/admin/users/${u.id}/premium`, { days: 30, note: "console" })) }),
       u.premium_until ? h("button", { class: "btn sm ghost", type: "button", text: "Retirer Premium", onclick: () => act("Retirer le Premium ?", u.display_name, () => api("POST", `/admin/users/${u.id}/premium/revoke`, { note: "console" }), true) }) : null,
-      h("button", { class: "btn sm ghost", type: "button", text: u.role === "admin" ? "Retirer admin" : "Nommer admin", onclick: () => act(u.role === "admin" ? "Retirer l'accès à la console ?" : "Nommer administrateur ?", `${u.display_name} (${u.phone})`, () => api("POST", `/admin/users/${u.id}/role`, { role: u.role === "admin" ? "user" : "admin" }), u.role !== "admin") }),
+      h("button", { class: "btn sm ghost", type: "button", text: u.role === "admin" ? "Retirer admin" : "Nommer admin", onclick: () => act(u.role === "admin" ? "Retirer l'accès à la console ?" : "Nommer administrateur ?", `${u.display_name} (${u.phone || u.email || "Google"})`, () => api("POST", `/admin/users/${u.id}/role`, { role: u.role === "admin" ? "user" : "admin" }), u.role !== "admin") }),
       h("button", { class: "btn sm ghost", type: "button", text: "Numéro", onclick: () => changePhone(u) }),
       h("button", { class: "btn sm ghost", type: "button", text: "Mot de passe", onclick: () => resetPassword(u) }),
       h("button", { class: "btn sm danger", type: "button", text: u.is_active ? "Désactiver" : "Réactiver", onclick: () => act(u.is_active ? "Désactiver ce compte ?" : "Réactiver ce compte ?", u.display_name, () => api("POST", `/admin/users/${u.id}/active`, { active: !u.is_active }), u.is_active) })))));

@@ -18,7 +18,8 @@ router = APIRouter(prefix="/admin", tags=["administration"])
 
 class AdminUserOut(BaseModel):
     id: int
-    phone: str
+    phone: str | None  # vide : compte créé avec Google
+    email: str | None
     display_name: str
     country: str
     role: str
@@ -57,6 +58,7 @@ def _out(user: Any) -> AdminUserOut:
     return AdminUserOut(
         id=user.id,
         phone=user.phone,
+        email=user.email,
         display_name=user.display_name,
         country=user.country,
         role=user.role,
@@ -161,7 +163,7 @@ async def set_user_role(
     user = await admin.get_user(session, user_id)
     if user.id == me.id and body.role != "admin":
         raise AppError("impossible de retirer ton propre rôle d'administrateur")
-    await admin.set_role(session, user.phone, body.role)
+    await admin.apply_role(session, user, body.role)
     await session.commit()
     return _out(user)
 
@@ -171,7 +173,7 @@ async def set_user_phone(
     user_id: int, body: PhoneIn, _: AdminUserDep, session: SessionDep
 ) -> AdminUserOut:
     user = await admin.get_user(session, user_id)
-    await admin.change_phone(session, user.phone, body.phone)
+    await admin.apply_phone(session, user, body.phone)
     await session.commit()
     return _out(user)
 
@@ -180,6 +182,6 @@ async def set_user_phone(
 async def reset_user_password(user_id: int, _: AdminUserDep, session: SessionDep) -> dict[str, str]:
     """Mot de passe provisoire, affiché une seule fois (jamais enregistré en clair)."""
     user = await admin.get_user(session, user_id)
-    _, password = await admin.reset_password(session, user.phone)
+    _, password = await admin.apply_password_reset(session, user)
     await session.commit()
     return {"password": password}

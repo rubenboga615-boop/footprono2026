@@ -67,6 +67,12 @@ class Settings(BaseSettings):
     # Sans clé : le paiement est indisponible (Premium par l'administrateur).
     cinetpay_api_key: SecretStr | None = None
     cinetpay_site_id: str | None = None
+    # Connexion avec Google (Firebase Authentication) : identifiant public du projet
+    # Firebase, celui de l'application. Vide : connexion Google indisponible.
+    firebase_project_id: str | None = "footprono-56616"
+    # Aide aux joueurs (bouton « Aide » et « Mot de passe oublié ») : numéro WhatsApp
+    # public, format international.
+    support_whatsapp: str | None = "+2250500649904"
 
     # Comptes et bookmaker virtuel (argent fictif, montants entiers en devise).
     access_token_days: int = Field(default=30, ge=1)
@@ -113,6 +119,8 @@ class Settings(BaseSettings):
         "public_url",
         "cinetpay_api_key",
         "cinetpay_site_id",
+        "firebase_project_id",
+        "support_whatsapp",
         mode="before",
     )
     @classmethod

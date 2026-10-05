@@ -62,6 +62,7 @@ Aussi installable sur Android : **FootProba Console** (`console-android/`, artef
 - **Fichiers** : exports, archives et rapports produits par les actions, gardés 30 jours,
   téléchargés par lien signé de 5 minutes. Jamais de donnée personnelle ; les
   sauvegardes de la base ne sont pas téléchargeables.
+- **Comptes Google** : affichés avec leur adresse Gmail (pas de numéro) ; « Changer le numéro » leur en donne un.
 - **Exploitation** : codes du jour (1xBet), comptes (Premium, administrateur, numéro,
   mot de passe provisoire affiché une seule fois, désactivation), paiements, **versions
   de l'application** (dépôt de l'archive `footprono-apk.zip` depuis le navigateur).

@@ -1,6 +1,6 @@
 """Suppression du compte par son titulaire (exigée par Google Play et l'App Store).
 
-Effacés : numéro, nom, mot de passe, portefeuille fictif et mouvements, paris,
+Effacés : numéro, adresse Google, nom, mot de passe, portefeuille fictif et mouvements, paris,
 montantes, notifications, téléphones enregistrés, historique Premium.
 Conservés sans lien avec la personne (obligation comptable) : les paiements
 (montant, devise, date, référence du prestataire) ; la réponse brute du
@@ -17,8 +17,9 @@ from footprono.core.errors import AppError
 from footprono.payments.models import Payment
 
 
-async def delete_account(session: AsyncSession, user: User, password: str) -> None:
-    if not verify_password(password, user.password_hash):
+async def delete_account(session: AsyncSession, user: User, password: str | None) -> None:
+    """``password`` None : identité déjà vérifiée par Google (compte sans mot de passe)."""
+    if password is not None and not verify_password(password, user.password_hash):
         raise UnauthorizedError("mot de passe incorrect")
     if user.role == "admin":
         admins = await session.scalar(

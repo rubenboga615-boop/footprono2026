@@ -33,6 +33,11 @@ class FakeServer {
   bool deleted = false;
   int minimumBuild = 0;
 
+  /// Connexion Google : comptes Google connus, compte lié, inscriptions reçues.
+  final Set<String> googleAccounts = {};
+  bool googleLinked = false;
+  final List<Map<String, dynamic>> googleSignups = [];
+
   static const smartSel = {
     'match_id': 7,
     'home': 'Lens',
@@ -103,6 +108,9 @@ class FakeServer {
     'wallet': {'currency': 'XOF', 'balance': 100000, 'last_refill_at': null},
     'daily_coupons_notifications': dailyNotifications,
     'virtual_money': true,
+    'email': googleLinked ? 'kossi@gmail.com' : null,
+    'google_linked': googleLinked,
+    'has_password': true,
   };
 
   Future<http.Response> handle(http.Request r) async {
@@ -115,6 +123,40 @@ class FakeServer {
           return _error(401, 'unauthorized', 'numéro ou mot de passe incorrect');
         }
         body = {'access_token': 'jeton', 'token_type': 'bearer'};
+      case 'POST /auth/google':
+        final b = jsonDecode(r.body) as Map;
+        if (!googleAccounts.contains(b['id_token'])) {
+          return http.Response(
+            jsonEncode({
+              'error': {
+                'code': 'google_account_unknown',
+                'message': 'pas encore de compte FootProba pour ce compte Google',
+                'details': {'email': 'kossi@gmail.com', 'name': 'Kossi Mensah'},
+              },
+            }),
+            404,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        body = {'access_token': 'jeton', 'token_type': 'bearer'};
+      case 'POST /auth/google/register':
+        final b = (jsonDecode(r.body) as Map).cast<String, dynamic>();
+        googleSignups.add(b);
+        googleAccounts.add(b['id_token'] as String);
+        googleLinked = true;
+        return http.Response(
+          jsonEncode({'access_token': 'jeton', 'token_type': 'bearer'}),
+          201,
+          headers: {'content-type': 'application/json'},
+        );
+      case 'POST /me/google':
+        googleLinked = true;
+        body = me;
+      case 'DELETE /me/google':
+        googleLinked = false;
+        body = me;
+      case 'GET /app/support':
+        body = {'whatsapp': '+2250500649904', 'whatsapp_url': 'https://wa.me/2250500649904'};
       case 'GET /me':
         if (r.headers['Authorization'] != 'Bearer jeton') {
           return _error(401, 'unauthorized', 'connexion requise');
@@ -657,6 +699,17 @@ class FakeInstaller implements ApkInstaller {
   Future<void> install(String path) async => installed.add(path);
 }
 
+/// Faux Google : renvoie un jeton (ou null : fenêtre de Google fermée).
+class FakeGoogle implements GoogleAuthBridge {
+  String? next = 'jeton-google';
+  int signOuts = 0;
+
+  @override
+  Future<String?> idToken() async => next;
+  @override
+  Future<void> signOut() async => signOuts++;
+}
+
 class FakePush implements PushBridge {
   final refresh = StreamController<String>.broadcast();
   final tapped = StreamController<String?>.broadcast();
@@ -683,6 +736,7 @@ Future<(AppState, FakeServer)> startApp(
   int build = 0,
   UrlOpener? openUrl,
   ApkInstaller? installer,
+  GoogleAuthBridge? google,
 }) async {
   SharedPreferences.setMockInitialValues(loggedIn ? {'token': 'jeton'} : {});
   final server = FakeServer(premium: premium);
@@ -690,6 +744,7 @@ Future<(AppState, FakeServer)> startApp(
     api: ApiClient(baseUrl: 'http://serveur', httpClient: MockClient(server.handle)),
     socketFactory: (_) => null,
     push: push,
+    google: google,
     build: build,
     android: build > 0,
     openUrl: openUrl,
@@ -1278,7 +1333,8 @@ void main() {
     );
     await tester.tap(find.text('Profil'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Confidentialité'), 200);
+    await tester.scrollUntilVisible(find.text('Se déconnecter'), 200);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Confidentialité'));
     expect(opened.single.path, '/confidentialite');
     // Au-dessus de la barre de navigation flottante.
@@ -1300,5 +1356,108 @@ void main() {
     expect(server.deleted, isTrue);
     expect(state.me, isNull);
     expect(find.text('Se connecter'), findsOneWidget);
+  });
+
+  testWidgets('connexion Google : première fois, pays par défaut Côte d\'Ivoire, 18 ans, puis réussite', (
+    tester,
+  ) async {
+    final google = FakeGoogle();
+    final (state, server) = await startApp(tester, google: google);
+    expect(find.text('Continuer avec Google'), findsOneWidget);
+
+    google.next = null; // fenêtre de Google fermée : rien ne se passe
+    await tester.tap(find.text('Continuer avec Google'));
+    await tester.pumpAndSettle();
+    expect(find.text('Continuer avec Google'), findsOneWidget);
+
+    google.next = 'jeton-google';
+    await tester.tap(find.text('Continuer avec Google'));
+    await tester.pumpAndSettle();
+    expect(find.text('kossi@gmail.com'), findsOneWidget);
+    expect(find.text("Côte d'Ivoire"), findsOneWidget); // pays proposé d'abord
+    await tester.tap(find.text('Commencer'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('18 ans ou plus pour utiliser'), findsOneWidget);
+    expect(server.googleSignups, isEmpty);
+
+    await tester.tap(find.byType(Checkbox));
+    await tester.tap(find.text('Commencer'));
+    await tester.pumpAndSettle();
+    expect(server.googleSignups.single, {'id_token': 'jeton-google', 'country': 'CI', 'adult': true});
+    expect(find.text('Voir les matchs du jour'), findsOneWidget);
+    expect(find.textContaining('Bienvenue, Kossi'), findsOneWidget);
+    await tester.tap(find.text('Voir les matchs du jour'));
+    await tester.pumpAndSettle();
+    expect(state.welcome, isFalse);
+    expect(find.text('LEN'), findsOneWidget); // matchs du jour
+  });
+
+  testWidgets('connexion Google : compte connu, directement connecté', (tester) async {
+    final google = FakeGoogle();
+    final (state, server) = await startApp(tester, google: google);
+    server.googleAccounts.add('jeton-google');
+    await tester.tap(find.text('Continuer avec Google'));
+    await tester.pumpAndSettle();
+    expect(state.me?.displayName, 'Kossi');
+    expect(find.text('Voir les matchs du jour'), findsOneWidget);
+  });
+
+  testWidgets('numéro : indicatif +225 déjà mis, oubli du mot de passe par WhatsApp', (tester) async {
+    final opened = <Uri>[];
+    final (state, _) = await startApp(
+      tester,
+      google: FakeGoogle(),
+      openUrl: (url) async {
+        opened.add(url);
+        return true;
+      },
+    );
+    await tester.tap(find.text('Numéro de téléphone'));
+    await tester.pumpAndSettle();
+    expect(find.text('+225'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).at(0), '05 00 00 00 01');
+    await tester.tap(find.text('Mot de passe oublié ?'));
+    await tester.pumpAndSettle();
+    expect(opened.single.host, 'wa.me');
+    expect(opened.single.path, '/2250500649904');
+    expect(opened.single.queryParameters['text'], contains('+225 05 00 00 00 01'));
+
+    // Autre pays : l'indicatif se change, le joueur ne tape que son numéro.
+    await tester.tap(find.text('+225'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Togo'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(1), 'motdepasse');
+    await tester.tap(find.text('Se connecter'));
+    await tester.pumpAndSettle();
+    expect(state.me?.displayName, 'Kossi');
+  });
+
+  testWidgets('profil : lier puis délier Google, aide WhatsApp', (tester) async {
+    final opened = <Uri>[];
+    final (_, server) = await startApp(
+      tester,
+      loggedIn: true,
+      google: FakeGoogle(),
+      openUrl: (url) async {
+        opened.add(url);
+        return true;
+      },
+    );
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lier avec Google'));
+    await tester.pumpAndSettle();
+    expect(server.googleLinked, isTrue);
+    expect(find.text('Google lié'), findsOneWidget);
+    await tester.tap(find.text('Délier'));
+    await tester.pumpAndSettle();
+    expect(server.googleLinked, isFalse);
+
+    await tester.scrollUntilVisible(find.text('Aide'), 200);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Aide'));
+    await tester.pumpAndSettle();
+    expect(opened.single.toString(), startsWith('https://wa.me/2250500649904?text='));
   });
 }

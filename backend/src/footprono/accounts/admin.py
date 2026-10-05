@@ -38,6 +38,8 @@ async def search_users(
         conditions: list[ColumnElement[bool]] = [User.display_name.ilike(f"%{query.strip()}%")]
         if digits:
             conditions.append(User.phone.contains(digits))
+        if "@" in query or "." in query:
+            conditions.append(User.email.ilike(f"%{query.strip()}%"))
         stmt = stmt.where(or_(*conditions))
     rows = await session.scalars(stmt.order_by(User.id.desc()).limit(limit).offset(offset))
     return list(rows.all())
@@ -112,9 +114,12 @@ async def set_role(session: AsyncSession, phone: str, role: str) -> User:
     """Utilisé en ligne de commande (``footprono-admin``) : nommer le premier administrateur."""
     if role not in ("user", "admin"):
         raise AppError("rôle : user ou admin")
-    user = await session.scalar(select(User).where(User.phone == normalize_phone(phone)))
-    if user is None:
-        raise NotFoundError(f"aucun compte avec le numéro {phone}")
+    return await apply_role(session, await _by_phone(session, phone), role)
+
+
+async def apply_role(session: AsyncSession, user: User, role: str) -> User:
+    if role not in ("user", "admin"):
+        raise AppError("rôle : user ou admin")
     user.role = role
     await session.flush()
     return user
@@ -129,7 +134,11 @@ async def _by_phone(session: AsyncSession, phone: str) -> User:
 
 async def change_phone(session: AsyncSession, old: str, new: str) -> User:
     """Change le numéro de connexion d'un compte (ligne de commande)."""
-    user = await _by_phone(session, old)
+    return await apply_phone(session, await _by_phone(session, old), new)
+
+
+async def apply_phone(session: AsyncSession, user: User, new: str) -> User:
+    """Numéro de connexion (aussi pour un compte Google qui n'en avait pas)."""
     phone = normalize_phone(new)
     taken = await session.scalar(select(User.id).where(User.phone == phone, User.id != user.id))
     if taken is not None:
@@ -141,7 +150,10 @@ async def change_phone(session: AsyncSession, old: str, new: str) -> User:
 
 async def reset_password(session: AsyncSession, phone: str) -> tuple[User, str]:
     """Mot de passe provisoire aléatoire, à changer ensuite dans l'application."""
-    user = await _by_phone(session, phone)
+    return await apply_password_reset(session, await _by_phone(session, phone))
+
+
+async def apply_password_reset(session: AsyncSession, user: User) -> tuple[User, str]:
     password = secrets.token_urlsafe(9)  # 12 caractères
     user.password_hash = hash_password(password)
     await session.flush()
