@@ -22,17 +22,29 @@ fi
 archive="$(realpath "$archive")"  # load_env change de dossier
 notes="${1:-}"; [ $# -ge 1 ] && shift
 echo "Archive : $archive ($(date -r "$archive" '+%d/%m %H:%M'))"
+"$VENV/bin/python" -m zipfile -t "$archive" >/dev/null 2>&1 \
+    || die "archive abîmée (téléchargement incomplet ?) : la retélécharger depuis GitHub Actions"
 if [ -n "${FP_SERVEUR:-}" ]; then
-    # Serveur distant (Docker) : l'archive passe par SSH dans le conteneur de l'API ;
-    # les notes voyagent en base64 (accents, espaces, guillemets sans risque).
+    # Serveur distant (Docker) : l'archive est copiée sur le serveur puis dans le
+    # conteneur de l'API ; les notes voyagent en base64 (accents, guillemets sans risque).
     command -v ssh >/dev/null 2>&1 || pkg install -y openssh
     for a in "$@"; do
         case "$a" in *[!A-Za-z0-9._-]*) die "option non prise en charge sur le serveur : $a";; esac
     done
     notes64="$(printf %s "$notes" | base64 | tr -d '\n')"
     compose='docker compose -f docker-compose.yml --env-file .env'
-    inner='cat > /tmp/apk.zip && footprono-admin publish-apk /tmp/apk.zip --notes "$(echo "$FP_NOTES" | base64 -d)" '"$*"'; s=$?; rm -f /tmp/apk.zip; exit $s'
-    ssh "root@$FP_SERVEUR" "cd /opt/footprono/deploy && $compose exec -T -u root api chown app:app /data/app && $compose exec -T -e FP_NOTES=$notes64 api sh -c '$inner'" < "$archive"
+    # Copie par scp (vérifiée), puis dans le conteneur (« docker compose cp ») : un envoi
+    # par l'entrée standard de « docker compose exec » abîmait l'archive.
+    sum="$(sha256sum "$archive" | cut -d' ' -f1)"
+    scp -q "$archive" "root@$FP_SERVEUR:/tmp/footprono-apk.zip"
+    inner='footprono-admin publish-apk /tmp/apk.zip --notes "$(echo "$FP_NOTES" | base64 -d)" '"$*"
+    ssh "root@$FP_SERVEUR" "set -e; cd /opt/footprono/deploy
+        echo '$sum  /tmp/footprono-apk.zip' | sha256sum -c --quiet
+        $compose cp /tmp/footprono-apk.zip api:/tmp/apk.zip
+        $compose exec -T -u root api chown app:app /data/app /tmp/apk.zip
+        s=0; $compose exec -T -e FP_NOTES=$notes64 api sh -c '$inner' || s=\$?
+        $compose exec -T -u root api rm -f /tmp/apk.zip; rm -f /tmp/footprono-apk.zip
+        exit \$s"
 else
     load_env
     "$VENV/bin/footprono-admin" publish-apk "$archive" --notes "$notes" "$@"
