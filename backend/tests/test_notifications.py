@@ -72,6 +72,9 @@ async def test_settlement_notifies_and_publishes(
     assert received is not None
     assert received["title"] == "Pari gagné"
     assert "3\u202f700\u00a0F CFA" in received["body"]  # 2 000 x 1,85
+    # Le match, pas un numéro interne : « Équipe A - Équipe B : 3 700 F CFA crédités… »
+    assert " - " in received["body"]
+    assert "n°" not in received["body"]
 
     listed = (await client.get("/api/v1/me/notifications?unread=true", headers=headers)).json()
     assert [n["kind"] for n in listed] == ["bet_settled"]

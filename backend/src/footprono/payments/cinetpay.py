@@ -16,6 +16,8 @@ from footprono.core.config import Settings
 from footprono.core.errors import ServiceUnavailableError
 
 BASE_URL = "https://api-checkout.cinetpay.com/v2"
+# Seul message vu par le joueur ; le détail technique reste dans le journal du serveur.
+PAYMENT_DOWN = "Paiement momentanément indisponible. Réessaie plus tard."
 TIMEOUT = 20.0
 # Remplacé par les tests (CinetPay simulé) ; None : vrai réseau.
 test_transport: httpx.AsyncBaseTransport | None = None
@@ -45,7 +47,8 @@ class CinetPayClient:
     ) -> "CinetPayClient":
         if settings.cinetpay_api_key is None or settings.cinetpay_site_id is None:
             raise ServiceUnavailableError(
-                "paiement indisponible : CinetPay n'est pas encore configuré sur le serveur"
+                "paiement indisponible : CinetPay n'est pas encore configuré sur le serveur",
+                public=PAYMENT_DOWN,
             )
         return cls(
             settings.cinetpay_api_key.get_secret_value(), settings.cinetpay_site_id, transport
@@ -58,12 +61,14 @@ class CinetPayClient:
             async with httpx.AsyncClient(timeout=TIMEOUT, transport=transport) as client:
                 response = await client.post(f"{BASE_URL}{path}", json=body)
         except httpx.HTTPError as exc:
-            raise ServiceUnavailableError(f"CinetPay injoignable : {exc}") from exc
+            raise ServiceUnavailableError(
+                f"CinetPay injoignable : {exc}", public=PAYMENT_DOWN
+            ) from exc
         try:
             data: dict[str, Any] = response.json()
         except ValueError as exc:
             raise ServiceUnavailableError(
-                f"réponse CinetPay illisible (HTTP {response.status_code})"
+                f"réponse CinetPay illisible (HTTP {response.status_code})", public=PAYMENT_DOWN
             ) from exc
         return data
 
@@ -95,7 +100,8 @@ class CinetPayClient:
         if str(data.get("code")) != "201" or not url:
             raise ServiceUnavailableError(
                 f"CinetPay refuse le paiement : {data.get('message') or data.get('description')}"
-                f" (code {data.get('code')})"
+                f" (code {data.get('code')})",
+                public=PAYMENT_DOWN,
             )
         return str(url)
 

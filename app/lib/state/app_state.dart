@@ -40,6 +40,10 @@ String defaultServer() {
   return builtInServer.isNotEmpty ? builtInServer : 'http://127.0.0.1:8000';
 }
 
+/// Choix de l'adresse du serveur : seulement en développement (APK sans serveur intégré).
+/// Les joueurs ne voient jamais l'adresse du serveur.
+bool get serverChoice => !kIsWeb && builtInServer.isEmpty;
+
 /// Ouvre le WebSocket ; `null` désactive le direct (tests).
 typedef SocketFactory = WebSocketChannel? Function(Uri uri);
 
@@ -145,7 +149,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> init() async {
     WidgetsBinding.instance.addObserver(this);
     _prefs = await SharedPreferences.getInstance();
-    api.baseUrl = _prefs!.getString(_kServer) ?? defaultServer();
+    api.baseUrl = (serverChoice ? _prefs!.getString(_kServer) : null) ?? defaultServer();
     api.token = _prefs!.getString(_kToken);
     try {
       final raw = _prefs!.getString(_kExcludedTeams);

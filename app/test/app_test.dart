@@ -1191,22 +1191,14 @@ void main() {
     expect(server.dailyNotifications, isTrue);
   });
 
-  testWidgets('administration : code 1xBet saisi pour un coupon du jour', (tester) async {
+  testWidgets('administrateur : aucun outil d\'administration dans l\'application', (tester) async {
     final (_, server) = await startApp(tester, loggedIn: true);
     server.admin = true;
     await tester.tap(find.text('Profil'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Administration'));
-    await tester.tap(find.text('Administration'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Codes 1xBet des coupons du jour'));
-    await tester.pumpAndSettle();
-    expect(find.text('1 / 2'), findsOneWidget); // un code déjà saisi sur deux coupons
-    await tester.enterText(find.byType(TextField).first, 'k9dma');
-    await tester.tap(find.text('Enregistrer'));
-    await tester.pumpAndSettle();
-    expect(server.bookingCodes.single, {'bookmaker': '1xbet', 'code': 'k9dma'});
-    expect(find.text('Code enregistré.'), findsOneWidget);
+    // Tout passe par FootProba Console : l'application reste celle d'un joueur.
+    expect(find.text('Administration'), findsNothing);
+    expect(find.text('Admin'), findsNothing);
   });
 
   testWidgets('Coupon intelligent : réservé à Premium', (tester) async {

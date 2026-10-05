@@ -37,7 +37,12 @@ Outil web réservé aux comptes administrateur, servi par le serveur à l'adress
 `/admin`, sur ordinateur et sur téléphone, sans rien installer. Même univers que
 l'application (polices Sora et Plus Jakarta Sans, embarquées ; violet FootProba).
 Connexion avec le numéro (indicatif compris) et le mot de passe d'un compte
-administrateur. L'application des joueurs ne contient aucun outil de la console.
+administrateur. L'application des joueurs ne contient **aucun outil ni aucune
+information d'administration** : pas de menu Administration (codes 1xBet, comptes :
+dans la console), pas d'adresse du serveur, pas de version du moteur, pas de
+notification de la console (le suivi des tâches reste dans la console), et des
+messages d'erreur simples pour le joueur (le détail technique reste dans le
+journal du serveur : `AppError(..., public=...)`).
 Aussi installable sur Android : **FootProba Console** (`console-android/`, artefact
 `footproba-console-apk` de la CI), fenêtre dédiée sur `/admin` du serveur.
 

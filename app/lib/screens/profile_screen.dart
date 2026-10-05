@@ -9,7 +9,6 @@ import '../format.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
-import 'admin_screen.dart';
 import 'auth_screen.dart' show countries;
 import 'notifications_screen.dart';
 import 'reliability_screen.dart';
@@ -217,7 +216,6 @@ class ProfileScreen extends StatelessWidget {
                             ],
                           ),
                         ),
-                        if (me.isAdmin) const Tag('Admin'),
                       ],
                     ),
                     const SizedBox(height: 18),
@@ -272,22 +270,15 @@ class ProfileScreen extends StatelessWidget {
                           onTap: () => _responsible(context),
                         ),
                         const Divider(),
-                        _Item(
-                          icon: Icons.dns_outlined,
-                          title: 'Serveur',
-                          subtitle: state.api.baseUrl,
-                          onTap: () => showServerDialog(context),
-                        ),
-                        if (me?.isAdmin ?? false) ...[
-                          const Divider(),
+                        if (serverChoice) ...[
                           _Item(
-                            icon: Icons.admin_panel_settings_outlined,
-                            title: 'Administration',
-                            subtitle: 'Comptes, Premium, statistiques',
-                            onTap: () => open(const AdminScreen()),
+                            icon: Icons.dns_outlined,
+                            title: 'Serveur (développement)',
+                            subtitle: state.api.baseUrl,
+                            onTap: () => showServerDialog(context),
                           ),
+                          const Divider(),
                         ],
-                        const Divider(),
                         const _Item(icon: Icons.language_rounded, title: 'Langue', subtitle: 'Français'),
                         const Divider(),
                         _Item(

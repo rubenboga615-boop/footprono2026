@@ -73,13 +73,9 @@ class ApiClient {
     try {
       res = await request().timeout(timeout);
     } on TimeoutException {
-      throw ApiException(0, 'timeout', 'Le serveur ne répond pas (délai dépassé).');
+      throw ApiException(0, 'timeout', 'Connexion trop lente. Réessaie dans un instant.');
     } catch (e) {
-      throw ApiException(
-        0,
-        'network',
-        'Serveur injoignable ($baseUrl). Vérifie qu\'il est démarré et l\'adresse dans le profil.',
-      );
+      throw ApiException(0, 'network', 'Impossible de joindre FootProba. Vérifie ta connexion internet.');
     }
     final text = utf8.decode(res.bodyBytes);
     dynamic data;
@@ -100,6 +96,10 @@ class ApiClient {
         error['details'],
       );
     }
-    throw ApiException(res.statusCode, 'http_${res.statusCode}', 'Erreur du serveur (${res.statusCode}).');
+    throw ApiException(
+      res.statusCode,
+      'http_${res.statusCode}',
+      'Un problème est survenu. Réessaie dans un instant.',
+    );
   }
 }

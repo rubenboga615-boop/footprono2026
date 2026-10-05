@@ -13,6 +13,7 @@ sont **réglés à nouveau** (écart crédité ou débité, avec une note).
 """
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -22,6 +23,7 @@ import numpy as np
 from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from footprono.accounts import service as accounts
 from footprono.accounts.models import Wallet
@@ -36,6 +38,7 @@ from footprono.football.models import (
     MatchStatus,
     MatchTeamStats,
     StatPeriod,
+    Team,
 )
 from footprono.ingestion.sources.api_football import UNPLAYED_STATUSES
 from footprono.notifications import service as notifications
@@ -208,13 +211,31 @@ _TITLES = {
 }
 
 
-def _notify_settled(session: AsyncSession, bet: Bet) -> None:
+async def _bet_name(session: AsyncSession, selections: Sequence[BetSelection]) -> str:
+    """« Arsenal - Chelsea » pour un pari simple, « combiné de 3 matchs » sinon."""
+    matches = {s.match_id for s in selections}
+    if len(matches) != 1:
+        return f"combiné de {len(matches)} matchs"
+    home, away = aliased(Team), aliased(Team)
+    row = (
+        await session.execute(
+            select(home.name, away.name)
+            .select_from(Match)
+            .join(home, home.id == Match.home_team_id)
+            .join(away, away.id == Match.away_team_id)
+            .where(Match.id == next(iter(matches)))
+        )
+    ).first()
+    return f"{row[0]} - {row[1]}" if row else "pari"
+
+
+def _notify_settled(session: AsyncSession, bet: Bet, name: str) -> None:
     outcome = bet.outcome or "lost"
     if outcome == "lost":
-        body = f"Pari n°{bet.id} perdu (mise {notifications.money(bet.stake, bet.currency)})."
+        body = f"{name} : mise de {notifications.money(bet.stake, bet.currency)} perdue."
     else:
         gain = notifications.money(bet.payout or 0, bet.currency)
-        body = f"Pari n°{bet.id} : {gain} crédités sur votre solde."
+        body = f"{name} : {gain} crédités sur ton solde."
     notifications.add(
         session, bet.user_id, "bet_settled", _TITLES[outcome], body,
         {"bet_id": bet.id, "outcome": outcome, "payout": bet.payout},
@@ -260,11 +281,11 @@ async def settle_bets(
                 await accounts.move(
                     session, bet.user_id, payout, "payout", bet_id=bet.id, note=f"pari {bet.id}"
                 )
-            _notify_settled(session, bet)
+            _notify_settled(session, bet, await _bet_name(session, selections))
             await montante.on_bet_settled(session, bet)
             report["settled"] += 1
         elif (outcome, payout) != (bet.outcome, bet.payout):
-            await _correct(session, bet, outcome, payout, now)
+            await _correct(session, bet, outcome, payout, now, await _bet_name(session, selections))
             report["resettled"] += 1
     await session.commit()
     report["notified"] = await notifications.publish_pending(session, redis, push)
@@ -272,7 +293,7 @@ async def settle_bets(
 
 
 async def _correct(
-    session: AsyncSession, bet: Bet, outcome: str, payout: int, now: datetime
+    session: AsyncSession, bet: Bet, outcome: str, payout: int, now: datetime, name: str
 ) -> None:
     """Score corrigé après coup : l'écart de gain est crédité ou débité, avec une note.
 
@@ -290,8 +311,8 @@ async def _correct(
         await accounts.move(session, bet.user_id, applied, "correction", bet_id=bet.id, note=note)
     notifications.add(
         session, bet.user_id, "bet_corrected", "Score corrigé",
-        f"Pari n°{bet.id} réglé à nouveau : {_TITLES[outcome].lower()} "
-        f"({notifications.money(applied, bet.currency)} sur votre solde).",
+        f"{name} réglé à nouveau : {_TITLES[outcome].lower()} "
+        f"({notifications.money(applied, bet.currency)} sur ton solde).",
         {"bet_id": bet.id, "outcome": outcome, "payout": payout, "delta": applied},
     )  # fmt: skip
     bet.outcome, bet.payout, bet.settled_at = outcome, payout, now

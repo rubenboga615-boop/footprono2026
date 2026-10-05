@@ -25,10 +25,12 @@ class AppError(Exception):
     status_code: int = status.HTTP_400_BAD_REQUEST
     code: str = "bad_request"
 
-    def __init__(self, message: str, *, details: Any = None) -> None:
+    def __init__(self, message: str, *, details: Any = None, public: str | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.details = details
+        # Message montré au joueur quand ``message`` est technique (reste dans le journal).
+        self.public = public or message
 
 
 class NotFoundError(AppError):
@@ -57,8 +59,10 @@ def error_body(code: str, message: str, details: Any = None) -> dict[str, Any]:
 
 async def _app_error_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, AppError)
-    logger.warning("app_error", extra={"code": exc.code, "path": request.url.path})
-    return JSONResponse(error_body(exc.code, exc.message, exc.details), status_code=exc.status_code)
+    logger.warning(
+        "app_error", extra={"code": exc.code, "path": request.url.path, "detail": exc.message}
+    )
+    return JSONResponse(error_body(exc.code, exc.public, exc.details), status_code=exc.status_code)
 
 
 async def _http_error_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -80,7 +84,7 @@ async def _validation_error_handler(request: Request, exc: Exception) -> JSONRes
 async def _unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("unhandled_error", extra={"path": request.url.path})
     return JSONResponse(
-        error_body("internal_error", "Erreur interne du serveur"),
+        error_body("internal_error", "Un problème est survenu. Réessaie dans un instant."),
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
     )
 

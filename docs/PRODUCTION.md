@@ -88,8 +88,8 @@ quota API-Football est consommé deux fois.
 
 GitHub → dépôt → Settings → Secrets and variables → Actions → **Variables**
 → `FP_SERVER_URL` = `https://<sous-domaine>.duckdns.org`. Les APK construits
-ensuite se connectent au serveur. Sur un téléphone déjà installé :
-Profil → Serveur → la même adresse.
+ensuite se connectent au serveur (adresse intégrée, invisible pour les joueurs) :
+installer le nouvel APK par-dessus l'ancien.
 
 Publier une version sur le serveur (proposée aux téléphones à l'ouverture), depuis
 Termux, avec l'archive `footprono-apk.zip` téléchargée dans GitHub Actions :

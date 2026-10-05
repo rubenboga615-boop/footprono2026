@@ -246,16 +246,6 @@ async def run_job(
             job.finished_at = datetime.now(UTC)
             if result_status == "succeeded":
                 job.progress = 1.0
-            if job.user_id is not None:
-                label = {"succeeded": "terminée", "failed": "en échec", "cancelled": "arrêtée"}
-                notifications.add(
-                    session,
-                    job.user_id,
-                    "admin_job",
-                    f"Console : {action_id_title(action_id)} {label[result_status]}",
-                    summary[:300],
-                    {"job_id": job_id},
-                )
         await _publish(session, settings)
     return result_status
 

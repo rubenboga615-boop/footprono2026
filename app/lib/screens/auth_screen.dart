@@ -269,13 +269,15 @@ class _AuthScreenState extends State<AuthScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  TextButton.icon(
-                    onPressed: () => showServerDialog(context),
-                    icon: const Icon(Icons.dns_outlined, size: 18),
-                    label: Text('Serveur : ${state.api.baseUrl}', overflow: TextOverflow.ellipsis),
-                    style: TextButton.styleFrom(foregroundColor: Fp.text3),
-                  ),
+                  if (serverChoice) ...[
+                    const SizedBox(height: 18),
+                    TextButton.icon(
+                      onPressed: () => showServerDialog(context),
+                      icon: const Icon(Icons.dns_outlined, size: 18),
+                      label: Text('Serveur : ${state.api.baseUrl}', overflow: TextOverflow.ellipsis),
+                      style: TextButton.styleFrom(foregroundColor: Fp.text3),
+                    ),
+                  ],
                 ],
               ),
             ),

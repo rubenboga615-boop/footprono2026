@@ -162,10 +162,9 @@ async def test_job_runs_with_journal_and_notification(
     listed = (await client.get(f"{API}/jobs", headers=admin_headers)).json()
     assert [j["id"] for j in listed] == [job_id]
     async with db_factory() as session:
+        # Le suivi reste dans la console : jamais dans les notifications de l'application.
         note = await session.scalar(select(Notification).where(Notification.kind == "admin_job"))
-    assert note is not None
-    assert note.title == "Console : Essai lent terminée"
-    assert note.data == {"job_id": job_id}
+    assert note is None
 
 
 async def test_failed_action_is_reported(

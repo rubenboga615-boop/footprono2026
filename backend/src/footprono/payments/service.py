@@ -20,7 +20,7 @@ from footprono.accounts.plans import PREMIUM_CURRENCY, PREMIUM_DAYS, PREMIUM_PRI
 from footprono.core.config import Settings
 from footprono.core.errors import NotFoundError, ServiceUnavailableError
 from footprono.notifications import service as notifications
-from footprono.payments.cinetpay import CinetPayClient
+from footprono.payments.cinetpay import PAYMENT_DOWN, CinetPayClient
 from footprono.payments.models import Payment
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,8 @@ RECONCILE_WINDOW = timedelta(hours=24)
 def _urls(settings: Settings) -> tuple[str, str]:
     if not settings.public_url:
         raise ServiceUnavailableError(
-            "paiement indisponible : adresse publique du serveur (FP_PUBLIC_URL) non définie"
+            "paiement indisponible : adresse publique du serveur (FP_PUBLIC_URL) non définie",
+            public=PAYMENT_DOWN,
         )
     base = settings.public_url.rstrip("/") + settings.api_prefix
     return f"{base}/payments/cinetpay/notify", f"{base}/payments/cinetpay/return"

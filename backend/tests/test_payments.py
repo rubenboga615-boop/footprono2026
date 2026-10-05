@@ -215,7 +215,8 @@ async def test_payment_unavailable_without_configuration(
     headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
     refused = await client.post("/api/v1/payments/premium", headers=headers)
     assert refused.status_code == 503
-    assert "CinetPay" in refused.json()["error"]["message"]
+    # Phrase simple pour le joueur ; le détail technique reste dans le journal du serveur.
+    assert refused.json()["error"]["message"] == cinetpay.PAYMENT_DOWN
 
 
 async def test_pending_payments_are_rechecked(

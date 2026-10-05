@@ -327,9 +327,8 @@ class _MatchViewState extends State<_MatchView> {
       ],
       const SizedBox(height: 16),
       Text(
-        'Probabilités du moteur ${p.engineVersion}, calculées le '
-        '${p.createdAt != null ? dateTime(p.createdAt!) : '—'}. Elles ne tiennent pas compte des cotes '
-        'des bookmakers.',
+        'Probabilités calculées le ${p.createdAt != null ? dateTime(p.createdAt!) : '—'}. '
+        'Elles ne tiennent pas compte des cotes des bookmakers.',
         style: Fp.body(12, color: Fp.text3, height: 1.4),
       ),
     ];

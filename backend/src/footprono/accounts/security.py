@@ -45,7 +45,8 @@ def _secret(settings: Settings) -> str:
     if len(secret) < _MIN_SECRET:
         raise ServiceUnavailableError(
             "FP_SECRET_KEY absente ou trop courte : connexion impossible "
-            "(relancer scripts/termux/setup.sh, qui la génère)"
+            "(relancer scripts/termux/setup.sh, qui la génère)",
+            public="Connexion momentanément impossible. Réessaie plus tard.",
         )
     return secret
 

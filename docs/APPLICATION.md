@@ -22,9 +22,10 @@ dernière exécution verte → **Artifacts** (compte GitHub connecté).
 
 1. Décompresser `footprono-apk.zip`, ouvrir `app-arm64-v8a-release.apk`,
    autoriser l'installation depuis cette source.
-2. Le serveur Termux doit tourner (`bash scripts/termux/start.sh`).
-3. Adresse par défaut : `http://127.0.0.1:8000` (serveur sur le même
-   téléphone). Modifiable dans **Profil → Serveur** (bouton « Tester »).
+2. Serveur : celui intégré à l'APK (variable `FP_SERVER_URL` de la CI), jamais
+   affiché ni modifiable par le joueur. Seul un APK de développement (sans
+   serveur intégré) utilise `http://127.0.0.1:8000` (Termux) et montre
+   **Profil → Serveur (développement)**.
 
 Signature : une clé **de développement** versionnée
 (`app/android/keystore/footprono-dev.jks`) signe tous les APK, pour qu'une
@@ -140,10 +141,9 @@ les paris sont sur le serveur : rien n'est perdu), puis installer le nouvel APK.
 | Pari du palier (Premium) | 3 suggestions, probabilité du modèle et selon la cote, côte à côte (aucun « bon plan ») | `/montantes/{id}/suggestions` |
 | Bookmaker | solde fictif, en jeu, rendement, paris en cours / réglés, mouvements | `/bets`, `/me/wallet/*` |
 | Mon bilan (icône du Bookmaker, visible par le joueur seul) | paris réglés, gagnés / perdus, misé, récupéré, résultat net, rendement ; annoncé (moteur) contre selon la cote contre réalisé par tranche de probabilité, « peu de paris » sous 20 sélections ; réussite par marché et par championnat  ; bilan par cote du coupon (moins de 2, 2 à 5, 5 à 20, 20 et plus : gagnés, annoncé, net) ; rappel de jeu responsable si les mises de la semaine doublent | `/me/record` |
-| Profil | formule et prix, notifications, fiabilité, mot de passe, jeu responsable, serveur, administration ; numéro de version en bas | `/me`, `/me/password` |
+| Profil | formule et prix, notifications, fiabilité, mot de passe, jeu responsable ; numéro de version en bas | `/me`, `/me/password` |
 | Fiabilité | annoncé contre réalisé par marché et championnat, références, backtest séparé | `/reliability` |
 | Notifications | en direct (WebSocket) et historique | `/ws`, `/me/notifications` |
-| Administration | statistiques, recherche, Premium, désactivation ; **codes 1xBet des coupons du jour** : l'administrateur recrée chaque coupon chez 1xBet et colle le code (4 à 16 lettres ou chiffres, espaces retirés, majuscules), visible aussitôt ; code vide pour le retirer | `/admin/*`, `/admin/smart-coupons?day=`, `PUT /admin/smart-coupons/{id}/booking-code` |
 
 Règles respectées dans l'application :
 
