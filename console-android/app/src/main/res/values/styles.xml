@@ -1,0 +1,8 @@
+<resources>
+    <style name="Console" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/fond</item>
+        <item name="android:statusBarColor">@color/fond</item>
+        <item name="android:navigationBarColor">@color/fond</item>
+        <item name="android:colorAccent">@color/violet</item>
+    </style>
+</resources>

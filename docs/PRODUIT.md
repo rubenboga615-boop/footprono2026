@@ -38,6 +38,8 @@ Outil web réservé aux comptes administrateur, servi par le serveur à l'adress
 l'application (polices Sora et Plus Jakarta Sans, embarquées ; violet FootProba).
 Connexion avec le numéro (indicatif compris) et le mot de passe d'un compte
 administrateur. L'application des joueurs ne contient aucun outil de la console.
+Aussi installable sur Android : **FootProba Console** (`console-android/`, artefact
+`footproba-console-apk` de la CI), fenêtre dédiée sur `/admin` du serveur.
 
 - **Tableau de bord** : jauges (services, quota API-Football du jour, disque), courbe
   des comptes sur 30 jours, **frise des tâches planifiées sur 24 h** (direct, cotes,

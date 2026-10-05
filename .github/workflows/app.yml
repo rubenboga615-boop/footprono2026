@@ -5,9 +5,9 @@ name: Application
 on:
   push:
     branches: [main, "claude/**"]
-    paths: ["app/**", "backend/**", "e2e/**", ".github/workflows/app.yml"]
+    paths: ["app/**", "backend/**", "e2e/**", "console-android/**", ".github/workflows/app.yml"]
   pull_request:
-    paths: ["app/**", "backend/**", "e2e/**", ".github/workflows/app.yml"]
+    paths: ["app/**", "backend/**", "e2e/**", "console-android/**", ".github/workflows/app.yml"]
   workflow_dispatch:
 
 jobs:
@@ -76,6 +76,45 @@ jobs:
         with:
           name: footprono-web
           path: app/build/web
+          if-no-files-found: error
+
+  # Console d'administration installable (console-android) : fenêtre Android sur
+  # /admin du serveur FP_SERVER_URL, signée avec la même clé que l'application.
+  console:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: console-android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Clé de signature de production (secrets du dépôt)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.FP_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::Pas de clé de production : console signée avec la clé de développement."
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/footprono-release.jks"
+          echo "FP_KEYSTORE_FILE=$RUNNER_TEMP/footprono-release.jks" >> "$GITHUB_ENV"
+      - name: APK de la console
+        env:
+          FP_KEYSTORE_PASSWORD: ${{ secrets.FP_KEYSTORE_PASSWORD }}
+          FP_KEY_ALIAS: ${{ secrets.FP_KEY_ALIAS }}
+          FP_KEY_PASSWORD: ${{ secrets.FP_KEY_PASSWORD }}
+        run: |
+          ./gradlew --no-daemon assembleRelease \
+            -Pfp.server=${{ vars.FP_SERVER_URL }} -Pfp.build=${{ github.run_number }}
+          mv app/build/outputs/apk/release/app-release.apk \
+            app/build/outputs/apk/release/footproba-console.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: footproba-console-apk
+          path: console-android/app/build/outputs/apk/release/footproba-console.apk
           if-no-files-found: error
 
   # Parcours de bout en bout : vraie API (PostgreSQL, Redis) + application web

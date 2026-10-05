@@ -1,0 +1,28 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:label="FootProba Console"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
+        android:theme="@style/Console">
+        <!-- Adresse du serveur (fp.server au moment de la construction). -->
+        <meta-data android:name="footproba.server" android:value="${serverUrl}" />
+        <!-- La fenêtre n'ouvre que le serveur FootProba (les autres adresses partent dans
+             le navigateur) : la liste Safe Browsing, qui signale à tort les sous-domaines
+             duckdns.org, n'a pas à bloquer la console. -->
+        <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="false" />
+        <activity
+            android:name=".ConsoleActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|keyboard|uiMode|density|fontScale"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
