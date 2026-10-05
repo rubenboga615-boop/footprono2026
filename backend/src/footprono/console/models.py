@@ -21,6 +21,8 @@ class AdminJob(Base):
     # Grosse tâche (collecte, import, pronostics) : une seule à la fois.
     exclusive: Mapped[bool] = mapped_column(Boolean, default=False)
     progress: Mapped[float | None] = mapped_column(Float)
+    # Étape en cours (indice dans les étapes annoncées par l'action).
+    step: Mapped[int | None] = mapped_column(Integer)
     summary: Mapped[str | None] = mapped_column(String(400))
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     stop_requested: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -11,6 +11,7 @@ from footprono import __version__
 from footprono.bookmaker import settlement, smart_coupon
 from footprono.cache.redis import create_redis
 from footprono.console import jobs as console_jobs
+from footprono.console.runs import tracked
 from footprono.core.config import Settings, get_settings
 from footprono.core.errors import AppError
 from footprono.db.session import create_engine, create_session_factory
@@ -54,6 +55,7 @@ def ping() -> dict[str, str]:
 
 
 @celery_app.task(name="footprono.ingest_current_season")
+@tracked("ingest_current_season")
 def ingest_current_season() -> dict[str, Any]:
     """Télécharge la saison en cours (football-data, Understat, API-Football), puis contrôle.
 
@@ -99,6 +101,7 @@ async def _ingest_current_season() -> dict[str, Any]:
 
 
 @celery_app.task(name="footprono.collect_odds")
+@tracked("collect_odds")
 def collect_odds() -> dict[str, Any]:
     """Cotes des matchs à venir, puis blessés et suspendus du jour et du lendemain."""
     return asyncio.run(_collect_odds())
@@ -123,6 +126,7 @@ async def _collect_odds() -> dict[str, Any]:
 
 
 @celery_app.task(name="footprono.daily_smart_coupons")
+@tracked("daily_smart_coupons")
 def daily_smart_coupons() -> dict[str, Any]:
     """Coupons du jour de chaque profil, enregistrés avant les matchs (historique public)."""
     return asyncio.run(_daily_smart_coupons())
@@ -138,6 +142,7 @@ async def _daily_smart_coupons() -> dict[str, Any]:
 
 
 @celery_app.task(name="footprono.follow_live")
+@tracked("follow_live")
 def follow_live() -> dict[str, Any]:
     """Score en direct, puis résultat et statistiques dès la fin des matchs.
 
@@ -160,6 +165,7 @@ async def _follow_live() -> dict[str, Any]:
 
 
 @celery_app.task(name="footprono.predict_upcoming")
+@tracked("predict")
 def predict_upcoming() -> dict[str, Any]:
     """Prédit les matchs des 10 prochains jours et enregistre les prédictions."""
     return asyncio.run(_predict_upcoming())
@@ -180,6 +186,7 @@ async def _predict_upcoming(only_if_needed: bool = False) -> dict[str, Any]:
 
 
 @celery_app.task(name="footprono.predict_if_needed")
+@tracked("predict")
 def predict_if_needed() -> dict[str, Any]:
     """Prédit seulement si nécessaire (prédictions de plus de 12 h, ou nouveaux matchs).
 
@@ -190,6 +197,7 @@ def predict_if_needed() -> dict[str, Any]:
 
 
 @celery_app.task(name="footprono.check_payments")
+@tracked("check_payments")
 def check_payments() -> dict[str, Any]:
     """Revérifie auprès de CinetPay les paiements en attente (moins de 24 h)."""
     return asyncio.run(_check_payments())

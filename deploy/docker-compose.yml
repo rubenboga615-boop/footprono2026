@@ -33,6 +33,10 @@ x-backend: &backend
     # Historique API-Football de la console (collecte, import), envoyé depuis Termux
     # par send-to-server.sh : la collecte reprend où elle en était.
     FP_HISTORY_ARCHIVE_DIR: /data/history/api-football-historique
+    # Fichiers produits par les actions de la console (exports, rapports) ; sauvegardes
+    # de la base lues seulement (date et taille au tableau de bord, jamais téléchargées).
+    FP_CONSOLE_FILES_DIR: /data/files
+    FP_BACKUPS_DIR: /backups
     # Politique de confidentialité (/confidentialite).
     FP_LEGAL_NAME: ${FP_LEGAL_NAME:-FootProba (société en cours d'immatriculation)}
     FP_CONTACT_EMAIL: ${FP_CONTACT_EMAIL:-[adresse e-mail à compléter]}
@@ -48,6 +52,8 @@ x-backend: &backend
   volumes:
     - raw-data:/data/raw
     - history:/data/history
+    - console-files:/data/files
+    - ./backups:/backups:ro
     - app-release:/data/app
     - ./secrets:/secrets:ro
   depends_on:
@@ -162,6 +168,7 @@ volumes:
   raw-data:
   app-release:
   history:
+  console-files:
   postgres-data:
   redis-data:
   caddy-data:

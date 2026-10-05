@@ -123,6 +123,9 @@ fi
 
 log "Construction et démarrage (première fois : quelques minutes)"
 docker compose -f docker-compose.yml --env-file .env up -d --build --remove-orphans </dev/null
+# Volumes créés avant que l'image ne prépare leurs dossiers : rendus à l'application.
+docker compose -f docker-compose.yml --env-file .env exec -T -u root api \
+    chown app:app /data/app /data/history /data/files </dev/null || true
 
 log "Attente de https://$DOMAIN/api/v1/ready"
 for _ in $(seq 1 60); do

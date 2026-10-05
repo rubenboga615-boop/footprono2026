@@ -10,6 +10,7 @@ from footprono.accounts import admin
 from footprono.accounts.plans import plan_info
 from footprono.api.deps import AdminUserDep, SessionDep, SettingsDep
 from footprono.bookmaker import smart_coupon
+from footprono.core.errors import AppError
 from footprono.notifications import push
 
 router = APIRouter(prefix="/admin", tags=["administration"])
@@ -142,3 +143,43 @@ async def set_booking_code(
     coupon_id: int, body: BookingCodeIn, _: AdminUserDep, session: SessionDep
 ) -> dict[str, Any]:
     return await smart_coupon.set_booking_code(session, coupon_id, body.bookmaker, body.code)
+
+
+class RoleIn(BaseModel):
+    role: str = Field(pattern="^(user|admin)$")
+
+
+class PhoneIn(BaseModel):
+    phone: str = Field(max_length=24)
+
+
+@router.post("/users/{user_id}/role", response_model=AdminUserOut)
+async def set_user_role(
+    user_id: int, body: RoleIn, me: AdminUserDep, session: SessionDep
+) -> AdminUserOut:
+    """Nommer ou retirer un administrateur (jamais soi-même : pas de console sans admin)."""
+    user = await admin.get_user(session, user_id)
+    if user.id == me.id and body.role != "admin":
+        raise AppError("impossible de retirer ton propre rôle d'administrateur")
+    await admin.set_role(session, user.phone, body.role)
+    await session.commit()
+    return _out(user)
+
+
+@router.post("/users/{user_id}/phone", response_model=AdminUserOut)
+async def set_user_phone(
+    user_id: int, body: PhoneIn, _: AdminUserDep, session: SessionDep
+) -> AdminUserOut:
+    user = await admin.get_user(session, user_id)
+    await admin.change_phone(session, user.phone, body.phone)
+    await session.commit()
+    return _out(user)
+
+
+@router.post("/users/{user_id}/password-reset")
+async def reset_user_password(user_id: int, _: AdminUserDep, session: SessionDep) -> dict[str, str]:
+    """Mot de passe provisoire, affiché une seule fois (jamais enregistré en clair)."""
+    user = await admin.get_user(session, user_id)
+    _, password = await admin.reset_password(session, user.phone)
+    await session.commit()
+    return {"password": password}

@@ -21,6 +21,7 @@ import logging
 import traceback
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from fastapi import status
@@ -73,6 +74,8 @@ class JobContext:
         self._dropped = 0
         self._progress: float | None = None
         self._progress_dirty = False
+        self._step: int | None = None
+        self._step_dirty = False
 
     def log(self, message: str) -> None:
         """Ajoute une ou plusieurs lignes au journal (écrites au prochain paquet)."""
@@ -87,6 +90,18 @@ class JobContext:
         self._progress = min(1.0, max(0.0, float(fraction)))
         self._progress_dirty = True
 
+    def step(self, index: int) -> None:
+        """Étape en cours (indice dans ``Action.steps``), affichée dans le suivi."""
+        self._step = index
+        self._step_dirty = True
+
+    @property
+    def files_dir(self) -> Path:
+        """Dossier des fichiers téléchargeables (page « Fichiers » de la console)."""
+        from footprono.console.files import files_dir
+
+        return files_dir(self.settings)
+
     def check_stop(self) -> None:
         """À appeler entre deux étapes sûres : arrête la tâche si c'est demandé."""
         if self.stop_requested:
@@ -98,6 +113,9 @@ class JobContext:
         if self._progress_dirty:
             values["progress"] = self._progress
             self._progress_dirty = False
+        if self._step_dirty:
+            values["step"] = self._step
+            self._step_dirty = False
         async with self.factory() as session, session.begin():
             for line in lines:
                 self._written += 1
@@ -279,8 +297,14 @@ async def request_stop(session: AsyncSession, job_id: int) -> AdminJob:
 
 
 def job_out(job: AdminJob) -> dict[str, Any]:
+    now = datetime.now(UTC)
     heartbeat = job.heartbeat_at or job.created_at
-    silent = (datetime.now(UTC) - heartbeat).total_seconds() if heartbeat else None
+    silent = (now - heartbeat).total_seconds() if heartbeat else None
+    # Temps restant estimé d'après la progression (affiché à partir de 2 %).
+    eta = None
+    if job.status == "running" and job.started_at and job.progress and job.progress >= 0.02:
+        elapsed = (now - job.started_at).total_seconds()
+        eta = round(elapsed * (1 - job.progress) / job.progress)
     return {
         "id": job.id,
         "action": job.action,
@@ -296,6 +320,8 @@ def job_out(job: AdminJob) -> dict[str, Any]:
         "started_at": job.started_at,
         "finished_at": job.finished_at,
         "silent_seconds": round(silent) if silent is not None and job.status in ACTIVE else None,
+        "step": job.step,
+        "eta_seconds": eta,
     }
 
 

@@ -8,8 +8,19 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Client PostgreSQL 17 (même version que la base) : export des données de la console.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+        | gpg --dearmor -o /usr/share/keyrings/pgdg.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends postgresql-client-17 \
+    && apt-get purge -y gnupg && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --system app && useradd --system --gid app --home-dir /app app \
-    && mkdir -p /data/raw /data/history /data/app && chown app:app /data/raw /data/history /data/app
+    && mkdir -p /data/raw /data/history /data/app /data/files \
+    && chown app:app /data/raw /data/history /data/app /data/files
 
 COPY requirements.lock ./
 RUN pip install -r requirements.lock && pip install "uvloop>=0.21" "httptools>=0.6"

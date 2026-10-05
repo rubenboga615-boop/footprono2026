@@ -5,6 +5,8 @@ qui ne répond pas est affiché comme tel, jamais comme « en marche ».
 """
 
 import asyncio
+import json
+import logging
 import shutil
 from datetime import UTC, datetime, timedelta
 from functools import cache
@@ -20,10 +22,73 @@ from footprono.accounts.models import User
 from footprono.bookmaker.smart_coupon import BOOKING_BOOKMAKERS
 from footprono.bookmaker.smart_models import SmartCoupon
 from footprono.console.jobs import list_jobs
+from footprono.console.runs import recent_runs
 from footprono.core.config import Settings
 from footprono.football.models import BookmakerOdds, IngestionRun
+from footprono.ingestion.sources import api_football
 from footprono.payments.models import Payment
 from footprono.predictions.models import PredictionRun
+
+logger = logging.getLogger(__name__)
+QUOTA_KEY = "console:api_quota"
+QUOTA_TTL = 600  # /status ne coûte pas de requête, mais inutile de l'appeler à chaque page
+
+
+async def api_quota(
+    redis: Redis, settings: Settings, refresh: bool = False
+) -> dict[str, Any] | None:
+    """Requêtes API-Football utilisées aujourd'hui (gardé 10 minutes) ; None sans clé."""
+    if settings.api_football_key is None:
+        return None
+    if not refresh:
+        try:
+            cached = await redis.get(QUOTA_KEY)
+        except Exception:
+            cached = None
+        if cached:
+            return dict(json.loads(cached))
+    try:
+        from footprono.ingestion import service
+
+        async with api_football.ApiFootballClient(
+            settings.api_football_key.get_secret_value(),
+            budget=1,
+            min_remaining=0,
+            transport=service.api_football_transport,
+        ) as client:
+            status = await asyncio.wait_for(client.status(), timeout=8)
+    except Exception:
+        logger.warning("console_quota_unavailable")
+        return None
+    requests = status.get("requests") or {}
+    plan = status.get("subscription") or {}
+    quota = {
+        "used": int(requests.get("current", 0)),
+        "limit": int(requests.get("limit_day", 0)),
+        "plan": plan.get("plan"),
+        "end": plan.get("end"),
+        "checked_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    try:
+        await redis.set(QUOTA_KEY, json.dumps(quota), ex=QUOTA_TTL)
+    except Exception:
+        logger.warning("console_quota_not_cached")
+    return quota
+
+
+def _last_backup(settings: Settings) -> dict[str, Any] | None:
+    folder = settings.backups_dir
+    if folder is None or not folder.is_dir():
+        return None
+    dumps = sorted(folder.glob("*.dump"), key=lambda p: p.stat().st_mtime)
+    if not dumps:
+        return None
+    last = dumps[-1].stat()
+    return {
+        "at": datetime.fromtimestamp(last.st_mtime, UTC),
+        "size": last.st_size,
+        "count": len(dumps),
+    }
 
 
 @cache
@@ -83,6 +148,26 @@ async def dashboard(session: AsyncSession, redis: Redis, settings: Settings) -> 
         .where(Payment.status == "pending", Payment.created_at > now - timedelta(days=1))
     )
     users = await session.scalar(select(func.count()).select_from(User))
+    # Comptes cumulés, jour par jour sur 30 jours (courbe du tableau de bord).
+    start = today - timedelta(days=29)
+    per_day: dict[Any, int] = dict(
+        (
+            await session.execute(
+                select(func.date(User.created_at), func.count())
+                .where(User.created_at >= datetime(start.year, start.month, start.day, tzinfo=UTC))
+                .group_by(func.date(User.created_at))
+            )
+        )
+        .tuples()
+        .all()
+    )
+    before = (users or 0) - sum(per_day.values())
+    trend = []
+    for i in range(30):
+        day = start + timedelta(days=i)
+        before += per_day.get(day, 0)
+        trend.append(before)
+    new_7d = sum(per_day.get(today - timedelta(days=i), 0) for i in range(7))
     premium = await session.scalar(
         select(func.count()).select_from(User).where(User.premium_until > now)
     )
@@ -97,6 +182,8 @@ async def dashboard(session: AsyncSession, redis: Redis, settings: Settings) -> 
         disk = None
 
     quality = (ingestion.report or {}).get("quality") if ingestion is not None else None
+    quota = await api_quota(redis, settings) if redis_ok else None
+    backup = await asyncio.to_thread(_last_backup, settings)
     todo: list[dict[str, str]] = []
     if workers == 0:
         todo.append({"level": "error", "text": "aucun worker Celery ne répond : tâches à l'arrêt"})
@@ -125,6 +212,20 @@ async def dashboard(session: AsyncSession, redis: Redis, settings: Settings) -> 
         )
     if disk is not None and disk["free_gb"] < 2:
         todo.append({"level": "warning", "text": f"plus que {disk['free_gb']} Go libres"})
+    if settings.backups_dir is not None and (
+        backup is None or now - backup["at"] > timedelta(hours=30)
+    ):
+        todo.append(
+            {"level": "warning", "text": "pas de sauvegarde de la base depuis plus de 30 h"}
+        )
+    if quota and quota["limit"] and quota["limit"] - quota["used"] < 500:
+        todo.append(
+            {
+                "level": "warning",
+                "text": f"plus que {quota['limit'] - quota['used']} requêtes API-Football "
+                "aujourd'hui",
+            }
+        )
     if last_odds is None or now - last_odds > timedelta(hours=7):
         todo.append(
             {
@@ -149,7 +250,10 @@ async def dashboard(session: AsyncSession, redis: Redis, settings: Settings) -> 
             {k: quality.get(k) for k in ("status", "errors", "warnings")} if quality else None
         ),
         "coupons_today": {"count": len(coupons), "missing_codes": missing_codes},
-        "users": {"total": users or 0, "premium": premium or 0},
+        "users": {"total": users or 0, "premium": premium or 0, "new_7d": new_7d, "trend": trend},
+        "quota": quota,
+        "backup": backup,
+        "runs": await recent_runs(redis) if redis_ok else [],
         "todo": todo,
         "jobs": await list_jobs(session, limit=8),
     }

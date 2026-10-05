@@ -69,6 +69,7 @@ footprono = [
     "ingestion/reference/*.csv",
     "web/*.html",
     "web/admin/*",
+    "web/admin/fonts/*",
 ]
 
 [tool.pytest.ini_options]

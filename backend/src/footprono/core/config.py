@@ -86,6 +86,10 @@ class Settings(BaseSettings):
     raw_data_dir: Path = Path("data/raw")
     # Archive de l'historique API-Football (collecte de la console, import) ; « ~ » accepté.
     history_archive_dir: Path = Path("~/storage/downloads/api-football-historique")
+    # Fichiers produits par la console (exports, rapports, archives), gardés 30 jours.
+    console_files_dir: Path = Path("data/console-files")
+    # Sauvegardes de la base (lecture seule : dernière sauvegarde au tableau de bord).
+    backups_dir: Path | None = None
     # Politique de confidentialité (/confidentialite) : identité et contact du responsable.
     legal_name: str = "FootProba (société en cours d'immatriculation)"
     contact_email: str = "[adresse e-mail à compléter]"

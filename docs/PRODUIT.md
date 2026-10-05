@@ -34,49 +34,63 @@ Code : `backend/src/footprono/accounts/plans.py`, `accounts/admin.py`,
 ## Console d'administration (/admin)
 
 Outil web réservé aux comptes administrateur, servi par le serveur à l'adresse
-`/admin` (ex. `http://<serveur>:8000/admin`), sur ordinateur et sur téléphone, sans
-rien installer. Connexion avec le numéro et le mot de passe d'un compte
-administrateur (`admin.sh make-admin`). L'application des joueurs ne contient aucun
-outil de la console.
+`/admin`, sur ordinateur et sur téléphone, sans rien installer. Même univers que
+l'application (polices Sora et Plus Jakarta Sans, embarquées ; violet FootProba).
+Connexion avec le numéro (indicatif compris) et le mot de passe d'un compte
+administrateur. L'application des joueurs ne contient aucun outil de la console.
 
-- **Tableau de bord** : services (base, Redis, worker), disque, comptes, dernières
-  exécutions des tâches automatiques (ingestion, pronostics, cotes, coupons du jour),
-  qualité, et **ce qui est à traiter** (codes 1xBet à saisir, erreurs de qualité,
-  paiements en attente, cotes non relevées depuis 7 h, service arrêté).
-- **Actions** : catalogue fourni par le serveur (`backend/src/footprono/console/actions.py`).
-  Chaque action indique sa famille, son risque (lecture seule, modifie les données,
-  irréversible — confirmation obligatoire), son coût en requêtes et sa durée, et ses
-  réglages. **Une action ajoutée par une mise à jour du serveur apparaît d'elle-même**
-  après le `git pull` et le redémarrage, sans nouvelle version de l'application.
-  Premières actions : mettre à jour la saison en cours, collecter l'historique
-  API-Football (reprise automatique, arrêt à la réserve du jour, archive pour les études,
-  import en base des compétitions déjà intégrées), importer l'historique, relever les
-  cotes, recalculer les pronostics, créer les coupons du jour, notification d'essai,
-  couverture, qualité, quota API-Football.
-- **Suivi** : une action lancée est exécutée par le worker ; la page de la tâche montre
-  la progression et le journal en direct, permet d'arrêter une tâche longue (collecte)
-  et de la relancer avec les mêmes réglages. Notification de l'administrateur à la fin.
-  Une seule grosse tâche à la fois (collecte, import, pronostics, mise à jour) ; une
-  tâche sans signe de vie depuis 30 minutes (serveur redémarré) est marquée interrompue
-  et n'est jamais relancée d'elle-même.
-- **Journal** : toutes les actions lancées, avec leur auteur, leurs réglages et leur résumé.
-- **Codes du jour** et **Comptes et Premium** : les écrans d'administration existants
-  (saisie des codes 1xBet, recherche de compte, Premium, désactivation).
+- **Tableau de bord** : jauges (services, quota API-Football du jour, disque), courbe
+  des comptes sur 30 jours, **frise des tâches planifiées sur 24 h** (direct, cotes,
+  ingestion, pronostics, coupons, paiements : un bloc par exécution, vert, jaune ou
+  rose), dernière sauvegarde de la base, **à traiter** (codes 1xBet, quota bas, cotes
+  non relevées, sauvegarde manquante, service arrêté…) et tâches **en cours**.
+- **Actions** : catalogue fourni par le serveur (`backend/src/footprono/console/actions.py`),
+  filtrable par famille, recherche **Ctrl K** (bouton central sur téléphone). Chaque
+  action indique risque, coût en requêtes, durée, fichier produit ; un récapitulatif
+  (quota restant, étapes) précède le lancement. **Une action ajoutée par une mise à jour
+  du serveur apparaît d'elle-même.**
+- **Suivi** : progression, temps restant estimé, étapes cochées, journal coloré avec
+  filtre « erreurs », copie, arrêt propre des tâches longues, relance avec les mêmes
+  réglages ; notification de l'administrateur à la fin.
+- **Fichiers** : exports, archives et rapports produits par les actions, gardés 30 jours,
+  téléchargés par lien signé de 5 minutes. Jamais de donnée personnelle ; les
+  sauvegardes de la base ne sont pas téléchargeables.
+- **Exploitation** : codes du jour (1xBet), comptes (Premium, administrateur, numéro,
+  mot de passe provisoire affiché une seule fois, désactivation), paiements, **versions
+  de l'application** (dépôt de l'archive `footprono-apk.zip` depuis le navigateur).
 
-Restent hors de la console, sur le serveur : mise à jour (`git pull`), redémarrage,
-secrets (`backend/.env`, clés), sauvegardes. Sécurité : routes `/api/v1/admin/console`
-réservées au rôle administrateur ; pages servies avec une politique de contenu stricte
-(aucun script ni style extérieur, pas d'affichage dans un cadre, rien en cache) ; jeton
-gardé seulement le temps de l'onglet.
+Actions disponibles (elles remplacent les scripts Termux) :
+
+| Famille | Action | Ancien script |
+|---|---|---|
+| Données | Mettre à jour la saison en cours | `ingest.sh all --seasons …` |
+| Données | Ingestion sur plusieurs saisons | `ingest.sh all --seasons 2016-2026` |
+| Données | Collecter / importer l'historique API-Football | `api-football-history.sh` |
+| Données | Relever les cotes · blessés et suspendus | `ingest.sh odds` · `injuries` |
+| Données | Exporter les données pour l'étude | `export-data.sh` |
+| Données | Équipes d'un championnat (API-Football) | `api-football-teams.sh` |
+| Données | Fichiers football-data pour l'étude | `download-football-data.sh` |
+| Moteur | Recalculer les pronostics · évaluer le moteur | `engine.sh predict` · `backtest`, `calibration`, `audit`, `counts`, `ah`, `features`, `angles` |
+| Application | Créer les coupons du jour | (tâche de 08:05) |
+| Comptes | Notification d'essai ; page Comptes | `admin.sh push-test` ; `make-admin`, `grant`, `set-phone`, `reset-password`, `stats` |
+| Application | Page Versions de l'app | `publish-apk.sh` |
+| Diagnostic | Couverture · qualité · quota · vérifier les cotes | `ingest.sh coverage` · `quality` · `check-odds.sh` |
+
+Restent hors de la console, sur le serveur : mise à jour (`install-server.sh`),
+redémarrage, secrets (`deploy/.env`, clés), restauration d'une sauvegarde. Sécurité :
+routes `/api/v1/admin/console` réservées au rôle administrateur ; pages servies avec
+une politique de contenu stricte (aucun script, style ni police extérieurs, pas
+d'affichage dans un cadre, rien en cache) ; jeton gardé le temps de l'onglet ; un
+administrateur ne peut pas retirer son propre rôle.
 
 | Route (administrateur seulement) | Rôle |
 |---|---|
-| `GET /admin/console/actions` | catalogue des actions et de leurs réglages |
-| `GET /admin/console/dashboard` | tableau de bord |
-| `POST /admin/console/jobs` | lancer une action (`confirmed` pour une action irréversible) |
-| `GET /admin/console/jobs` | journal des actions |
-| `GET /admin/console/jobs/{id}?after=n` | état, progression et lignes de journal après la n° `n` |
-| `POST /admin/console/jobs/{id}/stop` | annuler (en attente) ou arrêter proprement (en cours) |
+| `GET /admin/console/actions` · `dashboard` | catalogue · tableau de bord |
+| `POST /admin/console/jobs` · `GET jobs` · `GET jobs/{id}?after=n` · `POST jobs/{id}/stop` | lancer, journal, suivi, arrêt |
+| `GET /admin/console/files` · `POST files/{nom}/link` · `DELETE files/{nom}` | fichiers, lien signé, suppression |
+| `GET`/`POST /admin/console/app-release` | version publiée, publication (corps : l'archive) |
+| `GET /admin/console/payments` | derniers paiements |
+| `POST /admin/users/{id}/role` · `phone` · `password-reset` | administrateur, numéro, mot de passe provisoire |
 
 ## Administration
 

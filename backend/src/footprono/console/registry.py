@@ -122,6 +122,10 @@ class Action:
     # Peut être arrêtée proprement en cours de route.
     stoppable: bool = False
     tags: tuple[str, ...] = field(default_factory=tuple)
+    # Étapes affichées dans le suivi (``ctx.step(i)`` coche les précédentes).
+    steps: tuple[str, ...] = ()
+    # Produit un fichier téléchargeable (page « Fichiers »).
+    produces_file: bool = False
 
     def describe(self) -> dict[str, Any]:
         return {
@@ -135,6 +139,8 @@ class Action:
             "duration": self.duration,
             "stoppable": self.stoppable,
             "confirm": self.risk == "irreversible",
+            "steps": list(self.steps),
+            "produces_file": self.produces_file,
             "params": [p.describe() for p in self.params],
         }
 

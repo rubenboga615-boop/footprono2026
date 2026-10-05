@@ -311,7 +311,12 @@ async def test_dashboard(client: AsyncClient, admin_headers: dict[str, str]) -> 
     board = (await client.get(f"{API}/dashboard", headers=admin_headers)).json()
     assert board["services"]["database"] is True
     assert board["services"]["redis"] is True
-    assert board["users"] == {"total": 1, "premium": 1}  # essai Premium à l'inscription
+    users = board["users"]
+    assert (users["total"], users["premium"], users["new_7d"]) == (1, 1, 1)  # essai Premium
+    assert len(users["trend"]) == 30
+    assert users["trend"][-1] == 1
+    assert [r["task"] for r in board["runs"]][:2] == ["follow_live", "collect_odds"]
+    assert board["quota"] is None  # pas de clé API-Football dans les tests
     assert board["last"]["ingestion"] is None
     assert board["coupons_today"] == {"count": 0, "missing_codes": []}
     texts = [t["text"] for t in board["todo"]]

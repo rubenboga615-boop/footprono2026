@@ -8,17 +8,24 @@ la console ne refait pas le travail autrement.
 """
 
 import asyncio
+import json
+import os
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy.engine import make_url
+
 from footprono.accounts.cli import _push_test
 from footprono.bookmaker import smart_coupon
+from footprono.console import studies
 from footprono.console.jobs import JobContext
 from footprono.console.registry import Action, Param, register
 from footprono.core.errors import AppError
 from footprono.football.models import DataSource
 from footprono.ingestion import history, live
+from footprono.ingestion.cli import parse_seasons
 from footprono.ingestion.coverage import coverage_report, format_coverage
 from footprono.ingestion.quality import run_quality_checks
 from footprono.ingestion.reference import COMPETITIONS, current_season
@@ -427,6 +434,16 @@ async def collect_history(ctx: JobContext, params: dict[str, Any]) -> str:
     out = await asyncio.to_thread(ctx.settings.history_archive_dir.expanduser)
     await asyncio.to_thread(out.mkdir, parents=True, exist_ok=True)
     ctx.log(f"Dossier : {out}")
+    ctx.step(0)
+
+    def log(message: str) -> None:
+        # Étapes du suivi : liste des matchs, statistiques, résumé et archive.
+        if message.lstrip().startswith("Statistiques à demander"):
+            ctx.step(1)
+        elif message.startswith("API-Football, téléchargé") or message.startswith("\nRéserve"):
+            ctx.step(2)
+        ctx.log(message)
+
     report = await asyncio.to_thread(
         history.collect,
         key.get_secret_value(),
@@ -434,11 +451,12 @@ async def collect_history(ctx: JobContext, params: dict[str, Any]) -> str:
         out,
         first=params["first_season"],
         reserve=params["reserve"],
-        log=ctx.log,
+        log=log,
         progress=ctx.progress,
         should_stop=lambda: ctx.stop_requested,
-        archive_to=out.parent if params["archive"] else None,
+        archive_to=ctx.files_dir if params["archive"] else None,
     )
+    ctx.step(2)
     ctx.result = {
         "used": report.used,
         "remaining": report.remaining,
@@ -456,6 +474,7 @@ async def collect_history(ctx: JobContext, params: dict[str, Any]) -> str:
     ]
     imported = ""
     if params["import_after"] and to_import and report.stopped != "admin":
+        ctx.step(3)
         ctx.log(f"\nImport en base : {', '.join(to_import)}")
         current = max(current_season(c) for c in COMPETITIONS)
         request = IngestionRequest(
@@ -494,6 +513,13 @@ register(
         stoppable=True,
         cost="1 requête par saison + 1 par match terminé (≈ 250 par saison de championnat)",
         duration="plusieurs heures",
+        steps=(
+            "Liste des matchs",
+            "Statistiques des matchs",
+            "Résumé et archive",
+            "Import en base",
+        ),
+        produces_file=True,
         params=(
             Param(
                 "competitions",
@@ -511,8 +537,397 @@ register(
                 minimum=200,
                 help="arrêt quand il ne reste plus que ce nombre de requêtes du jour",
             ),
-            Param("archive", "Préparer l'archive à envoyer pour l'étude", "bool", default=True),
+            Param(
+                "archive",
+                "Préparer l'archive pour l'étude (page Fichiers)",
+                "bool",
+                default=True,
+            ),
             Param("import_after", "Importer en base ensuite", "bool", default=True),
+        ),
+    )
+)
+
+
+# --- Commandes lancées dans un processus à part --------------------------------
+
+
+async def run_process(
+    ctx: JobContext,
+    argv: list[str],
+    *,
+    env: dict[str, str] | None = None,
+    stdout_to: Path | None = None,
+) -> int:
+    """Lance une commande ; journal en direct (sortie d'erreur, et sortie standard si elle
+    n'est pas enregistrée dans ``stdout_to``). Arrêtée proprement sur demande."""
+    process = await asyncio.create_subprocess_exec(
+        *argv,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        env={**os.environ, **(env or {})},
+    )
+    out_file = stdout_to.open("w", encoding="utf-8") if stdout_to else None
+
+    async def pump(stream: asyncio.StreamReader, to_file: bool) -> None:
+        async for raw in stream:
+            line = raw.decode("utf-8", errors="replace").rstrip("\n")
+            if to_file and out_file is not None:
+                out_file.write(line + "\n")
+            ctx.log(line)
+
+    if process.stdout is None or process.stderr is None:
+        raise AppError("commande sans sortie")
+    pumps = asyncio.gather(pump(process.stdout, True), pump(process.stderr, False))
+    try:
+        while process.returncode is None:
+            try:
+                await asyncio.wait_for(asyncio.shield(process.wait()), timeout=1)
+            except TimeoutError:
+                if ctx.stop_requested:
+                    process.terminate()
+                    await process.wait()
+                    ctx.check_stop()
+        await pumps
+    finally:
+        if process.returncode is None:
+            process.kill()
+        if out_file is not None:
+            out_file.close()
+    return process.returncode or 0
+
+
+def _today() -> str:
+    return datetime.now(UTC).strftime("%Y%m%d")
+
+
+# Données personnelles : exportées vides (structure seulement).
+PERSONAL_TABLES = (
+    "users", "wallets", "wallet_entries", "bets", "bet_selections", "montantes",
+    "montante_steps", "notifications", "push_devices", "payments", "subscription_events",
+    "admin_jobs", "admin_job_lines",
+)  # fmt: skip
+
+
+async def export_data(ctx: JobContext, params: dict[str, Any]) -> str:
+    url = make_url(str(ctx.settings.database_url))
+    target = ctx.files_dir / f"footproba-donnees-{_today()}.dump"
+    argv = [
+        "pg_dump", "-h", url.host or "localhost", "-p", str(url.port or 5432),
+        "-U", url.username or "postgres", "-d", url.database or "",
+        "-Fc", "-Z", "9", "-f", str(target),
+        *[f"--exclude-table-data={t}" for t in PERSONAL_TABLES],
+    ]  # fmt: skip
+    ctx.log("Export des données football (sans données personnelles)…")
+    code = await run_process(ctx, argv, env={"PGPASSWORD": url.password or ""})
+    if code != 0:
+        target.unlink(missing_ok=True)
+        raise AppError(f"pg_dump a échoué (code {code})")
+    size = target.stat().st_size / 1e6
+    ctx.result = {"file": target.name, "size": target.stat().st_size}
+    return f"fichier prêt : {target.name} ({size:.1f} Mo), page Fichiers"
+
+
+register(
+    Action(
+        id="export_data",
+        title="Exporter les données pour l'étude",
+        family="Données",
+        description=(
+            "Matchs, statistiques, cotes et prédictions dans un fichier à télécharger "
+            "(page Fichiers) puis à envoyer pour les études. Aucune donnée personnelle : "
+            "comptes, paris, paiements et notifications sont exportés vides."
+        ),
+        risk="lecture",
+        run=export_data,
+        cost="aucune requête",
+        duration="1 à 5 min",
+        produces_file=True,
+    )
+)
+
+ENGINE_STUDIES = [
+    ("backtest", "Backtest : log-loss et calibration face aux cotes"),
+    ("calibration", "Calibration par marché, championnat et saison"),
+    ("audit", "Audit de tous les marchés de l'application"),
+    ("counts", "Corners, cartons et tirs"),
+    ("ah", "Handicap asiatique contre les cotes"),
+    ("features", "Gain de chaque indicateur de contexte"),
+    ("angles", "« Angle du match » et coupons"),
+]
+
+
+async def engine_study(ctx: JobContext, params: dict[str, Any]) -> str:
+    study = params["study"]
+    stem = f"moteur-{study}-{_today()}-{ctx.job_id}"
+    report = ctx.files_dir / f"{stem}.txt"
+    argv = [
+        "footprono-engine", study, "--seasons", params["seasons"],
+        "--competitions", ",".join(params["competitions"]),
+    ]  # fmt: skip
+    detail = None
+    if study in ("calibration", "audit"):
+        detail = ctx.files_dir / f"{stem}.json"
+        argv += ["--output", str(detail)]
+    ctx.log("$ " + " ".join(argv))
+    code = await run_process(ctx, argv, stdout_to=report)
+    if code != 0:
+        raise AppError(f"le calcul s'est arrêté en erreur (code {code}) : voir le journal")
+    names = [report.name] + ([detail.name] if detail is not None and detail.exists() else [])
+    ctx.result = {"files": names}
+    return "rapport prêt : " + ", ".join(names) + " (page Fichiers)"
+
+
+register(
+    Action(
+        id="engine_study",
+        title="Évaluer le moteur",
+        family="Moteur",
+        description=(
+            "Évaluations strictes dans le temps (comme engine.sh) : backtest, calibration, "
+            "audit des marchés, corners et cartons, handicap asiatique… Rapport à "
+            "télécharger dans la page Fichiers."
+        ),
+        risk="lecture",
+        run=engine_study,
+        exclusive=True,
+        stoppable=True,
+        cost="aucune requête",
+        duration="10 à 60 min",
+        produces_file=True,
+        params=(
+            Param("study", "Évaluation", "choice", default="backtest", options=ENGINE_STUDIES),
+            Param(
+                "seasons",
+                "Saisons",
+                "text",
+                default="2022-2025",
+                pattern=r"\d{4}(-\d{4})?(,\d{4}(-\d{4})?)*",
+                help="années de début de saison, ex. 2022-2025 ou 2024",
+            ),
+            Param(
+                "competitions",
+                "Championnats",
+                "choices",
+                default=_all_codes(),
+                options=competition_options,
+            ),
+        ),
+    )
+)
+
+
+def _api_options() -> list[tuple[str, str]]:
+    return [(str(c.api_football_id), f"{c.name} ({c.country})") for c in COMPETITIONS]
+
+
+async def check_odds(ctx: JobContext, params: dict[str, Any]) -> str:
+    key = ctx.settings.api_football_key
+    if key is None:
+        raise AppError("clé API-Football absente (FP_API_FOOTBALL_KEY)")
+    league = int(params["league"])
+    comp = next(c for c in COMPETITIONS if c.api_football_id == league)
+    result = await asyncio.to_thread(
+        studies.check_odds, key.get_secret_value(), league, current_season(comp), ctx.log
+    )
+    ctx.result = result
+    return f"{result['results'] or 0} matchs avec cotes chez API-Football ({comp.name})"
+
+
+register(
+    Action(
+        id="check_odds",
+        title="Vérifier les cotes d'un championnat",
+        family="Diagnostic",
+        description=(
+            "Contrôle direct chez API-Football : date de mise à jour annoncée et cote 1xBet "
+            "1-N-2 des prochains matchs. Utile quand un championnat n'a pas de cotes."
+        ),
+        risk="lecture",
+        run=check_odds,
+        cost="1 requête",
+        duration="quelques secondes",
+        params=(Param("league", "Championnat", "choice", default="61", options=_api_options),),
+    )
+)
+
+
+async def injuries(ctx: JobContext, params: dict[str, Any]) -> str:
+    async with ctx.factory() as session:
+        report = await live.collect_injuries(session, ctx.settings)
+    if report.get("status") == "unavailable":
+        raise AppError(f"blessés et suspendus indisponibles : {report.get('error')}")
+    ctx.result = {k: v for k, v in report.items() if isinstance(v, (int, str, float))}
+    ctx.log(json.dumps(report, ensure_ascii=False, default=str, indent=1))
+    return f"blessés et suspendus : {report.get('status', 'ok')}"
+
+
+register(
+    Action(
+        id="injuries",
+        title="Blessés et suspendus",
+        family="Données",
+        description=(
+            "Absents des matchs d'aujourd'hui et de demain (relevé aussi après chaque collecte "
+            "des cotes)."
+        ),
+        risk="modifie",
+        run=injuries,
+        cost="1 requête par jour de matchs",
+        duration="moins d'une minute",
+    )
+)
+
+
+async def ingest_full(ctx: JobContext, params: dict[str, Any]) -> str:
+    seasons = parse_seasons(params["seasons"])
+    requests = [
+        IngestionRequest(DataSource(source), params["competitions"], seasons)
+        for source in params["sources"]
+    ]
+    report = await run_ingestion(
+        ctx.factory, ctx.settings, requests, progress=_ingestion_logger(ctx)
+    )
+    return _ingestion_summary(ctx, report)
+
+
+register(
+    Action(
+        id="ingest_full",
+        title="Ingestion sur plusieurs saisons",
+        family="Données",
+        description=(
+            "Télécharge et recharge les saisons choisies (comme ingest.sh all --seasons) : "
+            "rattrapage d'un championnat, nouvelle saison, correction après une anomalie."
+        ),
+        risk="modifie",
+        run=ingest_full,
+        exclusive=True,
+        cost="API-Football : 1 à 3 requêtes par match non encore relevé",
+        duration="10 min à plusieurs heures",
+        params=(
+            Param(
+                "competitions",
+                "Championnats",
+                "choices",
+                default=_all_codes(),
+                options=competition_options,
+            ),
+            Param(
+                "seasons",
+                "Saisons",
+                "text",
+                default="2026",
+                pattern=r"\d{4}(-\d{4})?(,\d{4}(-\d{4})?)*",
+                help="années de début de saison, ex. 2016-2026 ou 2025,2026",
+            ),
+            Param(
+                "sources",
+                "Sources",
+                "choices",
+                default=[v for v, _ in SOURCES],
+                options=SOURCES,
+            ),
+        ),
+    )
+)
+
+
+async def api_football_teams(ctx: JobContext, params: dict[str, Any]) -> str:
+    key = ctx.settings.api_football_key
+    if key is None:
+        raise AppError("clé API-Football absente (FP_API_FOOTBALL_KEY)")
+    leagues = [int(x) for x in params["leagues"].replace(" ", "").split(",") if x]
+    out = ctx.files_dir / f"api-football-equipes-{_today()}-{ctx.job_id}.json"
+    await asyncio.to_thread(
+        studies.api_football_teams,
+        key.get_secret_value(),
+        leagues,
+        params["first_season"],
+        out,
+        ctx.log,
+        lambda: ctx.stop_requested,
+    )
+    ctx.check_stop()
+    ctx.result = {"file": out.name}
+    return f"fichier prêt : {out.name} (page Fichiers)"
+
+
+register(
+    Action(
+        id="api_football_teams",
+        title="Équipes d'un championnat (API-Football)",
+        family="Données",
+        description=(
+            "Noms des équipes saison par saison et couverture d'API-Football (statistiques, "
+            "compositions, cotes) : pour relier les équipes avant d'ajouter un championnat."
+        ),
+        risk="lecture",
+        run=api_football_teams,
+        stoppable=True,
+        cost="1 requête par saison et par championnat",
+        duration="1 à 5 min",
+        produces_file=True,
+        params=(
+            Param(
+                "leagues",
+                "Identifiants API-Football",
+                "text",
+                default="94,144",
+                pattern=r"\d{1,5}( *, *\d{1,5})*",
+                help="séparés par des virgules, ex. 106 (Pologne), 283 (Roumanie)",
+            ),
+            Param("first_season", "Depuis la saison", "int", default=2010, minimum=2000),
+        ),
+    )
+)
+
+
+def _fd_options() -> list[tuple[str, str]]:
+    return [(k, f"{k} · {v}") for k, v in {**studies.MAIN, **studies.EXTRA}.items()]
+
+
+async def football_data(ctx: JobContext, params: dict[str, Any]) -> str:
+    archive = ctx.files_dir / f"football-data-{_today()}-{ctx.job_id}.tar.gz"
+    done = await asyncio.to_thread(
+        studies.football_data_files,
+        params["divisions"],
+        params["first_season"],
+        ctx.files_dir / "cache-football-data",
+        archive,
+        ctx.log,
+        ctx.progress,
+        lambda: ctx.stop_requested,
+    )
+    ctx.check_stop()
+    ctx.result = {"file": archive.name, "files": done}
+    return f"archive prête : {archive.name} ({done} fichiers), page Fichiers"
+
+
+register(
+    Action(
+        id="football_data",
+        title="Fichiers football-data pour l'étude",
+        family="Données",
+        description=(
+            "Résultats, statistiques et cotes de football-data.co.uk pour étudier un nouveau "
+            "championnat. Rien n'est chargé en base : archive à télécharger (page Fichiers)."
+        ),
+        risk="lecture",
+        run=football_data,
+        stoppable=True,
+        cost="aucune requête API-Football",
+        duration="1 à 15 min",
+        produces_file=True,
+        params=(
+            Param(
+                "divisions",
+                "Championnats",
+                "choices",
+                default=["P1", "B1"],
+                options=_fd_options,
+            ),
+            Param("first_season", "Depuis la saison", "int", default=2010, minimum=1993),
         ),
     )
 )
