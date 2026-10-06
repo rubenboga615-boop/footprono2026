@@ -115,3 +115,14 @@ def test_reliability_backtest_matches_data_level() -> None:
     assert backtest_for("EPL") is BACKTEST
     assert backtest_for("por") is BACKTEST_LEVEL_2
     assert "BTTS" not in BACKTEST_LEVEL_2["log_loss"]  # pas d'avis du moteur à ce niveau
+
+
+def test_clean_sheet_withdrawn_where_miscalibrated() -> None:
+    # Pologne, Tchéquie, Croatie, Roumanie : « clean sheet » mal calibré (docs/MOTEUR.md).
+    for code in ("POL", "CZE", "CRO", "ROU"):
+        assert tier(code).level == 2
+        assert not market_allowed(code, "CLEAN_SHEET||home")
+        assert not market_allowed(code, "BTTS||yes")
+        assert market_allowed(code, "1X2||home")
+    assert market_allowed("SUI", "CLEAN_SHEET||home")
+    assert market_allowed("EPL", "CLEAN_SHEET||home")

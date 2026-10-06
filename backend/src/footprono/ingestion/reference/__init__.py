@@ -80,6 +80,28 @@ COMPETITIONS: tuple[CompetitionRef, ...] = (
     CompetitionRef(
         "AUT", "Bundesliga", "Austria", 12, None, None, 218, team_counts=(12,), playoffs=True
     ),
+    # Même source (archive api-football-historique, depuis 2018) : docs/MOTEUR.md,
+    # « Pologne, Tchéquie, Croatie, Roumanie en service ». Seconde phase ou tours
+    # supplémentaires partout (Croatie : quatre rencontres par affiche). Australie
+    # écartée : moins bonne que la référence naïve, favoris surestimés.
+    CompetitionRef(
+        "POL", "Ekstraklasa", "Poland", 18, None, None, 106, team_counts=(16, 18), playoffs=True
+    ),
+    CompetitionRef(
+        "CZE",
+        "First League",
+        "Czech-Republic",
+        16,
+        None,
+        None,
+        345,
+        team_counts=(16, 18),
+        playoffs=True,
+    ),
+    CompetitionRef("CRO", "HNL", "Croatia", 10, None, None, 210, team_counts=(10,), playoffs=True),
+    CompetitionRef(
+        "ROU", "Liga I", "Romania", 16, None, None, 283, team_counts=(14, 16), playoffs=True
+    ),
 )
 COMPETITIONS_BY_CODE = {c.code: c for c in COMPETITIONS}
 

@@ -298,6 +298,10 @@ const competitionNames = {
   'SWE': 'Allsvenskan',
   'DEN': 'Superliga danoise',
   'AUT': 'Bundesliga autrichienne',
+  'POL': 'Ekstraklasa',
+  'CZE': 'Championnat tchèque',
+  'CRO': 'HNL croate',
+  'ROU': 'Liga I roumaine',
 };
 
 String competitionName(String code) => competitionNames[code.toUpperCase()] ?? code;

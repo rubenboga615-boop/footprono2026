@@ -40,8 +40,9 @@ def test_reference_teams_are_consistent() -> None:
     teams = load_teams()
     codes = {c.code for c in COMPETITIONS}
     # 5 grands championnats, Portugal, Belgique, Pays-Bas, Grèce, Turquie, Écosse ;
-    # Suisse, Norvège, Suède, Danemark, Autriche (API-Football seulement)
-    assert len(teams) == 165 + 38 + 31 + 28 + 26 + 39 + 17 + 105
+    # Suisse, Norvège, Suède, Danemark, Autriche ; Pologne, Roumanie, Tchéquie, Croatie
+    # (API-Football seulement)
+    assert len(teams) == 165 + 38 + 31 + 28 + 26 + 39 + 17 + 105 + 30 + 30 + 21 + 14
     assert {t.competition for t in teams} == codes
     assert len({t.name for t in teams}) == len(teams)
     covered = {

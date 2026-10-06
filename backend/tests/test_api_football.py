@@ -35,7 +35,7 @@ async def test_competitions(client: AsyncClient) -> None:
     competitions = {c["code"]: c for c in response.json()}
     assert set(competitions) == {
         "EPL", "LA_LIGA", "SERIE_A", "BUNDESLIGA", "LIGUE_1", "POR", "BEL", "NED", "GRE", "TUR",
-        "SCO", "SUI", "NOR", "SWE", "DEN", "AUT",
+        "SCO", "SUI", "NOR", "SWE", "DEN", "AUT", "POL", "CZE", "CRO", "ROU",
     }  # fmt: skip
     assert competitions["EPL"]["seasons"] == [
         {"start_year": 2024, "label": "2024-25", "matches": 380, "finished": 380}

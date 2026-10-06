@@ -310,6 +310,11 @@ connectés (jeton valable 30 jours) : à traiter avec la sécurité (phase 6).
   Même import depuis la console d'administration (`/admin`, « Importer l'historique
   API-Football »).
   Ensuite, la collecte habituelle (cotes, direct, ingestion du matin) les tient à jour.
+- **Pologne, Tchéquie, Croatie, Roumanie** (06/10/2026) : même source et même import,
+  depuis le dossier de collecte du serveur : console → « Importer l'historique
+  API-Football », championnats `POL, CZE, CRO, ROU`, depuis 2018 (aucune requête).
+  « Clean sheet » n'y est pas proposé (mal calibré, docs/MOTEUR.md). L'Australie,
+  collectée aussi, n'est pas en service (moteur à peine meilleur que la référence naïve).
   Norvège et Suède : saison sur l'année civile. Barrages contre une équipe de division
   inférieure écartés ; match donné sur tapis vert (« AWD » chez API-Football) : score
   officiel, exclu de l'apprentissage.

@@ -814,3 +814,46 @@ action « Collecter l'historique API-Football ») : même code
 dossier (`FP_HISTORY_ARCHIVE_DIR`), l'une reprend où l'autre s'est arrêtée ; journal
 et progression en direct, arrêt propre, archive pour l'étude, et import en base des
 compétitions déjà dans l'application.
+
+## Pologne, Tchéquie, Croatie, Roumanie en service ; Australie écartée (06/10/2026)
+
+Historique de l'archive `api-football-historique` (collecte des 05 et 06/10/2026, saisons
+2018 à 2026) importé par le vrai chargeur (`footprono-ingest api-football --from-dir`) :
+0 erreur ; barrages contre une division inférieure et matchs jamais joués (COVID) ignorés.
+Statistiques de match absentes en 2018 en Tchéquie et en Croatie (non couvertes par
+API-Football), Croatie 2019 à moitié vide, Roumanie 2022 : 88 matchs sans statistiques.
+Réglages du niveau 2 tels quels, rien de réglé sur ces championnats. Cotes de clôture :
+fichiers « autres » de football-data (Pologne 2 349 / 2 362 matchs reliés, Roumanie
+2 417 / 2 420) ; aucune source de cotes passées pour la Tchéquie, la Croatie et
+l'Australie. Test 2022-25 (log loss) :
+
+| Championnat | Matchs | 1-N-2 / naïf | Retard sur la clôture | +2,5 / naïf | Calibration | Favoris ≥ 60 % annoncé / observé |
+|---|---|---|---|---|---|---|
+| Tchéquie | 1 079 | 0,9648 / 1,0715 | — | 0,6851 / 0,6925 | 0,8 pt | 71,6 / 71,9 |
+| Croatie | 720 | 0,9877 / 1,0773 | — | 0,6809 / 0,6935 | 2,0 pts | 70,2 / 69,4 |
+| Roumanie | 1 260 | 1,0373 / 1,0807 | 0,018 | 0,6827 / 0,6874 | 1,0 pt | 65,8 / 66,2 |
+| Pologne | 1 224 | 1,0518 / 1,0762 | 0,014 | 0,6840 / 0,6936 | 1,8 pt | 66,1 / 63,0 |
+| Australie | 652 | 1,0693 / 1,0854 | — | 0,6706 / 0,6717 | 3,9 pts | 65,1 / 58,8 |
+
+Lecture : Tchéquie, Croatie, Roumanie et Pologne passent le même filtre que les
+championnats déjà en service (mieux que la référence naïve sur les deux marchés, retard
+sur la clôture de 0,014 à 0,018, dans la fourchette 0,004 à 0,030, calibration de 1 à
+2 points). **Australie écartée** : à peine mieux que la référence naïve sur 2022-25,
+moins bonne sur 2019-21 (1,0653 contre 1,0635), favoris surestimés de 6 points,
+calibration à 3,9 points ; elle n'est pas dans le référentiel.
+
+Audit de tous les marchés (`footprono-engine audit`, 2022-25) sur les quatre : tout
+validé sauf « clean sheet » (annoncé 44,6 %, observé 39,6 % sur 1 370 cas, 3,7 erreurs
+types ; les onze championnats déjà en service : validé) et « mi-temps / fin de match »
+(tranche 0-10 % : 4,0 annoncé, 4,4 observé, écart de 0,4 point gardé). **« Clean sheet »
+est retiré pour ces quatre championnats** (`TIER_2_NO_CLEAN_SHEET`). Corners, cartons et
+tirs ne sont pas proposés au niveau 2.
+
+Les quinze championnats de niveau 2 réunis (backtest `--no-correction`, 2022-25) :
+15 493 matchs, 1-N-2 0,9899 (naïf 1,0728), plus/moins 2,5 0,6803 (naïf 0,6885) ; sur les
+6 891 matchs avec cotes de clôture en base : 0,9581 contre 0,9382. Page Fiabilité mise à
+jour.
+
+Correction : `footprono-engine backtest/audit/calibration` avec la couche de correction
+échouaient pour un championnat commençant en 2018 (sa première saison, sans passé, était
+prédite) ; la première saison de chaque championnat n'est plus évaluée.

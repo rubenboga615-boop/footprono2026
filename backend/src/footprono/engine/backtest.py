@@ -130,9 +130,13 @@ def match_probabilities(
 def run_backtest(hist: History, cfg: BacktestConfig) -> Predictions:
     out = Predictions()
     for comp in cfg.competitions:
+        # La première saison d'un championnat n'a pas de passé pour apprendre (2018 pour
+        # ceux de l'archive API-Football, quand la correction rejoue les saisons passées).
+        first = hist.season[hist.competition == comp].min(initial=np.iinfo(np.int64).max)
         test = np.where(
             (hist.competition == comp)
             & np.isin(hist.season, list(cfg.seasons))
+            & (hist.season > first)
             & hist.finished
             & ~hist.excluded
             & ~np.isnan(hist.hg)
