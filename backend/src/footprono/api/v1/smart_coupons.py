@@ -73,10 +73,15 @@ async def match_picks(match_id: int, session: SessionDep, user: OptionalUserDep)
 
 
 @router.get("/smart-coupons/history")
-async def history(session: SessionDep, user: OptionalUserDep) -> Any:
-    """Public : les coupons du jour sont enregistrés avant les matchs, rien n'est effacé ;
-    ceux qui ne sont pas encore réglés n'ont leurs sélections qu'avec Premium."""
-    return await smart_coupon.history(session, premium=is_premium(user))
+async def history(
+    session: SessionDep,
+    user: OptionalUserDep,
+    offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
+) -> Any:
+    """Public : les coupons du jour sont enregistrés avant les matchs, rien n'est effacé
+    (page suivante : ``offset``) ; ceux qui ne sont pas encore réglés n'ont leurs
+    sélections qu'avec Premium."""
+    return await smart_coupon.history(session, offset=offset, premium=is_premium(user))
 
 
 @router.get("/smart-coupons/day")

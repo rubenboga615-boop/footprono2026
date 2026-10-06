@@ -66,8 +66,11 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
             final closing = versus.where((v) => v['market'] == _markets[market]).firstOrNull;
             final recent = (r['recent'] as List).cast<Json>();
             final bt = r['backtest'] as Json;
-            final n = r['matches'] as int;
-            final hasLive = (m['matches'] as int? ?? 0) > 0;
+            // Matchs du marché affiché (« les deux marquent » : 5 grands championnats seulement).
+            final n = m['matches'] as int? ?? 0;
+            final hasLive = n > 0;
+            final warning = m.containsKey('warning') ? m['warning'] : r['warning'];
+            final minBin = r['min_bin'] as int? ?? 50;
             final showBacktest = backtest || !hasLive;
             final calib = showBacktest
                 ? (market == 0 ? (bt['calibration_1x2'] as List).cast<Json>() : const <Json>[])
@@ -100,7 +103,7 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                   ),
                   const SizedBox(height: 16),
                   ...deskColumns(context, [
-                    if (r['warning'] != null) ...[_Warning('${r['warning']}'), const SizedBox(height: 14)],
+                    if (warning != null) ...[_Warning('$warning'), const SizedBox(height: 14)],
                     GlassCard.section(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -133,8 +136,16 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                                 style: Fp.body(13, color: Fp.text2),
                               ),
                             )
-                          else
-                            _CalibrationChart(calib),
+                          else ...[
+                            _CalibrationChart(calib, minBin),
+                            if (calib.any((b) => (b['count'] as int? ?? 0) < minBin)) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Tranches grisées : moins de $minBin cas, l\'écart y vient surtout du hasard.',
+                                style: Fp.body(11.5, color: Fp.text3, height: 1.4),
+                              ),
+                            ],
+                          ],
                           if (showBacktest) ...[
                             const SizedBox(height: 10),
                             Text(
@@ -285,9 +296,11 @@ class _Warning extends StatelessWidget {
 }
 
 /// Une ligne par tranche (maquette v2) : annoncé (gris) au-dessus de réalisé (violet).
+/// Sous chaque tranche, son nombre de cas ; tranche grisée sous [minBin] cas.
 class _CalibrationChart extends StatelessWidget {
-  const _CalibrationChart(this.bins);
+  const _CalibrationChart(this.bins, this.minBin);
   final List<Json> bins;
+  final int minBin;
 
   static String _label(Object? range) {
     final parts = '$range'.split('-').map((p) => double.tryParse(p.replaceAll(',', '.')) ?? 0).toList();
@@ -300,33 +313,45 @@ class _CalibrationChart extends StatelessWidget {
     return Column(
       children: [
         for (final b in bins)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 74,
-                  child: Text(_label(b['range']), style: Fp.body(12, color: Fp.text2)),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _bar((b['announced'] as num).toDouble(), const Color(0x66F4F2F8)),
-                      const SizedBox(height: 3),
-                      _bar((b['observed'] as num).toDouble(), const Color(0xFF8B5CF6)),
-                    ],
+          Opacity(
+            opacity: (b['count'] as int? ?? 0) < minBin ? 0.4 : 1,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 74,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_label(b['range']), style: Fp.body(12, color: Fp.text2)),
+                        Text(
+                          '${thousands(b['count'] as int? ?? 0)} cas',
+                          style: Fp.body(10.5, color: Fp.text3),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                SizedBox(
-                  width: 48,
-                  child: Text(
-                    percent((b['observed'] as num).toDouble()),
-                    textAlign: TextAlign.right,
-                    style: Fp.body(13, weight: FontWeight.w800),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _bar((b['announced'] as num).toDouble(), const Color(0x66F4F2F8)),
+                        const SizedBox(height: 3),
+                        _bar((b['observed'] as num).toDouble(), const Color(0xFF8B5CF6)),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  SizedBox(
+                    width: 48,
+                    child: Text(
+                      percent((b['observed'] as num).toDouble()),
+                      textAlign: TextAlign.right,
+                      style: Fp.body(13, weight: FontWeight.w800),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
       ],

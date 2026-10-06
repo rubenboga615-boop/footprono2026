@@ -589,39 +589,55 @@ async def settle_pending(session: AsyncSession, now: datetime | None = None) -> 
     return settled
 
 
+def _profile_record(coupons: Sequence[SmartCoupon]) -> dict[str, Any]:
+    """Bilan par profil : un coupon Sûr et un Audacieux n'ont pas la même chance, ils ne
+    s'additionnent pas. Annoncé (moyenne des probabilités) contre observé (taux réel)."""
+    out: dict[str, Any] = {}
+    for profile, prof in PROFILES.items():
+        done = [
+            c for c in coupons if c.profile == profile and c.status in ("won", "lost", "partial")
+        ]
+        n = len(done)
+        won = sum(c.status == "won" for c in done)
+        out[profile] = {
+            "label": prof.label,
+            "settled": n,
+            "won": won,
+            "announced": round(sum(c.probability for c in done) / n, 4) if n else None,
+            "observed": round(won / n, 4) if n else None,
+        }
+    return out
+
+
 async def history(
-    session: AsyncSession, limit: int = HISTORY_LIMIT, *, premium: bool = True
+    session: AsyncSession,
+    limit: int = HISTORY_LIMIT,
+    *,
+    offset: int = 0,
+    premium: bool = True,
 ) -> dict[str, Any]:
     """Historique public : chaque coupon du jour, gagné ou perdu, et le bilan par profil.
 
-    Sans Premium, un coupon pas encore réglé est montré sans ses sélections (``locked``) ;
-    réglé, il est public en entier : la preuve que rien n'est trié après coup."""
+    Page par page (``offset``) : rien n'est retiré de la liste, les plus anciens sont
+    seulement plus bas (``has_more``). Sans Premium, un coupon pas encore réglé est montré
+    sans ses sélections (``locked``) ; réglé, il est public en entier : la preuve que rien
+    n'est trié après coup."""
     rows = (
         await session.scalars(
-            select(SmartCoupon).order_by(SmartCoupon.day.desc(), SmartCoupon.id).limit(limit)
+            select(SmartCoupon)
+            .order_by(SmartCoupon.day.desc(), SmartCoupon.id)
+            .offset(offset)
+            .limit(limit + 1)
         )
     ).all()
-    stats: dict[str, Any] = {}
-    for profile, prof in PROFILES.items():
-        done = (
-            await session.scalars(
-                select(SmartCoupon).where(
-                    SmartCoupon.profile == profile,
-                    SmartCoupon.status.in_(("won", "lost", "partial")),
-                )
-            )
-        ).all()
-        n = len(done)
-        stats[profile] = {
-            "label": prof.label,
-            "settled": n,
-            "won": sum(c.status == "won" for c in done),
-            # Moyenne des probabilités annoncées contre taux réel : l'annonce est-elle juste ?
-            "announced": round(sum(c.probability for c in done) / n, 4) if n else None,
-            "observed": round(sum(c.status == "won" for c in done) / n, 4) if n else None,
-        }
+    done = (
+        await session.scalars(
+            select(SmartCoupon).where(SmartCoupon.status.in_(("won", "lost", "partial")))
+        )
+    ).all()
     return {
-        "stats": stats,
+        "stats": _profile_record(done),
+        "has_more": len(rows) > limit,
         "coupons": [
             {
                 "id": c.id,
@@ -636,7 +652,7 @@ async def history(
                 "status": c.status,
                 "settled_at": c.settled_at,
             }
-            for c in rows
+            for c in rows[:limit]
         ],
     }
 
@@ -752,6 +768,7 @@ async def day_coupons(
         "summary": {
             "yesterday": _record([c for c in recent if c.day == yesterday]),
             "last_30_days": _record(recent),
+            "last_30_days_by_profile": _profile_record(recent),
         },
     }
 

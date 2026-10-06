@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from footprono.engine import ENGINE_VERSION
 from footprono.football.models import DataSource, Match, MatchStatus
 from footprono.ingestion.service import IngestionRequest, run_ingestion
+from footprono.predictions import reliability
 from footprono.predictions.models import MatchPrediction
 from footprono.predictions.service import predict_upcoming, prediction_needed
 
@@ -173,6 +174,10 @@ async def test_reliability_counts_only_predictions_made_before_kickoff(
     assert report["enough_data"] is False
     assert "trop petit" in report["warning"]
     one_x_two = next(m for m in report["markets"] if m["market"] == "1X2")
+    # Avertissement propre au marché, et tranches du graphique marquées « trop petites ».
+    assert one_x_two["warning"].startswith(f"Seulement {n} matchs sur ce marché")
+    assert report["min_bin"] == 50
+    assert all(b["enough"] is False for b in one_x_two["calibration"])
     # log loss recalculée à la main sur les prédictions stockées
     expected = 0.0
     for i, mid in enumerate(ids[1:], start=1):
@@ -287,3 +292,11 @@ async def test_level_stretch_reused_from_a_recent_run(
         )
         await session.commit()
         assert await _recent_stretches(session, today) == {"POR": 0.15, "NED": 0.0}
+
+
+def test_market_warning_is_per_market() -> None:
+    assert reliability._market_warning("1X2", 550, None) is None
+    # Plus de 200 matchs au total, mais 170 seulement avec « les deux marquent ».
+    assert "Seulement 170 matchs" in (reliability._market_warning("BTTS", 170, None) or "")
+    assert "Pas d'avis" in (reliability._market_warning("BTTS", 0, "SUI") or "")
+    assert "Aucun pronostic" in (reliability._market_warning("BTTS", 0, "EPL") or "")

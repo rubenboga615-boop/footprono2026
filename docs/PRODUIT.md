@@ -184,7 +184,11 @@ Code : `backend/src/footprono/predictions/reliability.py`.
   connue après coup) et **cotes de clôture** des bookmakers quand elles
   existent (elles font en général mieux que le moteur ; c'est affiché).
 - Par championnat, et les derniers matchs avec la prédiction et le résultat.
-- **Moins de 200 matchs : averti « échantillon trop petit pour conclure »**.
+- **Moins de 200 matchs : averti « échantillon trop petit pour conclure »**, marché par
+  marché (« les deux marquent » n'existe que dans les 5 grands championnats : son
+  échantillon est plus petit que celui du 1X2).
+- Graphique de calibration : nombre de cas sous chaque tranche ; tranche grisée sous
+  50 cas (l'écart y vient surtout du hasard).
 - Les chiffres du backtest (7 081 matchs, saisons 2022-2026) sont donnés à
   part, présentés comme une simulation et non comme des prédictions publiées.
 - Filtres : `?competition=EPL`, `?since=2026-08-01`, `?recent=20`.

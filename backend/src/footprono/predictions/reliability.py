@@ -28,6 +28,9 @@ from footprono.engine.history import MARKET_BOOKMAKERS
 from footprono.engine.tiers import tier
 
 MIN_SAMPLE = 200
+# Tranche du graphique de calibration : en dessous, l'écart annoncé / observé y est
+# surtout du hasard (tranche grisée dans l'application).
+MIN_BIN = 50
 EPS = 1e-12
 BINS = 10
 
@@ -191,12 +194,38 @@ def _log_loss(p: float) -> float:
     return -math.log(max(p, EPS))
 
 
-def _market_summary(rows: list[Scored], market: str) -> dict[str, Any]:
+def _market_warning(market: str, n: int, competition: str | None) -> str | None:
+    """Avertissement propre au marché : son échantillon, pas celui de tous les marchés
+    (« les deux marquent » n'existe pas dans les championnats sans xG)."""
+    if n == 0:
+        if market == "BTTS" and competition is not None and tier(competition).level == 2:
+            return (
+                "Pas d'avis du moteur sur « les deux marquent » dans ce championnat "
+                "(pas mieux que la fréquence du championnat)."
+            )
+        return "Aucun pronostic publié sur ce marché avant un match terminé pour l'instant."
+    if n < MIN_SAMPLE:
+        return (
+            f"Seulement {n} matchs sur ce marché : échantillon trop petit pour conclure "
+            f"(il en faut au moins {MIN_SAMPLE}). Voir aussi le backtest."
+        )
+    return None
+
+
+def _market_summary(
+    rows: list[Scored], market: str, competition: str | None = None
+) -> dict[str, Any]:
     rows = [r for r in rows if market in r.probs]
     n = len(rows)
     size = len(MARKETS[market])
     if n == 0:
-        return {"market": market, "label": LABELS[market], "matches": 0}
+        return {
+            "market": market,
+            "label": LABELS[market],
+            "matches": 0,
+            "enough_data": False,
+            "warning": _market_warning(market, 0, competition),
+        }
     counts = [0] * size
     ll = brier = hits = pick_prob = 0.0
     for r in rows:
@@ -213,6 +242,8 @@ def _market_summary(rows: list[Scored], market: str) -> dict[str, Any]:
         "market": market,
         "label": LABELS[market],
         "matches": n,
+        "enough_data": n >= MIN_SAMPLE,
+        "warning": _market_warning(market, n, competition),
         "log_loss": round(ll / n, 4),
         "naive_log_loss": round(naive, 4),
         "brier": round(brier / n, 4),
@@ -245,6 +276,7 @@ def _calibration(rows: list[Scored], market: str) -> list[dict[str, Any]]:
             "count": int(b[0]),
             "announced": round(b[1] / b[0], 4),
             "observed": round(b[2] / b[0], 4),
+            "enough": b[0] >= MIN_BIN,
         }
         for i, b in sorted(bins.items())
     ]
@@ -363,7 +395,8 @@ async def reliability_report(
         "engine_versions": sorted({r.engine_version for r in rows}),
         "enough_data": n >= MIN_SAMPLE,
         "warning": warning,
-        "markets": [_market_summary(rows, m) for m in MARKETS],
+        "min_bin": MIN_BIN,
+        "markets": [_market_summary(rows, m, competition) for m in MARKETS],
         "versus_closing_odds": [
             v for m in ("1X2", "OU|2.5") if (v := _versus_closing(rows, m, closing)) is not None
         ],

@@ -1,6 +1,7 @@
 """Coupon intelligent : génération, coupons du jour, règlement, historique, marchés retirés."""
 
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from httpx import AsyncClient
@@ -9,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.accounts import service as accounts
 from footprono.bookmaker import smart_coupon
+from footprono.bookmaker.smart_models import SmartCoupon
 from footprono.engine.markets import offered
 from footprono.football.models import Match, MatchStatus
 
@@ -330,7 +332,7 @@ async def test_day_coupons_live_state_and_booking_codes(
     states = {s["match_id"]: s for s in coupon["selections"]}
     assert (states[m1]["state"], states[m1]["minute"], states[m1]["score"]) == ("live", 58, [1, 0])
     assert states[m2]["state"] == "upcoming"
-    assert set(day["summary"]) == {"yesterday", "last_30_days"}
+    assert set(day["summary"]) == {"yesterday", "last_30_days", "last_30_days_by_profile"}
 
     url = f"/api/v1/admin/smart-coupons/{coupon['id']}/booking-code"
     assert (await client.put(url, json={"code": "7HQ2K"}, headers=player)).status_code == 401
@@ -422,3 +424,40 @@ async def test_daily_coupons_notification_once_all_codes_are_in(
         )  # nouveau jour simulé
         await session.commit()
         assert await smart_coupon.notify_ready(session, MORNING) == 0  # désactivée
+
+
+async def test_history_pages_and_30_days_split_by_profile(
+    client: AsyncClient, db_factory: Factory
+) -> None:
+    today = datetime.now(UTC).date()
+    async with db_factory() as session:
+        for d in range(1, 31):  # 30 jours, 3 coupons par jour : 90 coupons réglés
+            for profile, p, won in (("sur", 0.6, d % 2 == 0), ("equilibre", 0.45, d % 3 == 0),
+                                    ("audacieux", 0.25, d % 5 == 0)):  # fmt: skip
+                session.add(
+                    SmartCoupon(
+                        day=today - timedelta(days=d), profile=profile, size=0, selections=[],
+                        total_odds=Decimal("2.00"), probability=p,
+                        status="won" if won else "lost",
+                    )
+                )  # fmt: skip
+        await session.commit()
+
+    first = (await client.get("/api/v1/smart-coupons/history")).json()
+    assert len(first["coupons"]) == smart_coupon.HISTORY_LIMIT
+    assert first["has_more"] is True
+    second = (await client.get("/api/v1/smart-coupons/history", params={"offset": 60})).json()
+    assert len(second["coupons"]) == 30
+    assert second["has_more"] is False
+    ids = [c["id"] for c in first["coupons"] + second["coupons"]]
+    assert len(set(ids)) == 90  # rien de perdu ni de répété entre les pages
+    assert first["stats"]["sur"] == {
+        "label": "Sûr", "settled": 30, "won": 15, "announced": 0.6, "observed": 0.5,
+    }  # fmt: skip
+
+    day = (await client.get("/api/v1/smart-coupons/day")).json()
+    month = day["summary"]["last_30_days_by_profile"]
+    assert (month["sur"]["won"], month["sur"]["settled"]) == (15, 30)
+    assert (month["equilibre"]["won"], month["audacieux"]["won"]) == (10, 6)
+    assert month["audacieux"]["announced"] == 0.25
+    assert day["summary"]["last_30_days"] == {"settled": 90, "won": 31}

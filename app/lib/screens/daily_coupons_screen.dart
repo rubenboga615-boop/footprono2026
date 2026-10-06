@@ -80,6 +80,7 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
             final summary = (data['summary'] as Map).cast<String, dynamic>();
             final yesterday = (summary['yesterday'] as Map).cast<String, dynamic>();
             final month = (summary['last_30_days'] as Map).cast<String, dynamic>();
+            final byProfile = (summary['last_30_days_by_profile'] as Map?)?.cast<String, dynamic>();
             return RefreshIndicator(
               onRefresh: reload,
               child: ListView(
@@ -87,13 +88,19 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
                 children: [
                   const BackHeader('Coupons', 'du jour'),
                   const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(child: KeyTile('Hier', _record(yesterday))),
-                      const SizedBox(width: 8),
-                      Expanded(child: KeyTile('30 derniers jours', _record(month))),
-                    ],
-                  ),
+                  if (byProfile == null)
+                    Row(
+                      children: [
+                        Expanded(child: KeyTile('Hier', _record(yesterday))),
+                        const SizedBox(width: 8),
+                        Expanded(child: KeyTile('30 derniers jours', _record(month))),
+                      ],
+                    )
+                  else ...[
+                    KeyTile('Hier', _record(yesterday)),
+                    const SizedBox(height: 8),
+                    ProfileRecordCard('30 derniers jours', byProfile),
+                  ],
                   const SizedBox(height: 12),
                   Row(
                     children: [

@@ -10,6 +10,8 @@ import 'package:footprono/desktop/desktop_shell.dart';
 import 'package:footprono/main.dart';
 import 'package:footprono/screens/daily_coupons_screen.dart';
 import 'package:footprono/screens/notifications_screen.dart';
+import 'package:footprono/screens/reliability_screen.dart';
+import 'package:footprono/screens/smart_coupon_screen.dart';
 import 'package:footprono/state/app_state.dart';
 import 'package:footprono/theme.dart';
 import 'package:footprono/update/installer.dart';
@@ -444,6 +446,23 @@ class FakeServer {
           'summary': {
             'yesterday': {'settled': 3, 'won': 2},
             'last_30_days': {'settled': 90, 'won': 49},
+            'last_30_days_by_profile': {
+              'sur': {'label': 'Sûr', 'settled': 30, 'won': 17, 'announced': 0.58, 'observed': 0.5667},
+              'equilibre': {
+                'label': 'Équilibré',
+                'settled': 30,
+                'won': 14,
+                'announced': 0.45,
+                'observed': 0.4667,
+              },
+              'audacieux': {
+                'label': 'Audacieux',
+                'settled': 30,
+                'won': 8,
+                'announced': 0.27,
+                'observed': 0.2667,
+              },
+            },
           },
         };
         // Comme le serveur : sans Premium, ni sélections ni code tant que ce n'est pas réglé.
@@ -479,6 +498,55 @@ class FakeServer {
               'settled_at': '2026-10-10T21:00:00Z',
             },
           ],
+          'has_more': r.url.queryParameters['offset'] == null,
+        };
+        if (r.url.queryParameters['offset'] != null) {
+          // Page suivante : un coupon plus ancien.
+          final older = Map<String, dynamic>.from(((body as Map)['coupons'] as List).first as Map);
+          body['coupons'] = [
+            {...older, 'id': 2, 'day': '2026-09-01', 'status': 'lost'},
+          ];
+        }
+      case 'GET /reliability':
+        Map<String, dynamic> bin(String range, int count, double a, double o) => {
+          'range': range,
+          'count': count,
+          'announced': a,
+          'observed': o,
+        };
+        Map<String, dynamic> market(String key, int n, String? warning) => {
+          'market': key,
+          'matches': n,
+          'warning': warning,
+          'log_loss': 0.99,
+          'naive_log_loss': 1.07,
+          'brier': 0.59,
+          'most_likely_hit_rate': 0.5,
+          'most_likely_announced': 0.5,
+          'calibration': [bin('0,2-0,3', 600, 0.25, 0.26), bin('0,8-0,9', 21, 0.84, 0.71)],
+        };
+        body = {
+          'matches': 550,
+          'warning': null,
+          'min_bin': 50,
+          'markets': [
+            market('1X2', 550, null),
+            market('OU|2.5', 550, null),
+            market('BTTS', 170, 'Seulement 170 matchs sur ce marché : échantillon trop petit pour conclure.'),
+          ],
+          'versus_closing_odds': [],
+          'recent': [],
+          'backtest': {
+            'label': 'Backtest',
+            'matches': 7081,
+            'seasons': '2022-23 à 2025-26',
+            'engine_version': '2.1',
+            'log_loss': {
+              '1X2': {'model': 0.98, 'naive': 1.07, 'closing_odds': 0.97},
+            },
+            'calibration_1x2': [],
+            'note': 'Simulation.',
+          },
         };
       case 'GET /competitions':
         body = [
@@ -1384,7 +1452,10 @@ void main() {
     await tester.tap(find.text('Coupons du jour'));
     await tester.pumpAndSettle();
     expect(find.text('2 gagné(s) sur 3'), findsOneWidget);
-    expect(find.text('49 gagné(s) sur 90'), findsOneWidget);
+    // 30 derniers jours : un profil par ligne, jamais additionnés.
+    expect(find.text('49 gagné(s) sur 90'), findsNothing);
+    expect(find.text('17 gagné(s) sur 30'), findsOneWidget);
+    expect(find.text('Chance annoncée 27$nbsp% · réalisé 27$nbsp%'), findsOneWidget);
     expect(find.text('Code bientôt disponible'), findsOneWidget);
     expect(find.text('En cours'), findsOneWidget);
     expect(find.text('62$nbsp%'), findsOneWidget);
@@ -1399,6 +1470,39 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('en cours 58\' · 1-0'), findsOneWidget);
     expect(find.textContaining('Sur 100 coupons comme celui-ci, environ 62 passent.'), findsOneWidget);
+  });
+
+  testWidgets('historique des coupons : les plus anciens chargés à la demande', (tester) async {
+    await startApp(tester, loggedIn: true, premium: true);
+    final context = tester.element(find.byType(Scaffold).first);
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => const SmartHistoryScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Bilan depuis le lancement'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Voir les coupons plus anciens'), 200);
+    await tester.tap(find.text('Voir les coupons plus anciens'));
+    await tester.pumpAndSettle();
+    expect(find.text('Perdu'), findsOneWidget);
+    expect(find.text('Voir les coupons plus anciens'), findsNothing);
+  });
+
+  testWidgets('fiabilité : avertissement du marché affiché, tranches trop petites grisées', (tester) async {
+    await startApp(tester, loggedIn: true);
+    final context = tester.element(find.byType(Scaffold).first);
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => const ReliabilityScreen()));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Seulement'), findsNothing); // 1X2 : 550 matchs
+    expect(find.text('600 cas'), findsOneWidget);
+    expect(find.text('21 cas'), findsOneWidget);
+    expect(find.textContaining('Tranches grisées : moins de 50 cas'), findsOneWidget);
+    await tester.tap(find.text('Les 2 marquent'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Seulement 170 matchs sur ce marché'), findsOneWidget);
   });
 
   testWidgets('profil : notification des coupons du jour désactivée puis réactivée', (tester) async {

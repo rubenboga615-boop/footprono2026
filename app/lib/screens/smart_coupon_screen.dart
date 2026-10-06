@@ -684,9 +684,89 @@ class _SelectionRow extends StatelessWidget {
   }
 }
 
+/// Bilan des coupons du jour, un profil par ligne : un coupon Sûr et un Audacieux n'ont pas
+/// la même chance de passer, ils ne s'additionnent pas. Chance annoncée contre réalisée.
+class ProfileRecordCard extends StatelessWidget {
+  const ProfileRecordCard(this.title, this.stats, {super.key});
+  final String title;
+  final Map<String, dynamic> stats;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard.section(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(title, style: Fp.title(15, weight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          for (final st in stats.values.cast<Json>())
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(st['label'] as String, style: Fp.body(14, weight: FontWeight.w700)),
+                      ),
+                      Text(
+                        st['settled'] == 0
+                            ? 'aucun coupon réglé'
+                            : '${st['won']} gagné(s) sur ${st['settled']}',
+                        style: Fp.body(14, weight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                  if (st['settled'] != 0)
+                    Text(
+                      'Chance annoncée ${percent((st['announced'] as num).toDouble())} · '
+                      'réalisé ${percent((st['observed'] as num).toDouble())}',
+                      style: Fp.body(12, color: Fp.text2),
+                    ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 4),
+          Text(
+            'Sur peu de coupons, l\'écart entre annoncé et réalisé est surtout du hasard.',
+            style: Fp.body(11, color: Fp.text3),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Coupons du jour : enregistrés chaque matin avant les matchs, gagnés ou perdus, rien n'est effacé.
-class SmartHistoryScreen extends StatelessWidget {
+/// Les plus anciens se chargent page par page (« Voir les coupons plus anciens »).
+class SmartHistoryScreen extends StatefulWidget {
   const SmartHistoryScreen({super.key});
+
+  @override
+  State<SmartHistoryScreen> createState() => _SmartHistoryScreenState();
+}
+
+class _SmartHistoryScreenState extends State<SmartHistoryScreen> {
+  final List<Json> _older = [];
+  bool? _olderHasMore;
+  bool _loading = false;
+
+  Future<void> _loadMore(ApiClient api, int offset) async {
+    setState(() => _loading = true);
+    try {
+      final page = await api.get('/smart-coupons/history', {'offset': offset}) as Json;
+      if (!mounted) return;
+      setState(() {
+        _older.addAll((page['coupons'] as List).cast<Json>());
+        _olderHasMore = page['has_more'] as bool? ?? false;
+      });
+    } on ApiException catch (e) {
+      showMessage(e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -695,10 +775,16 @@ class SmartHistoryScreen extends StatelessWidget {
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Loader<Json>(
-          load: () async => await api.get('/smart-coupons/history') as Json,
+          load: () async {
+            _older.clear();
+            _olderHasMore = null;
+            return await api.get('/smart-coupons/history') as Json;
+          },
           builder: (context, data, reload) {
             final stats = (data['stats'] as Map).cast<String, dynamic>();
-            final coupons = (data['coupons'] as List).cast<Json>();
+            final first = (data['coupons'] as List).cast<Json>();
+            final coupons = [...first, ..._older];
+            final hasMore = _olderHasMore ?? (data['has_more'] as bool? ?? false);
             return RefreshIndicator(
               onRefresh: reload,
               child: ListView(
@@ -712,28 +798,7 @@ class SmartHistoryScreen extends StatelessWidget {
                         'affichés, gagnés ou perdus : c\'est le vrai bilan du Coupon intelligent.',
                   ),
                   const SizedBox(height: 16),
-                  GlassCard.section(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text('Bilan', style: Fp.title(15, weight: FontWeight.w600)),
-                        for (final st in stats.values.cast<Json>())
-                          KeyValue(
-                            st['label'] as String,
-                            st['settled'] == 0
-                                ? 'aucun coupon réglé'
-                                : '${st['won']} gagné(s) sur ${st['settled']} · annoncé '
-                                      '${percent((st['announced'] as num).toDouble())}, '
-                                      'observé ${percent((st['observed'] as num).toDouble())}',
-                          ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Sur peu de coupons, l\'écart entre annoncé et observé est surtout du hasard.',
-                          style: Fp.body(11, color: Fp.text3),
-                        ),
-                      ],
-                    ),
-                  ),
+                  ProfileRecordCard('Bilan depuis le lancement', stats),
                   const SizedBox(height: 12),
                   if (coupons.isEmpty)
                     const EmptyState('Aucun coupon du jour pour l\'instant.', icon: Icons.history_rounded),
@@ -779,6 +844,15 @@ class SmartHistoryScreen extends StatelessWidget {
                           ),
                         ],
                       ),
+                    ),
+                  if (hasMore)
+                    Center(
+                      child: _loading
+                          ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator())
+                          : TextButton(
+                              onPressed: () => _loadMore(api, coupons.length),
+                              child: const Text('Voir les coupons plus anciens'),
+                            ),
                     ),
                 ],
               ),
