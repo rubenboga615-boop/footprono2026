@@ -325,6 +325,88 @@ register(
 )
 
 
+AUDIENCES = (
+    ("all", "Tous les joueurs"),
+    ("premium", "Premium seulement"),
+    ("free", "Gratuits seulement"),
+)
+
+
+async def broadcast(ctx: JobContext, params: dict[str, Any]) -> str:
+    """Annonce aux joueurs : liste des notifications de l'application et téléphones."""
+    from sqlalchemy import or_, select
+
+    from footprono.accounts.models import User
+    from footprono.cache.redis import create_redis
+    from footprono.notifications import push
+    from footprono.notifications import service as notifications
+
+    now = datetime.now(UTC)
+    stmt = select(User.id).where(User.is_active)
+    if params["audience"] == "premium":
+        stmt = stmt.where(User.premium_until > now)
+    elif params["audience"] == "free":
+        stmt = stmt.where(or_(User.premium_until.is_(None), User.premium_until <= now))
+    title, message = params["title"], params["message"]
+    async with ctx.factory() as session:
+        ids = (await session.scalars(stmt)).all()
+        ctx.log(f"{len(ids)} joueur(s) visé(s) : {dict(AUDIENCES)[params['audience']].lower()}")
+        for user_id in ids:
+            notifications.add(session, user_id, "announcement", title, message)
+        await session.commit()
+        redis = create_redis(ctx.settings)
+        sender = push.sender_or_none(ctx.settings)
+        if sender is None:
+            ctx.log(
+                "Notifications sur téléphone désactivées : visibles dans l'application seulement."
+            )
+        try:
+            await notifications.publish_pending(session, redis, sender)
+        finally:
+            await redis.aclose()
+            if sender is not None:
+                await sender.aclose()
+    ctx.result = {"recipients": len(ids)}
+    return f"annonce envoyée à {len(ids)} joueur(s)"
+
+
+register(
+    Action(
+        id="broadcast",
+        title="Envoyer une annonce aux joueurs",
+        family="Comptes",
+        description=(
+            "Notification à tous les joueurs, aux Premium ou aux gratuits : elle s'affiche "
+            "dans la liste des notifications de l'application et sur les téléphones. "
+            "Une annonce envoyée ne peut pas être retirée : relis-la avant."
+        ),
+        risk="irreversible",
+        run=broadcast,
+        cost="aucune requête",
+        duration="moins d'une minute",
+        params=(
+            Param("audience", "Destinataires", "choice", default="all", options=AUDIENCES),
+            Param(
+                "title",
+                "Titre",
+                "text",
+                default="",
+                pattern=r".{3,60}",
+                help="60 caractères au plus, ex. « Maintenance ce soir »",
+            ),
+            Param(
+                "message",
+                "Message",
+                "text",
+                default="",
+                pattern=r"[\s\S]{5,200}",
+                help="200 caractères au plus",
+            ),
+        ),
+    )
+)
+
+
 async def coverage(ctx: JobContext, params: dict[str, Any]) -> str:
     async with ctx.factory() as session:
         report = await coverage_report(session)

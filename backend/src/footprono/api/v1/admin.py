@@ -7,11 +7,13 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from footprono.accounts import admin, audit
+from footprono.accounts import service as accounts
 from footprono.accounts.plans import plan_info
-from footprono.api.deps import AdminUserDep, SessionDep, SettingsDep
+from footprono.api.deps import AdminUserDep, RedisDep, SessionDep, SettingsDep
 from footprono.bookmaker import smart_coupon
 from footprono.core.errors import AppError
 from footprono.notifications import push
+from footprono.notifications import service as notifications
 
 router = APIRouter(prefix="/admin", tags=["administration"])
 
@@ -44,6 +46,11 @@ class SubscriptionEventOut(BaseModel):
 class GrantIn(BaseModel):
     days: int = Field(30, ge=1, le=admin.MAX_GRANT_DAYS)
     note: str | None = Field(None, max_length=200, examples=["paiement Mobile Money reçu"])
+
+
+class CreditIn(BaseModel):
+    amount: int = Field(..., ge=1, le=1_000_000, description="F CFA fictifs ajoutés au solde")
+    note: str | None = Field(None, max_length=120, examples=["concours WhatsApp"])
 
 
 class RevokeIn(BaseModel):
@@ -114,6 +121,37 @@ async def grant_premium(
     )
     await session.commit()
     return _out(user)
+
+
+@router.post("/users/{user_id}/wallet")
+async def credit_wallet(
+    user_id: int,
+    body: CreditIn,
+    me: AdminUserDep,
+    session: SessionDep,
+    settings: SettingsDep,
+    redis: RedisDep,
+) -> dict[str, Any]:
+    """Recharge le solde fictif d'un joueur (aide, concours) ; le joueur est prévenu."""
+    user = await admin.get_user(session, user_id)
+    note = (body.note or "").strip() or None
+    entry = await accounts.move(
+        session, user.id, body.amount, "admin_credit", note=note or "rechargement par FootProba"
+    )
+    amount = notifications.money(body.amount, user.currency)
+    notifications.add(
+        session, user.id, "wallet_credit", "Solde rechargé",
+        f"FootProba a ajouté {amount} à ton solde fictif.", {"screen": "bookmaker"},
+    )  # fmt: skip
+    audit.record(session, me, "wallet_credit", f"solde +{body.amount} pour {audit.who(user)}", user)
+    await session.commit()
+    sender = push.sender_or_none(settings)
+    try:
+        await notifications.publish_pending(session, redis, sender)
+    finally:
+        if sender is not None:
+            await sender.aclose()
+    return {"balance": entry.balance_after, "currency": user.currency}
 
 
 @router.post("/users/{user_id}/premium/revoke", response_model=AdminUserOut)

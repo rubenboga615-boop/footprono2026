@@ -98,7 +98,7 @@ class WalletEntry(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     amount: Mapped[int] = mapped_column(BigInteger)
     balance_after: Mapped[int] = mapped_column(BigInteger)
-    # opening, refill, stake, payout, void, correction
+    # opening, refill, admin_credit, stake, payout, void, correction
     kind: Mapped[str] = mapped_column(String(16))
     bet_id: Mapped[int | None] = mapped_column(Integer, index=True)
     note: Mapped[str | None] = mapped_column(String(200))

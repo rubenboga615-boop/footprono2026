@@ -317,6 +317,7 @@ class _BetRow extends StatelessWidget {
 const _entryKinds = {
   'opening': 'Solde de départ',
   'refill': 'Rechargement',
+  'admin_credit': 'Rechargement par FootProba',
   'stake': 'Mise',
   'payout': 'Gain',
   'void': 'Remboursement',

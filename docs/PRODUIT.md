@@ -94,6 +94,15 @@ Aussi installable sur Android : **FootProba Console** (`console-android/`, artef
   90 jours ou autre durée, avec un motif (inscrit dans l'historique) ; **fiche du compte**
   (`#/comptes/<id>`) : solde fictif, paris, téléphones, historique Premium, paiements
   et toutes les actions (`GET /admin/users?status=`, `GET /admin/users/{id}` → `activity`).
+- **Recharger le solde fictif** d'un joueur (fiche du compte) : +10 000, +50 000,
+  +100 000 F ou autre montant (1 000 000 au plus), motif facultatif ; mouvement
+  « Rechargement par FootProba » (`admin_credit`), notification au joueur, journal des
+  actions admin (`POST /admin/users/{id}/wallet`). Le rechargement du joueur lui-même
+  reste : sous 1 000 F, retour à 100 000 F, une fois par semaine.
+- **Annonce aux joueurs** (action « Envoyer une annonce aux joueurs », famille Comptes) :
+  tous, Premium seulement ou gratuits seulement ; titre (60 caractères) et message
+  (200) ; liste des notifications de l'application et téléphones. Irréversible :
+  confirmation demandée.
 - **Exploitation** : codes du jour (1xBet), comptes (Premium, administrateur, numéro,
   mot de passe provisoire affiché une seule fois, désactivation), paiements, **versions
   de l'application** (dépôt de l'archive `footprono-apk.zip` depuis le navigateur).

@@ -565,7 +565,11 @@ function paramField(p, initial, onChange) {
     wrap.append(t);
     read = () => on;
   } else {
-    const input = h("input", { class: "input", type: "text", maxlength: "200", value: value ?? "", oninput: onChange });
+    // Message d'une annonce : sur plusieurs lignes.
+    const input = p.name === "message"
+      ? h("textarea", { class: "input", rows: "4", maxlength: "200", oninput: onChange })
+      : h("input", { class: "input", type: "text", maxlength: "200", value: value ?? "", oninput: onChange });
+    if (p.name === "message") input.value = value ?? "";
     wrap.append(label, input);
     read = () => input.value;
   }
@@ -878,6 +882,30 @@ async function accountPage(id) {
     if (!(await confirmBox(title, text, "Confirmer", danger))) return;
     try { await fn(); toast("Fait."); reload(); } catch (err) { toast(err.message); }
   }
+  // Recharge du solde fictif (aide, concours) : montant au choix, joueur prévenu.
+  async function credit() {
+    const choice = await modal((close) => {
+      let amount = 100000;
+      const custom = h("input", { class: "input", type: "number", min: "1", max: "1000000", placeholder: "Autre montant (F CFA)" });
+      const note = h("input", { class: "input", type: "text", maxlength: "120", placeholder: "Motif : aide WhatsApp, concours…" });
+      const chips = h("div", { class: "chips" }, ...[10000, 50000, 100000].map((v) => h("button", { class: "chip" + (v === amount ? " on" : ""), type: "button", text: "+" + number(v) + " F", onclick: (e) => {
+        amount = v; custom.value = "";
+        for (const c of chips.children) c.classList.toggle("on", c === e.currentTarget);
+      } })));
+      custom.addEventListener("input", () => { for (const c of chips.children) c.classList.remove("on"); });
+      const form = h("form", { onsubmit: (e) => {
+        e.preventDefault();
+        const n = custom.value ? Number(custom.value) : amount;
+        if (!Number.isInteger(n) || n < 1 || n > 1000000) { toast("Montant de 1 à 1 000 000 F CFA."); return; }
+        close({ amount: n, note: note.value.trim() || null });
+      } }, chips, h("div", { style: "height:10px" }), custom, h("div", { style: "height:10px" }), note,
+        h("div", { class: "btns", style: "margin-top:12px" }, h("button", { class: "btn", type: "submit", text: "Recharger" }),
+          h("button", { class: "btn ghost", type: "button", text: "Annuler", onclick: () => close(null) })));
+      return [h("h3", { text: "Recharger le solde fictif" }), h("p", { text: `${u.display_name} : solde actuel ${a.balance === null ? "—" : money(a.balance, a.currency)}. Le joueur reçoit une notification.` }), form];
+    });
+    if (!choice) return;
+    try { const r = await api("POST", `/admin/users/${u.id}/wallet`, choice); toast("Nouveau solde : " + money(r.balance, r.currency)); reload(); } catch (err) { toast(err.message); }
+  }
   async function changePhone() {
     const phone = await promptBox("Changer le numéro", `Nouveau numéro de connexion de ${u.display_name}, avec l'indicatif.`, "+225 05 00 00 00 00");
     if (!phone) return;
@@ -906,6 +934,7 @@ async function accountPage(id) {
   const actions = card("Actions", h("div", { class: "acct-tools", style: "justify-content:flex-start" },
     h("button", { class: "btn sm", type: "button", text: "Offrir Premium", onclick: () => grantPremium(u, reload) }),
     premium ? h("button", { class: "btn sm ghost", type: "button", text: "Retirer Premium", onclick: () => act("Retirer le Premium ?", u.display_name, () => api("POST", `/admin/users/${u.id}/premium/revoke`, { note: "console" }), true) }) : null,
+    h("button", { class: "btn sm ghost", type: "button", text: "Recharger le solde", onclick: credit }),
     h("button", { class: "btn sm ghost", type: "button", text: "Numéro", onclick: changePhone }),
     h("button", { class: "btn sm ghost", type: "button", text: "Mot de passe", onclick: resetPassword }),
     h("button", { class: "btn sm ghost", type: "button", text: u.role === "admin" ? "Retirer admin" : "Nommer admin", onclick: () => act(u.role === "admin" ? "Retirer l'accès à la console ?" : "Nommer administrateur ?", `${u.display_name} (${u.phone || u.email || "Google"})`, () => api("POST", `/admin/users/${u.id}/role`, { role: u.role === "admin" ? "user" : "admin" }), u.role !== "admin") }),

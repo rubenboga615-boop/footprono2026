@@ -462,3 +462,63 @@ async def test_console_pages_are_served_with_strict_headers(client: AsyncClient)
     assert "/admin/console" in script.text
     # Aucune donnée insérée en HTML brut.
     assert "innerHTML" not in script.text
+
+
+async def test_broadcast_and_wallet_credit(
+    app: FastAPI, client: AsyncClient, admin_headers: dict[str, str], db_factory: Factory
+) -> None:
+    async with db_factory() as session:
+        free = await accounts.register(
+            session, make_settings(), phone="+22997333333", password="12345678",
+            display_name="Gratuit", country="CI", adult=True,
+        )  # fmt: skip
+        paid = await accounts.register(
+            session, make_settings(), phone="+22997444444", password="12345678",
+            display_name="Premium", country="CI", adult=True,
+        )  # fmt: skip
+        await admin.grant_premium(session, None, paid, 30)
+        await session.commit()
+        free_id, paid_id = free.id, paid.id
+
+    # Annonce aux seuls Premium : les gratuits (et l'administrateur gratuit) ne la voient pas.
+    _inline(app)
+    params = {"audience": "premium", "title": "Maintenance ce soir", "message": "De 23 h à minuit."}
+    job = (
+        await client.post(
+            f"{API}/jobs",
+            json={"action": "broadcast", "params": params, "confirmed": True},
+            headers=admin_headers,
+        )
+    ).json()
+    detail = (await client.get(f"{API}/jobs/{job['id']}", headers=admin_headers)).json()
+    assert detail["status"] == "succeeded", detail
+    assert detail["summary"] == "annonce envoyée à 1 joueur(s)"
+    async with db_factory() as session:
+        notes = (await session.scalars(select(Notification))).all()
+    assert [(n.user_id, n.kind, n.title) for n in notes] == [
+        (paid_id, "announcement", "Maintenance ce soir")
+    ]
+    short = {**params, "message": "ok"}
+    refused = await client.post(
+        f"{API}/jobs",
+        json={"action": "broadcast", "params": short, "confirmed": True},
+        headers=admin_headers,
+    )
+    assert refused.status_code == 422
+
+    # Recharge du solde fictif par l'administrateur : mouvement inscrit, joueur prévenu.
+    users = "/api/v1/admin/users"
+    r = await client.post(
+        f"{users}/{free_id}/wallet", json={"amount": 5000, "note": "concours"},
+        headers=admin_headers,
+    )  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert r.json() == {"balance": make_settings().starting_balance + 5000, "currency": "XOF"}
+    async with db_factory() as session:
+        note = await session.scalar(select(Notification).where(Notification.user_id == free_id))
+    assert note is not None
+    assert (note.kind, note.title) == ("wallet_credit", "Solde rechargé")
+    too_much = await client.post(
+        f"{users}/{free_id}/wallet", json={"amount": 2_000_000}, headers=admin_headers
+    )
+    assert too_much.status_code == 422
