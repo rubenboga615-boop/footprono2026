@@ -201,6 +201,12 @@ async def test_scheduled_task_runs_feed_the_timeline(monkeypatch: pytest.MonkeyP
     cause = timeline["follow_live"]["runs"][0]["error"]
     assert cause == "RuntimeError : base injoignable : postgresql://***@db:5432/x"
     assert timeline["collect_odds"]["runs"][0]["error"] is None
+    # Ingestion dont un fichier a échoué : panne, avec la cause donnée par la tâche.
+    assert runs._status({"status": "failed"}) == "error"
+    assert runs._status({"status": "quality_errors"}) == "warning"
+    assert runs._failure({"status": "failed", "reason": "EPL 2026 : UnknownTeams"}) == (
+        "EPL 2026 : UnknownTeams"
+    )
     assert timeline["collect_odds"]["label"] == "Cotes (3 h)"
 
 

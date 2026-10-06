@@ -46,10 +46,20 @@ def _redis() -> redis.Redis:
     return _client
 
 
+STATUSES = {
+    "ok": "ok", "partial": "warning", "quality_errors": "warning", "warning": "warning",
+    "failed": "error", "unavailable": "error", "error": "error", "skipped": "idle",
+    "idle": "idle",
+}  # fmt: skip
+
+
 def _status(result: Any) -> str:
     if isinstance(result, dict):
         status = str(result.get("status") or "ok")
-        return {"partial": "warning", "unavailable": "error", "skipped": "idle"}.get(status, status)
+        # Ingestion : un fichier en échec (« failed ») est une panne ; des erreurs de
+        # qualité, un avertissement. Toute autre valeur inconnue de la frise compte
+        # comme une panne plutôt que de passer inaperçue.
+        return STATUSES.get(status, "error")
     return "ok"
 
 

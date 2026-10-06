@@ -92,10 +92,16 @@ async def _ingest_current_season() -> dict[str, Any]:
         bets = await _settle(engine, settings)
     finally:
         await engine.dispose()
+    failed = [f for f in report["files"] if f["status"] in ("failed", "rejected")]
     return {
         "bets": bets,
         "run_id": report["run_id"],
         "status": report["status"],
+        # Cause montrée dans la console et dans l'alerte (trois fichiers au plus).
+        "reason": "; ".join(
+            f"{f['competition']} {f['season']} : {f.get('error', '')}" for f in failed[:3]
+        )
+        or None,
         "files": {f"{f['source']}:{f['competition']}": f["status"] for f in report["files"]},
         "quality_errors": report["quality"]["errors"],
     }
