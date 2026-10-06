@@ -89,7 +89,7 @@ await check('coupon : pari placé, gain calculé', async () => {
 
 await check('bookmaker : pari en cours, solde débité', async () => {
   await nav('Bookmaker');
-  await visible(text('Mes paris'));
+  await visible(text('En cours (1)'));
   await visible(text('99 000'));
 });
 
@@ -101,7 +101,7 @@ await check('profil : essai Premium de 7 jours', async () => {
 
 await check('fiabilité : page publique', async () => {
   await text('Fiabilité du moteur').click();
-  await visible(text(/Annoncé contre réalisé/));
+  await visible(text('Réalisé'));
   await visible(text('Backtest'));
   await button('Retour').click();
 });

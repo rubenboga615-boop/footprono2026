@@ -57,9 +57,11 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
             final open = bets.where((b) => b.status == 'open').toList();
             final settled = bets.where((b) => b.status != 'open').toList();
             final atStake = open.fold<int>(0, (a, b) => a + b.stake);
-            final staked = settled.fold<int>(0, (a, b) => a + b.stake);
-            final returned = settled.fold<int>(0, (a, b) => a + (b.payout ?? 0));
-            final roi = staked > 0 ? (returned - staked) / staked : null;
+            // Résultat des paris réglés placés ces 30 derniers jours (maquette v2).
+            final since = DateTime.now().subtract(const Duration(days: 30));
+            final month = settled
+                .where((b) => b.placedAt != null && b.placedAt!.isAfter(since))
+                .fold<int>(0, (a, b) => a + (b.payout ?? 0) - b.stake);
             return RefreshIndicator(
               onRefresh: () async {
                 await guard(context, state.refreshMe);
@@ -69,11 +71,6 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
                 padding: pagePadding(context, 26, 120),
                 children: [
                   const TwoToneTitle('Bookmaker', 'virtuel'),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Parie sans argent réel pour tester tes stratégies.',
-                    style: Fp.body(14, color: Fp.text2),
-                  ),
                   const SizedBox(height: 16),
                   GlassCard(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
@@ -107,18 +104,15 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
                                 text: '${thousands(atStake)} F',
                                 style: Fp.body(13, weight: FontWeight.w700),
                               ),
-                              TextSpan(text: '   ·   ${bets.length} pari${bets.length > 1 ? 's' : ''}'),
-                              if (roi != null) ...[
-                                const TextSpan(text: '   ·   rendement '),
-                                TextSpan(
-                                  text: '${roi >= 0 ? '+' : ''}${percent(roi, decimals: 1)}',
-                                  style: Fp.body(
-                                    13,
-                                    weight: FontWeight.w700,
-                                    color: roi >= 0 ? Fp.win : Fp.lossText,
-                                  ),
+                              const TextSpan(text: '      30 jours '),
+                              TextSpan(
+                                text: signedMoney(month, currency),
+                                style: Fp.body(
+                                  13,
+                                  weight: FontWeight.w700,
+                                  color: month > 0 ? Fp.win : (month < 0 ? Fp.lossText : Fp.text),
                                 ),
-                              ],
+                              ),
                             ],
                           ),
                         ),
@@ -153,16 +147,20 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
                   ),
                   const SizedBox(height: 16),
                   SegmentTabs(
-                    labels: const ['En cours', 'Réglés', 'Mouvements'],
+                    labels: ['En cours (${open.length})', 'Réglés', 'Mouvements'],
                     selected: tab,
                     onSelected: (i) => setState(() => tab = i),
                   ),
                   const SizedBox(height: 12),
-                  if (tab < 2)
-                    _BetList(
-                      bets: tab == 0 ? open : settled,
-                      empty: tab == 0 ? 'Aucun pari en cours.' : 'Aucun pari réglé pour l\'instant.',
-                    )
+                  if (tab == 0) ...[
+                    _BetList(bets: open, empty: 'Aucun pari en cours.'),
+                    // Maquette v2 : les derniers paris réglés sous les paris en cours.
+                    if (settled.isNotEmpty) ...[
+                      const SectionTitle('Derniers paris réglés'),
+                      _BetList(bets: settled.take(3).toList(), empty: ''),
+                    ],
+                  ] else if (tab == 1)
+                    _BetList(bets: settled, empty: 'Aucun pari réglé pour l\'instant.')
                   else if (entries.isEmpty)
                     const EmptyState('Aucun mouvement.')
                   else
@@ -196,11 +194,10 @@ class _BetList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (bets.isEmpty) return EmptyState(empty, icon: Icons.sports_score_rounded);
     return GlassCard.section(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Mes paris', style: Fp.title(15, weight: FontWeight.w600)),
           for (final (i, b) in bets.indexed) ...[_BetRow(bet: b), if (i < bets.length - 1) const Divider()],
         ],
       ),

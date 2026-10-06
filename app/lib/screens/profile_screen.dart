@@ -294,14 +294,17 @@ class ProfileScreen extends StatelessWidget {
                     const SizedBox(height: 18),
                     const _PlanCard(),
                     if (!me.googleLinked && state.google != null) ...[
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 12),
                       const _GoogleCard(),
                     ],
+                    const SizedBox(height: 12),
                   ],
                 ],
                 [
+                  // Maquette v2 : les réglages du joueur, puis le compte (pages légales
+                  // obligatoires, mot de passe, suppression) dans une seconde carte.
                   GlassCard.section(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                    padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
                     child: Column(
                       children: [
                         _Item(
@@ -311,35 +314,49 @@ class ProfileScreen extends StatelessWidget {
                           onTap: () => open(const NotificationsScreen()),
                         ),
                         const Divider(),
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          secondary: const Icon(Icons.today_rounded, color: Fp.accentLight, size: 20),
-                          title: Text(
-                            'Coupons du jour, chaque matin',
-                            style: Fp.body(14, weight: FontWeight.w600),
-                          ),
+                        _SwitchItem(
+                          icon: Icons.calendar_today_outlined,
+                          title: 'Coupons du jour, chaque matin',
                           value: me?.dailyCouponsNotifications ?? true,
                           onChanged: me == null
                               ? null
                               : (on) => guard(context, () => state.setDailyCouponsNotifications(on)),
                         ),
                         const Divider(),
+                        _Item(
+                          icon: Icons.verified_user_outlined,
+                          title: 'Fiabilité du moteur',
+                          onTap: () => open(const ReliabilityScreen()),
+                        ),
                         if (me?.googleLinked ?? false) ...[
+                          const Divider(),
                           _Item(
-                            icon: Icons.verified_user_outlined,
+                            icon: Icons.g_mobiledata_rounded,
                             title: 'Google lié',
                             trailing: me!.email,
                             onTap: () => _googleLinked(context, state),
                           ),
-                          const Divider(),
                         ],
+                        const Divider(),
                         _Item(
-                          icon: Icons.verified_outlined,
-                          title: 'Fiabilité du moteur',
-                          onTap: () => open(const ReliabilityScreen()),
+                          icon: Icons.chat_bubble_outline_rounded,
+                          title: 'Aide · WhatsApp',
+                          onTap: () => state.openSupport('Bonjour FootProba, '),
                         ),
                         const Divider(),
+                        _Item(
+                          icon: Icons.lock_outline_rounded,
+                          title: 'Jeu responsable',
+                          onTap: () => _responsible(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  GlassCard.section(
+                    padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+                    child: Column(
+                      children: [
                         if (me?.hasPassword ?? true) ...[
                           _Item(
                             icon: Icons.key_outlined,
@@ -349,21 +366,9 @@ class ProfileScreen extends StatelessWidget {
                           const Divider(),
                         ],
                         _Item(
-                          icon: Icons.phonelink_erase_rounded,
+                          icon: Icons.phonelink_erase_outlined,
                           title: 'Déconnecter mes autres téléphones',
                           onTap: () => _logoutOthers(context, state),
-                        ),
-                        const Divider(),
-                        _Item(
-                          icon: Icons.support_agent_rounded,
-                          title: 'Aide · WhatsApp',
-                          onTap: () => state.openSupport('Bonjour FootProba, '),
-                        ),
-                        const Divider(),
-                        _Item(
-                          icon: Icons.lock_outline_rounded,
-                          title: 'Jeu responsable',
-                          onTap: () => _responsible(context),
                         ),
                         const Divider(),
                         if (serverChoice) ...[
@@ -391,7 +396,7 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         const Divider(),
                         _Item(
-                          icon: Icons.delete_forever_outlined,
+                          icon: Icons.delete_outline_rounded,
                           title: 'Supprimer mon compte',
                           onTap: () => _deleteAccount(context, state),
                         ),
@@ -520,11 +525,6 @@ class _PlanCard extends StatelessWidget {
               child: Text(plan.premium ? 'Prolonger · $price / mois' : 'Passer Premium · $price / mois'),
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Mobile Money (Wave, Orange Money, MTN MoMo) ou carte.',
-            style: Fp.body(11.5, color: Fp.text3),
-          ),
         ],
       ),
     );
@@ -574,6 +574,49 @@ class _Item extends StatelessWidget {
               const Icon(Icons.chevron_right_rounded, size: 18, color: Fp.text4),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Ligne avec interrupteur compact (42 × 24 dans la maquette v2).
+class _SwitchItem extends StatelessWidget {
+  const _SwitchItem({required this.icon, required this.title, required this.value, this.onChanged});
+  final IconData icon;
+  final String title;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return MergeSemantics(
+      child: InkWell(
+        onTap: onChanged == null ? null : () => onChanged!(!value),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 52),
+          child: Row(
+            children: [
+              Icon(icon, color: const Color(0xFFC9B2F8), size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(title, style: Fp.body(14, weight: FontWeight.w600)),
+              ),
+              SizedBox(
+                width: 46,
+                height: 28,
+                child: FittedBox(
+                  child: Switch(
+                    value: value,
+                    onChanged: onChanged,
+                    activeTrackColor: Fp.accent,
+                    activeThumbColor: Colors.white,
+                    trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

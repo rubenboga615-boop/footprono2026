@@ -23,6 +23,7 @@ import 'screens/notifications_screen.dart';
 import 'screens/profile_screen.dart';
 import 'state/app_state.dart';
 import 'theme.dart';
+import 'widgets/nav_icons.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -276,11 +277,11 @@ class _FloatingNav extends StatelessWidget {
   final List<int> badges;
 
   static const _items = [
-    (Icons.sports_soccer_rounded, 'Matchs'),
-    (Icons.confirmation_number_outlined, 'Coupon'),
-    (Icons.stairs_rounded, 'Montante'),
-    (Icons.account_balance_wallet_outlined, 'Bookmaker'),
-    (Icons.person_outline_rounded, 'Profil'),
+    (NavGlyph.matchs, 'Matchs'),
+    (NavGlyph.coupon, 'Coupon'),
+    (NavGlyph.montante, 'Montante'),
+    (NavGlyph.bookmaker, 'Bookmaker'),
+    (NavGlyph.profil, 'Profil'),
   ];
 
   @override
@@ -296,7 +297,7 @@ class _FloatingNav extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xD10E0C14),
+                color: const Color(0xDB0E0C16),
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(color: Fp.line12),
               ),
@@ -334,7 +335,7 @@ class _NavItem extends StatelessWidget {
     required this.badgeColor,
     required this.onTap,
   });
-  final IconData icon;
+  final NavGlyph icon;
   final String label;
   final bool selected;
   final int badge;
@@ -343,44 +344,48 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? Fp.accentLight : Fp.textSoft;
+    // Maquette v2 : onglet actif en violet clair avec une lueur, sans case autour.
+    final color = selected ? const Color(0xFFC9B2F8) : const Color(0x99F4F2F8);
+    Widget glyph = NavIcon(icon, color: color);
+    if (selected) {
+      glyph = DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [BoxShadow(color: Fp.accentAlpha(0.55), blurRadius: 14)],
+        ),
+        child: glyph,
+      );
+    }
     return Semantics(
       button: true,
       selected: selected,
       label: label,
-      child: Material(
-        color: selected ? Fp.accentSoft : Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: selected ? Fp.accentLine : Colors.transparent),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Badge(
-                  isLabelVisible: badge > 0,
-                  label: Text('$badge'),
-                  backgroundColor: badgeColor,
-                  child: Icon(icon, size: 22, color: color),
-                ),
-                const SizedBox(height: 4),
-                ExcludeSemantics(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      style: Fp.body(11, weight: FontWeight.w600, color: color),
-                    ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Badge(
+                isLabelVisible: badge > 0,
+                label: Text('$badge'),
+                backgroundColor: badgeColor,
+                child: glyph,
+              ),
+              const SizedBox(height: 4),
+              ExcludeSemantics(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: Fp.body(10.5, weight: FontWeight.w600, color: color),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

@@ -1238,9 +1238,9 @@ void main() {
     final (state, server) = await startApp(tester, loggedIn: true);
     await tester.tap(find.text('Profil'));
     await tester.pumpAndSettle();
-    final toggle = find.widgetWithText(SwitchListTile, 'Coupons du jour, chaque matin');
+    final toggle = find.text('Coupons du jour, chaque matin');
     await tester.ensureVisible(toggle);
-    expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
     await tester.tap(toggle);
     await tester.pumpAndSettle();
     expect(server.dailyNotifications, isFalse);

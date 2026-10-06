@@ -54,7 +54,6 @@ class _MatchesScreenState extends State<MatchesScreen> {
                 .where((u) => competition.isEmpty || u.match.competition == competition)
                 .where((u) => selectedDay == null || _day(u.match.date) == selectedDay)
                 .toList();
-            final analysed = shown.where((u) => u.summary != null).length;
             final today = _day(DateTime.now());
             final desk = DesktopScope.of(context);
             return RefreshIndicator(
@@ -89,11 +88,6 @@ class _MatchesScreenState extends State<MatchesScreen> {
                   if (!desk) const SizedBox(height: 16),
                   const InstallTip(margin: EdgeInsets.only(bottom: 14)),
                   TwoToneTitle('Matchs', selectedDay == today ? 'du jour' : 'à venir'),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$analysed matchs analysés sur ${comps.length} championnats',
-                    style: Fp.body(13, color: Fp.text2),
-                  ),
                   const SizedBox(height: 16),
                   if (days.isNotEmpty) ...[
                     ChipRow(

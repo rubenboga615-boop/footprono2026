@@ -9,7 +9,7 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
-/// Page publique « Fiabilité du modèle » (GET /reliability).
+/// Page publique « Fiabilité du moteur » (GET /reliability).
 class ReliabilityScreen extends StatefulWidget {
   const ReliabilityScreen({super.key});
 
@@ -19,7 +19,7 @@ class ReliabilityScreen extends StatefulWidget {
 
 class _ReliabilityScreenState extends State<ReliabilityScreen> {
   static const _markets = ['1X2', 'OU|2.5', 'BTTS'];
-  static const _marketNames = ['1X2', 'Plus/moins', 'Les deux marquent'];
+  static const _marketNames = ['1 / N / 2', 'Buts', 'Les 2 marquent'];
   static const _comps = [
     '',
     'EPL',
@@ -75,10 +75,10 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                 children: [
                   const BackHeader(
                     'Fiabilité',
-                    'du modèle',
+                    'du moteur',
                     subtitle:
-                        'Historique public : chaque pronostic publié avant le match est comparé au résultat '
-                        'réel, sans exception.',
+                        'Quand le moteur annonce 70\u00A0%, est-ce que ça arrive vraiment 7 fois sur 10\u00A0? '
+                        'Tous les pronostics réglés, publiés sans tri.',
                   ),
                   const SizedBox(height: 16),
                   ChipRow(
@@ -101,9 +101,13 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(
-                            'Annoncé contre réalisé · ${_marketNames[market]}',
-                            style: Fp.title(17, weight: FontWeight.w600),
+                          Wrap(
+                            spacing: 18,
+                            runSpacing: 6,
+                            children: [
+                              _legend(const Color(0x66F4F2F8), 'Annoncé'),
+                              _legend(const Color(0xFF8B5CF6), 'Réalisé'),
+                            ],
                           ),
                           if (hasLive) ...[
                             const SizedBox(height: 12),
@@ -127,23 +131,8 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                             )
                           else
                             _CalibrationChart(calib),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 18,
-                            runSpacing: 6,
-                            children: [
-                              _legend(const Color(0x66F4F2F8), 'Annoncé'),
-                              _legend(const Color(0xFF8B5CF6), 'Réalisé'),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Quand FootProba annonce 60 %, l\'événement doit se produire environ 6 fois sur 10. '
-                            'Les deux barres de chaque tranche doivent rester de la même longueur.',
-                            style: Fp.body(13, color: Fp.text2, height: 1.45),
-                          ),
                           if (showBacktest) ...[
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 10),
                             Text(
                               'Source : backtest (simulation sur ${thousands(bt['matches'] as int)} matchs des saisons '
                               '${bt['seasons']}), pas des prédictions publiées.',
@@ -152,6 +141,26 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                           ],
                         ],
                       ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(child: _Tile('Depuis le lancement', '${thousands(n)} réglés')),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _Tile(
+                            'Backtest (saisons passées)',
+                            '${thousands(bt['matches'] as int)} matchs',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Quand le moteur annonce 60\u00A0%, l\'événement doit se produire environ 6 fois sur 10 : '
+                      'les deux barres de chaque tranche doivent rester de la même longueur. Page publique, '
+                      'consultable sans compte.',
+                      style: Fp.body(11.5, color: Fp.text2, height: 1.45),
                     ),
                     const SizedBox(height: 14),
                     GlassCard.section(
@@ -244,6 +253,37 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
   );
 }
 
+/// Case de chiffre clé (maquette v2).
+class _Tile extends StatelessWidget {
+  const _Tile(this.label, this.value);
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Fp.fill,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Fp.line10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Fp.body(11, color: Fp.text2)),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(value, style: Fp.body(16, weight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Warning extends StatelessWidget {
   const _Warning(this.text);
   final String text;
@@ -297,6 +337,7 @@ class _CalibrationChart extends StatelessWidget {
                 ),
                 Expanded(
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _bar((b['announced'] as num).toDouble(), const Color(0x66F4F2F8)),
                       const SizedBox(height: 3),
@@ -327,6 +368,8 @@ class _CalibrationChart extends StatelessWidget {
         children: [
           const Positioned.fill(child: ColoredBox(color: Fp.fill6)),
           FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            heightFactor: 1,
             widthFactor: value.clamp(0.0, 1.0),
             child: ColoredBox(color: color),
           ),

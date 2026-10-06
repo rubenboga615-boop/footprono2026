@@ -20,7 +20,7 @@ class Fp {
   static const loss = Color(0xFFF472B6);
   static const lossText = Color(0xFFF9A8D4);
   static const warning = Color(0xFFFBBF24);
-  static const glass = Color(0xB812101A); // rgba(18,16,26,0.72)
+  static const glass = Color(0xCC12101A); // rgba(18,16,26,0.8), maquette v2
   static const fill = Color(0x0DFFFFFF); // blanc 5 %
   static const fill6 = Color(0x0FFFFFFF); // blanc 6 %
   static const fill7 = Color(0x12FFFFFF); // blanc 7 %
@@ -294,14 +294,19 @@ class _BackgroundPainter extends CustomPainter {
 // --- Cartes en verre -----------------------------------------------------------
 
 /// Contour : coins supérieur gauche et inférieur droit coupés.
+/// Carte de la maquette v2 : coins haut-gauche et bas-droite coupés en biais, les deux
+/// autres arrondis (rayon 16, comme `border-radius: 16px` sous le `clip-path`).
 Path cutCornerPath(Size s, double cut) {
   final c = math.min(cut, math.min(s.width, s.height) / 2);
+  final r = math.min(16.0, math.min(s.width, s.height) / 2);
   return Path()
     ..moveTo(c, 0)
-    ..lineTo(s.width, 0)
+    ..lineTo(s.width - r, 0)
+    ..arcToPoint(Offset(s.width, r), radius: Radius.circular(r))
     ..lineTo(s.width, s.height - c)
     ..lineTo(s.width - c, s.height)
-    ..lineTo(0, s.height)
+    ..lineTo(r, s.height)
+    ..arcToPoint(Offset(0, s.height - r), radius: Radius.circular(r))
     ..lineTo(0, c)
     ..close();
 }
@@ -395,8 +400,8 @@ class GlassCard extends StatelessWidget {
     this.onTap,
     this.highlight = false,
     this.margin = const EdgeInsets.symmetric(vertical: 6),
-  }) : cut = 30,
-       ornaments = true;
+  }) : cut = 16,
+       ornaments = false;
 
   /// Carte des écrans de connexion : grands coins coupés et triangles décoratifs.
   const GlassCard.hero({
