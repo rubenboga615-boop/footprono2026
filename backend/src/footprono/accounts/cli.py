@@ -9,6 +9,7 @@ footprono-admin users [nom ou numéro]           # comptes existants (numéro, r
 footprono-admin set-phone +22997000000 +22961000000   # changer le numéro de connexion
 footprono-admin reset-password +22997000000     # mot de passe provisoire
 footprono-admin publish-apk footprono-apk.zip --notes "…"   # nouvelle version de l'application
+footprono-admin publish-web footprono-web.zip                # version web (iPhone)
 """
 
 import argparse
@@ -22,7 +23,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from footprono import app_release
+from footprono import app_release, web_release
 from footprono.accounts import admin
 from footprono.accounts.models import User
 from footprono.accounts.service import normalize_phone
@@ -149,7 +150,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=0,
         help="construction en dessous de laquelle c'est obligatoire",
     )
+    sub.add_parser(
+        "publish-web", help="publier la version web (iPhone) d'une archive GitHub Actions"
+    ).add_argument("archive", type=Path)
     args = parser.parse_args(argv)
+    if args.command == "publish-web":
+        try:
+            web_release.publish(args.archive, get_settings().web_release_dir)
+        except AppError as exc:
+            print(f"Erreur : {exc.message}", file=sys.stderr)
+            return 1
+        print("Version web publiée : https://<domaine>/app (iPhone : Safari).")
+        return 0
     if args.command == "publish-apk":
         try:
             info = app_release.publish(

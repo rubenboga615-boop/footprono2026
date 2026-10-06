@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../api/client.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../widgets/install_tip.dart';
 import 'server_dialog.dart';
 
 const countries = {
@@ -160,6 +161,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     ],
                   ),
                   const SizedBox(height: 34),
+                  const InstallTip(margin: EdgeInsets.only(bottom: 16)),
                   card,
                   const SizedBox(height: 22),
                   Text(

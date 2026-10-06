@@ -19,8 +19,8 @@ RUN apt-get update \
     && apt-get purge -y gnupg && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system app && useradd --system --gid app --home-dir /app app \
-    && mkdir -p /data/raw /data/history /data/app /data/files \
-    && chown app:app /data/raw /data/history /data/app /data/files
+    && mkdir -p /data/raw /data/history /data/app /data/web /data/files \
+    && chown app:app /data/raw /data/history /data/app /data/web /data/files
 
 COPY requirements.lock ./
 RUN pip install -r requirements.lock && pip install "uvloop>=0.21" "httptools>=0.6"

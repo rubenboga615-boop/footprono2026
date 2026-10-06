@@ -851,55 +851,87 @@ async function paymentsPage() {
 
 // --- Versions de l'application -----------------------------------------------------------
 
-async function versionsPage() {
-  setPage("versions", "Versions de l'app");
-  const { current } = await api("GET", CONSOLE + "/app-release");
-  const currentCard = current
-    ? card(["Version proposée aux joueurs", pill("n°" + current.build, "ok")],
-      h("div", { class: "row" }, h("span", { class: "t", text: "Publiée" }), h("b", { text: when(current.published_at) })),
-      h("div", { class: "row" }, h("span", { class: "t", text: "Taille" }), h("b", { text: bytes(current.size) })),
-      h("div", { class: "row" }, h("span", { class: "t", text: "Mise à jour obligatoire sous" }), h("b", { text: current.minimum_build ? "n°" + current.minimum_build : "non" })),
-      current.notes ? h("p", { class: "muted", style: "margin:12px 0 0", text: current.notes }) : null)
-    : card("Version proposée aux joueurs", h("div", { class: "empty", text: "Aucune version publiée sur ce serveur." }));
-  let file = null;
+// Zone de dépôt d'une archive GitHub Actions + barre d'envoi (APK et version web).
+function archivePicker(archiveName) {
+  const picker = { file: null };
   const fileName = h("div", { class: "note", text: "Aucun fichier choisi" });
   const input = h("input", { type: "file", accept: ".zip,application/zip", onchange: (e) => pick(e.target.files[0]) });
-  const drop = h("label", { class: "drop" }, input, icon("i-up"), h("div", { style: "font-weight:600;margin-top:6px", text: "Choisir l'archive footprono-apk.zip" }), h("div", { class: "note", text: "téléchargée dans GitHub → Actions → Application → Artifacts" }), fileName);
-  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
-  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
-  drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); pick(e.dataTransfer.files[0]); });
-  function pick(f) { file = f || null; fileName.textContent = file ? `${file.name} · ${bytes(file.size)}` : "Aucun fichier choisi"; }
-  const notes = h("input", { class: "input", type: "text", maxlength: "500", placeholder: "Nouveautés de cette version" });
-  const minimum = h("input", { class: "input", type: "number", min: "0", placeholder: "0 = mise à jour facultative", style: "max-width:220px" });
-  const progress = h("div", { hidden: true }, bar(0), h("div", { class: "note", style: "margin-top:6px" }));
-  const send = h("button", { class: "btn", type: "button" }, icon("i-up"), "Publier");
-  send.addEventListener("click", async () => {
-    if (!file) { toast("Choisis d'abord l'archive."); return; }
-    if (!(await confirmBox("Publier cette version ?", "Les téléphones la proposeront à l'ouverture de l'application.", "Publier"))) return;
-    send.disabled = true; progress.hidden = false;
-    const params = new URLSearchParams({ notes: notes.value.trim(), minimum: String(Number(minimum.value || 0)) });
+  picker.drop = h("label", { class: "drop" }, input, icon("i-up"), h("div", { style: "font-weight:600;margin-top:6px", text: `Choisir l'archive ${archiveName}` }), h("div", { class: "note", text: "téléchargée dans GitHub → Actions → Application → Artifacts" }), fileName);
+  picker.drop.addEventListener("dragover", (e) => { e.preventDefault(); picker.drop.classList.add("over"); });
+  picker.drop.addEventListener("dragleave", () => picker.drop.classList.remove("over"));
+  picker.drop.addEventListener("drop", (e) => { e.preventDefault(); picker.drop.classList.remove("over"); pick(e.dataTransfer.files[0]); });
+  function pick(f) { picker.file = f || null; fileName.textContent = picker.file ? `${picker.file.name} · ${bytes(picker.file.size)}` : "Aucun fichier choisi"; }
+  picker.progress = h("div", { hidden: true }, bar(0), h("div", { class: "note", style: "margin-top:6px" }));
+  picker.send = (url, onOk) => new Promise((resolve) => {
+    picker.progress.hidden = false;
+    const done = (ok) => { if (!ok) picker.progress.hidden = true; resolve(ok); };
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${API}${CONSOLE}/app-release?${params}`);
+    xhr.open("POST", url);
     xhr.setRequestHeader("Authorization", "Bearer " + token);
     xhr.setRequestHeader("Content-Type", "application/octet-stream");
     xhr.upload.onprogress = (e) => {
       if (!e.lengthComputable) return;
-      progress.firstChild.firstChild.style.width = Math.round((e.loaded / e.total) * 100) + "%";
-      progress.lastChild.textContent = e.loaded < e.total ? `envoi ${Math.round((e.loaded / e.total) * 100)} %` : "vérification et publication…";
+      picker.progress.firstChild.firstChild.style.width = Math.round((e.loaded / e.total) * 100) + "%";
+      picker.progress.lastChild.textContent = e.loaded < e.total ? `envoi ${Math.round((e.loaded / e.total) * 100)} %` : "vérification et publication…";
     };
     xhr.onload = () => {
       let data = null; try { data = JSON.parse(xhr.responseText); } catch { /* vide */ }
-      if (xhr.status === 200) { toast("Version n°" + data.current.build + " publiée."); versionsPage(); }
-      else { toast((data && data.error && data.error.message) || "Erreur " + xhr.status); send.disabled = false; progress.hidden = true; }
+      if (xhr.status === 200) { onOk(data); done(true); }
+      else { toast((data && data.error && data.error.message) || "Erreur " + xhr.status); done(false); }
     };
-    xhr.onerror = () => { toast("Envoi interrompu : réessaie."); send.disabled = false; progress.hidden = true; };
-    xhr.send(file);
+    xhr.onerror = () => { toast("Envoi interrompu : réessaie."); done(false); };
+    xhr.send(picker.file);
   });
-  view(h("div", { class: "grid-2e", style: "margin-top:0" }, currentCard,
-    card("Publier une nouvelle version", drop,
-      h("div", { class: "field", style: "margin-top:14px" }, h("label", { text: "Notes de version" }), notes),
-      h("div", { class: "field" }, h("label", { text: "Mise à jour obligatoire sous la version n°" }), minimum),
-      progress, h("div", { class: "btns", style: "margin-top:10px" }, send))));
+  return picker;
+}
+
+async function versionsPage() {
+  setPage("versions", "Versions de l'app");
+  const [{ current }, web] = await Promise.all([api("GET", CONSOLE + "/app-release"), api("GET", CONSOLE + "/web-release")]);
+  const currentCard = current
+    ? card(["Android : version proposée", pill("n°" + current.build, "ok")],
+      h("div", { class: "row" }, h("span", { class: "t", text: "Publiée" }), h("b", { text: when(current.published_at) })),
+      h("div", { class: "row" }, h("span", { class: "t", text: "Taille" }), h("b", { text: bytes(current.size) })),
+      h("div", { class: "row" }, h("span", { class: "t", text: "Mise à jour obligatoire sous" }), h("b", { text: current.minimum_build ? "n°" + current.minimum_build : "non" })),
+      current.notes ? h("p", { class: "muted", style: "margin:12px 0 0", text: current.notes }) : null)
+    : card("Android : version proposée", h("div", { class: "empty", text: "Aucune version publiée sur ce serveur." }));
+  const apk = archivePicker("footprono-apk.zip");
+  const notes = h("input", { class: "input", type: "text", maxlength: "500", placeholder: "Nouveautés de cette version" });
+  const minimum = h("input", { class: "input", type: "number", min: "0", placeholder: "0 = mise à jour facultative", style: "max-width:220px" });
+  const send = h("button", { class: "btn", type: "button" }, icon("i-up"), "Publier");
+  send.addEventListener("click", async () => {
+    if (!apk.file) { toast("Choisis d'abord l'archive."); return; }
+    if (!(await confirmBox("Publier cette version ?", "Les téléphones la proposeront à l'ouverture de l'application.", "Publier"))) return;
+    send.disabled = true;
+    const params = new URLSearchParams({ notes: notes.value.trim(), minimum: String(Number(minimum.value || 0)) });
+    const ok = await apk.send(`${API}${CONSOLE}/app-release?${params}`, (data) => { toast("Version n°" + data.current.build + " publiée."); versionsPage(); });
+    if (!ok) send.disabled = false;
+  });
+
+  const webCurrent = web.current
+    ? card(["iPhone et ordinateur : version web", pill("en ligne", "ok")],
+      h("div", { class: "row" }, h("span", { class: "t", text: "Publiée" }), h("b", { text: when(web.current.published_at) })),
+      web.current.build ? h("div", { class: "row" }, h("span", { class: "t", text: "Construction" }), h("b", { text: "n°" + web.current.build })) : null,
+      h("div", { class: "row" }, h("span", { class: "t", text: "Adresse" }), h("a", { href: "/app/", target: "_blank", rel: "noopener", text: location.host + "/app" })))
+    : card("iPhone et ordinateur : version web", h("div", { class: "empty", text: "Pas encore publiée : l'adresse /app ne montre rien." }));
+  const site = archivePicker("footprono-web.zip");
+  const sendWeb = h("button", { class: "btn", type: "button" }, icon("i-up"), "Mettre en ligne");
+  sendWeb.addEventListener("click", async () => {
+    if (!site.file) { toast("Choisis d'abord l'archive."); return; }
+    if (!(await confirmBox("Mettre en ligne cette version web ?", "Les iPhone et ordinateurs la reçoivent à la prochaine ouverture.", "Mettre en ligne"))) return;
+    sendWeb.disabled = true;
+    const ok = await site.send(`${API}${CONSOLE}/web-release`, () => { toast("Version web en ligne."); versionsPage(); });
+    if (!ok) sendWeb.disabled = false;
+  });
+
+  view(h("div", {},
+    h("div", { class: "grid-2e", style: "margin-top:0" }, currentCard,
+      card("Publier une version Android", apk.drop,
+        h("div", { class: "field", style: "margin-top:14px" }, h("label", { text: "Notes de version" }), notes),
+        h("div", { class: "field" }, h("label", { text: "Mise à jour obligatoire sous la version n°" }), minimum),
+        apk.progress, h("div", { class: "btns", style: "margin-top:10px" }, send))),
+    h("div", { class: "grid-2e" }, webCurrent,
+      card("Publier la version web", site.drop, site.progress, h("div", { class: "btns", style: "margin-top:10px" }, sendWeb)))));
 }
 
 // --- Sécurité : code à 6 chiffres, sessions, historique des actions -----------------------

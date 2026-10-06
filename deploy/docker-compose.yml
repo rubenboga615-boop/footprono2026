@@ -43,6 +43,8 @@ x-backend: &backend
     FP_BACKUP_KEEP_DAYS: ${FP_BACKUP_KEEP_DAYS:-14}
     # APK proposé en mise à jour (footprono-admin publish-apk).
     FP_APP_RELEASE_DIR: /data/app
+    # Version web (iPhone, ordinateur) publiée depuis la console : servie sur /app.
+    FP_WEB_RELEASE_DIR: /data/web
     # Clé Firebase (notifications push) : deploy/secrets/firebase.json.
     FP_FCM_CREDENTIALS_FILE: ${FP_FCM_CREDENTIALS_FILE:-}
     # Paiement Mobile Money : retour et notification du prestataire sur l'adresse publique.
@@ -57,6 +59,7 @@ x-backend: &backend
     - console-files:/data/files
     - ./backups:/backups:ro
     - app-release:/data/app
+    - web-release:/data/web
     - ./secrets:/secrets:ro
   depends_on:
     postgres:
@@ -159,8 +162,6 @@ services:
       FP_DOMAIN: ${FP_DOMAIN:?FP_DOMAIN est obligatoire}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      # Version web de l'application (facultative) : deploy/web/index.html…
-      - ./web:/srv/web:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
@@ -169,6 +170,7 @@ services:
 volumes:
   raw-data:
   app-release:
+  web-release:
   history:
   console-files:
   postgres-data:

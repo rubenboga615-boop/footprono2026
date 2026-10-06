@@ -98,6 +98,18 @@ Termux, avec l'archive `footprono-apk.zip` téléchargée dans GitHub Actions :
 FP_SERVEUR=<ip du serveur> bash scripts/termux/publish-apk.sh "Nouveautés…"
 ```
 
+Version web (iPhone et ordinateur), servie sur `https://<domaine>/app` : console →
+**Versions de l'app** → « Publier la version web », avec l'archive `footprono-web.zip`
+(GitHub → Actions → Application → Artifacts). Ou, sur le serveur :
+
+```bash
+docker compose cp footprono-web.zip api:/tmp/ && \
+  docker compose exec api footprono-admin publish-web /tmp/footprono-web.zip
+```
+
+Chaque publication est extraite dans le volume `web-release` puis activée d'un coup ;
+l'avant-dernière est gardée.
+
 ## 7. Paiement Mobile Money (Paystack)
 
 Paystack (Côte d'Ivoire : **Wave, Orange Money, MTN MoMo**, cartes). Catégorie

@@ -8,6 +8,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/install_tip.dart';
 import 'match_screen.dart';
 import 'merited_screen.dart';
 import 'notifications_screen.dart';
@@ -86,6 +87,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
                       ],
                     ),
                   if (!desk) const SizedBox(height: 16),
+                  const InstallTip(margin: EdgeInsets.only(bottom: 14)),
                   TwoToneTitle('Matchs', selectedDay == today ? 'du jour' : 'à venir'),
                   const SizedBox(height: 4),
                   Text(
@@ -142,6 +144,7 @@ class _MatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = summary;
     final m = match;
+    final team = Fp.title(16);
     return GlassCard(
       margin: const EdgeInsets.only(bottom: 12),
       highlight: m.isLive,
@@ -151,40 +154,30 @@ class _MatchCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(
-                competitionName(m.competition),
-                style: Fp.body(12, color: Fp.text3, weight: FontWeight.w600),
-              ),
-              const Spacer(),
-              if (m.isLive)
-                Tag(m.when, color: Fp.win)
-              else
-                Text(
-                  '${shortDate(m.date)} · ${m.when}',
-                  style: Fp.body(12, color: Fp.text3, weight: FontWeight.w600),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              TeamCircle(m.home.code),
-              const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  m.home.name,
-                  maxLines: 2,
+                  '${competitionName(m.competition)} · ${m.isLive ? shortDate(m.date) : m.when}',
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Fp.body(14, weight: FontWeight.w700),
+                  style: Fp.body(12, color: Fp.text2, weight: FontWeight.w600),
                 ),
               ),
+              if (m.isLive) Tag('EN DIRECT ${m.when}', color: const Color(0xFF052E1C), background: Fp.win),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Text(m.home.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: team),
+              ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Text(
                   m.score ?? 'vs',
                   style: m.score != null
-                      ? Fp.title(18)
-                      : Fp.body(12, color: Fp.text4, weight: FontWeight.w600),
+                      ? Fp.title(20)
+                      : Fp.body(13, color: Fp.text2, weight: FontWeight.w600),
                 ),
               ),
               Expanded(
@@ -193,42 +186,23 @@ class _MatchCard extends StatelessWidget {
                   maxLines: 2,
                   textAlign: TextAlign.right,
                   overflow: TextOverflow.ellipsis,
-                  style: Fp.body(14, weight: FontWeight.w700),
+                  style: team,
                 ),
               ),
-              const SizedBox(width: 10),
-              TeamCircle(m.away.code),
             ],
           ),
           if (s != null) ...[
             const SizedBox(height: 12),
-            OutcomeBar(s.home.probability, s.draw.probability, s.away.probability),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '1 · ${percent(s.home.probability)}',
-                  style: Fp.body(12, color: Fp.accentLight, weight: FontWeight.w600),
-                ),
-                Text(
-                  'N · ${percent(s.draw.probability)}',
-                  style: Fp.body(12, color: Fp.textSoft, weight: FontWeight.w600),
-                ),
-                Text(
-                  '2 · ${percent(s.away.probability)}',
-                  style: Fp.body(12, color: Fp.text3, weight: FontWeight.w600),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                InfoPill('+2,5 buts · ${percent(s.over25.probability)}'),
-                if (s.btts case final b?) InfoPill('Les deux marquent · ${percent(b.probability)}'),
-              ],
+            OutcomeBar(s.home.probability, s.draw.probability, s.away.probability, height: 6),
+            const SizedBox(height: 10),
+            _OutcomeBoxes(s),
+            const SizedBox(height: 8),
+            Text(
+              [
+                '+2,5 buts ${percent(s.over25.probability)}',
+                if (s.btts case final b?) 'Les 2 marquent ${percent(b.probability)}',
+              ].join('  ·  '),
+              style: Fp.body(12, color: Fp.text2),
             ),
           ] else if (!m.isLive) ...[
             const SizedBox(height: 10),
@@ -236,6 +210,26 @@ class _MatchCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// 1 / N / 2 : l'issue la plus probable selon le moteur est mise en avant.
+class _OutcomeBoxes extends StatelessWidget {
+  const _OutcomeBoxes(this.s);
+  final Summary s;
+
+  @override
+  Widget build(BuildContext context) {
+    final values = [s.home.probability, s.draw.probability, s.away.probability];
+    final best = values.indexOf(values.reduce((a, b) => a > b ? a : b));
+    return Row(
+      children: [
+        for (final (i, label) in const ['1', 'N', '2'].indexed) ...[
+          if (i > 0) const SizedBox(width: 6),
+          Expanded(child: ProbBox(label, percent(values[i]), best: i == best)),
+        ],
+      ],
     );
   }
 }

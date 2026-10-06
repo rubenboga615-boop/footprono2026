@@ -126,20 +126,20 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                               ),
                             )
                           else
-                            SizedBox(height: 230, child: _CalibrationChart(calib)),
+                            _CalibrationChart(calib),
                           const SizedBox(height: 12),
                           Wrap(
                             spacing: 18,
                             runSpacing: 6,
                             children: [
-                              _legend(const Color(0x80FFFFFF), 'Probabilité annoncée'),
-                              _legend(Fp.accent, 'Fréquence observée'),
+                              _legend(const Color(0x66F4F2F8), 'Annoncé'),
+                              _legend(const Color(0xFF8B5CF6), 'Réalisé'),
                             ],
                           ),
                           const SizedBox(height: 12),
                           Text(
                             'Quand FootProba annonce 60 %, l\'événement doit se produire environ 6 fois sur 10. '
-                            'Les deux barres doivent rester à la même hauteur.',
+                            'Les deux barres de chaque tranche doivent rester de la même longueur.',
                             style: Fp.body(13, color: Fp.text2, height: 1.45),
                           ),
                           if (showBacktest) ...[
@@ -271,68 +271,67 @@ class _Warning extends StatelessWidget {
   }
 }
 
-/// Barres appariées par tranche : annoncé (gris) et observé (violet).
+/// Une ligne par tranche (maquette v2) : annoncé (gris) au-dessus de réalisé (violet).
 class _CalibrationChart extends StatelessWidget {
   const _CalibrationChart(this.bins);
   final List<Json> bins;
 
   static String _label(Object? range) {
-    final upper = double.tryParse('$range'.split('-').last.replaceAll(',', '.')) ?? 0;
-    return '${(upper * 100).round()}';
+    final parts = '$range'.split('-').map((p) => double.tryParse(p.replaceAll(',', '.')) ?? 0).toList();
+    if (parts.length < 2) return '$range';
+    return '${(parts.first * 100).round()} à ${(parts.last * 100).round()}$nbsp%';
   }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        const labelH = 22.0;
-        final h = c.maxHeight - labelH;
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            for (final b in bins)
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        _bar(h * (b['announced'] as num).toDouble(), false),
-                        const SizedBox(width: 4),
-                        _bar(h * (b['observed'] as num).toDouble(), true),
-                      ],
-                    ),
-                    SizedBox(
-                      height: labelH,
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Text(_label(b['range']), style: Fp.body(12, color: Fp.text2)),
-                      ),
-                    ),
-                  ],
+    return Column(
+      children: [
+        for (final b in bins)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 74,
+                  child: Text(_label(b['range']), style: Fp.body(12, color: Fp.text2)),
                 ),
-              ),
-          ],
-        );
-      },
+                Expanded(
+                  child: Column(
+                    children: [
+                      _bar((b['announced'] as num).toDouble(), const Color(0x66F4F2F8)),
+                      const SizedBox(height: 3),
+                      _bar((b['observed'] as num).toDouble(), const Color(0xFF8B5CF6)),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 48,
+                  child: Text(
+                    percent((b['observed'] as num).toDouble()),
+                    textAlign: TextAlign.right,
+                    style: Fp.body(13, weight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
-  Widget _bar(double height, bool observed) => Container(
-    width: 10,
-    height: height < 4 ? 4 : height,
-    decoration: BoxDecoration(
-      color: observed ? null : const Color(0x80FFFFFF),
-      gradient: observed
-          ? const LinearGradient(
-              begin: Alignment.bottomCenter,
-              end: Alignment.topCenter,
-              colors: [Fp.accent, Fp.accentLight],
-            )
-          : null,
-      borderRadius: BorderRadius.circular(6),
+  Widget _bar(double value, Color color) => ClipRRect(
+    borderRadius: BorderRadius.circular(99),
+    child: SizedBox(
+      height: 9,
+      child: Stack(
+        children: [
+          const Positioned.fill(child: ColoredBox(color: Fp.fill6)),
+          FractionallySizedBox(
+            widthFactor: value.clamp(0.0, 1.0),
+            child: ColoredBox(color: color),
+          ),
+        ],
+      ),
     ),
   );
 }

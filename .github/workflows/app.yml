@@ -32,8 +32,11 @@ jobs:
         run: dart format --output=none --set-exit-if-changed -l 110 lib test
       - run: flutter analyze
       - run: flutter test
-      - name: Version web (servie par l'API sur /app)
-        run: flutter build web --release --base-href /app/ --no-web-resources-cdn
+      - name: Version web (servie par l'API sur /app, publiée depuis la console)
+        run: |
+          flutter build web --release --base-href /app/ --no-web-resources-cdn \
+            --dart-define=FP_BUILD=${{ github.run_number }}
+          echo '{"build": ${{ github.run_number }}, "commit": "${{ github.sha }}"}' > build/web/release.json
       - name: Clé de signature de production (secrets du dépôt)
         # Secrets : FP_KEYSTORE_BASE64, FP_KEYSTORE_PASSWORD, FP_KEY_ALIAS,
         # FP_KEY_PASSWORD (docs/APPLICATION.md). Sans eux : clé de développement.

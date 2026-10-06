@@ -111,6 +111,9 @@ class Settings(BaseSettings):
     backup_keep_days: int = Field(default=14, ge=1)
     # APK publié par « footprono-admin publish-apk » (mise à jour de l'application).
     app_release_dir: Path = Path("data/app")
+    # Version web publiée depuis la console (« footprono-admin publish-web ») : servie sur
+    # /app sauf si FP_WEB_APP_DIR désigne un dossier fixe.
+    web_release_dir: Path = Path("data/web")
 
     log_level: str = "INFO"
     log_json: bool = True

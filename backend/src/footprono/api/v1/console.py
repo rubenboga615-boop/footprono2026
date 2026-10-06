@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from footprono import app_release
+from footprono import app_release, web_release
 from footprono.accounts import audit
 from footprono.accounts.models import User
 from footprono.api.deps import AdminUserDep, RedisDep, SessionDep, SettingsDep
@@ -178,6 +178,36 @@ async def publish_app_release(
     finally:
         part.unlink(missing_ok=True)
     audit.record(session, admin, "app_release", f"version publiée : n°{info.get('build')}")
+    await session.commit()
+    return {"current": info}
+
+
+@router.get("/web-release")
+async def web_release_info(_admin: AdminUserDep, settings: SettingsDep) -> dict[str, Any]:
+    return {"current": web_release.current(settings.web_release_dir)}
+
+
+@router.post("/web-release")
+async def publish_web_release(
+    request: Request, admin: AdminUserDep, settings: SettingsDep, session: SessionDep
+) -> dict[str, Any]:
+    """Publie l'archive footprono-web.zip envoyée telle quelle (corps de la requête)."""
+    folder = files.files_dir(settings)
+    part = folder / f"web-{secrets.token_hex(6)}.part"
+    size = 0
+    try:
+        with part.open("wb") as out:
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > MAX_APK_ARCHIVE:
+                    raise AppError("archive trop volumineuse (400 Mo au plus)")
+                out.write(chunk)
+        if size == 0:
+            raise AppError("archive vide")
+        info = await asyncio.to_thread(web_release.publish, part, settings.web_release_dir)
+    finally:
+        part.unlink(missing_ok=True)
+    audit.record(session, admin, "web_release", "version web publiée")
     await session.commit()
     return {"current": info}
 

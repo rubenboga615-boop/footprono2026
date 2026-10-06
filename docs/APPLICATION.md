@@ -33,7 +33,22 @@ nouvelle version s'installe par-dessus l'ancienne. Avant toute publication
 (phase 6), elle sera remplacée par une clé gardée en secret
 (`FP_KEYSTORE_FILE`, `FP_KEYSTORE_PASSWORD`, `FP_KEY_ALIAS`, `FP_KEY_PASSWORD`).
 
-### Version web sur le téléphone
+### iPhone (version web installée sur l'écran d'accueil)
+
+Pas d'App Store pour l'instant : l'iPhone utilise la version web, servie par le serveur sur
+`https://<domaine>/app` (console → **Versions de l'app** → « Publier la version web », avec
+l'archive `footprono-web.zip` de GitHub Actions ; ou `footprono-admin publish-web`).
+
+- Dans Safari, une carte explique l'installation : Partager → « Sur l'écran d'accueil ».
+  FootProba s'ouvre ensuite en plein écran, avec son icône (`lib/widgets/install_tip.dart`,
+  détection dans `lib/platform/device_web.dart`). Ni Android ni ordinateur ne la voient.
+- Même compte, mêmes paris, même Premium que sur Android ; paiement Paystack dans un onglet.
+- Pas encore : connexion Google sur la version web (application Web à déclarer dans
+  Firebase), notifications sur iPhone.
+- Chaque fichier est revalidé auprès du serveur (`Cache-Control: no-cache`) : une version
+  publiée arrive à la prochaine ouverture.
+
+### Version web sur le téléphone (Termux, développement)
 
 ```bash
 termux-setup-storage     # une fois : accès aux Téléchargements

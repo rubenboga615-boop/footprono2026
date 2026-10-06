@@ -118,58 +118,55 @@ class _MatchViewState extends State<_MatchView> {
           Row(
             children: [
               SquareButton(
-                icon: Icons.arrow_back_rounded,
+                icon: Icons.chevron_left_rounded,
                 tooltip: 'Retour',
                 onTap: () => Navigator.of(context).maybePop(),
               ),
+              const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  children: [
-                    Text(
-                      competitionName(m.competition),
-                      style: Fp.body(13, color: Fp.text2, weight: FontWeight.w600),
-                    ),
-                    Text(
-                      longDate(m.date),
-                      style: Fp.body(13, color: Fp.text2, weight: FontWeight.w600),
-                    ),
-                  ],
+                child: Text(
+                  '${competitionName(m.competition)} · ${longDate(m.date)}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Fp.body(13, color: Fp.text2, weight: FontWeight.w600),
                 ),
               ),
-              const SizedBox(width: 44),
             ],
           ),
-          if (m.referee != null)
-            Center(
-              child: TextButton.icon(
-                onPressed: () =>
-                    Navigator.of(context)
-                        .push(MaterialPageRoute(builder: (_) => RefereeScreen(name: m.referee!))),
-                icon: const Icon(Icons.sports_rounded, size: 16),
-                label: Text('Arbitre : ${m.referee}'),
-              ),
+          const SizedBox(height: 14),
+          GlassCard(
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 14),
+            child: Row(
+              children: [
+                Expanded(child: _bigTeam(m.home, Fp.accentLight)),
+                Column(
+                  children: [
+                    Text(m.score ?? m.when, style: Fp.title(m.score != null ? 26 : 22)),
+                    if (m.score != null)
+                      Text(
+                        m.when,
+                        style: Fp.body(12, color: m.isLive ? Fp.win : Fp.text2, weight: FontWeight.w600),
+                      ),
+                    if (m.referee != null)
+                      InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () =>
+                            Navigator.of(context)
+                                .push(MaterialPageRoute(builder: (_) => RefereeScreen(name: m.referee!))),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                          child: Text(
+                            'Arbitre : ${m.referee}',
+                            textAlign: TextAlign.center,
+                            style: Fp.body(12, color: Fp.text2),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                Expanded(child: _bigTeam(m.away, Fp.lossText)),
+              ],
             ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(child: _bigTeam(m.home)),
-              Column(
-                children: [
-                  Text(
-                    m.score ?? 'VS',
-                    style: m.score != null
-                        ? Fp.title(26)
-                        : Fp.body(15, color: Fp.text4, weight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    m.when,
-                    style: Fp.body(12, color: m.isLive ? Fp.win : Fp.text2, weight: FontWeight.w600),
-                  ),
-                ],
-              ),
-              Expanded(child: _bigTeam(m.away)),
-            ],
           ),
           const SizedBox(height: 18),
           SegmentTabs(
@@ -185,7 +182,7 @@ class _MatchViewState extends State<_MatchView> {
   }
 
   /// Toucher une équipe ouvre sa fiche.
-  Widget _bigTeam(Team t) => InkWell(
+  Widget _bigTeam(Team t, Color tint) => InkWell(
     borderRadius: BorderRadius.circular(12),
     onTap: () => Navigator.of(context).push(
       MaterialPageRoute(
@@ -194,15 +191,25 @@ class _MatchViewState extends State<_MatchView> {
     ),
     child: Column(
       children: [
-        TeamCircle(t.code, size: 60),
+        Container(
+          width: 48,
+          height: 48,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: tint.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: tint.withValues(alpha: 0.55)),
+          ),
+          child: Text(t.code, style: Fp.title(14, color: tint)),
+        ),
         const SizedBox(height: 8),
         Text(
           t.name,
           textAlign: TextAlign.center,
           maxLines: 2,
-          style: Fp.body(15, weight: FontWeight.w700),
+          style: Fp.body(14, weight: FontWeight.w700),
         ),
-        Text('Fiche équipe', style: Fp.body(11, color: Fp.accentLight)),
+        Text('Fiche équipe', style: Fp.body(11, color: Fp.text3)),
       ],
     ),
   );
@@ -1005,7 +1012,7 @@ class _EnginePicks extends StatelessWidget {
   final Map<String, Offer> offers;
   final MatchInfo match;
 
-  static const _colors = {'sur': Fp.win, 'equilibre': Fp.warning, 'audacieux': Fp.loss};
+  static const _colors = {'sur': Fp.win, 'equilibre': Fp.accentLight, 'audacieux': Fp.loss};
 
   @override
   Widget build(BuildContext context) {
@@ -1016,45 +1023,44 @@ class _EnginePicks extends StatelessWidget {
       final sel = p['selection'] as Json?;
       final locked = p['locked'] == true;
       final offer = sel == null ? null : offers['${sel['market']}|${sel['line'] ?? ''}|${sel['selection']}'];
+      final text = locked
+          ? 'Avec Premium'
+          : sel == null
+          ? 'Aucune sélection dans cette tranche'
+          : fullLabel(
+              sel['market'] as String,
+              (sel['line'] ?? '') as String,
+              sel['selection'] as String,
+              home: match.home.name,
+              away: match.away.name,
+            );
       rows.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            border: rows.isEmpty ? null : const Border(top: BorderSide(color: Fp.divider)),
+          ),
           child: Row(
             children: [
-              Container(
-                width: 9,
-                height: 9,
-                margin: const EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(color: _colors[key], shape: BoxShape.circle),
-              ),
+              Tag(p['label'] as String, color: _colors[key]!),
+              const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      (p['label'] as String).toUpperCase(),
-                      style: Fp.body(11, color: Fp.text2, weight: FontWeight.w700),
-                    ),
-                    Text(
-                      locked
-                          ? 'Avec Premium'
-                          : sel == null
-                          ? 'Aucune sélection dans cette tranche'
-                          : '${fullLabel(sel['market'] as String, (sel['line'] ?? '') as String, sel['selection'] as String, home: match.home.name, away: match.away.name)}'
-                                ' · ${percent((sel['model_probability'] as num).toDouble())}',
-                      style: Fp.body(
-                        13.5,
-                        weight: FontWeight.w600,
-                        color: locked || sel == null ? Fp.text3 : Fp.text,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  text,
+                  style: Fp.body(
+                    14,
+                    weight: FontWeight.w700,
+                    color: locked || sel == null ? Fp.text3 : Fp.text,
+                  ),
                 ),
               ),
               if (locked)
                 const Icon(Icons.lock_rounded, size: 18, color: Fp.accentLight)
-              else if (offer != null)
-                OddsButton(match: match, offer: offer),
+              else if (sel != null) ...[
+                const SizedBox(width: 8),
+                Text(percent((sel['model_probability'] as num).toDouble()), style: Fp.title(16)),
+                if (offer != null) ...[const SizedBox(width: 8), OddsButton(match: match, offer: offer)],
+              ],
             ],
           ),
         ),
@@ -1066,8 +1072,8 @@ class _EnginePicks extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Les choix du moteur', style: Fp.title(15, weight: FontWeight.w600)),
-          const SizedBox(height: 4),
+          const TwoToneTitle('Les choix', 'du moteur', size: 17),
+          const SizedBox(height: 6),
           ...rows,
           const SizedBox(height: 4),
           Text(

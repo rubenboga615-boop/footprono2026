@@ -68,76 +68,84 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
               child: ListView(
                 padding: pagePadding(context, 26, 120),
                 children: [
-                  Row(
-                    children: [
-                      const Expanded(child: TwoToneTitle('Bookmaker', 'virtuel')),
-                      SquareButton(
-                        icon: Icons.insights_rounded,
-                        tooltip: 'Mon bilan',
-                        onTap: () =>
-                            Navigator.of(context)
-                                .push(MaterialPageRoute(builder: (_) => const RecordScreen())),
-                      ),
-                    ],
-                  ),
+                  const TwoToneTitle('Bookmaker', 'virtuel'),
                   const SizedBox(height: 4),
                   Text(
                     'Parie sans argent réel pour tester tes stratégies.',
                     style: Fp.body(14, color: Fp.text2),
                   ),
-                  const SizedBox(height: 18),
-                  GlassCard.main(
+                  const SizedBox(height: 16),
+                  GlassCard(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Solde virtuel',
-                                    style: Fp.body(13, color: Fp.text2, weight: FontWeight.w600),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      me != null ? money(me.balance, currency) : '—',
-                                      style: Fp.title(32),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                        Text('Solde (argent fictif)', style: Fp.body(13, color: Fp.text2)),
+                        const SizedBox(height: 2),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(text: me != null ? thousands(me.balance) : '—', style: Fp.title(34)),
+                                TextSpan(
+                                  text: '  ${currencyLabel(currency)}',
+                                  style: Fp.title(18, color: Fp.accentLight),
+                                ),
+                              ],
                             ),
-                            const Tag('Argent fictif'),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 8),
+                        Text.rich(
+                          TextSpan(
+                            style: Fp.body(13, color: Fp.text2),
+                            children: [
+                              const TextSpan(text: 'En jeu '),
+                              TextSpan(
+                                text: '${thousands(atStake)} F',
+                                style: Fp.body(13, weight: FontWeight.w700),
+                              ),
+                              TextSpan(text: '   ·   ${bets.length} pari${bets.length > 1 ? 's' : ''}'),
+                              if (roi != null) ...[
+                                const TextSpan(text: '   ·   rendement '),
+                                TextSpan(
+                                  text: '${roi >= 0 ? '+' : ''}${percent(roi, decimals: 1)}',
+                                  style: Fp.body(
+                                    13,
+                                    weight: FontWeight.w700,
+                                    color: roi >= 0 ? Fp.win : Fp.lossText,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
                         Row(
                           children: [
-                            Expanded(child: StatTile('En jeu', '${thousands(atStake)} F')),
-                            const SizedBox(width: 8),
-                            Expanded(child: StatTile('Paris', '${bets.length}')),
-                            const SizedBox(width: 8),
                             Expanded(
-                              child: StatTile(
-                                'Rendement',
-                                roi == null ? '—' : '${roi >= 0 ? '+' : ''}${percent(roi, decimals: 1)}',
-                                valueColor: roi == null ? null : (roi >= 0 ? Fp.win : Fp.lossText),
+                              child: OutlinedButton(
+                                onPressed: () =>
+                                    Navigator.of(context)
+                                        .push(MaterialPageRoute(builder: (_) => const RecordScreen())),
+                                child: const Text('Mon bilan'),
                               ),
                             ),
+                            if (me != null && me.balance < 1000) ...[
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: FilledButton(onPressed: _refill, child: const Text('Recharger')),
+                              ),
+                            ],
                           ],
                         ),
                         if (me != null && me.balance < 1000) ...[
-                          const SizedBox(height: 14),
-                          OutlinedButton.icon(
-                            onPressed: _refill,
-                            icon: const Icon(Icons.refresh_rounded),
-                            label: const Text('Recharger (une fois par semaine)'),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Recharge possible une fois par semaine.',
+                            style: Fp.body(11.5, color: Fp.text3),
                           ),
                         ],
                       ],

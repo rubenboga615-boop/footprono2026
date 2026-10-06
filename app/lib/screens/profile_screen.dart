@@ -185,6 +185,37 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _googleLinked(BuildContext context, AppState state) async {
+    final me = state.me!;
+    final canUnlink = me.hasPassword && me.phone != null;
+    final unlink = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Compte Google lié'),
+        content: Text(
+          '${me.email ?? ''}\n\nTu te connectes d\'un seul appui avec ce compte Google.'
+          '${canUnlink ? '' : '\n\nPour le délier, ajoute d\'abord un numéro et un mot de passe.'}',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Fermer')),
+          if (canUnlink)
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(foregroundColor: Fp.lossText),
+              child: const Text('Délier'),
+            ),
+        ],
+      ),
+    );
+    if (unlink != true) return;
+    try {
+      await state.unlinkGoogle();
+      showMessage('Compte Google délié.');
+    } on ApiException catch (e) {
+      showMessage(e.message, error: true);
+    }
+  }
+
   void _responsible(BuildContext context) => showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
@@ -226,17 +257,17 @@ class ProfileScreen extends StatelessWidget {
                     Row(
                       children: [
                         Container(
-                          width: 64,
-                          height: 64,
+                          width: 60,
+                          height: 60,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: Fp.accentSoft,
+                            color: Fp.accentAlpha(0.2),
                             borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: Fp.accentLine),
+                            border: Border.all(color: const Color(0x8CA78BFA)),
                           ),
                           child: Text(
                             me.displayName.isEmpty ? '?' : me.displayName[0].toUpperCase(),
-                            style: Fp.title(26),
+                            style: Fp.title(24, color: const Color(0xFFE4D8FD)),
                           ),
                         ),
                         const SizedBox(width: 14),
@@ -244,9 +275,17 @@ class ProfileScreen extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(me.displayName, style: Fp.title(24)),
+                              Text(me.displayName, style: Fp.title(22)),
                               const SizedBox(height: 2),
-                              Text(me.phone ?? me.email ?? '', style: Fp.body(14, color: Fp.text2)),
+                              Text(
+                                [
+                                  me.email ?? me.phone ?? '',
+                                  countries[me.country] ?? me.country,
+                                ].where((t) => t.isNotEmpty).join(' · '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Fp.body(13, color: Fp.text2),
+                              ),
                             ],
                           ),
                         ),
@@ -254,7 +293,7 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 18),
                     const _PlanCard(),
-                    if (me.googleLinked || state.google != null) ...[
+                    if (!me.googleLinked && state.google != null) ...[
                       const SizedBox(height: 14),
                       const _GoogleCard(),
                     ],
@@ -268,18 +307,17 @@ class ProfileScreen extends StatelessWidget {
                         _Item(
                           icon: Icons.notifications_none_rounded,
                           title: 'Notifications',
-                          subtitle: 'Paris réglés, montante, scores corrigés',
                           badge: state.unread,
                           onTap: () => open(const NotificationsScreen()),
                         ),
                         const Divider(),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          secondary: const Icon(Icons.today_rounded, color: Fp.accentLight, size: 22),
-                          title: Text('Coupons du jour', style: Fp.body(16, weight: FontWeight.w700)),
-                          subtitle: Text(
-                            'Prévenir quand les codes du jour sont prêts',
-                            style: Fp.body(13, color: Fp.text2),
+                          dense: true,
+                          secondary: const Icon(Icons.today_rounded, color: Fp.accentLight, size: 20),
+                          title: Text(
+                            'Coupons du jour, chaque matin',
+                            style: Fp.body(14, weight: FontWeight.w600),
                           ),
                           value: me?.dailyCouponsNotifications ?? true,
                           onChanged: me == null
@@ -287,10 +325,18 @@ class ProfileScreen extends StatelessWidget {
                               : (on) => guard(context, () => state.setDailyCouponsNotifications(on)),
                         ),
                         const Divider(),
+                        if (me?.googleLinked ?? false) ...[
+                          _Item(
+                            icon: Icons.verified_user_outlined,
+                            title: 'Google lié',
+                            trailing: me!.email,
+                            onTap: () => _googleLinked(context, state),
+                          ),
+                          const Divider(),
+                        ],
                         _Item(
-                          icon: Icons.auto_awesome_outlined,
-                          title: 'Fiabilité du modèle',
-                          subtitle: 'Historique public des pronostics',
+                          icon: Icons.verified_outlined,
+                          title: 'Fiabilité du moteur',
                           onTap: () => open(const ReliabilityScreen()),
                         ),
                         const Divider(),
@@ -298,7 +344,6 @@ class ProfileScreen extends StatelessWidget {
                           _Item(
                             icon: Icons.key_outlined,
                             title: 'Mot de passe',
-                            subtitle: 'Changer mon mot de passe',
                             onTap: () => _changePassword(context, state),
                           ),
                           const Divider(),
@@ -306,21 +351,18 @@ class ProfileScreen extends StatelessWidget {
                         _Item(
                           icon: Icons.phonelink_erase_rounded,
                           title: 'Déconnecter mes autres téléphones',
-                          subtitle: 'Téléphone perdu ou prêté',
                           onTap: () => _logoutOthers(context, state),
                         ),
                         const Divider(),
                         _Item(
                           icon: Icons.support_agent_rounded,
-                          title: 'Aide',
-                          subtitle: 'Nous écrire sur WhatsApp',
+                          title: 'Aide · WhatsApp',
                           onTap: () => state.openSupport('Bonjour FootProba, '),
                         ),
                         const Divider(),
                         _Item(
                           icon: Icons.lock_outline_rounded,
                           title: 'Jeu responsable',
-                          subtitle: 'Argent fictif, limites et pauses',
                           onTap: () => _responsible(context),
                         ),
                         const Divider(),
@@ -328,17 +370,16 @@ class ProfileScreen extends StatelessWidget {
                           _Item(
                             icon: Icons.dns_outlined,
                             title: 'Serveur (développement)',
-                            subtitle: state.api.baseUrl,
+                            trailing: state.api.baseUrl,
                             onTap: () => showServerDialog(context),
                           ),
                           const Divider(),
                         ],
-                        const _Item(icon: Icons.language_rounded, title: 'Langue', subtitle: 'Français'),
+                        const _Item(icon: Icons.language_rounded, title: 'Langue', trailing: 'Français'),
                         const Divider(),
                         _Item(
                           icon: Icons.privacy_tip_outlined,
                           title: 'Confidentialité',
-                          subtitle: 'Données collectées, durée, tes droits',
                           onTap: () =>
                               state.openUrl(Uri.parse(state.api.baseUrl).resolve('/confidentialite')),
                         ),
@@ -346,32 +387,27 @@ class ProfileScreen extends StatelessWidget {
                         _Item(
                           icon: Icons.gavel_outlined,
                           title: 'Conditions d\'utilisation',
-                          subtitle: 'Argent fictif, Premium, remboursement',
                           onTap: () => state.openUrl(Uri.parse(state.api.baseUrl).resolve('/conditions')),
                         ),
                         const Divider(),
                         _Item(
                           icon: Icons.delete_forever_outlined,
                           title: 'Supprimer mon compte',
-                          subtitle: 'Efface tes données, définitivement',
                           onTap: () => _deleteAccount(context, state),
                         ),
-                        const Divider(),
-                        InkWell(
-                          onTap: () => _logout(context, state),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            child: Row(
-                              children: [
-                                Text(
-                                  'Se déconnecter',
-                                  style: Fp.body(16, color: Fp.loss, weight: FontWeight.w700),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: () => _logout(context, state),
+                      icon: const Icon(Icons.logout_rounded, size: 18),
+                      label: const Text('Se déconnecter'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Fp.lossText,
+                        textStyle: Fp.body(14, weight: FontWeight.w700),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -421,67 +457,73 @@ class _PlanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final me = context.watch<AppState>().me!;
     final plan = me.plan;
-    final price = 'Mobile Money · ${money(plan.price, plan.priceCurrency)} / mois';
-    final lines = plan.premium
-        ? const [
-            'Tous les marchés : buts, mi-temps, handicaps, corners, cartons, tirs',
-            'Analyses détaillées de chaque match',
-            'Suggestions de pari pour la montante',
-            'Coupons, montantes et bookmaker virtuel',
-          ]
-        : const [
-            'Inclus : 1X2, plus/moins de buts, les deux marquent',
-            'Coupons, montantes et bookmaker virtuel',
-            'Premium : tous les marchés, analyses, suggestions de montante',
-          ];
-    return GlassCard.main(
+    final price = money(plan.price, plan.priceCurrency);
+    const lines = [
+      'Tous les marchés : buts, mi-temps, handicaps, corners, cartons, tirs',
+      'Analyses détaillées et choix du moteur de chaque match',
+      'Suggestions de pari pour la montante',
+    ];
+    return GradientCard(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Icon(
-                plan.premium ? Icons.workspace_premium_outlined : Icons.person_outline_rounded,
-                color: Fp.accentLight,
-              ),
-              const SizedBox(width: 10),
               Expanded(
-                child: Text(plan.premium ? 'FootProba Premium' : 'Version gratuite', style: Fp.title(20)),
+                child: plan.premium
+                    ? const TwoToneTitle('FootProba', 'Premium', size: 18)
+                    : const TwoToneTitle('Version', 'gratuite', size: 18),
               ),
-              plan.premium ? const Tag.win('Actif') : const Tag('Gratuit', color: Fp.textSoft),
+              if (plan.premium)
+                const Tag('ACTIF', color: Color(0xFF6EE7B7), background: Color(0x2E34D399))
+              else
+                const Tag('GRATUIT', color: Fp.textSoft),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 6),
           if (plan.premium && plan.premiumUntil != null)
-            KeyValue('Jusqu\'au', '${numericDate(plan.premiumUntil!.toLocal())} (${plan.daysLeft} j)'),
-          KeyValue('Paiement', price),
-          KeyValue(
-            'Pays et devise',
-            '${countries[me.country] ?? me.country} · ${currencyLabel(me.currency)}',
-          ),
-          const SizedBox(height: 8),
-          for (final line in lines)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 5),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.check_rounded, size: 18, color: Fp.accentLight),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(line, style: Fp.body(15, color: Fp.textStrong, height: 1.35)),
-                  ),
-                ],
+            Text(
+              'Jusqu\'au ${numericDate(plan.premiumUntil!.toLocal())} · encore ${plan.daysLeft} jour'
+              '${plan.daysLeft > 1 ? 's' : ''}',
+              style: Fp.body(13, color: Fp.text2),
+            )
+          else ...[
+            for (final line in lines)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.check_rounded, size: 16, color: Fp.accentLight),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(line, style: Fp.body(13, color: Fp.textStrong, height: 1.35)),
+                    ),
+                  ],
+                ),
               ),
+          ],
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton(
+              onPressed: () => _buy(context, plan),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF2E1065),
+                minimumSize: const Size(0, 42),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                textStyle: Fp.body(13, weight: FontWeight.w800),
+              ),
+              child: Text(plan.premium ? 'Prolonger · $price / mois' : 'Passer Premium · $price / mois'),
             ),
-          const SizedBox(height: 14),
-          FilledButton(
-            onPressed: () => _buy(context, plan),
-            child: Text(
-              plan.premium
-                  ? 'Prolonger de 30 jours · ${money(plan.price, plan.priceCurrency)}'
-                  : 'Passer Premium · ${money(plan.price, plan.priceCurrency)}',
-            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Mobile Money (Wave, Orange Money, MTN MoMo) ou carte.',
+            style: Fp.body(11.5, color: Fp.text3),
           ),
         ],
       ),
@@ -490,10 +532,12 @@ class _PlanCard extends StatelessWidget {
 }
 
 class _Item extends StatelessWidget {
-  const _Item({required this.icon, required this.title, this.subtitle, this.onTap, this.badge = 0});
+  const _Item({required this.icon, required this.title, this.trailing, this.onTap, this.badge = 0});
   final IconData icon;
   final String title;
-  final String? subtitle;
+
+  /// Valeur affichée à droite (langue, adresse Google).
+  final String? trailing;
   final VoidCallback? onTap;
   final int badge;
 
@@ -501,32 +545,34 @@ class _Item extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
         child: Row(
           children: [
-            Icon(icon, color: Fp.accentLight, size: 22),
-            const SizedBox(width: 16),
+            Icon(icon, color: const Color(0xFFC9B2F8), size: 20),
+            const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: Fp.body(16, weight: FontWeight.w700)),
-                  if (subtitle != null)
-                    Text(
-                      subtitle!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Fp.body(13, color: Fp.text2),
-                    ),
-                ],
-              ),
+              child: Text(title, style: Fp.body(14, weight: FontWeight.w600)),
             ),
+            if (trailing != null)
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 190),
+                child: Text(
+                  trailing!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: Fp.body(12, color: Fp.text2),
+                ),
+              ),
             if (badge > 0) ...[
+              const SizedBox(width: 8),
               Badge(label: Text('$badge'), backgroundColor: Fp.loss),
-              const SizedBox(width: 10),
             ],
-            if (onTap != null) const Icon(Icons.arrow_forward_rounded, size: 20, color: Fp.textSoft),
+            if (onTap != null && trailing == null) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right_rounded, size: 18, color: Fp.text4),
+            ],
           ],
         ),
       ),

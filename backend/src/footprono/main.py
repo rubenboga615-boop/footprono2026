@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
-from footprono import __version__
+from footprono import __version__, web_release
 from footprono.accounts.plans import PREMIUM_DAYS, PREMIUM_PRICE
 from footprono.accounts.service import TRIAL_DAYS
 from footprono.api.v1.router import api_router
@@ -23,6 +23,20 @@ from footprono.core.errors import register_error_handlers
 from footprono.core.logging import configure_logging
 from footprono.core.middleware import RequestContextMiddleware, RouteResolver
 from footprono.db.session import create_engine, create_session_factory
+
+
+class _WebApp(StaticFiles):
+    """Version web : dossier absent tant que rien n'est publié (404), et chaque fichier
+    revalidé auprès du serveur (ETag) pour qu'une nouvelle version arrive aussitôt."""
+
+    async def check_config(self) -> None:
+        return None
+
+    def file_response(self, *args: Any, **kwargs: Any) -> Response:
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
 
 # Date de la version en vigueur des pages légales (confidentialité, conditions) : à
 # changer à chaque modification importante du texte.
@@ -84,14 +98,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(api_router, prefix=settings.api_prefix)
 
+    # Version web (iPhone, ordinateur) : dossier fixe (FP_WEB_APP_DIR, développement et
+    # tests de bout en bout) ou version publiée depuis la console (web_release).
     if settings.web_app_dir is not None:
         if not (settings.web_app_dir / "index.html").is_file():
             raise RuntimeError(f"FP_WEB_APP_DIR : index.html absent de {settings.web_app_dir}")
-        app.mount("/app", StaticFiles(directory=settings.web_app_dir, html=True), name="app")
+        web_dir = settings.web_app_dir
+    else:
+        web_dir = web_release.served_dir(settings.web_release_dir)
+    app.mount("/app", _WebApp(directory=web_dir, html=True, check_dir=False), name="app")
 
-        @app.get("/", include_in_schema=False)
-        async def home() -> RedirectResponse:
-            return RedirectResponse("/app/")
+    @app.get("/", include_in_schema=False)
+    async def home() -> Response:
+        if not (web_dir / "index.html").is_file():
+            return Response(status_code=404)
+        return RedirectResponse("/app/")
 
     # Pages légales publiques (exigées par Google Play et l'App Store) : chiffres et
     # identité tirés du code et de la configuration, jamais recopiés à la main.

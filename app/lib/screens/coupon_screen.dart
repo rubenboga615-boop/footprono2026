@@ -202,7 +202,12 @@ class _CouponScreenState extends State<CouponScreen> {
           child: ListView(
             padding: pagePadding(context, 26, 120, maxWidth: 1080),
             children: [
-              const TwoToneTitle('Mon', 'coupon'),
+              Row(
+                children: [
+                  const Expanded(child: TwoToneTitle('Mon', 'coupon')),
+                  if (me != null) InfoPill('Solde fictif · ${money(me.balance, currency)}'),
+                ],
+              ),
               const SizedBox(height: 4),
               Text('Compose ton pari : une ou plusieurs sélections.', style: Fp.body(14, color: Fp.text2)),
               const SizedBox(height: 16),

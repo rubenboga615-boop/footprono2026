@@ -344,6 +344,35 @@ class _BorderPainter extends CustomPainter {
   bool shouldRepaint(_BorderPainter old) => old.cut != cut || old.highlight != highlight;
 }
 
+/// Carte pleine en dégradé violet (carte Premium de la maquette v2) : coins coupés et
+/// bordure lumineuse comme les cartes en verre.
+class GradientCard extends StatelessWidget {
+  const GradientCard({super.key, required this.child, this.cut = 18, this.padding = EdgeInsets.zero});
+  final Widget child;
+  final double cut;
+  final EdgeInsets padding;
+
+  static const gradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xE63C1E78), Color(0xEB140E28)],
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      foregroundPainter: _BorderPainter(cut, true),
+      child: ClipPath(
+        clipper: _CutClipper(cut),
+        child: DecoratedBox(
+          decoration: const BoxDecoration(gradient: gradient),
+          child: Padding(padding: padding, child: child),
+        ),
+      ),
+    );
+  }
+}
+
 /// Carte en verre : fond translucide, flou d'arrière-plan, bordure en dégradé.
 /// La version principale ([GlassCard.main]) a des coins de 30 px et deux
 /// triangles décoratifs décalés hors de la carte.
@@ -868,15 +897,48 @@ class OutcomeBar extends StatelessWidget {
             const SizedBox(width: 3),
             Expanded(
               flex: flex(draw),
-              child: const ColoredBox(color: Color(0x61FFFFFF)),
+              child: const ColoredBox(color: Color(0x59F4F2F8)),
             ),
             const SizedBox(width: 3),
             Expanded(
               flex: flex(away),
-              child: const ColoredBox(color: Color(0x29FFFFFF)),
+              child: const ColoredBox(color: Fp.loss),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Case de probabilité (maquette v2) : issue en petit, pourcentage en gras ; la plus
+/// probable est mise en avant.
+class ProbBox extends StatelessWidget {
+  const ProbBox(this.label, this.value, {super.key, this.best = false});
+  final String label;
+  final String value;
+  final bool best;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      decoration: BoxDecoration(
+        color: best ? Fp.accentAlpha(0.2) : Fp.fill,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: best ? const Color(0x8CA78BFA) : Fp.line10),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Fp.body(11, color: Fp.text2),
+          ),
+          const SizedBox(height: 2),
+          Text(value, style: Fp.body(15, weight: FontWeight.w800)),
+        ],
       ),
     );
   }
