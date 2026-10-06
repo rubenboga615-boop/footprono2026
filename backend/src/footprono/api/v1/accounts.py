@@ -1,14 +1,16 @@
 """Comptes : inscription, connexion, profil, portefeuille fictif."""
 
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Request, status
 from pydantic import BaseModel
+from redis.asyncio import Redis
 from sqlalchemy import select
 
 from footprono.accounts import deletion, google, service
-from footprono.accounts.models import Wallet, WalletEntry
+from footprono.accounts.models import User, Wallet, WalletEntry
 from footprono.accounts.plans import plan_info
 from footprono.accounts.schemas import (
     GoogleIn,
@@ -27,6 +29,7 @@ from footprono.accounts.security import create_access_token
 from footprono.accounts.service import UnauthorizedError
 from footprono.api.deps import CurrentUserDep, RedisDep, SessionDep, SettingsDep
 from footprono.core import ratelimit
+from footprono.core.config import Settings
 from footprono.core.errors import AppError, NotFoundError
 
 router = APIRouter(tags=["comptes"])
@@ -220,12 +223,38 @@ async def refill(user: CurrentUserDep, session: SessionDep, settings: SettingsDe
     return entry
 
 
+async def _checked_password(
+    redis: Redis, settings: Settings, user: User, action: Callable[[], Awaitable[Any]]
+) -> None:
+    """Action qui vérifie le mot de passe du compte connecté : un mot de passe faux
+    compte comme un échec de connexion de ce numéro (même limite, même fenêtre)."""
+    ident = str(user.id)
+    if settings.login_failures_per_phone:
+        await ratelimit.check(
+            redis, "password-user", ident, settings.login_failures_per_phone, LOGIN_WINDOW
+        )
+    try:
+        await action()
+    except UnauthorizedError:
+        if settings.login_failures_per_phone:
+            await ratelimit.hit(redis, "password-user", ident, LOGIN_WINDOW)
+        raise
+
+
 @router.post("/me/password", response_model=TokenOut)
 async def change_password(
-    body: PasswordIn, user: CurrentUserDep, session: SessionDep, settings: SettingsDep
+    body: PasswordIn,
+    user: CurrentUserDep,
+    session: SessionDep,
+    settings: SettingsDep,
+    redis: RedisDep,
 ) -> TokenOut:
-    """Les autres téléphones sont déconnectés ; nouveau jeton pour celui-ci."""
-    await service.change_password(session, user, body.current_password, body.new_password)
+    """Les autres téléphones sont déconnectés ; nouveau jeton pour celui-ci. Un jeton volé
+    ne permet pas de deviner le mot de passe actuel : essais limités comme la connexion."""
+    await _checked_password(
+        redis, settings, user,
+        lambda: service.change_password(session, user, body.current_password, body.new_password),
+    )  # fmt: skip
     await session.commit()
     return TokenOut(access_token=create_access_token(user.id, settings))
 
@@ -253,7 +282,11 @@ class DeleteByPhoneIn(BaseModel):
 
 @router.post("/me/delete", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_me(
-    body: DeleteIn, user: CurrentUserDep, session: SessionDep, settings: SettingsDep
+    body: DeleteIn,
+    user: CurrentUserDep,
+    session: SessionDep,
+    settings: SettingsDep,
+    redis: RedisDep,
 ) -> None:
     """Suppression définitive du compte (mot de passe, ou Google, redemandé)."""
     if not user.password_hash and body.google_id_token:
@@ -262,7 +295,12 @@ async def delete_me(
             raise UnauthorizedError("ce n'est pas le compte Google de ce compte FootProba")
         await deletion.delete_account(session, user, None)
     else:
-        await deletion.delete_account(session, user, body.password or "")
+        await _checked_password(
+            redis,
+            settings,
+            user,
+            lambda: deletion.delete_account(session, user, body.password or ""),
+        )
     await session.commit()
 
 

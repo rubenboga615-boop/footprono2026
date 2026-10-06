@@ -41,6 +41,8 @@ def make_settings(**overrides: object) -> Settings:
         "login_failures_per_phone": 0,
         "login_failures_per_ip": 0,
         "registrations_per_ip": 0,
+        # Code de sécurité de la console : testé à part (test_console_security).
+        "console_require_totp": False,
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # type: ignore[call-arg]

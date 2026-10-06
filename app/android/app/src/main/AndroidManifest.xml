@@ -6,11 +6,10 @@
     <!-- Mise à jour hors Play Store : ouvrir l'installateur d'Android pour la nouvelle
          version (l'utilisateur confirme toujours lui-même). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <!-- HTTP en clair autorisé : le serveur Termux du téléphone (127.0.0.1)
-         n'a pas de certificat. À retirer quand le serveur distant sera en HTTPS. -->
+    <!-- HTTPS seulement : le serveur est en HTTPS (Let's Encrypt). Le HTTP en clair
+         reste permis dans les versions de développement (src/debug). -->
     <application
         android:label="FootProba"
-        android:usesCleartextTraffic="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

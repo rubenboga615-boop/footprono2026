@@ -170,3 +170,19 @@ async def test_password_change_signs_out_the_other_phones(
     assert changed.status_code == 200
     assert (await client.get("/api/v1/me", headers=other)).status_code == 401
     assert (await client.get("/api/v1/me", headers=_auth(changed))).status_code == 200
+
+
+async def test_console_requires_security_code(
+    app: object, client: AsyncClient, db_factory: Factory
+) -> None:
+    await _admin(db_factory)
+    headers = _auth(await client.post("/api/v1/auth/console-login", json=LOGIN))
+    # Réglage du serveur en production : code de sécurité obligatoire.
+    app.state.settings = make_settings(console_require_totp=True)  # type: ignore[attr-defined]
+    blocked = await client.get("/api/v1/admin/console/dashboard", headers=headers)
+    assert blocked.status_code == 403
+    assert blocked.json()["error"]["code"] == "totp_setup_required"
+    # Seules la page Sécurité (pour l'activer) et la session restent ouvertes.
+    assert (await client.get("/api/v1/admin/security", headers=headers)).status_code == 200
+    assert (await client.get("/api/v1/admin/console/me", headers=headers)).status_code == 200
+    assert (await client.get("/api/v1/admin/users", headers=headers)).status_code == 403

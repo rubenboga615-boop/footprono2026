@@ -53,6 +53,10 @@ async function api(method, path, body, extra) {
   let data = null;
   try { data = await response.json(); } catch { /* réponse vide */ }
   if (response.status === 401 && path !== "/auth/console-login") { logout(); throw new ApiError("Session expirée : reconnecte-toi.", 401); }
+  // Code de sécurité pas encore activé : seule la page Sécurité est ouverte.
+  if (response.status === 403 && data && data.error && data.error.code === "totp_setup_required" && location.hash !== "#/securite") {
+    location.hash = "#/securite";
+  }
   if (!response.ok) {
     const error = data && data.error ? data.error : {};
     throw new ApiError(error.message || `Erreur ${response.status}`, response.status, error.code);
@@ -300,6 +304,7 @@ async function start() {
   document.getElementById("me-name").textContent = me.display_name;
   document.getElementById("me-avatar").textContent = me.display_name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
   document.getElementById("nav-security").hidden = !!me.totp_enabled;
+  if (!me.totp_enabled && location.hash !== "#/securite") { location.hash = "#/securite"; return; }
   route();
 }
 
@@ -1055,9 +1060,17 @@ async function versionsPage() {
 
 async function securityPage() {
   setPage("securite", "Sécurité");
-  const [status, journal, alertInfo] = await Promise.all([api("GET", "/admin/security"), api("GET", CONSOLE + "/audit"), api("GET", "/admin/alerts")]);
+  const status = await api("GET", "/admin/security");
   me.totp_enabled = status.totp_enabled;
   document.getElementById("nav-security").hidden = status.totp_enabled;
+  if (!status.totp_enabled) {
+    // Obligatoire : le reste de la console s'ouvre une fois le code activé.
+    view(card(["Code de sécurité", pill("À activer", "bad")],
+      h("p", { class: "note", text: "Obligatoire pour utiliser la console : sans code, un mot de passe volé suffirait pour gérer les comptes, les paiements et le serveur. Chaque connexion demandera aussi un code à 6 chiffres, renouvelé toutes les 30 secondes dans une application d'authentification (Google Authenticator, Microsoft Authenticator…)." }),
+      h("div", { class: "btns" }, h("button", { class: "btn", type: "button", onclick: () => enableTotp() }, icon("i-key"), "Activer le code"))));
+    return;
+  }
+  const [journal, alertInfo] = await Promise.all([api("GET", CONSOLE + "/audit"), api("GET", "/admin/alerts")]);
 
   const codeCard = status.totp_enabled
     ? card(["Code de sécurité", pill("Activé", "ok")],

@@ -85,7 +85,16 @@ def console_session_key(session_id: str) -> str:
     return f"console:session:{session_id}"
 
 
+class TotpSetupRequiredError(ForbiddenError):
+    code = "totp_setup_required"
+
+
+# Sans code de sécurité activé, seules ces adresses de la console restent ouvertes.
+_TOTP_SETUP_PATHS = ("/admin/console/me", "/admin/console/logout", "/admin/console/logout-all")
+
+
 async def get_admin_user(
+    request: Request,
     session: SessionDep,
     settings: SettingsDep,
     redis: RedisDep,
@@ -106,6 +115,16 @@ async def get_admin_user(
         raise UnauthorizedError("session de la console expirée : se reconnecter")
     if user.role != "admin":
         raise ForbiddenError("réservé à l'administrateur")
+    path = request.url.path.removeprefix(settings.api_prefix)
+    if (
+        settings.console_require_totp
+        and user.totp_secret is None
+        and path not in _TOTP_SETUP_PATHS
+        and not path.startswith("/admin/security")
+    ):
+        raise TotpSetupRequiredError(
+            "active d'abord le code de sécurité de la console (page Sécurité)"
+        )
     return user
 
 

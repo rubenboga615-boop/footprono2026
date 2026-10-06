@@ -184,4 +184,8 @@ Fonctionnement :
 | Métriques non publiques (`/metrics` → 404) | Caddyfile |
 | Sauvegardes quotidiennes + copie hors serveur | backup, scp |
 | Paiement vérifié auprès du prestataire (Paystack, CinetPay), jamais sur la seule notification | payments/service.py |
-| HTTP en clair dans l'APK (Termux) à retirer après la bascule | (à faire) |
+| APK publié : HTTPS seulement (HTTP en clair permis dans les versions de développement) | AndroidManifest.xml |
+| Console : code de sécurité à 6 chiffres **obligatoire** (sans lui, seule la page Sécurité s'ouvre) | deps.py (`console_require_totp`) |
+| Mot de passe actuel deviné avec un jeton volé (changement, suppression) : mêmes limites que la connexion | accounts.py |
+| Site : pas d'affichage dans le cadre d'un autre site (`X-Frame-Options`), caméra, micro, position et paiement du navigateur désactivés (`Permissions-Policy`) | Caddyfile |
+| Dépendances du serveur sans faille connue (`pip-audit`, 06/10/2026) | — |

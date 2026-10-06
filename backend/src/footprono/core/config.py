@@ -81,6 +81,9 @@ class Settings(BaseSettings):
 
     # Comptes et bookmaker virtuel (argent fictif, montants entiers en devise).
     access_token_days: int = Field(default=30, ge=1)
+    # Console : code de sécurité (application d'authentification) obligatoire ; sans
+    # lui, seule la page Sécurité est ouverte pour l'activer.
+    console_require_totp: bool = True
     starting_balance: int = Field(default=100_000, ge=0)
     # Rechargement gratuit : jusqu'au solde de départ, si le solde est sous ce
     # seuil, au plus une fois par intervalle.

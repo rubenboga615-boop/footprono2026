@@ -201,3 +201,23 @@ async def test_registrations_limited_per_address(limited_client: AsyncClient) ->
         "/api/v1/auth/register", json={**SIGNUP, "phone": "+22997000004"}
     )
     assert third.status_code == 429
+
+
+async def test_password_guesses_limited_on_password_change(limited_client: AsyncClient) -> None:
+    created = await limited_client.post("/api/v1/auth/register", json=SIGNUP)
+    headers = {"Authorization": f"Bearer {created.json()['access_token']}"}
+    # Un jeton volé ne permet pas de deviner le mot de passe actuel : 3 essais faux,
+    # puis même le bon est refusé un moment.
+    for _ in range(3):
+        bad = await limited_client.post(
+            "/api/v1/me/password",
+            json={"current_password": "mauvais-mot", "new_password": "nouveau-mot-1"},
+            headers=headers,
+        )
+        assert bad.status_code == 401
+    blocked = await limited_client.post(
+        "/api/v1/me/password",
+        json={"current_password": SIGNUP["password"], "new_password": "nouveau-mot-1"},
+        headers=headers,
+    )
+    assert blocked.status_code == 429
