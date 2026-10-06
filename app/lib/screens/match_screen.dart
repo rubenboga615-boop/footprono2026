@@ -182,35 +182,37 @@ class _MatchViewState extends State<_MatchView> {
   }
 
   /// Toucher une équipe ouvre sa fiche.
-  Widget _bigTeam(Team t, Color tint) => InkWell(
-    borderRadius: BorderRadius.circular(12),
-    onTap: () => Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => TeamScreen(teamId: t.id, name: t.name),
+  Widget _bigTeam(Team t, Color tint) => Tooltip(
+    message: 'Fiche équipe',
+    child: InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => TeamScreen(teamId: t.id, name: t.name),
+        ),
       ),
-    ),
-    child: Column(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: tint.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: tint.withValues(alpha: 0.55)),
+      child: Column(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: tint.withValues(alpha: 0.55)),
+            ),
+            child: Text(t.code, style: Fp.title(14, color: tint)),
           ),
-          child: Text(t.code, style: Fp.title(14, color: tint)),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          t.name,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          style: Fp.body(14, weight: FontWeight.w700),
-        ),
-        Text('Fiche équipe', style: Fp.body(11, color: Fp.text3)),
-      ],
+          const SizedBox(height: 8),
+          Text(
+            t.name,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            style: Fp.body(14, weight: FontWeight.w700),
+          ),
+        ],
+      ),
     ),
   );
 
@@ -1022,7 +1024,6 @@ class _EnginePicks extends StatelessWidget {
       if (p == null) continue;
       final sel = p['selection'] as Json?;
       final locked = p['locked'] == true;
-      final offer = sel == null ? null : offers['${sel['market']}|${sel['line'] ?? ''}|${sel['selection']}'];
       final text = locked
           ? 'Avec Premium'
           : sel == null
@@ -1059,7 +1060,6 @@ class _EnginePicks extends StatelessWidget {
               else if (sel != null) ...[
                 const SizedBox(width: 8),
                 Text(percent((sel['model_probability'] as num).toDouble()), style: Fp.title(16)),
-                if (offer != null) ...[const SizedBox(width: 8), OddsButton(match: match, offer: offer)],
               ],
             ],
           ),

@@ -850,7 +850,7 @@ void main() {
     await startApp(tester, loggedIn: true);
     await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Fiche équipe').first);
+    await tester.tap(find.byTooltip('Fiche équipe').first);
     await tester.pumpAndSettle();
     expect(find.text('Forme · 5 derniers matchs'), findsOneWidget);
     expect(find.text('chez Monaco'), findsOneWidget);
@@ -868,7 +868,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(430, 2400)); // fiche entière à l'écran
     await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Fiche équipe').first);
+    await tester.tap(find.byTooltip('Fiche équipe').first);
     await tester.pumpAndSettle();
     expect(find.text('Statistiques avancées'), findsOneWidget);
     expect(find.text('1,95'), findsOneWidget); // xG créés
