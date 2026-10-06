@@ -326,7 +326,9 @@ class _MatchViewState extends State<_MatchView> {
           ],
         ),
       ),
-      for (final g in marketGroups) ..._group(g, byMarket, offers, m),
+      // Le premier groupe qui a des marchés est ouvert, les autres repliés.
+      for (final (i, g) in marketGroups.where((g) => _shown(g, byMarket).isNotEmpty).indexed)
+        ..._group(g, byMarket, offers, m, open: i == 0),
       if (p.lockedMarkets.isNotEmpty) ...[
         const SizedBox(height: 12),
         PremiumLock(
@@ -348,14 +350,49 @@ class _MatchViewState extends State<_MatchView> {
     MarketGroup g,
     Map<String, List<Prob>> byMarket,
     Map<String, Offer> offers,
-    MatchInfo m,
-  ) {
-    final markets = g.markets.where((k) => k != '1X2' && k != 'CS' && byMarket.containsKey(k)).toList();
+    MatchInfo m, {
+    bool open = false,
+  }) {
+    final markets = _shown(g, byMarket);
     if (markets.isEmpty) return const [];
     return [
-      SectionTitle(g.title),
-      for (final k in markets) _MarketCard(market: k, probs: byMarket[k]!, offers: offers, match: m),
+      FoldSection(
+        key: ValueKey('proba-${g.title}'),
+        id: 'proba-${g.title}',
+        title: g.title,
+        count: _count(markets.length),
+        initiallyOpen: open,
+        children: [
+          for (final k in markets) _MarketCard(market: k, probs: byMarket[k]!, offers: offers, match: m),
+        ],
+      ),
     ];
+  }
+
+  /// Marchés d'un groupe affichés en liste (1X2 et score exact sont en haut de page).
+  static List<String> _shown(MarketGroup g, Map<String, List<Prob>> byMarket) =>
+      g.markets.where((k) => k != '1X2' && k != 'CS' && byMarket.containsKey(k)).toList();
+
+  static String _count(int n) => n > 1 ? '$n marchés' : '1 marché';
+
+  /// Marchés cotés rangés par groupe (même ordre que l'onglet Probabilités).
+  static List<(String, List<String>)> _oddsGroups(List<String> markets) {
+    final out = <(String, List<String>)>[];
+    final used = <String>{};
+    for (final g in marketGroups) {
+      final keys = [
+        for (final k in markets)
+          if (g.markets.contains(k)) k,
+      ];
+      used.addAll(keys);
+      if (keys.isNotEmpty) out.add((g.title, keys));
+    }
+    final rest = [
+      for (final k in markets)
+        if (!used.contains(k)) k,
+    ];
+    if (rest.isNotEmpty) out.add(('Autres', rest));
+    return out;
   }
 
   List<Widget> _odds(BuildContext context, MatchData d) {
@@ -398,57 +435,67 @@ class _MatchViewState extends State<_MatchView> {
           'Aucune cote récente pour ce match : il n\'est pas jouable pour l\'instant.',
           icon: Icons.money_off_rounded,
         ),
-      for (final k in markets) ...[
-        SectionTitle(marketTitle(k, home: m.home.name, away: m.away.name)),
-        GlassCard(
-          child: Column(
-            children: [
-              for (final (i, o) in byMarket[k]!.indexed) ...[
-                if (i > 0) const Divider(height: 16),
-                Row(
+      for (final (gi, (title, keys)) in _oddsGroups(markets).indexed)
+        FoldSection(
+          key: ValueKey('cotes-$title'),
+          id: 'cotes-$title',
+          title: title,
+          count: _count(keys.length),
+          initiallyOpen: gi == 0,
+          children: [
+            for (final k in keys) ...[
+              SectionTitle(marketTitle(k, home: m.home.name, away: m.away.name)),
+              GlassCard(
+                child: Column(
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    for (final (i, o) in byMarket[k]!.indexed) ...[
+                      if (i > 0) const Divider(height: 16),
+                      Row(
                         children: [
-                          Text(
-                            selectionLabel(
-                              o.market,
-                              o.line,
-                              o.selection,
-                              home: m.home.name,
-                              away: m.away.name,
-                            ),
-                            style: Fp.body(14, weight: FontWeight.w700),
-                          ),
-                          if (o.modelProbability != null)
-                            Text(
-                              'Moteur ${percent(o.modelProbability!)} · cote juste ${decimal(1 / o.modelProbability!)}',
-                              style: Fp.body(12, color: Fp.text2),
-                            ),
-                          if (o.moved)
-                            InkWell(
-                              onTap: () => showOddsHistory(context, m, o),
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: Text(
-                                  '${o.odds < o.openingOdds! ? '▼' : '▲'} ${odds(o.openingOdds)} → ${odds(o.odds)}'
-                                  ' · historique',
-                                  style: Fp.body(12, color: Fp.accentLight, weight: FontWeight.w600),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  selectionLabel(
+                                    o.market,
+                                    o.line,
+                                    o.selection,
+                                    home: m.home.name,
+                                    away: m.away.name,
+                                  ),
+                                  style: Fp.body(14, weight: FontWeight.w700),
                                 ),
-                              ),
+                                if (o.modelProbability != null)
+                                  Text(
+                                    'Moteur ${percent(o.modelProbability!)} · cote juste ${decimal(1 / o.modelProbability!)}',
+                                    style: Fp.body(12, color: Fp.text2),
+                                  ),
+                                if (o.moved)
+                                  InkWell(
+                                    onTap: () => showOddsHistory(context, m, o),
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: Text(
+                                        '${o.odds < o.openingOdds! ? '▼' : '▲'} ${odds(o.openingOdds)} → ${odds(o.odds)}'
+                                        ' · historique',
+                                        style: Fp.body(12, color: Fp.accentLight, weight: FontWeight.w600),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
+                          ),
+                          OddsButton(match: m, offer: o),
                         ],
                       ),
-                    ),
-                    OddsButton(match: m, offer: o),
+                    ],
                   ],
                 ),
-              ],
+              ),
             ],
-          ),
+          ],
         ),
-      ],
       if (!state.premium) ...[
         const SizedBox(height: 16),
         const PremiumLock(

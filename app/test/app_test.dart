@@ -843,6 +843,10 @@ void main() {
     await startApp(tester, loggedIn: true, premium: true);
     await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
+    // Groupes repliés : seul le premier est ouvert ; « Handicaps » s'ouvre d'un toucher.
+    expect(find.text('Handicap asiatique'), findsNothing);
+    await tester.tap(find.text('Handicaps'));
+    await tester.pumpAndSettle();
     expect(find.text('Handicap asiatique'), findsOneWidget);
     expect(find.text('Lens (−0,25)'), findsOneWidget);
     expect(find.textContaining('autres marchés'), findsNothing);
@@ -1031,6 +1035,8 @@ void main() {
     await tester.tap(find.text('1,85').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cotes'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Buts'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('1,95').first);
     await tester.pumpAndSettle();

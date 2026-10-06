@@ -128,6 +128,84 @@ class SectionTitle extends StatelessWidget {
   }
 }
 
+/// Groupe repliable (« menu déroulant ») : titre, nombre d'éléments et flèche ; un
+/// toucher ouvre ou ferme. L'état reste le même en changeant d'onglet (PageStorage).
+class FoldSection extends StatefulWidget {
+  const FoldSection({
+    super.key,
+    required this.id,
+    required this.title,
+    required this.count,
+    required this.children,
+    this.initiallyOpen = false,
+  });
+
+  /// Identifiant stable (onglet + groupe) pour retrouver l'état ouvert / fermé.
+  final String id;
+  final String title;
+  final String count;
+  final List<Widget> children;
+  final bool initiallyOpen;
+
+  @override
+  State<FoldSection> createState() => _FoldSectionState();
+}
+
+class _FoldSectionState extends State<FoldSection> {
+  late bool open =
+      PageStorage.maybeOf(context)?.readState(context, identifier: widget.id) as bool? ??
+      widget.initiallyOpen;
+
+  void _toggle() {
+    setState(() => open = !open);
+    PageStorage.maybeOf(context)?.writeState(context, open, identifier: widget.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 10),
+        Semantics(
+          button: true,
+          expanded: open,
+          label: '${widget.title}, ${widget.count}',
+          child: InkWell(
+            onTap: _toggle,
+            borderRadius: Fp.radius14,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: open ? Fp.accentSoft : Fp.fill,
+                borderRadius: Fp.radius14,
+                border: Border.all(color: open ? Fp.accentLine : Colors.transparent),
+              ),
+              child: ExcludeSemantics(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(widget.title, style: Fp.title(15, weight: FontWeight.w600)),
+                    ),
+                    Text(widget.count, style: Fp.body(12, color: Fp.text3)),
+                    const SizedBox(width: 8),
+                    AnimatedRotation(
+                      turns: open ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      child: const Icon(Icons.expand_more_rounded, size: 22, color: Fp.text2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (open) ...[const SizedBox(height: 6), ...widget.children],
+      ],
+    );
+  }
+}
+
 /// Encadré « réservé à Premium ».
 class PremiumLock extends StatelessWidget {
   const PremiumLock({super.key, required this.text, this.markets = const []});
