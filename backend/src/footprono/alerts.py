@@ -145,10 +145,11 @@ async def watchdog(session: AsyncSession, redis: Redis, settings: Settings) -> d
     for task in board["runs"]:
         last = task["runs"][0] if task["runs"] else None
         if last is not None and last["status"] == "error":
+            cause = f" Cause : {last['error'][:160]}." if last.get("error") else ""
             sent += await send_once(
                 settings, redis, name, "FootProba : tâche en échec",
-                f"« {task['label']} » a échoué ({last['at']:%d/%m %H:%M} GMT). "
-                "Détails dans la console.",
+                f"« {task['label']} » a échoué ({last['at']:%d/%m %H:%M} GMT).{cause} "
+                "Détails dans la console (tableau de bord).",
                 priority=4, tags=["x"], repeat_seconds=3 * 3600,
             )  # fmt: skip
     return {"status": "ok", "sent": sent}

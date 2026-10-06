@@ -1,13 +1,15 @@
 """Exécutions des tâches planifiées, pour la frise des dernières 24 h de la console.
 
 Chaque tâche du worker enregistre son passage dans Redis (liste par tâche, les
-plus récentes en tête, ``KEEP`` au plus) : début, durée, statut. Sans Redis, rien
-n'est enregistré et la tâche s'exécute normalement.
+plus récentes en tête, ``KEEP`` au plus) : début, durée, statut et, en cas d'échec,
+la cause (message de l'erreur, sans identifiants). Sans Redis, rien n'est enregistré
+et la tâche s'exécute normalement.
 """
 
 import functools
 import json
 import logging
+import re
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -51,6 +53,24 @@ def _status(result: Any) -> str:
     return "ok"
 
 
+# Identifiants d'une adresse (« postgresql://nom:motdepasse@hôte ») : jamais affichés.
+_CREDENTIALS = re.compile(r"://[^/@\s]+@")
+
+
+def error_text(error: BaseException) -> str:
+    """Cause d'un échec, lisible dans la console et la notification (300 caractères)."""
+    text = f"{type(error).__name__} : {error}".strip().rstrip(":").strip()
+    return _CREDENTIALS.sub("://***@", text)[:300]
+
+
+def _failure(result: Any) -> str | None:
+    """Échec rendu par la tâche elle-même (source indisponible…) : sa raison."""
+    if isinstance(result, dict) and _status(result) == "error":
+        reason = result.get("reason") or result.get("error") or "source indisponible"
+        return _CREDENTIALS.sub("://***@", str(reason))[:300]
+    return None
+
+
 def tracked(name: str) -> Callable[[F], F]:
     """Enregistre chaque exécution de la tâche (statut, durée)."""
 
@@ -59,12 +79,21 @@ def tracked(name: str) -> Callable[[F], F]:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             started = time.time()
             status = "error"
+            error: str | None = None
             try:
                 result = func(*args, **kwargs)
                 status = _status(result)
+                error = _failure(result)
                 return result
+            except BaseException as exc:
+                error = error_text(exc)
+                raise
             finally:
-                entry = {"at": started, "s": round(time.time() - started, 1), "st": status}
+                entry: dict[str, Any] = {
+                    "at": started, "s": round(time.time() - started, 1), "st": status,
+                }  # fmt: skip
+                if error is not None:
+                    entry["err"] = error
                 try:
                     client = _redis()
                     client.lpush(PREFIX + name, json.dumps(entry))
@@ -96,6 +125,7 @@ async def recent_runs(client: Redis, hours: int = 24) -> list[dict[str, Any]]:
                     "at": datetime.fromtimestamp(entry["at"], UTC),
                     "seconds": entry["s"],
                     "status": entry["st"],
+                    "error": entry.get("err"),
                 }
             )
         out.append({"task": name, "label": label, "runs": runs})

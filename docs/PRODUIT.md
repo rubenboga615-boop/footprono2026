@@ -74,7 +74,8 @@ Aussi installable sur Android : **FootProba Console** (`console-android/`, artef
 - **Tableau de bord** : jauges (services, quota API-Football du jour, disque), courbe
   des comptes sur 30 jours, **frise des tâches planifiées sur 24 h** (direct, cotes,
   ingestion, pronostics, coupons, paiements : un bloc par exécution, vert, jaune ou
-  rose), dernière sauvegarde de la base, **à traiter** (codes 1xBet, quota bas, cotes
+  rose ; sous la frise, **la cause du dernier échec**, reprise dans la notification),
+  dernière sauvegarde de la base, **à traiter** (codes 1xBet, quota bas, cotes
   non relevées, sauvegarde manquante, service arrêté…) et tâches **en cours**.
 - **Actions** : catalogue fourni par le serveur (`backend/src/footprono/console/actions.py`),
   filtrable par famille, recherche **Ctrl K** (bouton central sur téléphone). Chaque
@@ -88,6 +89,11 @@ Aussi installable sur Android : **FootProba Console** (`console-android/`, artef
   téléchargés par lien signé de 5 minutes. Jamais de donnée personnelle ; les
   sauvegardes de la base ne sont pas téléchargeables.
 - **Comptes Google** : affichés avec leur adresse Gmail (pas de numéro) ; « Changer le numéro » leur en donne un.
+- **Comptes** : recherche (nom, numéro, adresse), filtres Tous / Premium / Gratuits /
+  Désactivés / Admins, formule visible sur téléphone ; **Offrir Premium** : 7, 30 ou
+  90 jours ou autre durée, avec un motif (inscrit dans l'historique) ; **fiche du compte**
+  (`#/comptes/<id>`) : solde fictif, paris, téléphones, historique Premium, paiements
+  et toutes les actions (`GET /admin/users?status=`, `GET /admin/users/{id}` → `activity`).
 - **Exploitation** : codes du jour (1xBet), comptes (Premium, administrateur, numéro,
   mot de passe provisoire affiché une seule fois, désactivation), paiements, **versions
   de l'application** (dépôt de l'archive `footprono-apk.zip` depuis le navigateur).

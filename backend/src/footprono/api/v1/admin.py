@@ -1,7 +1,7 @@
 """Administration : comptes, Premium (activation manuelle avant Mobile Money), statistiques."""
 
 from datetime import date, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -83,8 +83,13 @@ async def list_users(
     q: Annotated[str | None, Query(description="nom ou numéro")] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
+    status: Annotated[
+        Literal["premium", "free", "inactive", "admin"] | None,
+        Query(description="premium, gratuits, désactivés ou administrateurs"),
+    ] = None,
 ) -> list[AdminUserOut]:
-    return [_out(u) for u in await admin.search_users(session, q, limit=limit, offset=offset)]
+    found = await admin.search_users(session, q, limit=limit, offset=offset, status=status)
+    return [_out(u) for u in found]
 
 
 @router.get("/users/{user_id}")
@@ -94,6 +99,7 @@ async def get_user(user_id: int, _: AdminUserDep, session: SessionDep) -> dict[s
     return {
         "user": _out(user),
         "subscription_events": [SubscriptionEventOut.model_validate(e) for e in history],
+        "activity": await admin.activity(session, user),
     }
 
 

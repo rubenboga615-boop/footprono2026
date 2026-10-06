@@ -336,6 +336,7 @@ async function route() {
     else if (parts[0] === "jobs" && parts[1]) await jobPage(Number(parts[1]));
     else if (parts[0] === "fichiers") await filesPage();
     else if (parts[0] === "codes") await codesPage();
+    else if (parts[0] === "comptes" && parts[1]) await accountPage(Number(parts[1]));
     else if (parts[0] === "comptes") await accountsPage();
     else if (parts[0] === "paiements") await paymentsPage();
     else if (parts[0] === "versions") await versionsPage();
@@ -361,9 +362,13 @@ function timeline(runs, jobs) {
       track.append(b);
     }
     const last = task.runs[0];
-    return h("div", { class: "tl" }, h("span", { class: "lbl", text: task.label }), track,
+    const row = h("div", { class: "tl" }, h("span", { class: "lbl", text: task.label }), track,
       h("span", { class: "last", text: last ? ago(last.at) : "—" }));
-  });
+    // Dernier passage en échec : sa cause, sous la frise.
+    if (!last || last.status !== "error") return row;
+    return [row, h("div", { class: "tl-err" }, icon("i-warn"),
+      h("span", { text: `${when(last.at)} · ${last.error || "cause non enregistrée (tâche arrêtée net : redémarrage du serveur ?)"}` }))];
+  }).flat();
   for (const job of jobs.filter((j) => j.status === "running" && j.started_at)) {
     const track = h("div", { class: "track" });
     const b = h("b", { class: "running" });
@@ -798,42 +803,122 @@ async function codesPage() {
 
 // --- Comptes -------------------------------------------------------------------------
 
-async function accountsPage(query) {
+// Filtre de la page Comptes, gardé quand on revient d'une fiche.
+let accountFilter = { q: "", status: "" };
+const ACCOUNT_FILTERS = [["", "Tous"], ["premium", "Premium"], ["free", "Gratuits"], ["inactive", "Désactivés"], ["admin", "Admins"]];
+const EVENT_KIND = { trial: "Essai d'inscription", admin_grant: "Offert par l'administrateur", payment: "Paiement", admin_revoke: "Retiré par l'administrateur" };
+
+function planLine(u) {
+  const premium = u.premium_until && new Date(u.premium_until) > new Date();
+  return h("div", { class: "acct-plan" },
+    premium ? pill("Premium", "ok") : pill("Gratuit"),
+    premium ? h("span", { class: "note", text: "jusqu'au " + fmtDateTime.format(new Date(u.premium_until)) }) : null,
+    u.is_active ? null : pill("désactivé", "bad"));
+}
+
+// Offrir Premium : durée au choix (7 jours par défaut, sans essai à l'inscription) et motif.
+function grantBox(u) {
+  return modal((close) => {
+    let days = 7;
+    const custom = h("input", { class: "input", type: "number", min: "1", max: "366", placeholder: "Autre durée (jours)" });
+    const note = h("input", { class: "input", type: "text", maxlength: "120", placeholder: "Motif : testeur, concours, geste commercial…" });
+    const chips = h("div", { class: "chips" }, ...[7, 30, 90].map((d) => h("button", { class: "chip" + (d === days ? " on" : ""), type: "button", text: d + " jours", onclick: (e) => {
+      days = d; custom.value = "";
+      for (const c of chips.children) c.classList.toggle("on", c === e.currentTarget);
+    } })));
+    custom.addEventListener("input", () => { for (const c of chips.children) c.classList.remove("on"); });
+    const form = h("form", { onsubmit: (e) => {
+      e.preventDefault();
+      const n = custom.value ? Number(custom.value) : days;
+      if (!Number.isInteger(n) || n < 1 || n > 366) { toast("Durée de 1 à 366 jours."); return; }
+      close({ days: n, note: note.value.trim() || "console" });
+    } }, chips, h("div", { style: "height:10px" }), custom, h("div", { style: "height:10px" }), note,
+      h("div", { class: "btns", style: "margin-top:12px" }, h("button", { class: "btn", type: "submit", text: "Offrir" }),
+        h("button", { class: "btn ghost", type: "button", text: "Annuler", onclick: () => close(null) })));
+    const premium = u.premium_until && new Date(u.premium_until) > new Date();
+    return [h("h3", { text: "Offrir Premium" }), h("p", { text: `${u.display_name}${premium ? " : ajouté à la suite de son Premium en cours." : "."}` }), form];
+  });
+}
+
+async function grantPremium(u, after) {
+  const choice = await grantBox(u);
+  if (!choice) return;
+  try { await api("POST", `/admin/users/${u.id}/premium`, choice); toast(`Premium offert : ${choice.days} jours.`); after(); } catch (err) { toast(err.message); }
+}
+
+async function accountsPage() {
   setPage("comptes", "Comptes");
-  const q = query === undefined ? "" : query;
-  const users = await api("GET", "/admin/users?limit=100" + (q ? "&q=" + encodeURIComponent(q) : ""));
-  const search = h("input", { class: "input filter", type: "search", placeholder: "Nom ou numéro", value: q });
-  const form = h("form", { class: "toolbar", onsubmit: (e) => { e.preventDefault(); accountsPage(search.value.trim()); } }, search, h("button", { class: "btn", type: "submit" }, icon("i-search"), "Chercher"));
+  const { q, status } = accountFilter;
+  const users = await api("GET", "/admin/users?limit=200" + (q ? "&q=" + encodeURIComponent(q) : "") + (status ? "&status=" + status : ""));
+  const search = h("input", { class: "input filter", type: "search", placeholder: "Nom, numéro ou adresse", value: q });
+  const form = h("form", { class: "toolbar", onsubmit: (e) => { e.preventDefault(); accountFilter.q = search.value.trim(); accountsPage(); } }, search, h("button", { class: "btn", type: "submit" }, icon("i-search"), "Chercher"));
+  const filters = h("div", { class: "chips", style: "margin-bottom:12px" }, ...ACCOUNT_FILTERS.map(([value, label]) =>
+    h("button", { class: "chip" + (value === status ? " on" : ""), type: "button", text: label, onclick: () => { accountFilter.status = value; accountsPage(); } })));
+  const open = (u) => { location.hash = "#/comptes/" + u.id; };
+  const rows = users.map((u) => h("tr", {},
+    h("td", { class: "acct-main", onclick: () => open(u) },
+      h("div", { style: "font-weight:600" }, u.display_name, u.role === "admin" ? [" ", pill("admin", "acc")] : null),
+      h("div", { class: "note mono", text: u.phone || ("Google · " + (u.email || "")) }), planLine(u)),
+    h("td", { class: "hide-sm", text: when(u.created_at) }),
+    h("td", { class: "tools" }, h("div", { class: "acct-tools" },
+      h("button", { class: "btn sm", type: "button", text: "Offrir Premium", onclick: () => grantPremium(u, accountsPage) }),
+      h("button", { class: "btn sm ghost", type: "button", onclick: () => open(u), text: "Fiche ›" })))));
+  view(form, filters, card(null, h("div", { class: "note", style: "margin-bottom:6px", text: users.length >= 200 ? "200 comptes affichés au plus : affine la recherche." : `${users.length} compte(s)` }),
+    h("div", { class: "scroll" }, h("table", { class: "accounts" },
+      h("thead", {}, h("tr", {}, h("th", { text: "Compte" }), h("th", { class: "hide-sm", text: "Inscrit" }), h("th", { class: "tools" }))),
+      h("tbody", {}, ...(rows.length ? rows : [h("tr", {}, h("td", { colspan: "3", class: "empty", text: "Aucun compte." }))]))))));
+}
+
+// Fiche d'un compte : formule, activité, historique Premium, paiements et toutes les actions.
+async function accountPage(id) {
+  setPage("comptes", "Compte");
+  const { user: u, subscription_events: events, activity: a } = await api("GET", `/admin/users/${id}`);
+  const reload = () => accountPage(id);
   async function act(title, text, fn, danger) {
     if (!(await confirmBox(title, text, "Confirmer", danger))) return;
-    try { await fn(); toast("Fait."); accountsPage(q); } catch (err) { toast(err.message); }
+    try { await fn(); toast("Fait."); reload(); } catch (err) { toast(err.message); }
   }
-  async function changePhone(u) {
+  async function changePhone() {
     const phone = await promptBox("Changer le numéro", `Nouveau numéro de connexion de ${u.display_name}, avec l'indicatif.`, "+225 05 00 00 00 00");
     if (!phone) return;
-    try { await api("POST", `/admin/users/${u.id}/phone`, { phone }); toast("Numéro changé."); accountsPage(q); } catch (err) { toast(err.message); }
+    try { await api("POST", `/admin/users/${u.id}/phone`, { phone }); toast("Numéro changé."); reload(); } catch (err) { toast(err.message); }
   }
-  async function resetPassword(u) {
+  async function resetPassword() {
     if (!(await confirmBox("Mot de passe provisoire", `Un nouveau mot de passe va remplacer celui de ${u.display_name}. Il ne s'affichera qu'une fois.`, "Générer", true))) return;
     try {
       const { password } = await api("POST", `/admin/users/${u.id}/password-reset`);
       await secretBox("Mot de passe provisoire", `À transmettre à ${u.display_name} (${u.phone || u.email || "Google"}). À changer dans l'application : Profil → Changer le mot de passe.`, password);
     } catch (err) { toast(err.message); }
   }
-  const rows = users.map((u) => h("tr", {},
-    h("td", {}, h("div", { style: "font-weight:600" }, u.display_name, u.role === "admin" ? [" ", pill("admin", "acc")] : null), h("div", { class: "note mono", text: u.phone || ("Google · " + (u.email || "")) })),
-    h("td", { class: "hide-sm" }, pill(u.plan, u.plan === "free" ? "" : "ok"), u.premium_until ? h("div", { class: "note", text: "jusqu'au " + fmtDateTime.format(new Date(u.premium_until)) }) : null),
-    h("td", { class: "hide-sm" }, u.is_active ? pill("actif", "ok") : pill("désactivé", "bad")),
-    h("td", {}, h("div", { class: "acct-tools" },
-      h("button", { class: "btn sm", type: "button", text: "+30 j", title: "Offrir 30 jours de Premium", onclick: () => act("Offrir 30 jours de Premium ?", u.display_name, () => api("POST", `/admin/users/${u.id}/premium`, { days: 30, note: "console" })) }),
-      u.premium_until ? h("button", { class: "btn sm ghost", type: "button", text: "Retirer Premium", onclick: () => act("Retirer le Premium ?", u.display_name, () => api("POST", `/admin/users/${u.id}/premium/revoke`, { note: "console" }), true) }) : null,
-      h("button", { class: "btn sm ghost", type: "button", text: u.role === "admin" ? "Retirer admin" : "Nommer admin", onclick: () => act(u.role === "admin" ? "Retirer l'accès à la console ?" : "Nommer administrateur ?", `${u.display_name} (${u.phone || u.email || "Google"})`, () => api("POST", `/admin/users/${u.id}/role`, { role: u.role === "admin" ? "user" : "admin" }), u.role !== "admin") }),
-      h("button", { class: "btn sm ghost", type: "button", text: "Numéro", onclick: () => changePhone(u) }),
-      h("button", { class: "btn sm ghost", type: "button", text: "Mot de passe", onclick: () => resetPassword(u) }),
-      h("button", { class: "btn sm danger", type: "button", text: u.is_active ? "Désactiver" : "Réactiver", onclick: () => act(u.is_active ? "Désactiver ce compte ?" : "Réactiver ce compte ?", u.display_name, () => api("POST", `/admin/users/${u.id}/active`, { active: !u.is_active }), u.is_active) })))));
-  view(form, card(null, h("div", { class: "scroll" }, h("table", {},
-    h("thead", {}, h("tr", {}, h("th", { text: "Compte" }), h("th", { class: "hide-sm", text: "Formule" }), h("th", { class: "hide-sm", text: "État" }), h("th"))),
-    h("tbody", {}, ...(rows.length ? rows : [h("tr", {}, h("td", { colspan: "4", class: "empty", text: "Aucun compte." }))]))))));
+  const premium = u.premium_until && new Date(u.premium_until) > new Date();
+  const fact = (k, v) => h("div", { class: "row" }, h("span", { class: "t", text: k }), h("b", { text: v }));
+  const money = (n, cur) => number(n) + " " + (cur === "XOF" ? "F CFA" : cur);
+  const head = h("div", { class: "toolbar" }, h("a", { class: "btn ghost sm", href: "#/comptes" }, "‹ Comptes"));
+  const info = card([u.display_name, u.role === "admin" ? pill("admin", "acc") : null],
+    planLine(u),
+    fact("Connexion", u.phone || "Google seulement"),
+    fact("Adresse Google", u.email || (a.google_linked ? "liée" : "non liée")),
+    fact("Pays", u.country),
+    fact("Inscrit", when(u.created_at)),
+    fact("Solde fictif", a.balance === null ? "—" : money(a.balance, a.currency)),
+    fact("Paris", `${number(a.bets)} dont ${number(a.open_bets)} en cours`),
+    fact("Téléphones (notifications)", String(a.devices)));
+  const actions = card("Actions", h("div", { class: "acct-tools", style: "justify-content:flex-start" },
+    h("button", { class: "btn sm", type: "button", text: "Offrir Premium", onclick: () => grantPremium(u, reload) }),
+    premium ? h("button", { class: "btn sm ghost", type: "button", text: "Retirer Premium", onclick: () => act("Retirer le Premium ?", u.display_name, () => api("POST", `/admin/users/${u.id}/premium/revoke`, { note: "console" }), true) }) : null,
+    h("button", { class: "btn sm ghost", type: "button", text: "Numéro", onclick: changePhone }),
+    h("button", { class: "btn sm ghost", type: "button", text: "Mot de passe", onclick: resetPassword }),
+    h("button", { class: "btn sm ghost", type: "button", text: u.role === "admin" ? "Retirer admin" : "Nommer admin", onclick: () => act(u.role === "admin" ? "Retirer l'accès à la console ?" : "Nommer administrateur ?", `${u.display_name} (${u.phone || u.email || "Google"})`, () => api("POST", `/admin/users/${u.id}/role`, { role: u.role === "admin" ? "user" : "admin" }), u.role !== "admin") }),
+    h("button", { class: "btn sm danger", type: "button", text: u.is_active ? "Désactiver" : "Réactiver", onclick: () => act(u.is_active ? "Désactiver ce compte ?" : "Réactiver ce compte ?", u.display_name, () => api("POST", `/admin/users/${u.id}/active`, { active: !u.is_active }), u.is_active) })));
+  const history = card("Historique Premium", ...(events.length ? events.map((e) => h("div", { class: "row" },
+    h("div", {}, h("b", { text: (EVENT_KIND[e.kind] || e.kind) + (e.kind === "admin_revoke" ? "" : ` · ${e.days} j`) }),
+      h("div", { class: "note", text: when(e.created_at) + (e.note ? " · " + e.note : "") })),
+    h("span", { class: "note", text: "→ " + fmtDateTime.format(new Date(e.premium_until)) }))) : [h("div", { class: "empty", text: "Jamais Premium." })]));
+  const kind = { accepted: "ok", success: "ok", pending: "warn", failed: "bad", refused: "bad", cancelled: "mute" };
+  const payments = card("Paiements", ...(a.payments.length ? a.payments.map((p) => h("div", { class: "row" },
+    h("div", {}, h("b", { text: money(p.amount, p.currency) + ` · ${p.days} j` }), h("div", { class: "note", text: when(p.created_at) + " · " + p.method })),
+    pill(p.status, kind[p.status] || ""))) : [h("div", { class: "empty", text: "Aucun paiement." })]));
+  view(head, h("div", { class: "grid-2e", style: "align-items:start" }, info, h("div", { style: "display:grid;gap:12px" }, actions, history, payments)));
 }
 
 // --- Paiements -----------------------------------------------------------------------

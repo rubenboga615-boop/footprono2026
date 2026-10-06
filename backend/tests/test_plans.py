@@ -146,6 +146,23 @@ async def test_admin_grants_and_revokes_premium(
     assert [e["kind"] for e in events] == ["admin_grant", "admin_grant"]
     assert events[0]["admin_id"] == boss_id
 
+    # Fiche du compte : activité ; filtres de la page Comptes.
+    activity = detail["activity"]
+    assert (activity["bets"], activity["open_bets"], activity["payments"]) == (0, 0, [])
+    assert activity["balance"] > 0
+    assert activity["google_linked"] is False
+
+    async def listed(status: str) -> list[int]:
+        r = await client.get("/api/v1/admin/users", params={"status": status}, headers=headers)
+        return [u["id"] for u in r.json()]
+
+    assert await listed("premium") == [uid]
+    assert await listed("free") == [boss_id]
+    assert await listed("admin") == [boss_id]
+    assert await listed("inactive") == []
+    bad = await client.get("/api/v1/admin/users", params={"status": "x"}, headers=headers)
+    assert bad.status_code == 422
+
     stats = (await client.get("/api/v1/admin/stats", headers=headers)).json()
     assert stats["users"] == 2
     assert stats["premium"] == 1

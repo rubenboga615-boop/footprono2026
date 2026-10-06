@@ -185,7 +185,7 @@ async def test_scheduled_task_runs_feed_the_timeline(monkeypatch: pytest.MonkeyP
 
     @runs.tracked("follow_live")
     def live() -> dict[str, Any]:
-        raise RuntimeError("API injoignable")
+        raise RuntimeError("base injoignable : postgresql://footprono:secret@db:5432/x")
 
     assert odds() == {"status": "partial"}
     with pytest.raises(RuntimeError):
@@ -197,6 +197,10 @@ async def test_scheduled_task_runs_feed_the_timeline(monkeypatch: pytest.MonkeyP
         await client.aclose()
     assert [r["status"] for r in timeline["collect_odds"]["runs"]] == ["warning"]
     assert [r["status"] for r in timeline["follow_live"]["runs"]] == ["error"]
+    # La cause de l'échec est gardée pour la console, sans le mot de passe.
+    cause = timeline["follow_live"]["runs"][0]["error"]
+    assert cause == "RuntimeError : base injoignable : postgresql://***@db:5432/x"
+    assert timeline["collect_odds"]["runs"][0]["error"] is None
     assert timeline["collect_odds"]["label"] == "Cotes (3 h)"
 
 

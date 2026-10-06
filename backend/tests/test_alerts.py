@@ -102,7 +102,8 @@ async def test_watchdog_sends_each_problem_once(
         "runs": [
             {
                 "task": "collect_odds", "label": "Cotes (3 h)",
-                "runs": [{"at": datetime(2026, 10, 5, 7, 30, tzinfo=UTC), "status": "error"}],
+                "runs": [{"at": datetime(2026, 10, 5, 7, 30, tzinfo=UTC), "status": "error",
+                          "error": "HTTPError : 429 Too Many Requests"}],
             },
         ],
     }  # fmt: skip
@@ -116,6 +117,7 @@ async def test_watchdog_sends_each_problem_once(
     assert result == {"status": "ok", "sent": 3}  # l'information n'est pas une alerte
     assert [m["priority"] for m in sent] == [5, 3, 4]
     assert "Cotes (3 h)" in sent[2]["message"]
+    assert "Cause : HTTPError : 429 Too Many Requests." in sent[2]["message"]
 
     # Dix minutes plus tard, le quota a encore baissé : même alerte, pas renvoyée.
     board["todo"][1]["text"] = "plus que 380 requêtes API-Football aujourd'hui"

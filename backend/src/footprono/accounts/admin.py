@@ -30,9 +30,23 @@ async def get_user(session: AsyncSession, user_id: int) -> User:
 
 
 async def search_users(
-    session: AsyncSession, query: str | None = None, *, limit: int = 50, offset: int = 0
+    session: AsyncSession,
+    query: str | None = None,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+    status: str | None = None,
 ) -> list[User]:
     stmt = select(User)
+    now = datetime.now(UTC)
+    if status == "premium":
+        stmt = stmt.where(User.premium_until > now)
+    elif status == "free":
+        stmt = stmt.where(or_(User.premium_until.is_(None), User.premium_until <= now))
+    elif status == "inactive":
+        stmt = stmt.where(User.is_active.is_(False))
+    elif status == "admin":
+        stmt = stmt.where(User.role == "admin")
     if query:
         digits = "".join(c for c in query if c.isdigit())
         conditions: list[ColumnElement[bool]] = [User.display_name.ilike(f"%{query.strip()}%")]
@@ -206,4 +220,44 @@ async def stats(session: AsyncSession, now: datetime | None = None) -> dict[str,
         "new_users_7d": new_users,
         "bets_7d": bets_week,
         "push_users": push_users,
+    }
+
+
+async def activity(session: AsyncSession, user: User) -> dict[str, Any]:
+    """Fiche du compte dans la console : paris, solde, paiements, téléphones."""
+    from footprono.accounts.models import Wallet
+    from footprono.payments.models import Payment
+
+    bets = (
+        await session.execute(
+            select(func.count(), func.count().filter(Bet.status == "open")).where(
+                Bet.user_id == user.id
+            )
+        )
+    ).one()
+    wallet = await session.scalar(select(Wallet).where(Wallet.user_id == user.id))
+    payments = await session.scalars(
+        select(Payment).where(Payment.user_id == user.id).order_by(Payment.id.desc()).limit(10)
+    )
+    devices = await session.scalar(
+        select(func.count()).select_from(PushDevice).where(PushDevice.user_id == user.id)
+    )
+    return {
+        "bets": bets[0],
+        "open_bets": bets[1],
+        "balance": wallet.balance if wallet is not None else None,
+        "currency": user.currency,
+        "google_linked": user.google_sub is not None,
+        "devices": devices or 0,
+        "payments": [
+            {
+                "amount": p.amount,
+                "currency": p.currency,
+                "days": p.days,
+                "status": p.status,
+                "method": p.method or p.provider,
+                "created_at": p.created_at,
+            }
+            for p in payments
+        ],
     }
