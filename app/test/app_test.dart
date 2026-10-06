@@ -810,9 +810,9 @@ void main() {
     expect(find.text('Victoire Lens'), findsOneWidget);
     expect(find.text(money(1850)), findsOneWidget); // 1 000 × 1,85
 
-    await tester.ensureVisible(find.text('Valider le coupon'));
+    await tester.ensureVisible(find.text('Placer le pari'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Valider le coupon'));
+    await tester.tap(find.text('Placer le pari'));
     await tester.pumpAndSettle();
     expect(server.placedBets, hasLength(1));
     expect(server.placedBets.single['stake'], 1000);
@@ -963,7 +963,13 @@ void main() {
     await tester.tap(find.text('Grosse cote'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('25'));
+    await tester.tap(find.text('Plus de réglages'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Après 18 h'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Après 18 h'));
+    await tester.ensureVisible(find.text('Composer le coupon'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Composer le coupon'));
     await tester.pumpAndSettle();
     expect(server.smartQueries.last, {
@@ -983,7 +989,9 @@ void main() {
     expect(state.excludedTeams, {1: 'Lens'});
     expect(server.smartQueries.last['exclude_teams'], '1');
 
-    await tester.tap(find.text("Partager l'image").first);
+    await tester.ensureVisible(find.text('Partager en image'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Partager en image'));
     await tester.pumpAndSettle();
     expect(find.text('Chances du moteur'), findsOneWidget);
     expect(
@@ -1176,8 +1184,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coupon intelligent'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Ce week-end'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Ce week-end'));
-    // Seize championnats : le bouton est plus bas, la liste ne le construit qu'une fois atteint.
+    // Le bouton est plus bas : la liste ne le construit qu'une fois atteint.
     await tester.scrollUntilVisible(
       find.text('Composer le coupon'),
       300,
@@ -1186,16 +1196,20 @@ void main() {
     await tester.tap(find.text('Composer le coupon'));
     await tester.pumpAndSettle();
     expect(server.smartQueries.single, {'profile': 'equilibre', 'period': 'weekend', 'size': '3'});
-    expect(find.text('Victoire Lens'), findsOneWidget);
+    expect(find.textContaining('Victoire Lens · '), findsOneWidget);
     expect(find.text('• Forme (5 derniers) : Lens VNDVV, Lyon DNVVN'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Mettre dans mon coupon'));
+    await tester.ensureVisible(find.text('Ajouter au coupon'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Mettre dans mon coupon'));
+    await tester.tap(find.text('Ajouter au coupon'));
     await tester.pumpAndSettle();
     expect(state.coupon.single.offer.key, '1X2||home');
 
-    await tester.fling(find.byType(ListView).last, const Offset(0, 3000), 3000); // retour en haut
+    await tester.scrollUntilVisible(
+      find.byTooltip('Coupons du jour'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Coupons du jour'));
     await tester.pumpAndSettle();
@@ -1228,7 +1242,7 @@ void main() {
     expect(copied, ['7HQ2K']);
     expect(find.text('Code 7HQ2K copié : colle-le dans 1xBet.'), findsOneWidget);
 
-    await tester.tap(find.text('Équilibré'));
+    await tester.tap(find.text('ÉQUILIBRÉ'));
     await tester.pumpAndSettle();
     expect(find.text('en cours 58\' · 1-0'), findsOneWidget);
     expect(find.textContaining('Sur 100 coupons comme celui-ci, environ 62 passent.'), findsOneWidget);

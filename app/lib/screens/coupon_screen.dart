@@ -169,11 +169,6 @@ class _CouponScreenState extends State<CouponScreen> {
     }
   }
 
-  void _addStake(int v) {
-    final current = int.tryParse(stake.text.replaceAll(RegExp(r'\D'), '')) ?? 0;
-    setState(() => stake.text = '${current + v}');
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -208,60 +203,25 @@ class _CouponScreenState extends State<CouponScreen> {
                   if (me != null) InfoPill('Solde fictif · ${money(me.balance, currency)}'),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text('Compose ton pari : une ou plusieurs sélections.', style: Fp.body(14, color: Fp.text2)),
-              const SizedBox(height: 16),
-              GlassCard.section(
-                highlight: true,
-                onTap: () =>
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen())),
-                child: Row(
-                  children: [
-                    const Icon(Icons.today_rounded, color: Fp.accentLight),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Coupons du jour', style: Fp.title(15, weight: FontWeight.w600)),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Un coupon par profil chaque matin, sa chance estimée et le code à copier.',
-                            style: Fp.body(12, color: Fp.text2),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right_rounded, color: Fp.text3),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              GlassCard.section(
-                highlight: true,
+              const SizedBox(height: 14),
+              _Banner(
+                icon: Icons.star_outline_rounded,
+                title: 'Coupon intelligent',
+                subtitle: 'Le moteur compose un coupon pour toi',
                 onTap: () =>
                     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SmartCouponScreen())),
-                child: Row(
-                  children: [
-                    const Icon(Icons.auto_awesome_rounded, color: Fp.accentLight),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Coupon intelligent', style: Fp.title(15, weight: FontWeight.w600)),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Sûr, équilibré ou audacieux, sur la période de ton choix, expliqué.',
-                            style: Fp.body(12, color: Fp.text2),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right_rounded, color: Fp.text3),
-                  ],
-                ),
               ),
+              if (items.isEmpty) ...[
+                const SizedBox(height: 8),
+                _Banner(
+                  icon: Icons.calendar_today_outlined,
+                  title: 'Coupons du jour',
+                  subtitle: 'Un coupon par profil chaque matin, avec son code',
+                  onTap: () =>
+                      Navigator.of(context)
+                          .push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen())),
+                ),
+              ],
               const SizedBox(height: 12),
               if (items.isEmpty)
                 const EmptyState(
@@ -274,149 +234,46 @@ class _CouponScreenState extends State<CouponScreen> {
                   context,
                   [
                     GlassCard.section(
+                      padding: const EdgeInsets.fromLTRB(16, 2, 8, 2),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Mon coupon · ${items.length} sélection${items.length > 1 ? 's' : ''}',
-                                  style: Fp.title(15, weight: FontWeight.w600),
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: busy ? null : state.clearCoupon,
-                                child: Text(
-                                  'Vider',
-                                  style: Fp.body(13, color: Fp.accentLight, weight: FontWeight.w700),
-                                ),
-                              ),
-                            ],
-                          ),
-                          for (final c in items) ...[
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          '${c.match.home.name} – ${c.match.away.name}',
-                                          style: Fp.body(13, color: Fp.text2),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          fullLabel(
-                                            c.offer.market,
-                                            c.offer.line,
-                                            c.offer.selection,
-                                            home: c.match.home.name,
-                                            away: c.match.away.name,
-                                          ),
-                                          style: Fp.body(15, weight: FontWeight.w700),
-                                        ),
-                                        if (explainSelection(
-                                              c.offer.market,
-                                              c.offer.line,
-                                              c.offer.selection,
-                                              home: c.match.home.name,
-                                              away: c.match.away.name,
-                                            )
-                                            case final e?)
-                                          Padding(
-                                            padding: const EdgeInsets.only(top: 3),
-                                            child: Text(e, style: Fp.body(12, color: Fp.text3, height: 1.35)),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      if (c.offer.modelProbability != null)
-                                        Text(
-                                          percent(c.offer.modelProbability!),
-                                          style: Fp.title(17, color: Fp.accentLight),
-                                        ),
-                                      Text(
-                                        'cote ${odds(c.offer.odds)}',
-                                        style: Fp.body(12, color: Fp.text2, weight: FontWeight.w600),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(width: 12),
-                                  _SquareIconButton(
-                                    icon: Icons.close_rounded,
-                                    tooltip: 'Retirer',
-                                    onTap: busy ? null : () => state.removeFromCoupon(c),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const Divider(),
-                          ],
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: StatTile(
-                                  'Probabilité combinée',
-                                  modelProb != null ? pct(modelProb) : '—',
-                                  valueColor: Fp.accentLight,
-                                  valueSize: 22,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(child: StatTile('Cote totale', odds(total), valueSize: 22)),
-                            ],
-                          ),
-                          if (modelProb != null && modelProb > 0) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              'Soit environ 1 chance sur ${(1 / modelProb).round()} selon le moteur.',
-                              style: Fp.body(13, color: Fp.textSoft, weight: FontWeight.w600),
-                            ),
-                          ],
-                          if (items.length >= 6) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              '${items.length} sélections : même des choix sûrs, une fois multipliés, font un coupon '
-                              'risqué. La marge du bookmaker (environ 5 à 8 % par cote) se multiplie aussi.',
-                              style: Fp.body(12, color: Fp.warning, height: 1.4),
-                            ),
-                          ],
-                          if (modelProb != null) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              'Probabilité déduite de la cote : ${pct(1 / total)} '
-                              '(marge du bookmaker comprise). Probabilité combinée : produit des sélections, '
-                              'des matchs différents étant indépendants.',
-                              style: Fp.body(11, color: Fp.text3, height: 1.4),
-                            ),
+                          for (final (i, c) in items.indexed) ...[
+                            if (i > 0) const Divider(),
+                            _SelectionRow(item: c, onRemove: busy ? null : () => state.removeFromCoupon(c)),
                           ],
                         ],
                       ),
                     ),
                   ],
                   [
+                    const SizedBox(height: 12),
                     GlassCard.section(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text('Mise · bookmaker virtuel', style: Fp.title(15, weight: FontWeight.w600)),
-                          const SizedBox(height: 6),
-                          KeyValue('Solde disponible', me != null ? money(me.balance, currency) : '—'),
-                          if (step == null) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              'Montant',
-                              style: Fp.body(13, weight: FontWeight.w600, color: Fp.textStrong),
+                          _Line('Cote totale (1xBet)', odds(total), valueStyle: Fp.title(18)),
+                          _Line(
+                            'Chance selon le moteur',
+                            modelProb != null ? pct(modelProb) : '—',
+                            valueStyle: Fp.body(15, weight: FontWeight.w800),
+                          ),
+                          if (items.length >= 6)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Text(
+                                '${items.length} sélections : même des choix sûrs, une fois multipliés, font un '
+                                'coupon risqué.',
+                                style: Fp.body(12, color: Fp.warning, height: 1.4),
+                              ),
                             ),
-                            const SizedBox(height: 7),
+                          if (step == null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Mise (argent fictif)',
+                              style: Fp.body(12.5, weight: FontWeight.w700, color: Fp.textStrong),
+                            ),
+                            const SizedBox(height: 8),
                             Row(
                               children: [
                                 Expanded(
@@ -425,20 +282,52 @@ class _CouponScreenState extends State<CouponScreen> {
                                     keyboardType: TextInputType.number,
                                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                     onChanged: (_) => setState(() {}),
-                                    style: Fp.title(17, weight: FontWeight.w600),
-                                    decoration: InputDecoration(suffixText: currencyLabel(currency)),
+                                    style: Fp.body(16, weight: FontWeight.w800),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                _AddButton('+500', () => _addStake(500)),
-                                const SizedBox(width: 8),
-                                _AddButton('+1 000', () => _addStake(1000)),
+                                Container(
+                                  height: 52,
+                                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: Fp.fill,
+                                    borderRadius: Fp.radius14,
+                                    border: Border.all(color: Fp.line),
+                                  ),
+                                  child: Text(
+                                    currencyLabel(currency),
+                                    style: Fp.body(13, weight: FontWeight.w700),
+                                  ),
+                                ),
                               ],
                             ),
                           ] else
-                            KeyValue('Mise imposée par la montante', money(step.stake, currency)),
-                          const SizedBox(height: 6),
-                          KeyValue('Gain possible', money(payout, currency), bold: true, valueColor: Fp.win),
+                            _Line('Mise imposée par la montante', money(step.stake, currency)),
+                          const SizedBox(height: 10),
+                          _Line(
+                            'Gain possible',
+                            money(payout, currency),
+                            valueStyle: Fp.body(17, weight: FontWeight.w800, color: const Color(0xFF6EE7B7)),
+                          ),
+                          const SizedBox(height: 10),
+                          FilledButton(
+                            onPressed: busy || (step != null && items.length > 3) ? null : _place,
+                            child: busy
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  )
+                                : Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(step != null ? 'Jouer le palier ${step.step}' : 'Placer le pari'),
+                                      const SizedBox(width: 8),
+                                      const Icon(Icons.arrow_forward_rounded, size: 18),
+                                    ],
+                                  ),
+                          ),
                         ],
                       ),
                     ),
@@ -452,21 +341,20 @@ class _CouponScreenState extends State<CouponScreen> {
                         onChanged: (v) => setState(() => useStep = v ? s : null),
                       ),
                     ],
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: busy || (step != null && items.length > 3) ? null : _place,
-                      child: busy
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : Text(step != null ? 'Jouer le palier ${step.step}' : 'Valider le coupon'),
-                    ),
                     const SizedBox(height: 6),
-                    TextButton(
-                      onPressed: busy ? null : _refreshOdds,
-                      child: const Text('Mettre à jour les cotes'),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      children: [
+                        TextButton(
+                          onPressed: busy ? null : _refreshOdds,
+                          child: const Text('Mettre à jour les cotes'),
+                        ),
+                        TextButton(
+                          onPressed: busy ? null : state.clearCoupon,
+                          style: TextButton.styleFrom(foregroundColor: Fp.lossText),
+                          child: const Text('Vider'),
+                        ),
+                      ],
                     ),
                   ],
                   leftWidth: 520,
@@ -480,56 +368,133 @@ class _CouponScreenState extends State<CouponScreen> {
   }
 }
 
-class _SquareIconButton extends StatelessWidget {
-  const _SquareIconButton({required this.icon, required this.onTap, required this.tooltip});
+/// Bandeau d'accès (maquette v2) : icône dans un carré violet, titre, sous-titre, flèche.
+class _Banner extends StatelessWidget {
+  const _Banner({required this.icon, required this.title, required this.subtitle, required this.onTap});
   final IconData icon;
-  final VoidCallback? onTap;
-  final String tooltip;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(10),
-      side: const BorderSide(color: Fp.line),
+      borderRadius: BorderRadius.circular(18),
+      side: const BorderSide(color: Color(0x8CA78BFA)),
     );
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Fp.fill,
-        shape: shape,
+    return Material(
+      shape: shape,
+      color: Colors.transparent,
+      clipBehavior: Clip.antiAlias,
+      child: Ink(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(colors: [Color(0x477C3AED), Color(0x0F7C3AED)]),
+        ),
         child: InkWell(
-          customBorder: shape,
           onTap: onTap,
-          child: SizedBox(width: 36, height: 36, child: Icon(icon, size: 18, color: Fp.text)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: Fp.accentAlpha(0.3),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(icon, size: 20, color: const Color(0xFFE4D8FD)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: Fp.body(14.5, weight: FontWeight.w800)),
+                      Text(subtitle, style: Fp.body(12, color: Fp.text2)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: Color(0xFFC9B2F8)),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _AddButton extends StatelessWidget {
-  const _AddButton(this.label, this.onTap);
-  final String label;
-  final VoidCallback onTap;
+/// Sélection du coupon : libellé, match et chance du moteur, cote, croix pour retirer.
+class _SelectionRow extends StatelessWidget {
+  const _SelectionRow({required this.item, required this.onRemove});
+  final CouponItem item;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
-    final shape = RoundedRectangleBorder(
-      borderRadius: Fp.radius14,
-      side: const BorderSide(color: Fp.line),
+    final c = item;
+    final model = c.offer.modelProbability;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  fullLabel(
+                    c.offer.market,
+                    c.offer.line,
+                    c.offer.selection,
+                    home: c.match.home.name,
+                    away: c.match.away.name,
+                  ),
+                  style: Fp.body(14.5, weight: FontWeight.w800),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    '${c.match.home.name} – ${c.match.away.name}',
+                    if (model != null) 'moteur ${percent(model)}',
+                  ].join(' · '),
+                  style: Fp.body(12, color: Fp.text2),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(odds(c.offer.odds), style: Fp.body(15, weight: FontWeight.w800)),
+          IconButton(
+            tooltip: 'Retirer',
+            onPressed: onRemove,
+            icon: const Icon(Icons.close_rounded, size: 20, color: Fp.text2),
+          ),
+        ],
+      ),
     );
-    return Material(
-      color: Fp.fill,
-      shape: shape,
-      child: InkWell(
-        customBorder: shape,
-        onTap: onTap,
-        child: Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          alignment: Alignment.center,
-          child: Text(label, style: Fp.title(14, weight: FontWeight.w600)),
-        ),
+  }
+}
+
+/// Ligne libellé / valeur de la carte de mise.
+class _Line extends StatelessWidget {
+  const _Line(this.label, this.value, {this.valueStyle});
+  final String label;
+  final String value;
+  final TextStyle? valueStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(label, style: Fp.body(14, color: Fp.text2)),
+          ),
+          Text(value, style: valueStyle ?? Fp.body(14, weight: FontWeight.w700)),
+        ],
       ),
     );
   }

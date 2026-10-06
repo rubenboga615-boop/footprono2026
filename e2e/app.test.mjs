@@ -81,9 +81,9 @@ await check('match : probabilités et cote réelle ajoutée au coupon', async ()
 
 await check('coupon : pari placé, gain calculé', async () => {
   await nav('Coupon');
-  await visible(text('Mon coupon · 1 sélection'));
+  await visible(text('Cote totale (1xBet)'));
   await visible(text('Gain possible'));
-  await button('Valider le coupon').click();
+  await button(/Placer le pari/).click();
   await visible(text(/Pari placé/));
 });
 

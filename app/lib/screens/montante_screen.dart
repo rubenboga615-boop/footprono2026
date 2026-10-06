@@ -26,6 +26,13 @@ Widget montanteTag(String s) => switch (s) {
   _ => Tag(montanteStatus(s)),
 };
 
+/// Milieu d'une fourchette, arrondi à 50 F : « 42 100 » (suivi de « environ »).
+String _about(List? r) {
+  if (r == null) return '—';
+  final mid = ((r[0] as int) + (r[1] as int)) / 2;
+  return thousands((mid / 50).round() * 50);
+}
+
 /// « 40 936 » ou « 40 936 à 43 275 ».
 String _range(List? r, {String sep = ' à '}) {
   if (r == null) return '—';
@@ -503,8 +510,6 @@ class _Step extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text('mise ${r.stake}', style: Fp.body(11, color: Fp.text2, height: 1.3)),
                     Text('cote ${r.odds}', style: Fp.body(11, color: Fp.text2)),
-                    if (r.oddsRange != null)
-                      Text('plage ${r.oddsRange}', style: Fp.body(10.5, color: Fp.text3)),
                   ],
                 ),
               ),
@@ -547,13 +552,11 @@ class _PlanRow extends StatelessWidget {
     required this.stake,
     required this.odds,
     required this.gain,
-    this.oddsRange,
   });
   final int number;
   final _StepState state;
   final String stake;
   final String odds;
-  final String? oddsRange;
   final String gain;
 
   @override
@@ -609,10 +612,7 @@ class _PlanRow extends StatelessWidget {
             flex: 5,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(odds, style: Fp.body(14, weight: FontWeight.w600)),
-                if (oddsRange != null) Text(oddsRange!, style: Fp.body(11, color: Fp.text2)),
-              ],
+              children: [Text(odds, style: Fp.body(14, weight: FontWeight.w600))],
             ),
           ),
           Expanded(
@@ -643,11 +643,12 @@ class MontanteView extends StatefulWidget {
 
 class _MontanteViewState extends State<MontanteView> {
   Bet? currentBet;
+  final Map<int, Bet> bets = {}; // pari de chaque palier joué (libellé de la liste)
 
   @override
   void initState() {
     super.initState();
-    _loadBet();
+    _loadBets();
   }
 
   Json? get _current {
@@ -655,14 +656,21 @@ class _MontanteViewState extends State<MontanteView> {
     return (m['steps'] as List).cast<Json>().where((s) => s['number'] == m['current_step']).firstOrNull;
   }
 
-  Future<void> _loadBet() async {
-    final id = _current?['bet_id'];
-    if (id == null) return;
-    try {
-      final b = Bet(await context.read<AppState>().api.get('/bets/$id') as Json);
-      if (mounted) setState(() => currentBet = b);
-    } on ApiException {
-      // le tableau reste lisible sans le détail du pari
+  Future<void> _loadBets() async {
+    final api = context.read<AppState>().api;
+    for (final s in (widget.montante['steps'] as List).cast<Json>()) {
+      final id = s['bet_id'] as int?;
+      if (id == null) continue;
+      try {
+        final b = Bet(await api.get('/bets/$id') as Json);
+        if (!mounted) return;
+        setState(() {
+          bets[id] = b;
+          if (id == _current?['bet_id']) currentBet = b;
+        });
+      } on ApiException {
+        // la liste reste lisible sans le détail du pari
+      }
     }
   }
 
@@ -716,157 +724,192 @@ class _MontanteViewState extends State<MontanteView> {
     }
 
     String pct(Object? v) => v == null ? '—' : percent((v as num).toDouble(), decimals: 1);
+    final won = steps.where((s) => stateOf(s) == _StepState.won).length;
+    final stakeNow = current?['stake'] as int? ?? m['cashable'] as int;
+
+    String betLabel(Bet b) => b.selections.length == 1
+        ? fullLabel(
+            b.selections.single.market,
+            b.selections.single.line,
+            b.selections.single.selection,
+            home: b.selections.single.homeTeam,
+            away: b.selections.single.awayTeam,
+          )
+        : 'Combiné de ${b.selections.length} matchs';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (widget.back) ...[
               SquareButton(
-                icon: Icons.arrow_back_rounded,
+                icon: Icons.chevron_left_rounded,
                 tooltip: 'Retour',
                 onTap: () => Navigator.of(context).maybePop(),
               ),
               const SizedBox(width: 14),
             ],
             const Expanded(child: TwoToneTitle('Ma', 'montante')),
-            if (goal != null) _Goal(goal) else montanteTag(m['status'] as String),
+            if (!active) montanteTag(m['status'] as String),
           ],
         ),
         const SizedBox(height: 16),
+        // Maquette v2 : où en est la montante, d'un coup d'œil.
         GlassCard.section(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
-                    child: Text(
-                      'Plan · ${steps.length} paliers',
-                      style: Fp.title(17, weight: FontWeight.w600),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          active ? 'Mise actuelle' : (m['status'] == 'lost' ? 'Résultat' : 'Encaissé'),
+                          style: Fp.body(13, color: Fp.text2),
+                        ),
+                        Text(
+                          active
+                              ? '${thousands(stakeNow)} F'
+                              : m['status'] == 'lost'
+                              ? 'perdue'
+                              : '${thousands(m['cashable'] as int)} F',
+                          style: Fp.title(
+                            28,
+                            color: !active && m['status'] == 'lost' ? Fp.lossText : Fp.text,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  Text(
-                    'départ ${money(m['start_stake'] as int, currency)}',
-                    style: Fp.body(13, color: Fp.text2),
-                  ),
+                  if (goal != null)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('Objectif', style: Fp.body(12, color: Fp.text2)),
+                        Text('${_range(goal)} F', style: Fp.body(14, weight: FontWeight.w800)),
+                      ],
+                    ),
                 ],
               ),
+              const SizedBox(height: 12),
+              ProbBar(steps.isEmpty ? 0 : won / steps.length, height: 8),
               const SizedBox(height: 10),
-              ..._plan(context, [
-                for (final s in steps)
-                  _PlanRow(
-                    number: s['number'] as int,
-                    state: stateOf(s),
-                    stake: s['stake'] != null
-                        ? thousands(s['stake'] as int)
-                        : _range(s['stake_range'] as List?, sep: '\nà '),
-                    odds: s['odds'] != null
-                        ? odds(s['odds'])
-                        : '${odds(s['odds_min'])}–${odds(s['odds_max'])}',
-                    oddsRange: s['odds'] != null ? '${odds(s['odds_min'])}–${odds(s['odds_max'])}' : null,
-                    gain: s['payout'] != null
-                        ? thousands(s['payout'] as int)
-                        : s['potential_payout'] != null
-                        ? thousands(s['potential_payout'] as int)
-                        : _range(s['payout_range'] as List?, sep: '\nà '),
-                  ),
-              ]),
-              const SizedBox(height: 4),
               Text(
-                'Tout pari dont la cote est dans la plage du palier convient. Les gains à venir dépendent '
-                'des cotes réellement jouées.',
-                style: Fp.body(13, color: Fp.text2, height: 1.4),
+                'Palier ${m['current_step']} sur ${steps.length} · départ '
+                '${money(m['start_stake'] as int, currency)} (argent fictif)',
+                style: Fp.body(13, color: Fp.text2),
               ),
             ],
           ),
         ),
         const SizedBox(height: 12),
         GlassCard.section(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Column(
             children: [
-              Expanded(
-                child: _Figure('Encaissable maintenant', '${thousands(m['cashable'] as int)} F', Fp.text),
-              ),
-              Expanded(
-                child: _Figure('Chance d\'aller au bout · modèle', pct(m['chance_by_model']), Fp.accentLight),
-              ),
-              Expanded(child: _Figure('Selon les cotes', pct(m['chance_by_odds']), Fp.textSoft)),
+              for (final s in steps)
+                _StepLine(
+                  number: s['number'] as int,
+                  state: stateOf(s),
+                  title: switch (bets[s['bet_id']]) {
+                    final b? => '${betLabel(b)} · ${odds(b.totalOdds)}',
+                    _ => s['odds'] != null ? 'Cote ${odds(s['odds'])}' : 'À choisir',
+                  },
+                  detail: s['stake'] != null
+                      ? '${thousands(s['stake'] as int)} → '
+                            '${s['payout'] != null
+                                ? thousands(s['payout'] as int)
+                                : s['potential_payout'] != null
+                                ? thousands(s['potential_payout'] as int)
+                                : _range(s['payout_range'] as List?)} F'
+                      : '${_about(s['stake_range'] as List?)} → ${_about(s['payout_range'] as List?)} F environ',
+                ),
             ],
           ),
         ),
-        if (active && current != null) ...[
-          const SizedBox(height: 12),
-          GlassCard.section(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      'Palier ${current['number']} · ${waiting ? 'pari à choisir' : 'pari choisi'}',
-                      style: Fp.body(14, color: Fp.text2, weight: FontWeight.w600),
-                    ),
-                    if (bet != null && bet.selections.every((s) => s.modelProbability != null)) ...[
-                      const SizedBox(width: 8),
-                      Tag(
-                        'Modèle ${percent(bet.selections.fold<double>(1, (p, s) => p * s.modelProbability!))}',
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 8),
-                if (waiting)
-                  Text(
-                    'Mise imposée ${money(current['stake'] as int, currency)}, '
-                    'cote entre ${odds(current['odds_min'])} et ${odds(current['odds_max'])}.',
-                    style: Fp.body(14, color: Fp.textStrong, height: 1.4),
-                  )
-                else if (bet != null) ...[
-                  for (final s in bet.selections)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        '${s.homeTeam} – ${s.awayTeam} · '
-                        '${fullLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam)}',
-                        style: Fp.body(15, weight: FontWeight.w700),
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  _InfoBox(
-                    ok: current['out_of_range'] != true,
-                    text:
-                        'Cote ${odds(bet.totalOdds)} : '
-                        '${current['out_of_range'] == true ? 'hors de la plage (confirmé)' : 'dans la plage'} '
-                        '${odds(current['odds_min'])}–${odds(current['odds_max'])}. Gain de ce palier : '
-                        '${money(bet.potentialPayout, bet.currency)}.',
-                  ),
-                ],
-              ],
-            ),
+        const SizedBox(height: 6),
+        if (m['chance_by_model'] != null || m['chance_by_odds'] != null)
+          Text(
+            [
+              if (m['chance_by_model'] != null) '${pct(m['chance_by_model'])} selon le moteur',
+              if (m['chance_by_odds'] != null) '${pct(m['chance_by_odds'])} selon les cotes',
+            ].join(', ').replaceFirst(RegExp(r'^'), 'Chance d\'aller au bout : '),
+            style: Fp.body(12, color: Fp.text2),
           ),
-          const SizedBox(height: 12),
-          _SecureCard(on: (m['secure_pct'] as int) > 0, pct: m['secure_pct'] as int),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
-                  onPressed: _cashOut,
-                  child: FittedBox(child: Text('Encaisser ${thousands(m['cashable'] as int)} F')),
+        if (active && current != null) ...[
+          if (!waiting && bet != null) ...[
+            const SizedBox(height: 12),
+            _InfoBox(
+              ok: current['out_of_range'] != true,
+              text:
+                  'Palier ${current['number']} : cote ${odds(bet.totalOdds)}, '
+                  '${current['out_of_range'] == true ? 'hors de la plage (confirmé)' : 'dans la plage'} '
+                  '${odds(current['odds_min'])}–${odds(current['odds_max'])}. Gain de ce palier : '
+                  '${money(bet.potentialPayout, bet.currency)}.',
+            ),
+          ],
+          if (waiting) ...[
+            const SizedBox(height: 12),
+            Semantics(
+              button: true,
+              label: 'Choisir le pari',
+              child: Material(
+                color: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: Color(0x8CA78BFA)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: _suggestions,
+                  child: Ink(
+                    color: Fp.accentAlpha(0.12),
+                    padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.star_outline_rounded, size: 18, color: Color(0xFFE4D8FD)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ExcludeSemantics(
+                            child: Text.rich(
+                              TextSpan(
+                                style: Fp.body(13, color: Fp.textStrong, height: 1.4),
+                                children: [
+                                  TextSpan(
+                                    text: 'Suggestions du moteur',
+                                    style: Fp.body(13, weight: FontWeight.w800),
+                                  ),
+                                  TextSpan(
+                                    text:
+                                        ' pour le palier ${current['number']} (mise '
+                                        '${money(current['stake'] as int, currency)}, cote '
+                                        '${odds(current['odds_min'])} à ${odds(current['odds_max'])}), selon les '
+                                        'mêmes règles que le Coupon intelligent.',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, color: Color(0xFFC9B2F8)),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              if (waiting) ...[
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton(onPressed: _suggestions, child: const Text('Choisir le pari')),
-                ),
-              ],
-            ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          _SecureCard(on: (m['secure_pct'] as int) > 0, pct: m['secure_pct'] as int),
+          const SizedBox(height: 14),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
+            onPressed: _cashOut,
+            child: FittedBox(child: Text('Arrêter et garder ${thousands(m['cashable'] as int)} F')),
           ),
           if (waiting)
             TextButton(
@@ -877,18 +920,76 @@ class _MontanteViewState extends State<MontanteView> {
               },
               child: const Text('Composer moi-même depuis les matchs'),
             ),
-        ] else if (!active) ...[
-          const SizedBox(height: 12),
-          GlassCard.section(
-            child: KeyValue(
-              m['status'] == 'lost' ? 'Résultat' : 'Encaissé',
-              m['status'] == 'lost' ? 'montante perdue' : money(m['cashable'] as int, currency),
-              bold: true,
-              valueColor: m['status'] == 'lost' ? Fp.lossText : Fp.win,
-            ),
-          ),
         ],
       ],
+    );
+  }
+}
+
+/// Un palier (maquette v2) : numéro coloré selon l'état, pari et gains, état à droite.
+class _StepLine extends StatelessWidget {
+  const _StepLine({required this.number, required this.state, required this.title, required this.detail});
+  final int number;
+  final _StepState state;
+  final String title;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final (box, border, digit, status, statusColor) = switch (state) {
+      _StepState.won => (const Color(0x2934D399), const Color(0x8034D399), Fp.win, 'Gagné', Fp.win),
+      _StepState.lost => (
+        const Color(0x29F472B6),
+        const Color(0x80F472B6),
+        Fp.lossText,
+        'Perdu',
+        Fp.lossText,
+      ),
+      _StepState.current => (Fp.accent, Fp.accent, Colors.white, 'En cours', Fp.warning),
+      _StepState.future => (Fp.fill, Fp.line, Fp.text2, '', Fp.text2),
+    };
+    final future = state == _StepState.future;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: box,
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(color: border),
+              boxShadow: state == _StepState.current
+                  ? [BoxShadow(color: Fp.accentAlpha(0.6), blurRadius: 12)]
+                  : null,
+            ),
+            child: Text(
+              '$number',
+              style: Fp.body(13, weight: FontWeight.w800, color: digit),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Fp.body(14, weight: FontWeight.w800, color: future ? Fp.text2 : Fp.text),
+                ),
+                Text(detail, style: Fp.body(12, color: Fp.text2)),
+              ],
+            ),
+          ),
+          if (status.isNotEmpty)
+            Text(
+              status,
+              style: Fp.body(12.5, weight: FontWeight.w800, color: statusColor),
+            ),
+        ],
+      ),
     );
   }
 }

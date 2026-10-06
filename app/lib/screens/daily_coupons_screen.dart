@@ -85,21 +85,16 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
               child: ListView(
                 padding: pagePadding(context, 16, 120, maxWidth: 1080),
                 children: [
-                  BackHeader(
-                    'Coupons',
-                    'du jour',
-                    subtitle:
-                        'Un coupon par profil, enregistré chaque matin avant les matchs, avec sa chance '
-                        'estimée par le moteur. Copie le code et colle-le chez le bookmaker.',
-                    trailing: SquareButton(
-                      icon: Icons.history_rounded,
-                      tooltip: 'Historique complet',
-                      onTap: () =>
-                          Navigator.of(context)
-                              .push(MaterialPageRoute(builder: (_) => const SmartHistoryScreen())),
-                    ),
-                  ),
+                  const BackHeader('Coupons', 'du jour'),
                   const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(child: KeyTile('Hier', _record(yesterday))),
+                      const SizedBox(width: 8),
+                      Expanded(child: KeyTile('30 derniers jours', _record(month))),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       for (final (o, label) in const [(-1, 'Hier'), (0, 'Aujourd\'hui')]) ...[
@@ -107,15 +102,6 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
                         const SizedBox(width: 8),
                       ],
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  GlassCard.section(
-                    child: Row(
-                      children: [
-                        Expanded(child: StatTile('Hier', _record(yesterday))),
-                        Expanded(child: StatTile('30 derniers jours', _record(month))),
-                      ],
-                    ),
                   ),
                   const SizedBox(height: 12),
                   if (coupons.isEmpty)
@@ -134,6 +120,18 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
                                 .push(MaterialPageRoute(builder: (_) => DailyCouponDetail(coupon: c))),
                       ),
                   ]),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Tooltip(
+                      message: 'Historique complet',
+                      child: TextButton(
+                        onPressed: () =>
+                            Navigator.of(context)
+                                .push(MaterialPageRoute(builder: (_) => const SmartHistoryScreen())),
+                        child: const Text('Voir l\'historique des coupons'),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             );
@@ -157,53 +155,58 @@ class _DailyCouponCard extends StatelessWidget {
     final sels = (c['selections'] as List).cast<Json>();
     final first = c['first_kickoff'] as String?;
     final codes = (c['booking_codes'] as List).cast<Json>();
+    final key = '${c['profile']}';
+    final color = switch (key) {
+      'sur' => Fp.win,
+      'audacieux' || 'grosse' => Fp.lossText,
+      _ => Fp.accentLight,
+    };
     return GlassCard.section(
       margin: const EdgeInsets.only(bottom: 12),
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Maquette v2 : profil, nombre de sélections et cote, chance du moteur à droite.
           Row(
             children: [
+              Tag('${c['profile_label']}'.toUpperCase(), color: color),
+              const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('${c['profile_label']}', style: Fp.title(16, weight: FontWeight.w600)),
-                    Text(
-                      '${sels.length} sélection(s)'
-                      '${first == null ? '' : ' · premier match ${hourMinute(DateTime.parse(first).toLocal())}'}',
-                      style: Fp.body(12, color: Fp.text3),
-                    ),
-                  ],
+                child: Text(
+                  '${sels.length} sélection${sels.length > 1 ? 's' : ''} · cote ${odds(c['total_odds'])}',
+                  style: Fp.body(14.5, weight: FontWeight.w800),
                 ),
               ),
+              Text(percent((c['probability'] as num).toDouble()), style: Fp.title(17)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
               _statusTag(c),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(child: StatTile('Cote', odds(c['total_odds']), valueSize: 18)),
+              const SizedBox(width: 10),
               Expanded(
-                child: StatTile(
-                  'Chance',
-                  percent((c['probability'] as num).toDouble()),
-                  valueSize: 18,
-                  valueColor: Fp.accentLight,
+                child: Text(
+                  [
+                    '${c['validated']} / ${sels.length} validée${(c['validated'] as int) > 1 ? 's' : ''}',
+                    if (first != null) 'premier match ${hourMinute(DateTime.parse(first).toLocal())}',
+                  ].join(' · '),
+                  style: Fp.body(12.5, color: Fp.text2),
                 ),
               ),
-              Expanded(child: StatTile('Validées', '${c['validated']} / ${sels.length}', valueSize: 18)),
             ],
           ),
-          const SizedBox(height: 10),
-          ProbBar(sels.isEmpty ? 0 : (c['validated'] as int) / sels.length, color: Fp.win),
           const SizedBox(height: 12),
           if (codes.isEmpty)
             Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Fp.fill, borderRadius: BorderRadius.circular(12)),
-              child: Text('Code bientôt disponible', style: Fp.body(12, color: Fp.text3)),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0x66000000),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0x52A78BFA)),
+              ),
+              child: Text('Code bientôt disponible', style: Fp.body(12.5, color: Fp.text2)),
             )
           else
             for (final b in codes) BookingCodeRow(b),
@@ -222,18 +225,15 @@ class BookingCodeRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
       decoration: BoxDecoration(
-        color: Fp.accent.withValues(alpha: .10),
+        color: const Color(0x66000000),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Fp.accentLight.withValues(alpha: .45)),
+        border: Border.all(color: const Color(0x52A78BFA)),
       ),
       child: Row(
         children: [
-          Text(
-            '${booking['label']}'.toUpperCase(),
-            style: Fp.body(11, weight: FontWeight.w800, color: const Color(0xFF7FB7FF)),
-          ),
+          Text('Code ${booking['label']}', style: Fp.body(11.5, color: Fp.text2)),
           const SizedBox(width: 10),
           Expanded(
             child: SelectableText(

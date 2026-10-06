@@ -641,13 +641,21 @@ class BackHeader extends StatelessWidget {
             // Version ordinateur : un écran du menu est la racine de sa zone, sans retour.
             if (Navigator.of(context).canPop()) ...[
               SquareButton(
-                icon: Icons.arrow_back_rounded,
+                icon: Icons.chevron_left_rounded,
                 tooltip: 'Retour',
                 onTap: () => Navigator.of(context).maybePop(),
               ),
               const SizedBox(width: 14),
             ],
-            Expanded(child: TwoToneTitle(first, second, size: 24, joined: joined)),
+            // Titre sur une ligne (maquette v2) : il rétrécit plutôt que de passer à la ligne.
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: TwoToneTitle(first, second, size: 24, joined: joined),
+              ),
+            ),
+            if (trailing != null) const SizedBox(width: 10),
             ?trailing,
           ],
         ),
@@ -656,6 +664,37 @@ class BackHeader extends StatelessWidget {
           Text(subtitle!, style: Fp.body(14, color: Fp.text2, height: 1.4)),
         ],
       ],
+    );
+  }
+}
+
+/// Case de chiffre clé (maquette v2) : libellé discret, valeur en gras.
+class KeyTile extends StatelessWidget {
+  const KeyTile(this.label, this.value, {super.key});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Fp.fill,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Fp.line10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Fp.body(11, color: Fp.text2)),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(value, style: Fp.body(16, weight: FontWeight.w800)),
+          ),
+        ],
+      ),
     );
   }
 }

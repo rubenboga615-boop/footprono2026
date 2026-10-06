@@ -145,10 +145,10 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        Expanded(child: _Tile('Depuis le lancement', '${thousands(n)} réglés')),
+                        Expanded(child: KeyTile('Depuis le lancement', '${thousands(n)} réglés')),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: _Tile(
+                          child: KeyTile(
                             'Backtest (saisons passées)',
                             '${thousands(bt['matches'] as int)} matchs',
                           ),
@@ -251,37 +251,6 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
       Text(label, style: Fp.body(13, color: Fp.textStrong)),
     ],
   );
-}
-
-/// Case de chiffre clé (maquette v2).
-class _Tile extends StatelessWidget {
-  const _Tile(this.label, this.value);
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Fp.fill,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Fp.line10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: Fp.body(11, color: Fp.text2)),
-          const SizedBox(height: 2),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(value, style: Fp.body(16, weight: FontWeight.w800)),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _Warning extends StatelessWidget {
