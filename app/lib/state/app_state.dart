@@ -573,11 +573,30 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Moyens de paiement proposés par le serveur : prix, `methods` [{id, label}] et
   /// `manual` (numéro Wave de FootProba, vérification par l'administrateur) ou null.
-  Future<Json> paymentMethods() async => await api.get('/payments/methods') as Json;
+  /// Serveur pas encore mis à jour (sans cette adresse) : le paiement reste possible avec
+  /// le prestataire configuré, comme avant le choix du moyen.
+  Future<Json> paymentMethods() async {
+    try {
+      return await api.get('/payments/methods') as Json;
+    } on ApiException catch (e) {
+      if (e.status != 404 && e.status != 422) rethrow;
+      final plan = me?.plan;
+      return {
+        'price': plan?.price ?? 2000,
+        'currency': plan?.priceCurrency ?? 'XOF',
+        'days': 30,
+        'methods': [
+          {'id': '', 'label': 'Mobile Money ou carte'},
+        ],
+        'manual': null,
+      };
+    }
+  }
 
   /// Crée le paiement et ouvre la page de paiement du prestataire dans le navigateur.
   Future<void> buyPremium([String? method]) async {
-    final payment = await api.post('/payments/premium', {'method': method}) as Json;
+    final payment =
+        await api.post('/payments/premium', {'method': (method ?? '').isEmpty ? null : method}) as Json;
     pendingPayment = payment['id'] as int;
     final opened = await openUrl(Uri.parse(payment['payment_url'] as String));
     if (!opened) {

@@ -29,6 +29,7 @@ class FakeServer {
   String? vapidKey;
   String paymentStatus = 'pending';
   String? boughtWith;
+  bool oldServer = false;
   final List<Map<String, String>> smartQueries = [];
   final List<Map<String, String>> teamQueries = [];
   final List<Map<String, dynamic>> bookingCodes = [];
@@ -171,6 +172,9 @@ class FakeServer {
         body = me;
       case 'GET /me/notifications':
         body = [];
+      case 'GET /payments/methods' when oldServer:
+        // Ancien serveur : « methods » pris pour un numéro de paiement.
+        return _error(422, 'validation_error', 'Requête invalide');
       case 'GET /payments/methods':
         body = {
           'price': 2000,
@@ -1307,6 +1311,34 @@ void main() {
     expect(find.text('Paiement reçu : Premium est activé.'), findsOneWidget);
     expect(state.premium, isTrue);
     expect(state.pendingPayment, isNull);
+  });
+
+  testWidgets('Premium : serveur pas encore à jour, paiement quand même possible', (tester) async {
+    SharedPreferences.setMockInitialValues({'token': 'jeton'});
+    final server = FakeServer()..oldServer = true;
+    final opened = <Uri>[];
+    final state = AppState(
+      api: ApiClient(baseUrl: 'http://serveur', httpClient: MockClient(server.handle)),
+      socketFactory: (_) => null,
+      openUrl: (url) async {
+        opened.add(url);
+        return true;
+      },
+    );
+    await tester.binding.setSurfaceSize(const Size(430, 1400));
+    await tester.pumpWidget(FootProbaApp(state: state));
+    await state.init();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.textContaining('Passer Premium'), 200);
+    await tester.tap(find.textContaining('Passer Premium'));
+    await tester.pumpAndSettle();
+    expect(find.text('Requête invalide'), findsNothing);
+    await tester.tap(find.text('Mobile Money ou carte'));
+    await tester.pumpAndSettle();
+    expect(server.boughtWith, isNull);
+    expect(opened.single.toString(), 'https://checkout.cinetpay.com/payment/abc');
   });
 
   testWidgets('Premium : Wave manuel, numéro affiché et capture envoyée sur WhatsApp', (tester) async {
