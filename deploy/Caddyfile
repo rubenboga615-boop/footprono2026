@@ -6,6 +6,16 @@
 	@metrics path /metrics
 	respond @metrics 404
 
+	# Connexion Google de la version web : les pages de connexion de Firebase sont
+	# servies sous notre domaine (authDomain), sinon Safari sur iPhone perd la
+	# session pendant la redirection vers Google.
+	@firebase path /__/auth/* /__/firebase/*
+	handle @firebase {
+		reverse_proxy https://footprono-56616.firebaseapp.com {
+			header_up Host {upstream_hostport}
+		}
+	}
+
 	handle {
 		reverse_proxy api:8000
 	}

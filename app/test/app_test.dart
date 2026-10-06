@@ -717,6 +717,16 @@ class FakeGoogle implements GoogleAuthBridge {
 
   @override
   Future<String?> idToken() async => next;
+
+  /// Jeton rendu au démarrage (retour de redirection, version web sur téléphone).
+  String? redirect;
+  @override
+  Future<String?> redirectResult() async {
+    final t = redirect;
+    redirect = null;
+    return t;
+  }
+
   @override
   Future<void> signOut() async => signOuts++;
 }
@@ -1445,6 +1455,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(state.me?.displayName, 'Kossi');
     expect(find.text('Voir les matchs du jour'), findsOneWidget);
+  });
+
+  testWidgets('version web sur téléphone : retour de Google après redirection', (tester) async {
+    // Pas connecté : la connexion reprend (compte Google inconnu → « Presque prêt »).
+    final (state, _) = await startApp(tester, google: FakeGoogle()..redirect = 'jeton-google');
+    expect(state.googleSignup?.email, 'kossi@gmail.com');
+
+    // Connecté : la demande venait du Profil, le compte Google est lié.
+    final (_, server) = await startApp(
+      tester,
+      loggedIn: true,
+      google: FakeGoogle()..redirect = 'jeton-google',
+    );
+    expect(server.googleLinked, isTrue);
+    expect(find.text('Compte Google lié.'), findsOneWidget);
   });
 
   testWidgets('numéro : indicatif +225 déjà mis, oubli du mot de passe par WhatsApp', (tester) async {

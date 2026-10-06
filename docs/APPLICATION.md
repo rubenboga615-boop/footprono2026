@@ -43,8 +43,8 @@ l'archive `footprono-web.zip` de GitHub Actions ; ou `footprono-admin publish-we
   FootProba s'ouvre ensuite en plein écran, avec son icône (`lib/widgets/install_tip.dart`,
   détection dans `lib/platform/device_web.dart`). Ni Android ni ordinateur ne la voient.
 - Même compte, mêmes paris, même Premium que sur Android ; paiement Paystack dans un onglet.
-- Pas encore : connexion Google sur la version web (application Web à déclarer dans
-  Firebase), notifications sur iPhone.
+- Connexion Google : fenêtre Google sur ordinateur, redirection sur téléphone
+  (voir « Connexion avec Google »). Pas encore : notifications sur iPhone.
 - Chaque fichier est revalidé auprès du serveur (`Cache-Control: no-cache`) : une version
   publiée arrive à la prochaine ouverture.
 
@@ -188,7 +188,13 @@ aucun secret n'est nécessaire.
   « Délier » (`DELETE /me/google`) seulement si le compte a un numéro et un mot de passe.
 - Console : les comptes Google apparaissent avec leur adresse ; l'administrateur
   peut leur donner un numéro.
-- Version web : pas encore de bouton Google (application web à déclarer dans Firebase).
+- Version web (`lib/google_auth.dart`) : fenêtre Google (`signInWithPopup`) sur
+  ordinateur ; sur téléphone et iPhone installé, **redirection** vers Google puis
+  retour sur FootProba (`getRedirectResult` au démarrage, `AppState._resumeGoogleRedirect` :
+  connecté → liaison du compte, sinon connexion). `authDomain` = notre domaine :
+  Caddy relaie `/__/auth/*` et `/__/firebase/*` vers `footprono-56616.firebaseapp.com`
+  (`deploy/Caddyfile`), sinon Safari perd la session pendant la redirection.
+  Sans identifiants web dans `lib/firebase_options.dart`, le bouton n'apparaît pas.
 
 **À faire une fois dans Firebase** (console.firebase.google.com → projet footprono-56616) :
 
@@ -198,6 +204,13 @@ aucun secret n'est nécessaire.
    `com.footprono.footprono` → **Ajouter une empreinte** : coller le **SHA1**, puis
    le **SHA256**, affichés par GitHub Actions (exécution « Application », étape
    « Clé de signature de production »). Ce sont des empreintes publiques, pas des secrets.
+3. Version web : Paramètres du projet → Vos applications → **Ajouter une application →
+   Web** (</>), sans Firebase Hosting ; recopier `apiKey` et `appId` dans
+   `lib/firebase_options.dart` (identifiants publics).
+4. Authentication → Paramètres → **Domaines autorisés** → ajouter `footproba.duckdns.org`.
+5. console.cloud.google.com → API et services → Identifiants → client OAuth
+   « Web client (auto created by Google Service) » → **URI de redirection autorisés** :
+   ajouter `https://footproba.duckdns.org/__/auth/handler`.
 
 ## Aide (WhatsApp)
 
@@ -236,7 +249,6 @@ Projet Firebase « footprono-56616 », application Android `com.footprono.footpr
 
 - Paiement Mobile Money : en place (Profil → Passer Premium) dès que Paystack (ou CinetPay) est configuré sur le serveur.
 - Vérification du numéro par SMS.
-- Connexion Google sur la version web.
 
 ## Développement
 

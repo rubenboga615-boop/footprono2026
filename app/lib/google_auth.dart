@@ -1,5 +1,6 @@
-// Connexion avec Google (Firebase Authentication), Android seulement pour l'instant :
-// la version web demande une application web déclarée dans Firebase.
+// Connexion avec Google (Firebase Authentication) : Android et version web.
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -8,18 +9,34 @@ import 'firebase_options.dart';
 import 'state/app_state.dart';
 
 class FirebaseGoogleAuth implements GoogleAuthBridge {
-  FirebaseGoogleAuth._();
+  FirebaseGoogleAuth._() {
+    // Web : Firebase prêt avant le toucher sur « Continuer avec Google », sinon le
+    // navigateur bloque la fenêtre (elle doit s'ouvrir juste après le geste).
+    if (kIsWeb) unawaited(_auth().then<void>((_) {}, onError: (Object _) {}));
+  }
 
-  /// null hors Android : le bouton Google n'est pas proposé (connexion par numéro).
+  /// null si Google n'est pas proposé : iPhone en application native (n'existe
+  /// pas), ou version web sans application web déclarée dans Firebase.
   static GoogleAuthBridge? start() {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return null;
+    if (kIsWeb) return firebaseWebReady ? FirebaseGoogleAuth._() : null;
+    if (defaultTargetPlatform != TargetPlatform.android) return null;
     return FirebaseGoogleAuth._();
   }
 
-  Future<FirebaseAuth> _auth() async {
-    if (Firebase.apps.isEmpty) await Firebase.initializeApp(options: firebaseOptions);
+  Future<FirebaseAuth>? _ready;
+
+  Future<FirebaseAuth> _auth() => _ready ??= () async {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(options: kIsWeb ? firebaseWebOptions(Uri.base) : firebaseOptions);
+    }
     return FirebaseAuth.instance;
-  }
+  }();
+
+  /// Web sur téléphone (et iPhone installé sur l'écran d'accueil) : redirection
+  /// vers Google, plus fiable que la fenêtre. Ordinateur : fenêtre.
+  static bool get _redirect =>
+      kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.android);
 
   @override
   Future<String?> idToken() async {
@@ -27,14 +44,35 @@ class FirebaseGoogleAuth implements GoogleAuthBridge {
     // Choix du compte à chaque fois : un téléphone partagé n'impose pas le dernier compte.
     final provider = GoogleAuthProvider()..setCustomParameters({'prompt': 'select_account'});
     try {
-      final credential = await auth.signInWithProvider(provider);
+      if (_redirect) {
+        // La page part chez Google puis revient : suite dans [redirectResult].
+        await auth.signInWithRedirect(provider);
+        return null;
+      }
+      final credential = kIsWeb
+          ? await auth.signInWithPopup(provider)
+          : await auth.signInWithProvider(provider);
       return await credential.user?.getIdToken(true);
     } on FirebaseAuthException catch (e) {
       // Fenêtre Google fermée par le joueur : rien à signaler.
-      if (e.code == 'web-context-canceled' || e.code == 'canceled') return null;
+      if (const {
+        'web-context-canceled',
+        'canceled',
+        'popup-closed-by-user',
+        'cancelled-popup-request',
+      }.contains(e.code)) {
+        return null;
+      }
       debugPrint('Connexion Google : ${e.code} ${e.message}');
       rethrow;
     }
+  }
+
+  @override
+  Future<String?> redirectResult() async {
+    if (!_redirect) return null;
+    final credential = await (await _auth()).getRedirectResult();
+    return credential.user?.getIdToken(true);
   }
 
   @override

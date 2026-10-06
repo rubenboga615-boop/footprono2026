@@ -70,6 +70,10 @@ abstract class PushBridge {
 abstract class GoogleAuthBridge {
   /// Jeton d'identité Firebase, ou null si le joueur ferme la fenêtre de Google.
   Future<String?> idToken();
+
+  /// Version web sur téléphone : Google répond en rechargeant la page ; le jeton
+  /// arrive au démarrage suivant (null s'il n'y a pas de connexion en cours).
+  Future<String?> redirectResult();
   Future<void> signOut();
 }
 
@@ -197,6 +201,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         // Serveur injoignable : on garde la session, l'écran d'accueil affichera l'erreur.
       }
     }
+    await _resumeGoogleRedirect();
     ready = true;
     notifyListeners();
   }
@@ -252,6 +257,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<bool> signInWithGoogle() async {
     final token = await _googleToken();
     if (token == null) return false;
+    await _signInWithGoogleToken(token);
+    return true;
+  }
+
+  Future<void> _signInWithGoogleToken(String token) async {
     try {
       final r = await api.post('/auth/google', {'id_token': token});
       welcome = true;
@@ -262,7 +272,31 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       googleSignup = (token: token, email: '${d['email'] ?? ''}', name: '${d['name'] ?? ''}');
       notifyListeners();
     }
-    return true;
+  }
+
+  /// Retour de Google après redirection (version web sur téléphone) : connecté, la
+  /// demande venait du Profil (lier le compte) ; sinon de l'écran de connexion.
+  Future<void> _resumeGoogleRedirect() async {
+    final g = google;
+    if (g == null) return;
+    final String? token;
+    try {
+      token = await g.redirectResult();
+    } catch (_) {
+      showMessage('Connexion Google impossible. Réessaie ou utilise ton numéro.', error: true);
+      return;
+    }
+    if (token == null) return;
+    try {
+      if (me != null) {
+        await _linkGoogleToken(token);
+        showMessage('Compte Google lié.');
+      } else {
+        await _signInWithGoogleToken(token);
+      }
+    } on ApiException catch (e) {
+      showMessage(e.message, error: true);
+    }
   }
 
   Future<void> registerWithGoogle({required String country, required bool adult}) async {
@@ -293,9 +327,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<bool> linkGoogle() async {
     final token = await _googleToken();
     if (token == null) return false;
+    await _linkGoogleToken(token);
+    return true;
+  }
+
+  Future<void> _linkGoogleToken(String token) async {
     me = Me(await api.post('/me/google', {'id_token': token}) as Json);
     notifyListeners();
-    return true;
   }
 
   Future<void> unlinkGoogle() async {
