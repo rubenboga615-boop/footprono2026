@@ -15,7 +15,6 @@ from starlette.responses import Response
 
 from footprono import __version__, web_release
 from footprono.accounts.plans import PREMIUM_DAYS, PREMIUM_PRICE
-from footprono.accounts.service import TRIAL_DAYS
 from footprono.api.v1.router import api_router
 from footprono.cache.redis import create_redis
 from footprono.core.config import Environment, Settings, get_settings
@@ -125,7 +124,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "effective_date": LEGAL_EFFECTIVE_DATE,
         "premium_price": f"{PREMIUM_PRICE:,}".replace(",", " "),
         "premium_days": str(PREMIUM_DAYS),
-        "trial_days": str(TRIAL_DAYS),
         "starting_balance": f"{settings.starting_balance:,}".replace(",", " "),
     }
     pages = {}

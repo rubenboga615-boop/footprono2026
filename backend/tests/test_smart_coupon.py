@@ -12,7 +12,7 @@ from footprono.bookmaker import smart_coupon
 from footprono.engine.markets import offered
 from footprono.football.models import Match, MatchStatus
 
-from .conftest import make_settings
+from .conftest import make_premium, make_settings
 from .test_bets import NOW, _login, quote, world  # noqa: F401 (fixture partagée)
 from .test_montante import _predict
 
@@ -96,7 +96,8 @@ async def test_smart_coupon_api(
     m1, m2 = world["m1"], world["m2"]
     await _predict(db_factory, [m1, m2])
     await _evening(db_factory, [m1, m2])
-    headers = await _login(client)  # essai Premium à l'inscription
+    headers = await _login(client)
+    await make_premium(db_factory, "+22997111111")
 
     r = await client.get(
         "/api/v1/smart-coupon",
@@ -227,6 +228,7 @@ async def test_grosse_cote_filters_and_periods(
     await _predict(db_factory, [m1, m2])
     await _evening(db_factory, [m1, m2])
     headers = await _login(client)
+    await make_premium(db_factory, "+22997111111")
 
     async def gen(**params: Any) -> dict[str, Any]:
         r = await client.get("/api/v1/smart-coupon", params=params, headers=headers)
@@ -279,6 +281,7 @@ async def test_match_picks_free_and_premium(
     assert free["equilibre"]["locked"] is True
     assert free["equilibre"]["selection"] is None
     headers = await _login(client)
+    await make_premium(db_factory, "+22997111111")
     full = (await client.get(f"/api/v1/matches/{m1}/picks", headers=headers)).json()["picks"]
     sel = full["equilibre"]["selection"]
     assert (sel["market"], sel["selection"]) == ("1X2", "home")
@@ -314,7 +317,8 @@ async def test_day_coupons_live_state_and_booking_codes(
     assert hidden["total_odds"]
     assert hidden["probability"]
 
-    player = await _login(client)  # essai Premium de l'inscription
+    player = await _login(client)
+    await make_premium(db_factory, "+22997111111")
     day = (
         await client.get("/api/v1/smart-coupons/day", params={"day": str(DAY)}, headers=player)
     ).json()
@@ -379,6 +383,7 @@ async def test_daily_coupons_notification_once_all_codes_are_in(
     m1, m2 = world["m1"], world["m2"]
     await _predict(db_factory, [m1, m2])
     await _evening(db_factory, [m1, m2])
+    await make_premium(db_factory, "+22997111111")
     async with db_factory() as session:
         await smart_coupon.create_daily(session, MORNING)
         day = await smart_coupon.day_coupons(session, DAY, MORNING)
@@ -387,12 +392,11 @@ async def test_daily_coupons_notification_once_all_codes_are_in(
         await smart_coupon.set_booking_code(session, ids[0], "1xbet", "AAAA1")
         assert await smart_coupon.notify_ready(session, MORNING) == 0  # un code manque
         await smart_coupon.set_booking_code(session, ids[1], "1xbet", "BBBB2")
-        # Un compte gratuit (essai terminé) n'est pas prévenu : il ne peut pas les ouvrir.
-        free = await accounts.register(
+        # Un compte gratuit n'est pas prévenu : il ne peut pas les ouvrir.
+        await accounts.register(
             session, make_settings(), phone="+22997222222", password="12345678",
             display_name="Gratuit", country="TG", adult=True,
         )  # fmt: skip
-        free.premium_until = None
         await session.commit()
         assert await smart_coupon.notify_ready(session, MORNING) == 1
         assert await smart_coupon.notify_ready(session, MORNING) == 0  # une seule fois

@@ -13,6 +13,7 @@ from footprono.bookmaker.settlement import settle_bets
 from footprono.football.models import Match, MatchStatus
 from footprono.predictions.models import MatchPrediction, PredictionRun
 
+from .conftest import make_premium
 from .test_bets import _login, _sel, world  # noqa: F401 (fixture partagée)
 
 Factory = async_sessionmaker[AsyncSession]
@@ -94,6 +95,7 @@ async def test_montante_end_to_end(
 ) -> None:
     await _predict(db_factory, [world["m1"], world["m2"]])
     headers = await _login(client)
+    await make_premium(db_factory, "+22997111111")
     plan = (
         await client.post(
             "/api/v1/montantes",

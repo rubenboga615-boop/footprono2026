@@ -315,7 +315,11 @@ async def test_dashboard(client: AsyncClient, admin_headers: dict[str, str]) -> 
     assert board["services"]["database"] is True
     assert board["services"]["redis"] is True
     users = board["users"]
-    assert (users["total"], users["premium"], users["new_7d"]) == (1, 1, 1)  # essai Premium
+    assert (users["total"], users["premium"], users["new_7d"]) == (
+        1,
+        0,
+        1,
+    )  # pas d'essai à l'inscription
     assert len(users["trend"]) == 30
     assert users["trend"][-1] == 1
     assert [r["task"] for r in board["runs"]][:2] == ["follow_live", "collect_odds"]

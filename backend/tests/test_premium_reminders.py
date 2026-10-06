@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.accounts import admin
 from footprono.accounts import service as accounts
-from footprono.accounts.models import User
+from footprono.accounts.models import SubscriptionEvent, User
 from footprono.accounts.reminders import KIND, send_premium_reminders
 from footprono.notifications.models import Notification
 
@@ -26,7 +26,9 @@ async def _user(session: AsyncSession, phone: str, name: str) -> User:
 async def test_reminders_three_days_before_then_the_day_before(db_factory: Factory) -> None:
     now = datetime(2026, 10, 5, 10, 5, tzinfo=UTC)
     async with db_factory() as session:
-        trial = await _user(session, "+2250700000101", "Essai")  # essai offert
+        trial = await _user(session, "+2250700000101", "Essai")
+        # Essai d'un compte créé avant leur suppression : le rappel le nomme encore.
+        session.add(SubscriptionEvent(user_id=trial.id, kind="trial", days=7, premium_until=now))
         paid = await _user(session, "+2250700000102", "Payant")
         later = await _user(session, "+2250700000103", "Plus tard")
         await admin.grant_premium(session, None, paid, 30, now=now)  # activé par l'admin

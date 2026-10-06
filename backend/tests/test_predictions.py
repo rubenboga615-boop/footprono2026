@@ -15,7 +15,7 @@ from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.predictions.models import MatchPrediction
 from footprono.predictions.service import predict_upcoming, prediction_needed
 
-from .conftest import make_settings
+from .conftest import make_premium, make_settings
 
 FIXTURES = Path(__file__).parent / "fixtures"
 AS_OF = date(2025, 5, 18)  # les deux dernières journées de 2024-25 deviennent « à venir »
@@ -101,6 +101,7 @@ async def test_prediction_api(
               "country": "CI", "adult": True},
     )  # fmt: skip
     headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+    await make_premium(db_factory, "+22997333333")
     ah = await client.get(
         f"/api/v1/matches/{upcoming[0]}/prediction", params={"market": "ah"}, headers=headers
     )

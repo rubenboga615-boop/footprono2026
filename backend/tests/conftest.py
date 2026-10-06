@@ -96,3 +96,22 @@ async def db_engine(migrated_database: None) -> AsyncIterator[AsyncEngine]:
 @pytest.fixture
 def db_factory(db_engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     return create_session_factory(db_engine)
+
+
+async def make_premium(
+    factory: async_sessionmaker[AsyncSession], phone: str, days: int = 7
+) -> None:
+    """Premium offert à un compte (plus d'essai automatique à l'inscription)."""
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import update
+
+    from footprono.accounts.models import User
+
+    async with factory() as session:
+        await session.execute(
+            update(User)
+            .where(User.phone == phone)
+            .values(premium_until=datetime.now(UTC) + timedelta(days=days))
+        )
+        await session.commit()

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from footprono.accounts.models import User
 from footprono.football.models import Match
 
+from .conftest import make_premium
 from .test_predictions import upcoming  # noqa: F401 (fixture)
 
 
@@ -35,6 +36,7 @@ async def test_analysis_uses_only_past_matches_and_is_premium(
     assert anonymous.status_code == 403
 
     headers = await _signup(client)
+    await make_premium(db_factory, "+22997444444")
     r = await client.get(f"/api/v1/matches/{upcoming[0]}/analysis", headers=headers)
     assert r.status_code == 200, r.text
     body = r.json()

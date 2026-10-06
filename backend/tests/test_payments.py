@@ -106,8 +106,7 @@ async def test_paid_premium_is_verified_and_granted_once(
     http: AsyncClient, fake: FakeCinetPay, db_factory: Factory
 ) -> None:
     headers = await _signup(http)
-    trial_end = (await _user(db_factory)).premium_until
-    assert trial_end is not None
+    assert (await _user(db_factory)).premium_until is None  # pas d'essai à l'inscription
 
     created = await http.post("/api/v1/payments/premium", headers=headers)
     assert created.status_code == 201, created.text
@@ -138,8 +137,7 @@ async def test_paid_premium_is_verified_and_granted_once(
     assert paid.json() == {"status": "accepted"}
     user = await _user(db_factory)
     assert user.premium_until is not None
-    # Ajouté à la suite de l'essai en cours.
-    assert abs((user.premium_until - trial_end) - timedelta(days=30)) < timedelta(seconds=5)
+    assert abs((user.premium_until - datetime.now(UTC)) - timedelta(days=30)) < timedelta(minutes=1)
 
     # Notification, retour et revérification : Premium n'est pas accordé deux fois.
     checks = fake.checks

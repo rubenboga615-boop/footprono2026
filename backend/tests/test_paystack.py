@@ -92,7 +92,7 @@ async def test_paystack_payment_verified_then_premium(
     assert sent["email"].endswith("@footproba.duckdns.org")
     assert sent["callback_url"] == "https://footproba.duckdns.org/api/v1/payments/paystack/return"
 
-    trial_end = (await http.get("/api/v1/me", headers=headers)).json()["plan"]["premium_until"]
+    assert (await http.get("/api/v1/me", headers=headers)).json()["plan"]["name"] == "free"
     pending = (await http.get(f"/api/v1/payments/{payment['id']}", headers=headers)).json()
     assert pending["status"] == "pending"
     fake.pay(reference)
@@ -101,9 +101,8 @@ async def test_paystack_payment_verified_then_premium(
     done = (await http.get(f"/api/v1/payments/{payment['id']}", headers=headers)).json()
     assert (done["status"], done["method"]) == ("accepted", "mobile_money")
     me = (await http.get("/api/v1/me", headers=headers)).json()
-    # 30 jours ajoutés à la suite de l'essai offert.
-    assert me["plan"]["premium_until"] > trial_end
-    assert me["plan"]["days_left"] >= 36
+    assert me["plan"]["name"] == "premium"
+    assert me["plan"]["days_left"] in (29, 30)
 
 
 async def test_paystack_wrong_amount_never_grants(http: AsyncClient, fake: FakePaystack) -> None:
@@ -134,4 +133,4 @@ async def test_paystack_webhook_is_checked(http: AsyncClient, fake: FakePaystack
         await http.post("/api/v1/payments/paystack/notify", content=raw, headers=good)
     ).json() == {"status": "accepted"}
     me = (await http.get("/api/v1/me", headers=headers)).json()
-    assert me["plan"]["days_left"] >= 36
+    assert me["plan"]["days_left"] in (29, 30)

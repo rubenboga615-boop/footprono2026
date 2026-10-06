@@ -1,6 +1,6 @@
 """Rappel avant la fin de Premium : 3 jours avant, puis la veille (une fois chacun).
 
-Envoyé aussi à la fin de l'essai offert à l'inscription. La notification arrive
+Envoyé aussi à la fin des anciens essais d'inscription (supprimés). La notification arrive
 dans l'application et sur le téléphone (Firebase), comme les autres.
 """
 

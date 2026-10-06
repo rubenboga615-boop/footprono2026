@@ -141,7 +141,7 @@ les paris sont sur le serveur : rien n'est perdu), puis installer le nouvel APK.
 | Onglet / écran | Contenu | Données |
 |---|---|---|
 | Connexion, inscription | **Continuer avec Google** en premier (APK Android), sinon numéro : indicatif **+225 déjà mis** (Côte d'Ivoire, changeable : le joueur tape seulement son numéro ; un numéro en « +… » est gardé tel quel), mot de passe ; « Mot de passe oublié ? » ouvre WhatsApp (aide FootProba, message prérempli) ; inscription par numéro : nom, pays (Côte d'Ivoire par défaut), case 18 ans ; carte en verre aux coins coupés sur le fond FootProba | `/auth/*`, `/app/support` |
-| Première connexion Google | adresse Gmail, pays (Côte d'Ivoire par défaut), case 18 ans, 7 jours de Premium ; puis « Connexion réussie » | `/auth/google`, `/auth/google/register` |
+| Première connexion Google | adresse Gmail, pays (Côte d'Ivoire par défaut), case 18 ans ; puis « Connexion réussie » | `/auth/google`, `/auth/google/register` |
 | Matchs | jours, championnats, direct, carte par match (1 / N / 2, +2,5 buts, les deux marquent) | `/predictions/upcoming`, `/live` |
 | Match · Probabilités | « Les choix du moteur » en tête (une sélection par profil, Sûr gratuit, les trois en Premium, jamais présentée comme une bonne affaire) ; 1 / N / 2, scores les plus probables, tous les marchés (Premium) avec cote juste et cote réelle jouable | `/matches/{id}/picks`, `/matches/{id}/prediction`, `/offer` |
 | Match · Cotes | cotes réelles 1xBet (Bet365 en secours) et probabilité du moteur ; si la cote a bougé, « ▼ 2,04 → 1,91 · historique » ouvre la liste des relevés (seuls les changements sont enregistrés), sans conseil | `/matches/{id}/offer` (`opening_odds`, `opened_at`), `/matches/{id}/odds-history?market=&line=&selection=` |
@@ -180,7 +180,7 @@ aucun secret n'est nécessaire.
 
 - Compte Google inconnu : `POST /auth/google` répond 404 `google_account_unknown`
   avec l'adresse et le nom → écran « Presque prêt » (pays, 18 ans) →
-  `POST /auth/google/register` (même essai Premium et solde de départ que par numéro).
+  `POST /auth/google/register` (même solde de départ que par numéro, sans essai Premium).
 - Compte créé avec Google : ni numéro ni mot de passe (le Mobile Money se règle sur
   la page Paystack). Suppression du compte : nouvelle connexion Google demandée.
 - Profil → « Lier mon compte Google » (`POST /me/google`) : le même compte se

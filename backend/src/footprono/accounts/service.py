@@ -8,7 +8,7 @@ from fastapi import status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from footprono.accounts.models import SubscriptionEvent, User, Wallet, WalletEntry
+from footprono.accounts.models import User, Wallet, WalletEntry
 from footprono.accounts.security import hash_password, verify_password
 from footprono.core.config import Settings
 from footprono.core.errors import AppError
@@ -29,7 +29,6 @@ COUNTRIES: dict[str, tuple[str, str]] = {
 }
 MIN_PASSWORD = 8
 # Premium offert à l'inscription (décision du 30/09/2026), puis version gratuite.
-TRIAL_DAYS = 7
 _PHONE = re.compile(r"^\+[1-9]\d{7,14}$")
 
 
@@ -108,19 +107,11 @@ def _check_country(country: str, adult: bool) -> str:
 
 async def _create(session: AsyncSession, settings: Settings, user: User, country: str) -> User:
     currency = COUNTRIES[country][1]
-    trial_end = datetime.now(UTC) + timedelta(days=TRIAL_DAYS)
     user.display_name = user.display_name.strip()[:40] or "Joueur"
-    user.country, user.currency, user.role, user.premium_until = (
-        country, currency, "user", trial_end,
-    )  # fmt: skip
+    # Pas d'essai automatique : Premium s'achète ou est offert par l'administrateur.
+    user.country, user.currency, user.role, user.premium_until = country, currency, "user", None
     session.add(user)
     await session.flush()
-    session.add(
-        SubscriptionEvent(
-            user_id=user.id, kind="trial", days=TRIAL_DAYS, premium_until=trial_end,
-            note="essai Premium offert à l'inscription",
-        )
-    )  # fmt: skip
     session.add(Wallet(user_id=user.id, currency=currency, balance=0))
     await session.flush()
     await move(session, user.id, settings.starting_balance, "opening", note="solde de départ")

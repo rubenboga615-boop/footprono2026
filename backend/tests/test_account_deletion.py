@@ -103,7 +103,7 @@ async def test_terms_page(client: AsyncClient) -> None:
     text = page.text
     assert "argent fictif" in text
     assert "2 000 F CFA pour 30 jours" in text  # repris du code (plans.py)
-    assert "7 jours" in text  # essai (service.py)
+    assert "Pas d'essai automatique" in text
     assert "100 000 F CFA" in text  # solde de départ (configuration)
     body = text.split("</style>")[1]
     assert "{" not in body

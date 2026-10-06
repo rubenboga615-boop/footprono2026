@@ -13,7 +13,7 @@ from footprono.accounts import service as accounts
 from footprono.accounts.models import User
 from footprono.core.errors import AppError
 
-from .conftest import make_settings
+from .conftest import make_premium, make_settings
 from .test_bets import NOW, _login, _sel, quote, world  # noqa: F401 (fixture)
 
 Factory = async_sessionmaker[AsyncSession]
@@ -37,7 +37,7 @@ async def _end_premium(db_factory: Factory, user_id: int) -> None:
         await session.commit()
 
 
-async def test_trial_then_free_plan(
+async def test_free_then_premium_then_free(
     world: dict[str, Any],  # noqa: F811
     client: AsyncClient,
     db_factory: Factory,
@@ -47,7 +47,10 @@ async def test_trial_then_free_plan(
     headers = await _login(client)
 
     me = (await client.get("/api/v1/me", headers=headers)).json()
-    assert me["plan"]["name"] == "premium"  # 7 jours offerts à l'inscription
+    assert me["plan"]["name"] == "free"  # pas d'essai automatique à l'inscription
+    await make_premium(db_factory, "+22997111111")
+    me = (await client.get("/api/v1/me", headers=headers)).json()
+    assert me["plan"]["name"] == "premium"
     assert me["plan"]["days_left"] in (6, 7)
     assert me["plan"]["premium_price"] == 2000
     assert me["role"] == "user"
@@ -122,25 +125,31 @@ async def test_admin_grants_and_revokes_premium(
     assert [u["id"] for u in by_phone.json()] == [world["user_id"]]
 
     uid = world["user_id"]
-    trial_end = datetime.fromisoformat(found[0]["premium_until"])
+    assert found[0]["premium_until"] is None  # pas d'essai à l'inscription
+    first = await client.post(
+        f"/api/v1/admin/users/{uid}/premium", json={"days": 7, "note": "testeur"}, headers=headers
+    )
+    assert first.status_code == 200, first.text
+    first_end = datetime.fromisoformat(first.json()["premium_until"])
+    assert abs(first_end - datetime.now(UTC) - timedelta(days=7)) < timedelta(minutes=1)
     granted = await client.post(
         f"/api/v1/admin/users/{uid}/premium",
         json={"days": 30, "note": "paiement reçu"},
         headers=headers,
     )
     assert granted.status_code == 200, granted.text
-    # la période accordée s'ajoute à l'essai en cours
-    assert datetime.fromisoformat(granted.json()["premium_until"]) - trial_end == timedelta(days=30)
+    # la période accordée s'ajoute à celle en cours
+    assert datetime.fromisoformat(granted.json()["premium_until"]) - first_end == timedelta(days=30)
 
     detail = (await client.get(f"/api/v1/admin/users/{uid}", headers=headers)).json()
     events = detail["subscription_events"]
-    assert [e["kind"] for e in events] == ["admin_grant", "trial"]
+    assert [e["kind"] for e in events] == ["admin_grant", "admin_grant"]
     assert events[0]["admin_id"] == boss_id
 
     stats = (await client.get("/api/v1/admin/stats", headers=headers)).json()
     assert stats["users"] == 2
-    assert stats["premium"] == 2
-    assert stats["premium_trial"] == 1  # l'administrateur est encore en essai
+    assert stats["premium"] == 1
+    assert stats["premium_trial"] == 0
 
     revoked = await client.post(
         f"/api/v1/admin/users/{uid}/premium/revoke", json={}, headers=headers

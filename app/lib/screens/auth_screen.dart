@@ -321,11 +321,6 @@ class _AuthScreenState extends State<AuthScreen> {
           if (register) ...[
             const SizedBox(height: 14),
             AdultCheck(value: adult, onChanged: (v) => setState(() => adult = v)),
-            const SizedBox(height: 10),
-            Text(
-              '7 jours de Premium offerts.',
-              style: Fp.body(12, color: Fp.accentLight, weight: FontWeight.w600, height: 1.4),
-            ),
             const SizedBox(height: 8),
             Wrap(
               crossAxisAlignment: WrapCrossAlignment.center,
@@ -474,34 +469,6 @@ class _GoogleProfileState extends State<_GoogleProfile> {
           CountryPicker(value: country, onChanged: (v) => setState(() => country = v)),
           const SizedBox(height: 16),
           AdultCheck(value: adult, onChanged: (v) => setState(() => adult = v)),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: Fp.accentSoft,
-              border: Border.all(color: Fp.accentLine),
-              borderRadius: Fp.radius14,
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.card_giftcard_rounded, size: 20, color: Fp.accentLight),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text.rich(
-                    TextSpan(
-                      children: [
-                        TextSpan(
-                          text: '7 jours de Premium',
-                          style: Fp.body(13, color: Fp.accentLight, weight: FontWeight.w700),
-                        ),
-                        TextSpan(text: ' offerts dès maintenant.', style: Fp.body(13)),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
           if (error != null) ...[
             const SizedBox(height: 12),
             Text(error!, style: Fp.body(13, color: Fp.lossText, height: 1.4)),

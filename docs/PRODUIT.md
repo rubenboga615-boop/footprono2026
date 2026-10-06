@@ -7,7 +7,7 @@ Code : `backend/src/footprono/accounts/plans.py`, `accounts/admin.py`,
 
 | Sujet | Décision |
 |---|---|
-| Formules | **7 jours de Premium offerts à l'inscription**, puis version gratuite ; Premium à **2 000 F CFA par mois** |
+| Formules | Version gratuite sans limite de durée, **pas d'essai automatique** (Premium offert seulement par l'administrateur, console ou `grant`) ; Premium à **2 000 F CFA par mois** |
 | Activation de Premium | **Mobile Money** (Paystack : Wave, Orange Money, MTN MoMo ou carte ; Profil → Passer Premium, voir `PRODUCTION.md`) ; l'administrateur peut aussi l'accorder |
 | Langue | Français seulement |
 
@@ -255,7 +255,7 @@ magasins d'applications.
 Page publique **`/conditions`** : probabilités et non certitudes, aucun pari
 en argent réel, argent fictif sans valeur (ni achat, ni retrait, ni lot),
 18 ans et plus, compte et usages interdits, Premium (prix, durée et essai
-repris du code : `PREMIUM_PRICE`, `PREMIUM_DAYS`, `TRIAL_DAYS`), pas de
+repris du code : `PREMIUM_PRICE`, `PREMIUM_DAYS`), pas de
 renouvellement automatique, remboursement si débité sans activation,
 responsabilité, jeu responsable, droit ivoirien. Liens : écran
 d'inscription (« En créant un compte, tu acceptes… »), Profil, page de

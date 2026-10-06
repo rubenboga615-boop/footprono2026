@@ -93,10 +93,10 @@ await check('bookmaker : pari en cours, solde débité', async () => {
   await visible(text('99 000'));
 });
 
-await check('profil : essai Premium de 7 jours', async () => {
+await check('profil : version gratuite, pas d\'essai automatique', async () => {
   await nav('Profil');
-  await visible(text('FootProba Premium'));
-  await visible(text('ACTIF'));
+  await visible(text('Version gratuite'));
+  await visible(text('GRATUIT'));
 });
 
 await check('fiabilité : page publique', async () => {
@@ -106,7 +106,7 @@ await check('fiabilité : page publique', async () => {
   await button('Retour').click();
 });
 
-await check('montante : lancement puis suggestions du palier 1', async () => {
+await check('montante : lancement, suggestions réservées à Premium', async () => {
   await nav('Montante');
   await button('Lancer la montante').click();
   await visible(text(/Montante lancée/));
@@ -116,7 +116,7 @@ await check('montante : lancement puis suggestions du palier 1', async () => {
   await page.waitForTimeout(800);
   await button('Choisir le pari').click();
   await visible(text(/Pari du/));
-  await visible(text('Suggestions'));
+  await visible(text(/suggestions de pari pour la montante sont incluses dans Premium/));
 });
 
 assert.deepEqual(errors, [], `erreurs JavaScript : ${errors.join(' | ')}`);

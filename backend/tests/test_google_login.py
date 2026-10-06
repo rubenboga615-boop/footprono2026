@@ -97,7 +97,7 @@ async def test_first_google_login_creates_the_account(
         None, "kossi@gmail.com", "Kossi Mensah", "CI",
     )  # fmt: skip
     assert (me["google_linked"], me["has_password"]) == (True, False)
-    assert me["plan"]["name"] == "premium"  # essai offert, comme par numéro
+    assert me["plan"]["name"] == "free"  # pas d'essai, comme par numéro
     assert me["wallet"]["balance"] > 0
 
     again = await client.post(

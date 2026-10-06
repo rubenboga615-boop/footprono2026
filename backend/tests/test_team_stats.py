@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.football.models import Match
 
+from .conftest import make_premium
 from .test_analysis import _signup
 from .test_predictions import upcoming  # noqa: F401 (fixture)
 
@@ -37,7 +38,8 @@ async def test_team_profile_free_then_premium(
     assert body["seasons"][0] == {"competition": "EPL", "season": 2024,
                                   "played": total["matches"]}  # fmt: skip
 
-    headers = await _signup(client)  # essai Premium du nouveau compte
+    headers = await _signup(client)
+    await make_premium(db_factory, "+22997444444")
     premium = (await client.get(f"/api/v1/teams/{team_id}/profile", headers=headers)).json()
     assert premium["locked"] is False
     total = premium["venues"]["all"]
