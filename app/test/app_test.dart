@@ -23,6 +23,8 @@ class FakeServer {
   bool premium;
   final List<Map<String, dynamic>> placedBets = [];
   final List<String> devices = [];
+  final List<String> platforms = [];
+  String? vapidKey;
   String paymentStatus = 'pending';
   String? boughtWith;
   final List<Map<String, String>> smartQueries = [];
@@ -195,8 +197,11 @@ class FakeServer {
       case 'PUT /me/preferences':
         dailyNotifications = (jsonDecode(r.body) as Map)['daily_coupons_notifications'] as bool;
         return http.Response('', 204);
+      case 'GET /app/web-push':
+        body = {'vapid_key': vapidKey};
       case 'POST /me/devices':
         devices.add((jsonDecode(r.body) as Map)['token'] as String);
+        platforms.add((jsonDecode(r.body) as Map)['platform'] as String);
         return http.Response('', 204);
       case 'POST /me/devices/remove':
         devices.remove((jsonDecode(r.body) as Map)['token']);
@@ -762,11 +767,31 @@ class FakePush implements PushBridge {
   Stream<PushMessage> get foreground => received.stream;
 }
 
+class FakeWebPush implements WebPushBridge {
+  WebPushStatus start = WebPushStatus.off;
+  bool allow = true;
+  String? key;
+
+  @override
+  Future<WebPushStatus> status(String vapidKey) async {
+    key = vapidKey;
+    return start;
+  }
+
+  @override
+  Future<String?> token() async => 'jeton-navigateur-1-xxxxxxxxxxxxxxxxxxxx';
+  @override
+  Future<String?> enable() async => allow ? token() : null;
+  @override
+  Stream<PushMessage> get foreground => const Stream.empty();
+}
+
 Future<(AppState, FakeServer)> startApp(
   WidgetTester tester, {
   bool premium = false,
   bool loggedIn = false,
   PushBridge? push,
+  WebPushBridge? webPush,
   int build = 0,
   UrlOpener? openUrl,
   ApkInstaller? installer,
@@ -778,6 +803,7 @@ Future<(AppState, FakeServer)> startApp(
     api: ApiClient(baseUrl: 'http://serveur', httpClient: MockClient(server.handle)),
     socketFactory: (_) => null,
     push: push,
+    webPush: webPush,
     google: google,
     build: build,
     android: build > 0,
@@ -1246,6 +1272,43 @@ void main() {
     expect(opened.single.host, 'wa.me');
     expect(text, contains('par Wave au +2250700000000'));
     expect(text, contains('compte n° '));
+  });
+
+  testWidgets('version web : notifications activées depuis le profil, jeton « web » envoyé', (tester) async {
+    final web = FakeWebPush();
+    SharedPreferences.setMockInitialValues({'token': 'jeton'});
+    final server = FakeServer()..vapidKey = 'BCle-publique';
+    final state = AppState(
+      api: ApiClient(baseUrl: 'http://serveur', httpClient: MockClient(server.handle)),
+      socketFactory: (_) => null,
+      webPush: web,
+      android: false,
+    );
+    await tester.binding.setSurfaceSize(const Size(430, 1400));
+    await tester.pumpWidget(FootProbaApp(state: state));
+    await state.init();
+    await tester.pumpAndSettle();
+    expect(web.key, 'BCle-publique');
+    expect(server.devices, isEmpty); // rien avant le geste du joueur
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+    expect(find.text('Notifications sur cet appareil'), findsOneWidget);
+    await tester.tap(find.text('Activer'));
+    await tester.pumpAndSettle();
+    expect(server.platforms, ['web']);
+    expect(find.text('Activées'), findsOneWidget);
+  });
+
+  testWidgets('version web : rien proposé sans clé du serveur ; iPhone dans Safari guidé', (tester) async {
+    final (state, _) = await startApp(tester, loggedIn: true, webPush: FakeWebPush());
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+    expect(find.text('Notifications sur cet appareil'), findsNothing);
+    state.webPushStatus.value = WebPushStatus.install;
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Écran d\'accueil'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('ajouté à l\'écran'), findsOneWidget);
   });
 
   testWidgets('Coupon intelligent : profil et période choisis, coupon expliqué, ajouté au coupon', (

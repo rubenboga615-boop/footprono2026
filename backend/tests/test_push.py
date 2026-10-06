@@ -12,13 +12,14 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.accounts.cli import main as admin_cli
 from footprono.bookmaker.settlement import settle_bets
 from footprono.football.models import Match, MatchStatus
+from footprono.main import create_app
 from footprono.notifications import push
 from footprono.notifications.models import PushDevice
 
@@ -119,6 +120,36 @@ def test_status_with_a_valid_key(account_file: Path) -> None:
     }
     assert push.FcmSender.from_settings(make_settings()) is None
     assert push.FcmSender.from_settings(make_settings(fcm_credentials_file="")) is None
+    sender = push.FcmSender.from_settings(
+        make_settings(fcm_credentials_file=account_file, public_url="https://fp.example/")
+    )
+    assert sender is not None
+    assert sender.web_link == "https://fp.example/app/"
+
+
+async def test_web_push_link_and_key(
+    account_file: Path, private_key: rsa.RSAPrivateKey, db_engine: object
+) -> None:
+    fake = FakeFirebase(private_key)
+    sender = push.FcmSender(
+        push.ServiceAccount.load(account_file),
+        httpx.AsyncClient(transport=httpx.MockTransport(fake.handler)),
+        web_link="https://fp.example/app/",
+    )
+    assert (await sender.send_one(TOKEN_A, "Titre", "Texte", {"kind": "test"})).status_code == 200
+    assert fake.messages[0]["webpush"]["fcm_options"]["link"] == "https://fp.example/app/"
+    await sender.aclose()
+
+    for overrides, expected in (
+        ({"web_push_vapid_key": "BCle"}, None),  # sans clé Firebase : rien ne partirait
+        ({"web_push_vapid_key": "BCle", "fcm_credentials_file": account_file}, "BCle"),
+    ):
+        application = create_app(make_settings(**overrides))
+        async with application.router.lifespan_context(application):
+            transport = ASGITransport(app=application, raise_app_exceptions=False)
+            async with AsyncClient(transport=transport, base_url="http://test") as http:
+                r = await http.get("/api/v1/app/web-push")
+                assert r.json() == {"vapid_key": expected}
 
 
 async def test_devices_register_move_and_remove(

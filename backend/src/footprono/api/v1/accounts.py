@@ -174,6 +174,13 @@ async def support(settings: SettingsDep) -> dict[str, str | None]:
     return {"whatsapp": number, "whatsapp_url": f"https://wa.me/{digits}" if digits else None}
 
 
+@router.get("/app/web-push")
+async def web_push(settings: SettingsDep) -> dict[str, str | None]:
+    """Clé publique Web Push (version web) ; null : notifications web non configurées."""
+    enabled = settings.web_push_vapid_key and settings.fcm_credentials_file is not None
+    return {"vapid_key": settings.web_push_vapid_key if enabled else None}
+
+
 @router.get("/me", response_model=MeOut)
 async def me(user: CurrentUserDep, session: SessionDep) -> MeOut:
     wallet = await session.get(Wallet, user.id)

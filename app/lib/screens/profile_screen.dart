@@ -323,6 +323,32 @@ class ProfileScreen extends StatelessWidget {
                               ? null
                               : (on) => guard(context, () => state.setDailyCouponsNotifications(on)),
                         ),
+                        ValueListenableBuilder(
+                          valueListenable: state.webPushStatus,
+                          builder: (context, web, _) => switch (web) {
+                            WebPushStatus.unavailable => const SizedBox.shrink(),
+                            _ => Column(
+                              children: [
+                                const Divider(),
+                                _Item(
+                                  icon: Icons.phone_iphone_rounded,
+                                  title: 'Notifications sur cet appareil',
+                                  trailing: switch (web) {
+                                    WebPushStatus.on => 'Activées',
+                                    WebPushStatus.denied => 'Refusées',
+                                    WebPushStatus.install => 'Écran d\'accueil',
+                                    _ => 'Activer',
+                                  },
+                                  onTap: switch (web) {
+                                    WebPushStatus.off => state.enableWebPush,
+                                    WebPushStatus.on => null,
+                                    _ => () => _webPushHelp(context, web),
+                                  },
+                                ),
+                              ],
+                            ),
+                          },
+                        ),
                         const Divider(),
                         _Item(
                           icon: Icons.verified_user_outlined,
@@ -432,6 +458,27 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Notifications web impossibles pour l'instant : ce qu'il faut faire.
+void _webPushHelp(BuildContext context, WebPushStatus status) {
+  showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Notifications'),
+      content: Text(
+        status == WebPushStatus.install
+            ? 'Sur iPhone, les notifications marchent quand FootProba est ajouté à l\'écran '
+                  'd\'accueil : dans Safari, touche Partager puis « Sur l\'écran d\'accueil », '
+                  'ouvre FootProba depuis cette icône, puis reviens ici et touche « Activer ».'
+            : 'Tu as refusé les notifications pour FootProba. Pour les recevoir, autorise-les '
+                  'dans les réglages (iPhone : Réglages → Notifications → FootProba), puis rouvre '
+                  'l\'application.',
+        style: Fp.body(13, height: 1.45),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+    ),
+  );
 }
 
 class _PlanCard extends StatelessWidget {

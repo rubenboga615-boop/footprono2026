@@ -35,6 +35,7 @@ Future<void> main() async {
   final state = AppState(
     api: ApiClient(baseUrl: defaultServer()),
     push: await FirebasePush.start(),
+    webPush: kIsWeb ? WebFirebasePush() : null,
     google: FirebaseGoogleAuth.start(),
   );
   runApp(FootProbaApp(state: state));

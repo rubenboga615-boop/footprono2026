@@ -99,9 +99,16 @@ def _token_is_dead(response: httpx.Response) -> bool:
 
 
 class FcmSender:
-    def __init__(self, account: ServiceAccount, client: httpx.AsyncClient | None = None) -> None:
+    def __init__(
+        self,
+        account: ServiceAccount,
+        client: httpx.AsyncClient | None = None,
+        web_link: str | None = None,
+    ) -> None:
         self.account = account
         self._client = client
+        # Version web (iPhone, ordinateur) : page ouverte en touchant la notification.
+        self.web_link = web_link
         self._access_token: str | None = None
         self._expires_at = 0.0
 
@@ -110,7 +117,8 @@ class FcmSender:
         """None si aucune clé n'est configurée ; erreur si la clé est inutilisable."""
         if settings.fcm_credentials_file is None:
             return None
-        return cls(ServiceAccount.load(settings.fcm_credentials_file))
+        link = settings.public_url.rstrip("/") + "/app/" if settings.public_url else None
+        return cls(ServiceAccount.load(settings.fcm_credentials_file), web_link=link)
 
     async def _http(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -162,6 +170,11 @@ class FcmSender:
             "data": _stringify(data),
             "android": {"priority": "high", "notification": {"channel_id": ANDROID_CHANNEL}},
         }
+        if self.web_link:
+            message["webpush"] = {
+                "fcm_options": {"link": self.web_link},
+                "notification": {"icon": f"{self.web_link}icons/Icon-192.png"},
+            }
         return await client.post(
             SEND_URL.format(project=self.account.project_id),
             headers={"Authorization": f"Bearer {await self.access_token()}"},

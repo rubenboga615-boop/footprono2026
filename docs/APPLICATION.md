@@ -244,11 +244,19 @@ Projet Firebase « footprono-56616 », application Android `com.footprono.footpr
   les notifications restent visibles dans l'application.
 - **Fin de Premium** : « Ton Premium (ou ton essai Premium) se termine dans 3 jours »,
   puis « … demain », une seule fois chacun (tâche `premium_reminders`, 10:05 GMT).
-- Version web : pas de notifications push (Android seulement).
+- **Version web** (iPhone avec FootProba ajouté à l'écran d'accueil, iOS 16.4 ou
+  plus ; ordinateur) : Profil → « Notifications sur cet appareil » → **Activer**
+  (l'iPhone exige ce geste). Dans Safari sans l'écran d'accueil, le profil explique
+  comment l'ajouter. Il faut, en plus de la clé Firebase, la **clé publique Web
+  Push** : console Firebase → Paramètres du projet → Cloud Messaging → Certificats
+  Web Push → Générer une paire de clés, copier la clé (publique) dans
+  `deploy/.env` : `FP_WEB_PUSH_VAPID_KEY=…`. Le service worker
+  `/app/push/firebase-messaging-sw.js` affiche les notifications page fermée ; les
+  toucher ouvre `/app/`.
 
 ## Pas encore disponible
 
-- Paiement Mobile Money : en place (Profil → Passer Premium) dès que Paystack (ou CinetPay) est configuré sur le serveur.
+- Paiement : en place (Profil → Passer Premium) dès que Wave, Paystack ou CinetPay (ou le Wave manuel) est configuré sur le serveur.
 - Vérification du numéro par SMS.
 
 ## Développement

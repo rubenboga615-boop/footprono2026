@@ -47,6 +47,7 @@ x-backend: &backend
     FP_WEB_RELEASE_DIR: /data/web
     # Clé Firebase (notifications push) : deploy/secrets/firebase.json.
     FP_FCM_CREDENTIALS_FILE: ${FP_FCM_CREDENTIALS_FILE:-}
+    FP_WEB_PUSH_VAPID_KEY: ${FP_WEB_PUSH_VAPID_KEY:-}
     # Paiement Mobile Money : retour et notification du prestataire sur l'adresse publique.
     FP_PUBLIC_URL: https://${FP_DOMAIN}
     # Wave, Paystack, CinetPay : ceux qui ont une clé sont proposés au joueur. Clés : .env seulement.

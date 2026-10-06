@@ -66,6 +66,36 @@ abstract class PushBridge {
   Stream<PushMessage> get foreground;
 }
 
+/// Notifications de la version web, selon le navigateur.
+enum WebPushStatus {
+  /// Navigateur sans notifications, ou serveur non configuré : rien n'est proposé.
+  unavailable,
+
+  /// iPhone dans Safari : il faut d'abord ajouter FootProba à l'écran d'accueil.
+  install,
+
+  /// Possible, pas encore autorisé : bouton « Activer ».
+  off,
+  denied,
+  on,
+}
+
+/// Notifications de la version web (Firebase Cloud Messaging dans le navigateur).
+abstract class WebPushBridge {
+  /// État sur ce navigateur ; [vapidKey] : clé publique Web Push donnée par le serveur.
+  Future<WebPushStatus> status(String vapidKey);
+
+  /// Jeton du navigateur, si l'autorisation est déjà donnée.
+  Future<String?> token();
+
+  /// Demande l'autorisation (à appeler depuis un geste du joueur : exigé sur iPhone)
+  /// puis renvoie le jeton ; null si le joueur refuse.
+  Future<String?> enable();
+
+  /// Notifications reçues pendant que la page est ouverte.
+  Stream<PushMessage> get foreground;
+}
+
 /// Connexion avec Google (Firebase sur Android ; absent sur le web et en test).
 abstract class GoogleAuthBridge {
   /// Jeton d'identité Firebase, ou null si le joueur ferme la fenêtre de Google.
@@ -90,6 +120,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     required this.api,
     this.socketFactory,
     this.push,
+    this.webPush,
     this.google,
     UrlOpener? openUrl,
     this.build = appBuild,
@@ -114,6 +145,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   final ApiClient api;
   final SocketFactory? socketFactory;
   final PushBridge? push;
+  final WebPushBridge? webPush;
+
+  /// Notifications de la version web sur ce navigateur (profil : « Activer »).
+  final webPushStatus = ValueNotifier<WebPushStatus>(WebPushStatus.unavailable);
+  StreamSubscription<PushMessage>? _webForegroundSub;
   final GoogleAuthBridge? google;
   final UrlOpener openUrl;
 
@@ -196,6 +232,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         _connectSocket();
         unawaited(refreshUnread());
         unawaited(_registerPush(atLaunch: true));
+        unawaited(_registerWebPush());
       } on ApiException catch (e) {
         if (e.isUnauthorized) await _clearSession();
         // Serveur injoignable : on garde la session, l'écran d'accueil affichera l'erreur.
@@ -368,6 +405,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _connectSocket();
     unawaited(refreshUnread());
     unawaited(_registerPush());
+    unawaited(_registerWebPush());
   }
 
   Future<void> logout() async {
@@ -675,10 +713,52 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _sendPushToken(String token) async {
+  /// Version web : état des notifications, et jeton renvoyé si elles sont déjà autorisées.
+  Future<void> _registerWebPush() async {
+    final w = webPush;
+    if (w == null || api.token == null) return;
+    try {
+      final key = (await api.get('/app/web-push') as Json)['vapid_key'] as String?;
+      if (key == null) return;
+      webPushStatus.value = await w.status(key);
+      _webForegroundSub ??= w.foreground.listen((m) {
+        if (m.kind == 'test' || _socket == null) showMessage(m.text);
+      });
+      if (webPushStatus.value == WebPushStatus.on) {
+        final token = await w.token();
+        if (token != null) await _sendPushToken(token, platform: 'web');
+      }
+    } catch (e) {
+      debugPrint('Notifications web indisponibles : $e');
+    }
+  }
+
+  /// Bouton « Activer » du profil (geste du joueur, exigé par l'iPhone).
+  Future<void> enableWebPush() async {
+    final w = webPush;
+    if (w == null) return;
+    final String? token;
+    try {
+      token = await w.enable();
+    } catch (e) {
+      debugPrint('Activation des notifications web impossible : $e');
+      showMessage('Notifications impossibles à activer sur ce navigateur.', error: true);
+      return;
+    }
+    if (token == null) {
+      webPushStatus.value = WebPushStatus.denied;
+      showMessage('Notifications refusées : autorise-les dans les réglages du navigateur.', error: true);
+      return;
+    }
+    await _sendPushToken(token, platform: 'web');
+    webPushStatus.value = WebPushStatus.on;
+    showMessage('Notifications activées sur cet appareil.');
+  }
+
+  Future<void> _sendPushToken(String token, {String platform = 'android'}) async {
     if (api.token == null) return;
     try {
-      await api.post('/me/devices', {'token': token, 'platform': 'android'});
+      await api.post('/me/devices', {'token': token, 'platform': platform});
       _pushToken = token;
     } on ApiException catch (e) {
       debugPrint('Enregistrement du téléphone refusé : ${e.message}');

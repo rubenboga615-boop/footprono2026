@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     # Clé du compte de service Firebase (JSON, secret) : notifications sur le
     # téléphone fermé. Vide : pas de notifications push.
     fcm_credentials_file: Path | None = None
+    # Notifications de la version web (iPhone : FootProba ajouté à l'écran d'accueil) :
+    # clé publique « Web Push » (Firebase → Paramètres du projet → Cloud Messaging →
+    # Certificats Web Push). Vide : pas de notifications sur la version web.
+    web_push_vapid_key: str | None = None
     # Adresse publique du serveur (https://…) : retour et notification de paiement.
     public_url: str | None = None
     # Paiement Mobile Money (CinetPay, espace marchand → Intégrations).
@@ -132,6 +136,7 @@ class Settings(BaseSettings):
     @field_validator(
         "web_app_dir",
         "fcm_credentials_file",
+        "web_push_vapid_key",
         "public_url",
         "cinetpay_api_key",
         "cinetpay_site_id",
