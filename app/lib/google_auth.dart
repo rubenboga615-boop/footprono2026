@@ -25,11 +25,18 @@ class FirebaseGoogleAuth implements GoogleAuthBridge {
 
   Future<FirebaseAuth>? _ready;
 
+  // Un échec (web : fichiers de Firebase non chargés, réseau coupé) n'est pas gardé :
+  // le prochain appui sur Google réessaie.
   Future<FirebaseAuth> _auth() => _ready ??= () async {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(options: kIsWeb ? firebaseWebOptions(Uri.base) : firebaseOptions);
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(options: kIsWeb ? firebaseWebOptions(Uri.base) : firebaseOptions);
+      }
+      return FirebaseAuth.instance;
+    } catch (_) {
+      _ready = null;
+      rethrow;
     }
-    return FirebaseAuth.instance;
   }();
 
   /// Web sur téléphone (et iPhone installé sur l'écran d'accueil) : redirection

@@ -194,7 +194,8 @@ aucun secret n'est nécessaire.
   connecté → liaison du compte, sinon connexion). `authDomain` = notre domaine :
   Caddy relaie `/__/auth/*` et `/__/firebase/*` vers `footprono-56616.firebaseapp.com`
   (`deploy/Caddyfile`), sinon Safari perd la session pendant la redirection.
-  Sans identifiants web dans `lib/firebase_options.dart`, le bouton n'apparaît pas.
+  Identifiants de l'application web « FootProba web » dans `lib/firebase_options.dart`
+  (publics) ; vides, le bouton n'apparaîtrait pas.
 
 **À faire une fois dans Firebase** (console.firebase.google.com → projet footprono-56616) :
 

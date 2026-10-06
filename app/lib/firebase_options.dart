@@ -12,10 +12,10 @@ const firebaseOptions = FirebaseOptions(
   storageBucket: 'footprono-56616.firebasestorage.app',
 );
 
-// Application web déclarée dans le même projet Firebase (identifiants publics eux
-// aussi). Vides : la version web ne propose pas Google (connexion par numéro).
-const _webApiKey = '';
-const _webAppId = '';
+// Application web « FootProba web » du même projet Firebase (identifiants publics eux
+// aussi, comme ceux d'Android). Vides : la version web ne proposerait pas Google.
+const _webApiKey = 'AIzaSyDuIa5vo_tSbsouKLsSYBHXAk7ihf5kK0c';
+const _webAppId = '1:265990154612:web:a17f6736747e46c494e421';
 
 bool get firebaseWebReady => _webApiKey.isNotEmpty && _webAppId.isNotEmpty;
 

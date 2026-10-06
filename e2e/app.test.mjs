@@ -13,7 +13,11 @@ const browser = await chromium.launch(
 // Chromium annonce « en-US@posix », que le moteur Flutter web refuse au démarrage.
 const page = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: 'fr-FR' });
 const errors = [];
-page.on('pageerror', (e) => errors.push(String(e)));
+// Fichiers de Firebase (connexion Google) non chargés : réseau, pas l'application
+// (machine de test sans accès à www.gstatic.com).
+page.on('pageerror', (e) => {
+  if (!String(e).includes('gstatic.com/firebasejs')) errors.push(String(e));
+});
 
 let step = 0;
 async function check(name, fn) {
@@ -54,7 +58,10 @@ const phone = `+2250${String(Date.now()).slice(-9)}`;
 
 await check('inscription', async () => {
   await page.goto(URL);
-  await visible(text('Bon retour'), 30000);
+  // Avec Google (version web), l'accueil propose d'abord Google, puis le numéro.
+  await visible(text('Numéro de téléphone'), 30000);
+  if (!(await text('Bon retour').isVisible())) await button('Numéro de téléphone').click();
+  await visible(text('Bon retour'));
   await text('Créer un compte').click();
   await visible(text('Nom affiché'));
   await type('Nom affiché', 'Testeur E2E');
