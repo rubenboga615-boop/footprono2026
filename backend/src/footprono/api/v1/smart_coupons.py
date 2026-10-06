@@ -73,13 +73,15 @@ async def match_picks(match_id: int, session: SessionDep, user: OptionalUserDep)
 
 
 @router.get("/smart-coupons/history")
-async def history(session: SessionDep) -> Any:
-    """Public : les coupons du jour sont enregistrés avant les matchs, rien n'est effacé."""
-    return await smart_coupon.history(session)
+async def history(session: SessionDep, user: OptionalUserDep) -> Any:
+    """Public : les coupons du jour sont enregistrés avant les matchs, rien n'est effacé ;
+    ceux qui ne sont pas encore réglés n'ont leurs sélections qu'avec Premium."""
+    return await smart_coupon.history(session, premium=is_premium(user))
 
 
 @router.get("/smart-coupons/day")
-async def day_coupons(session: SessionDep, day: date | None = None) -> Any:
-    """Public : les coupons du jour d'une date (aujourd'hui par défaut), leur état en direct
-    et les codes de réservation saisis par l'administrateur."""
-    return await smart_coupon.day_coupons(session, day)
+async def day_coupons(session: SessionDep, user: OptionalUserDep, day: date | None = None) -> Any:
+    """Les coupons du jour d'une date (aujourd'hui par défaut), leur état en direct et les
+    codes de réservation : sélections et codes avec Premium tant qu'ils ne sont pas réglés,
+    profil, cote, chance et bilan pour tous."""
+    return await smart_coupon.day_coupons(session, day, premium=is_premium(user))

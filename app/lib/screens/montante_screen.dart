@@ -827,11 +827,38 @@ class _MontanteViewState extends State<MontanteView> {
                                 ? thousands(s['potential_payout'] as int)
                                 : _range(s['payout_range'] as List?)} F'
                       : '${_about(s['stake_range'] as List?)} → ${_about(s['payout_range'] as List?)} F environ',
+                  range: '${odds(s['odds_min'])}–${odds(s['odds_max'])}',
                 ),
             ],
           ),
         ),
+        // Ordinateur : l'escalier des paliers sous la liste.
+        if (DesktopScope.of(context)) ...[
+          const SizedBox(height: 12),
+          GlassCard.section(
+            child: _Stairs([
+              for (final s in steps)
+                _PlanRow(
+                  number: s['number'] as int,
+                  state: stateOf(s),
+                  stake: s['stake'] != null
+                      ? thousands(s['stake'] as int)
+                      : _range(s['stake_range'] as List?, sep: '\nà '),
+                  odds: s['odds'] != null ? odds(s['odds']) : '${odds(s['odds_min'])}–${odds(s['odds_max'])}',
+                  gain: s['payout'] != null
+                      ? thousands(s['payout'] as int)
+                      : s['potential_payout'] != null
+                      ? thousands(s['potential_payout'] as int)
+                      : _range(s['payout_range'] as List?, sep: '\nà '),
+                ),
+            ]),
+          ),
+        ],
         const SizedBox(height: 6),
+        Text(
+          'Tout pari dont la cote est dans la plage du palier convient.',
+          style: Fp.body(12, color: Fp.text2),
+        ),
         if (m['chance_by_model'] != null || m['chance_by_odds'] != null)
           Text(
             [
@@ -928,11 +955,20 @@ class _MontanteViewState extends State<MontanteView> {
 
 /// Un palier (maquette v2) : numéro coloré selon l'état, pari et gains, état à droite.
 class _StepLine extends StatelessWidget {
-  const _StepLine({required this.number, required this.state, required this.title, required this.detail});
+  const _StepLine({
+    required this.number,
+    required this.state,
+    required this.title,
+    required this.detail,
+    required this.range,
+  });
   final int number;
   final _StepState state;
   final String title;
   final String detail;
+
+  /// Plage de cote du palier (« 1,55–1,65 »).
+  final String range;
 
   @override
   Widget build(BuildContext context) {
@@ -979,7 +1015,7 @@ class _StepLine extends StatelessWidget {
                   title,
                   style: Fp.body(14, weight: FontWeight.w800, color: future ? Fp.text2 : Fp.text),
                 ),
-                Text(detail, style: Fp.body(12, color: Fp.text2)),
+                Text('$detail · plage $range', style: Fp.body(12, color: Fp.text2)),
               ],
             ),
           ),

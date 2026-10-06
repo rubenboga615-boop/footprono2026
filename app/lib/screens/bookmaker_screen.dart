@@ -57,6 +57,9 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
             final open = bets.where((b) => b.status == 'open').toList();
             final settled = bets.where((b) => b.status != 'open').toList();
             final atStake = open.fold<int>(0, (a, b) => a + b.stake);
+            final staked = settled.fold<int>(0, (a, b) => a + b.stake);
+            final returned = settled.fold<int>(0, (a, b) => a + (b.payout ?? 0));
+            final roi = staked > 0 ? (returned - staked) / staked : null;
             // Résultat des paris réglés placés ces 30 derniers jours (maquette v2).
             final since = DateTime.now().subtract(const Duration(days: 30));
             final month = settled
@@ -112,6 +115,30 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
                                   weight: FontWeight.w700,
                                   color: month > 0 ? Fp.win : (month < 0 ? Fp.lossText : Fp.text),
                                 ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text.rich(
+                          TextSpan(
+                            style: Fp.body(13, color: Fp.text2),
+                            children: [
+                              const TextSpan(text: 'Rendement '),
+                              TextSpan(
+                                text: roi == null
+                                    ? '—'
+                                    : '${roi >= 0 ? '+' : ''}${percent(roi, decimals: 1)}',
+                                style: Fp.body(
+                                  13,
+                                  weight: FontWeight.w700,
+                                  color: roi == null ? Fp.text : (roi >= 0 ? Fp.win : Fp.lossText),
+                                ),
+                              ),
+                              const TextSpan(text: '      Paris '),
+                              TextSpan(
+                                text: '${bets.length}',
+                                style: Fp.body(13, weight: FontWeight.w700, color: Fp.text),
                               ),
                             ],
                           ),

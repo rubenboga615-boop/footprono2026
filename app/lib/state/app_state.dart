@@ -133,6 +133,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// notifications s'ouvre.
   final notificationOpened = ValueNotifier<int>(0);
 
+  /// Onglet demandé depuis un écran ouvert par-dessus (ex. « Passer Premium » → Profil).
+  final tabRequest = ValueNotifier<int?>(null);
+  void openTab(int i) {
+    tabRequest.value = null;
+    tabRequest.value = i;
+  }
+
   /// Type de la dernière notification touchée (« daily_coupons » : écran des coupons du jour).
   String? openedKind;
   String? _pushToken;
@@ -701,6 +708,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _pushOpenedSub?.cancel();
     _pushForegroundSub?.cancel();
     notificationOpened.dispose();
+    tabRequest.dispose();
     super.dispose();
   }
 }

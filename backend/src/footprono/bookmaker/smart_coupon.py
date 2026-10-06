@@ -589,8 +589,13 @@ async def settle_pending(session: AsyncSession, now: datetime | None = None) -> 
     return settled
 
 
-async def history(session: AsyncSession, limit: int = HISTORY_LIMIT) -> dict[str, Any]:
-    """Historique public : chaque coupon du jour, gagné ou perdu, et le bilan par profil."""
+async def history(
+    session: AsyncSession, limit: int = HISTORY_LIMIT, *, premium: bool = True
+) -> dict[str, Any]:
+    """Historique public : chaque coupon du jour, gagné ou perdu, et le bilan par profil.
+
+    Sans Premium, un coupon pas encore réglé est montré sans ses sélections (``locked``) ;
+    réglé, il est public en entier : la preuve que rien n'est trié après coup."""
     rows = (
         await session.scalars(
             select(SmartCoupon).order_by(SmartCoupon.day.desc(), SmartCoupon.id).limit(limit)
@@ -623,7 +628,9 @@ async def history(session: AsyncSession, limit: int = HISTORY_LIMIT) -> dict[str
                 "day": c.day,
                 "profile": c.profile,
                 "profile_label": PROFILES[c.profile].label,
-                "selections": c.selections,
+                "selections": [] if _locked(c, premium) else c.selections,
+                "selection_count": len(c.selections),
+                "locked": _locked(c, premium),
                 "total_odds": c.total_odds,
                 "probability": round(c.probability, 4),
                 "status": c.status,
@@ -658,7 +665,15 @@ def _live_state(selection: dict[str, Any], match: Match | None) -> dict[str, Any
     return out
 
 
-def _coupon_out(coupon: SmartCoupon, matches: dict[int, Match]) -> dict[str, Any]:
+def _locked(coupon: SmartCoupon, premium: bool) -> bool:
+    """Coupons du jour réservés à Premium tant qu'ils ne sont pas réglés (sélections et code)."""
+    return not premium and coupon.status == "pending"
+
+
+def _coupon_out(
+    coupon: SmartCoupon, matches: dict[int, Match], *, premium: bool = True
+) -> dict[str, Any]:
+    locked = _locked(coupon, premium)
     selections = [
         {**sel, **_live_state(sel, matches.get(sel["match_id"]))} for sel in coupon.selections
     ]
@@ -672,14 +687,19 @@ def _coupon_out(coupon: SmartCoupon, matches: dict[int, Match]) -> dict[str, Any
         "day": coupon.day,
         "profile": coupon.profile,
         "profile_label": PROFILES[coupon.profile].label,
-        "selections": selections,
+        # Sans Premium : profil, cote, chance et avancement ; ni sélections ni code.
+        "locked": locked,
+        "selection_count": len(selections),
+        "selections": [] if locked else selections,
         "total_odds": coupon.total_odds,
         "probability": round(coupon.probability, 4),
         "status": coupon.status,
         "display_status": display,
         "validated": validated,
         "first_kickoff": min(kickoffs) if kickoffs else None,
-        "booking_codes": [
+        "booking_codes": []
+        if locked
+        else [
             {"bookmaker": key, "label": BOOKING_BOOKMAKERS.get(key, key), "code": code}
             for key, code in sorted(coupon.booking_codes.items())
         ],
@@ -693,7 +713,11 @@ def _record(coupons: Sequence[SmartCoupon]) -> dict[str, int]:
 
 
 async def day_coupons(
-    session: AsyncSession, day: date | None = None, now: datetime | None = None
+    session: AsyncSession,
+    day: date | None = None,
+    now: datetime | None = None,
+    *,
+    premium: bool = True,
 ) -> dict[str, Any]:
     """Coupons du jour d'une date (aujourd'hui par défaut), avec l'état en direct de chaque
     sélection, les codes de réservation, et le bilan de la veille et des 30 derniers jours."""
@@ -722,7 +746,8 @@ async def day_coupons(
     return {
         "day": day,
         "coupons": sorted(
-            (_coupon_out(c, matches) for c in coupons), key=lambda c: order.index(c["profile"])
+            (_coupon_out(c, matches, premium=premium) for c in coupons),
+            key=lambda c: order.index(c["profile"]),
         ),
         "summary": {
             "yesterday": _record([c for c in recent if c.day == yesterday]),
@@ -755,7 +780,8 @@ async def set_booking_code(
 
 async def notify_ready(session: AsyncSession, now: datetime | None = None) -> int:
     """Notification « coupons du jour disponibles », une seule fois par jour, dès que chaque
-    coupon du jour a son code 1xBet ; aux comptes actifs qui ne l'ont pas désactivée.
+    coupon du jour a son code 1xBet ; aux comptes Premium actifs qui ne l'ont pas désactivée
+    (un compte gratuit ne peut pas ouvrir les coupons du jour).
 
     Enregistrée dans la transaction ; l'appelant la diffuse ensuite (``publish_pending``).
     Renvoie le nombre de comptes prévenus.
@@ -780,7 +806,9 @@ async def notify_ready(session: AsyncSession, now: datetime | None = None) -> in
     body = " · ".join(parts) + " : chance estimée et code 1xBet à copier dans l'application."
     users = (
         await session.scalars(
-            select(User.id).where(User.is_active, User.daily_coupons_notifications)
+            select(User.id).where(
+                User.is_active, User.daily_coupons_notifications, User.premium_until > now
+            )
         )
     ).all()
     for user_id in users:

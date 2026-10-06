@@ -403,8 +403,9 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                     ],
                     const SizedBox(height: 12),
                     Text(
-                      'Une information, pas un conseil : le moteur ne cherche pas de « bon coup ». La cote '
-                      'du bookmaker contient sa marge ; rien n\'est joué sans ta validation.',
+                      'Une information, pas un conseil : le moteur ne cherche pas de « bon coup ». La chance '
+                      'annoncée a été vérifiée sur les saisons 2022 à 2025 (prudente pour « Sûr ») ; la cote '
+                      'du bookmaker contient sa marge. Rien n\'est joué sans ta validation.',
                       style: Fp.body(12, color: Fp.text2, height: 1.4),
                     ),
                   ],
@@ -640,7 +641,8 @@ class _SelectionRow extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                'Moteur ${percent((s['model_probability'] as num).toDouble())} · $home – $away'
+                'Moteur ${percent((s['model_probability'] as num).toDouble())} · '
+                '${competitionName(s['competition'] as String)} · $home – $away'
                 '${kickoff != null ? ' · ${shortDate(kickoff)} ${hourMinute(kickoff)}' : ''}',
                 style: Fp.body(12, color: Fp.text2),
               ),
@@ -754,8 +756,18 @@ class SmartHistoryScreen extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 10),
-                          for (final s in (c['selections'] as List).cast<Json>())
-                            Padding(padding: const EdgeInsets.only(bottom: 10), child: _SelectionRow(s)),
+                          if (c['locked'] == true)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Text(
+                                '${c['selection_count']} sélections : visibles avec Premium jusqu\'à la fin '
+                                'des matchs, puis par tous.',
+                                style: Fp.body(12.5, color: Fp.text2),
+                              ),
+                            )
+                          else
+                            for (final s in (c['selections'] as List).cast<Json>())
+                              Padding(padding: const EdgeInsets.only(bottom: 10), child: _SelectionRow(s)),
                           Text(
                             'Cote ${odds(c['total_odds'])} · probabilité annoncée '
                             '${percent((c['probability'] as num).toDouble(), decimals: 1)}',

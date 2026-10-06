@@ -105,6 +105,7 @@ class HomeShellState extends State<HomeShell> {
   void initState() {
     super.initState();
     _state.notificationOpened.addListener(_openNotifications);
+    _state.tabRequest.addListener(_openTab);
     _state.update.addListener(_offerUpdate);
     // Application lancée en touchant une notification.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -116,6 +117,7 @@ class HomeShellState extends State<HomeShell> {
   @override
   void dispose() {
     _state.notificationOpened.removeListener(_openNotifications);
+    _state.tabRequest.removeListener(_openTab);
     _state.update.removeListener(_offerUpdate);
     super.dispose();
   }
@@ -209,6 +211,11 @@ class HomeShellState extends State<HomeShell> {
   }
 
   /// Notification touchée : écran des notifications.
+  void _openTab() {
+    final i = _state.tabRequest.value;
+    if (mounted && i != null) go(i);
+  }
+
   void _openNotifications() {
     final n = _state.notificationOpened.value;
     if (!mounted || n == _openedSeen) return;

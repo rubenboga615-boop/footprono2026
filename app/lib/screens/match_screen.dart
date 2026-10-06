@@ -211,6 +211,7 @@ class _MatchViewState extends State<_MatchView> {
             maxLines: 2,
             style: Fp.body(14, weight: FontWeight.w700),
           ),
+          Text('Fiche équipe ›', style: Fp.body(11, color: Fp.text2)),
         ],
       ),
     ),
@@ -1024,6 +1025,7 @@ class _EnginePicks extends StatelessWidget {
       if (p == null) continue;
       final sel = p['selection'] as Json?;
       final locked = p['locked'] == true;
+      final offer = sel == null ? null : offers['${sel['market']}|${sel['line'] ?? ''}|${sel['selection']}'];
       final text = locked
           ? 'Avec Premium'
           : sel == null
@@ -1060,6 +1062,8 @@ class _EnginePicks extends StatelessWidget {
               else if (sel != null) ...[
                 const SizedBox(width: 8),
                 Text(percent((sel['model_probability'] as num).toDouble()), style: Fp.title(16)),
+                // Maquette v3 : la cote 1xBet à côté, un appui l'ajoute au coupon.
+                if (offer != null) ...[const SizedBox(width: 8), OddsButton(match: match, offer: offer)],
               ],
             ],
           ),

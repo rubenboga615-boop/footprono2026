@@ -428,6 +428,15 @@ class FakeServer {
             'last_30_days': {'settled': 90, 'won': 49},
           },
         };
+        // Comme le serveur : sans Premium, ni sélections ni code tant que ce n'est pas réglé.
+        if (!premium && r.url.path.endsWith('/smart-coupons/day')) {
+          for (final c in ((body as Map)['coupons'] as List).cast<Map<String, dynamic>>()) {
+            c['selection_count'] = (c['selections'] as List).length;
+            c['locked'] = true;
+            c['selections'] = [];
+            c['booking_codes'] = [];
+          }
+        }
       case 'PUT /admin/smart-coupons/1/booking-code':
         bookingCodes.add((jsonDecode(r.body) as Map).cast<String, dynamic>());
         body = {'day': '2026-10-10', 'coupons': [], 'summary': {}};
@@ -1219,8 +1228,26 @@ void main() {
     expect(find.textContaining('1 gagné(s) sur 1'), findsOneWidget);
   });
 
-  testWidgets('coupons du jour : chance, état en direct, code copié, détail', (tester) async {
+  testWidgets('coupons du jour gratuits : profil, cote et chance, sélections et code dans Premium', (
+    tester,
+  ) async {
     await startApp(tester, loggedIn: true);
+    await tester.binding.setSurfaceSize(const Size(430, 2400));
+    await tester.tap(find.text('Coupon'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Coupons du jour'));
+    await tester.pumpAndSettle();
+    expect(find.text('62$nbsp%'), findsOneWidget); // la chance reste visible
+    expect(find.text('Sélections et code dans Premium'), findsNWidgets(2));
+    expect(find.text('Copier'), findsNothing);
+    expect(find.text('Débloquer les coupons du jour'), findsOneWidget);
+    await tester.tap(find.text('Passer Premium'));
+    await tester.pumpAndSettle();
+    expect(find.text('Version gratuite'), findsOneWidget); // onglet Profil, carte Premium
+  });
+
+  testWidgets('coupons du jour : chance, état en direct, code copié, détail', (tester) async {
+    await startApp(tester, loggedIn: true, premium: true);
     final copied = <String>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
       if (call.method == 'Clipboard.setData') copied.add((call.arguments as Map)['text'] as String);

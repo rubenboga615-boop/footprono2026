@@ -169,6 +169,11 @@ class _CouponScreenState extends State<CouponScreen> {
     }
   }
 
+  void _addStake(int v) {
+    final current = int.tryParse(stake.text.replaceAll(RegExp(r'\D'), '')) ?? 0;
+    setState(() => stake.text = '${current + v}');
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -211,8 +216,8 @@ class _CouponScreenState extends State<CouponScreen> {
                 onTap: () =>
                     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SmartCouponScreen())),
               ),
-              if (items.isEmpty) ...[
-                const SizedBox(height: 8),
+              const SizedBox(height: 8),
+              if (items.isEmpty)
                 _Banner(
                   icon: Icons.calendar_today_outlined,
                   title: 'Coupons du jour',
@@ -220,8 +225,13 @@ class _CouponScreenState extends State<CouponScreen> {
                   onTap: () =>
                       Navigator.of(context)
                           .push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen())),
+                )
+              else
+                _DailyLink(
+                  onTap: () =>
+                      Navigator.of(context)
+                          .push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen())),
                 ),
-              ],
               const SizedBox(height: 12),
               if (items.isEmpty)
                 const EmptyState(
@@ -258,6 +268,15 @@ class _CouponScreenState extends State<CouponScreen> {
                             modelProb != null ? pct(modelProb) : '—',
                             valueStyle: Fp.body(15, weight: FontWeight.w800),
                           ),
+                          Text(
+                            [
+                              if (modelProb != null && modelProb > 0)
+                                '1 chance sur ${(1 / modelProb).round()}',
+                              'selon la cote : ${pct(1 / total)} (marge du bookmaker comprise)',
+                            ].join(' · '),
+                            style: Fp.body(11.5, color: Fp.text2),
+                          ),
+                          const SizedBox(height: 4),
                           if (items.length >= 6)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 6),
@@ -300,6 +319,14 @@ class _CouponScreenState extends State<CouponScreen> {
                                     style: Fp.body(13, weight: FontWeight.w700),
                                   ),
                                 ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              children: [
+                                for (final v in const [500, 1000, 5000])
+                                  FpChip('+${thousands(v)}', selected: false, onTap: () => _addStake(v)),
                               ],
                             ),
                           ] else
@@ -425,6 +452,41 @@ class _Banner extends StatelessWidget {
   }
 }
 
+/// Lien compact vers les coupons du jour (coupon déjà rempli).
+class _DailyLink extends StatelessWidget {
+  const _DailyLink({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(14),
+      side: const BorderSide(color: Fp.line12),
+    );
+    return Material(
+      color: Fp.fill,
+      shape: shape,
+      child: InkWell(
+        customBorder: shape,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(Icons.calendar_today_outlined, size: 18, color: Color(0xFFC9B2F8)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('Coupons du jour', style: Fp.body(13, weight: FontWeight.w700)),
+              ),
+              const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFFC9B2F8)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Sélection du coupon : libellé, match et chance du moteur, cote, croix pour retirer.
 class _SelectionRow extends StatelessWidget {
   const _SelectionRow({required this.item, required this.onRemove});
@@ -461,6 +523,18 @@ class _SelectionRow extends StatelessWidget {
                   ].join(' · '),
                   style: Fp.body(12, color: Fp.text2),
                 ),
+                if (explainSelection(
+                      c.offer.market,
+                      c.offer.line,
+                      c.offer.selection,
+                      home: c.match.home.name,
+                      away: c.match.away.name,
+                    )
+                    case final e?)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(e, style: Fp.body(11.5, color: const Color(0xFFC9B2F8), height: 1.35)),
+                  ),
               ],
             ),
           ),

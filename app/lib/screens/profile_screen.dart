@@ -398,6 +398,7 @@ class ProfileScreen extends StatelessWidget {
                         _Item(
                           icon: Icons.delete_outline_rounded,
                           title: 'Supprimer mon compte',
+                          warning: 'Efface tes données, définitivement',
                           onTap: () => _deleteAccount(context, state),
                         ),
                       ],
@@ -532,9 +533,19 @@ class _PlanCard extends StatelessWidget {
 }
 
 class _Item extends StatelessWidget {
-  const _Item({required this.icon, required this.title, this.trailing, this.onTap, this.badge = 0});
+  const _Item({
+    required this.icon,
+    required this.title,
+    this.trailing,
+    this.onTap,
+    this.badge = 0,
+    this.warning,
+  });
   final IconData icon;
   final String title;
+
+  /// Avertissement sous le titre (seulement « Supprimer mon compte »).
+  final String? warning;
 
   /// Valeur affichée à droite (langue, adresse Google).
   final String? trailing;
@@ -552,7 +563,18 @@ class _Item extends StatelessWidget {
             Icon(icon, color: const Color(0xFFC9B2F8), size: 20),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(title, style: Fp.body(14, weight: FontWeight.w600)),
+              child: warning == null
+                  ? Text(title, style: Fp.body(14, weight: FontWeight.w600))
+                  : Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title, style: Fp.body(14, weight: FontWeight.w600)),
+                          Text(warning!, style: Fp.body(12, color: Fp.text3)),
+                        ],
+                      ),
+                    ),
             ),
             if (trailing != null)
               ConstrainedBox(

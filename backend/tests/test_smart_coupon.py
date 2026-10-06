@@ -7,10 +7,12 @@ from httpx import AsyncClient
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from footprono.accounts import service as accounts
 from footprono.bookmaker import smart_coupon
 from footprono.engine.markets import offered
 from footprono.football.models import Match, MatchStatus
 
+from .conftest import make_settings
 from .test_bets import NOW, _login, quote, world  # noqa: F401 (fixture partagée)
 from .test_montante import _predict
 
@@ -304,8 +306,20 @@ async def test_day_coupons_live_state_and_booking_codes(
         )  # fmt: skip
         await session.commit()
 
-    day = (await client.get("/api/v1/smart-coupons/day", params={"day": str(DAY)})).json()
+    # Sans compte ni Premium : profil, cote, chance et avancement, mais ni sélections ni code.
+    anonymous = (await client.get("/api/v1/smart-coupons/day", params={"day": str(DAY)})).json()
+    hidden = next(c for c in anonymous["coupons"] if c["profile"] == "equilibre")
+    assert (hidden["locked"], hidden["selections"], hidden["booking_codes"]) == (True, [], [])
+    assert hidden["selection_count"] == 2
+    assert hidden["total_odds"]
+    assert hidden["probability"]
+
+    player = await _login(client)  # essai Premium de l'inscription
+    day = (
+        await client.get("/api/v1/smart-coupons/day", params={"day": str(DAY)}, headers=player)
+    ).json()
     coupon = next(c for c in day["coupons"] if c["profile"] == "equilibre")
+    assert coupon["locked"] is False
     assert coupon["display_status"] == "live"
     assert coupon["validated"] == 0
     assert coupon["booking_codes"] == []
@@ -315,7 +329,6 @@ async def test_day_coupons_live_state_and_booking_codes(
     assert set(day["summary"]) == {"yesterday", "last_30_days"}
 
     url = f"/api/v1/admin/smart-coupons/{coupon['id']}/booking-code"
-    player = await _login(client)
     assert (await client.put(url, json={"code": "7HQ2K"}, headers=player)).status_code == 401
     async with db_factory() as session:
         await admin.set_role(session, "+22997111111", "admin")
@@ -331,9 +344,18 @@ async def test_day_coupons_live_state_and_booking_codes(
     unknown = await client.put(url, json={"bookmaker": "autre", "code": "AB12"}, headers=headers)
     assert unknown.status_code == 400
 
-    public = (await client.get("/api/v1/smart-coupons/day", params={"day": str(DAY)})).json()
-    coupon = next(c for c in public["coupons"] if c["profile"] == "equilibre")
+    shown = (
+        await client.get("/api/v1/smart-coupons/day", params={"day": str(DAY)}, headers=player)
+    ).json()
+    coupon = next(c for c in shown["coupons"] if c["profile"] == "equilibre")
     assert coupon["booking_codes"] == [{"bookmaker": "1xbet", "label": "1xBet", "code": "7HQ2K"}]
+    public = (await client.get("/api/v1/smart-coupons/day", params={"day": str(DAY)})).json()
+    assert next(c for c in public["coupons"] if c["profile"] == "equilibre")["booking_codes"] == []
+    # Historique : le coupon pas encore réglé reste masqué sans Premium.
+    history = (await client.get("/api/v1/smart-coupons/history")).json()
+    pending = [c for c in history["coupons"] if c["status"] == "pending"]
+    assert pending
+    assert all(c["locked"] and c["selections"] == [] for c in pending)
 
     await client.put(url, json={"code": ""}, headers=headers)
     listed = (
@@ -365,6 +387,13 @@ async def test_daily_coupons_notification_once_all_codes_are_in(
         await smart_coupon.set_booking_code(session, ids[0], "1xbet", "AAAA1")
         assert await smart_coupon.notify_ready(session, MORNING) == 0  # un code manque
         await smart_coupon.set_booking_code(session, ids[1], "1xbet", "BBBB2")
+        # Un compte gratuit (essai terminé) n'est pas prévenu : il ne peut pas les ouvrir.
+        free = await accounts.register(
+            session, make_settings(), phone="+22997222222", password="12345678",
+            display_name="Gratuit", country="TG", adult=True,
+        )  # fmt: skip
+        free.premium_until = None
+        await session.commit()
         assert await smart_coupon.notify_ready(session, MORNING) == 1
         assert await smart_coupon.notify_ready(session, MORNING) == 0  # une seule fois
         note = await session.scalar(

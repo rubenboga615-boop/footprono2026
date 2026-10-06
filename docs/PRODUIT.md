@@ -206,11 +206,15 @@ Onglet **Coupon** → carte « Coupon intelligent » (Premium).
 - « Mettre dans mon coupon » relit les cotes actuelles ; le pari reste validé
   par le joueur (`GET /smart-coupon?profile=&period=&size=`).
 
-**Coupons du jour** (public, `GET /smart-coupons/history`) : chaque matin à
+**Coupons du jour** (Premium ; bilan et coupons réglés publics) : chaque matin à
 08:05 UTC (après cotes et prédictions), un coupon par profil (Sûr : 3
 sélections, Équilibré et Audacieux : 2) est enregistré **avant** les matchs,
 puis réglé avec les paris (mêmes règles). Rien n'est effacé ; bilan par
 profil : probabilité annoncée moyenne contre taux de réussite observé.
+Sans Premium, un coupon pas encore réglé montre son profil, sa cote, sa chance et
+son avancement, mais ni ses sélections ni son code (`locked`, vérifié par le serveur
+dans `/smart-coupons/day` et `/smart-coupons/history`) ; une fois réglé, il est
+public en entier : la preuve que rien n'est trié après coup.
 
 **Montante** : les suggestions de palier gardent leur plage de cote mais
 utilisent les mêmes règles de marchés et les mêmes probabilités. Matchs des

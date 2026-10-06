@@ -103,6 +103,13 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
                       ],
                     ],
                   ),
+                  if (coupons.any((c) => c['locked'] != true && (c['booking_codes'] as List).isNotEmpty)) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      'Copie le code et colle-le chez le bookmaker : le coupon s\'y remplit tout seul.',
+                      style: Fp.body(12, color: Fp.text2, height: 1.4),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   if (coupons.isEmpty)
                     EmptyState(
@@ -115,11 +122,22 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
                     for (final c in coupons)
                       _DailyCouponCard(
                         c,
-                        onTap: () =>
-                            Navigator.of(context)
-                                .push(MaterialPageRoute(builder: (_) => DailyCouponDetail(coupon: c))),
+                        onTap: c['locked'] == true
+                            ? () => openPremium(context)
+                            : () =>
+                                  Navigator.of(context)
+                                      .push(MaterialPageRoute(builder: (_) => DailyCouponDetail(coupon: c))),
                       ),
                   ]),
+                  if (coupons.any((c) => c['locked'] == true)) ...[
+                    const _UnlockCard(),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Les coupons terminés restent visibles en entier par tous dans l\'historique : rien '
+                      'n\'est trié ni effacé.',
+                      style: Fp.body(11.5, color: Fp.text2, height: 1.45),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   Center(
                     child: Tooltip(
@@ -152,7 +170,9 @@ class _DailyCouponCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sels = (c['selections'] as List).cast<Json>();
+    final count = (c['selection_count'] as int?) ?? (c['selections'] as List).length;
+    final locked = c['locked'] == true;
+    final validated = c['validated'] as int;
     final first = c['first_kickoff'] as String?;
     final codes = (c['booking_codes'] as List).cast<Json>();
     final key = '${c['profile']}';
@@ -174,7 +194,7 @@ class _DailyCouponCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  '${sels.length} sélection${sels.length > 1 ? 's' : ''} · cote ${odds(c['total_odds'])}',
+                  '$count sélection${count > 1 ? 's' : ''} · cote ${odds(c['total_odds'])}',
                   style: Fp.body(14.5, weight: FontWeight.w800),
                 ),
               ),
@@ -189,7 +209,7 @@ class _DailyCouponCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   [
-                    '${c['validated']} / ${sels.length} validée${(c['validated'] as int) > 1 ? 's' : ''}',
+                    '$validated / $count validée${validated > 1 ? 's' : ''}',
                     if (first != null) 'premier match ${hourMinute(DateTime.parse(first).toLocal())}',
                   ].join(' · '),
                   style: Fp.body(12.5, color: Fp.text2),
@@ -197,8 +217,20 @@ class _DailyCouponCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          ProbBar(count == 0 ? 0 : validated / count, color: Fp.win),
           const SizedBox(height: 12),
-          if (codes.isEmpty)
+          if (locked)
+            Row(
+              children: [
+                const Icon(Icons.lock_outline_rounded, size: 16, color: Color(0xFFC9B2F8)),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text('Sélections et code dans Premium', style: Fp.body(12.5, color: Fp.text2)),
+                ),
+              ],
+            )
+          else if (codes.isEmpty)
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -210,6 +242,47 @@ class _DailyCouponCard extends StatelessWidget {
             )
           else
             for (final b in codes) BookingCodeRow(b),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ouvre l'onglet Profil, où l'on passe Premium (l'écran ouvert par-dessus est refermé).
+void openPremium(BuildContext context) {
+  Navigator.of(context).popUntil((r) => r.isFirst);
+  context.read<AppState>().openTab(4);
+}
+
+/// Version gratuite : les coupons du jour (sélections et code) sont dans Premium.
+class _UnlockCard extends StatelessWidget {
+  const _UnlockCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return GradientCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Débloquer les coupons du jour', style: Fp.body(15, weight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text(
+            'Chaque matin : les sélections, la chance et le code 1xBet. Premium · 2 000 F CFA / mois.',
+            style: Fp.body(12.5, color: Fp.text2, height: 1.4),
+          ),
+          const SizedBox(height: 10),
+          FilledButton(
+            onPressed: () => openPremium(context),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: const Color(0xFF2E1065),
+              minimumSize: const Size(0, 40),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              textStyle: Fp.body(13, weight: FontWeight.w800),
+            ),
+            child: const Text('Passer Premium'),
+          ),
         ],
       ),
     );
