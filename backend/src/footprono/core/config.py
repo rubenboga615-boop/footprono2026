@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     # Sans clé : le paiement est indisponible (Premium par l'administrateur).
     cinetpay_api_key: SecretStr | None = None
     cinetpay_site_id: str | None = None
+    # Paystack (tableau de bord → Settings → API Keys & Webhooks), secret. Si elle est
+    # définie, Paystack est le prestataire des nouveaux paiements (sinon CinetPay).
+    paystack_secret_key: SecretStr | None = None
     # Connexion avec Google (Firebase Authentication) : identifiant public du projet
     # Firebase, celui de l'application. Vide : connexion Google indisponible.
     firebase_project_id: str | None = "footprono-56616"
@@ -104,7 +107,7 @@ class Settings(BaseSettings):
     privacy_hosting: str = (
         "Hetzner Online GmbH (Allemagne), serveur à Helsinki, Finlande (Union européenne)"
     )
-    privacy_payment_provider: str = "CinetPay"
+    privacy_payment_provider: str = "Paystack"
     backup_keep_days: int = Field(default=14, ge=1)
     # APK publié par « footprono-admin publish-apk » (mise à jour de l'application).
     app_release_dir: Path = Path("data/app")
@@ -121,6 +124,7 @@ class Settings(BaseSettings):
         "public_url",
         "cinetpay_api_key",
         "cinetpay_site_id",
+        "paystack_secret_key",
         "firebase_project_id",
         "support_whatsapp",
         mode="before",

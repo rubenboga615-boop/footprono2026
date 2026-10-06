@@ -2,7 +2,7 @@
 
 Serveur distant : **Hetzner CX22** (2 processeurs, 4 Go, Ubuntu 24.04),
 adresse **DuckDNS** (sous-domaine gratuit, HTTPS Let's Encrypt), paiement
-**CinetPay** (Mobile Money). Tout tourne dans Docker : PostgreSQL 17, Redis,
+**Paystack** (Mobile Money). Tout tourne dans Docker : PostgreSQL 17, Redis,
 API, worker, beat, sauvegardes, Caddy (HTTPS).
 
 ## 1. Clé SSH (sur le téléphone, dans Termux)
@@ -98,28 +98,41 @@ Termux, avec l'archive `footprono-apk.zip` téléchargée dans GitHub Actions :
 FP_SERVEUR=<ip du serveur> bash scripts/termux/publish-apk.sh "Nouveautés…"
 ```
 
-## 7. Paiement Mobile Money (CinetPay)
+## 7. Paiement Mobile Money (Paystack)
 
-1. Compte marchand sur <https://cinetpay.com> (pièce d'identité ; validation
-   de quelques jours).
-2. Espace marchand → **Intégrations** : noter l'**APIKEY** et le **SITE ID**.
-3. Sur le serveur, dans `/opt/footprono/deploy/.env` :
-   `FP_CINETPAY_API_KEY=…` et `FP_CINETPAY_SITE_ID=…`, puis relancer
-   `install-server.sh` (ou `docker compose … up -d`).
+Paystack (Côte d'Ivoire : **Wave, Orange Money, MTN MoMo**, cartes). Catégorie
+confirmée par Paystack : **Gaming → Prediction Services** (argent fictif, ni mise
+ni gain réels). Pas de prélèvement automatique : un paiement = 30 jours, et le
+joueur est prévenu 3 jours avant la fin, puis la veille.
+
+1. Tableau de bord Paystack → **Settings → API Keys & Webhooks** :
+   - **Webhook URL** : `https://<domaine>/api/v1/payments/paystack/notify`
+   - **Callback URL** : laisser vide (le serveur la donne à chaque paiement :
+     `https://<domaine>/api/v1/payments/paystack/return`).
+2. Copier la **Secret Key** (`sk_test_…` pour essayer, puis `sk_live_…`) et la
+   coller **sur le serveur seulement**, jamais dans un message ni dans le dépôt :
+   `ssh root@<ip>` → `nano /opt/footprono/deploy/.env` → ligne
+   `FP_PAYSTACK_SECRET_KEY=…` → enregistrer, puis relancer `install-server.sh`.
+3. Essai : avec la clé `sk_test_…`, acheter Premium depuis l'application (paiement
+   d'essai Paystack), vérifier que Premium s'active, puis passer à `sk_live_…`.
 
 Fonctionnement :
 
 - Profil → **Passer Premium** (2 000 F CFA, 30 jours) : le serveur crée le
-  paiement (`POST /payments/premium`) et l'application ouvre le guichet
-  CinetPay (Orange Money, MTN MoMo, Moov Money, Wave, carte).
-- Premium n'est accordé qu'après **vérification auprès de CinetPay**
-  (`/payment/check`), montant et devise contrôlés, une seule fois. La
-  notification de CinetPay n'est qu'un signal ; le retour dans l'application
-  et une vérification toutes les 10 minutes (24 h) couvrent une
-  notification perdue.
+  paiement (`POST /payments/premium`, montant envoyé à Paystack multiplié par 100
+  comme Paystack l'exige, y compris en francs CFA) et l'application ouvre la page
+  de paiement Paystack.
+- Premium n'est accordé qu'après **vérification auprès de Paystack**
+  (`/transaction/verify`), montant et devise contrôlés, une seule fois. Le webhook
+  n'est qu'un signal (signature HMAC SHA-512 contrôlée) ; le retour dans
+  l'application et une vérification toutes les 10 minutes (24 h) couvrent un
+  webhook perdu.
+- Adresse e-mail demandée par Paystack : celle du compte Google, sinon une adresse
+  technique `joueur<numéro>@<domaine>` (aucune donnée personnelle).
 - Payer pendant une période Premium la prolonge de 30 jours.
-- Historique : `GET /me/payments` ; abonnements : `SubscriptionEvent`
-  (`payment`).
+- CinetPay reste possible (sans clé Paystack : `FP_CINETPAY_API_KEY` et
+  `FP_CINETPAY_SITE_ID`) ; un paiement est toujours vérifié auprès du prestataire
+  qui l'a créé.
 
 ## Sauvegardes
 
@@ -158,5 +171,5 @@ Fonctionnement :
 | Tentatives de connexion limitées (10 échecs / 15 min / numéro) | ratelimit.py |
 | Métriques non publiques (`/metrics` → 404) | Caddyfile |
 | Sauvegardes quotidiennes + copie hors serveur | backup, scp |
-| Paiement vérifié auprès de CinetPay, jamais sur la seule notification | payments/service.py |
+| Paiement vérifié auprès du prestataire (Paystack, CinetPay), jamais sur la seule notification | payments/service.py |
 | HTTP en clair dans l'APK (Termux) à retirer après la bascule | (à faire) |

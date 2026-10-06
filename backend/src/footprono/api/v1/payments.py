@@ -1,16 +1,18 @@
-"""Paiement de Premium (CinetPay).
+"""Paiement de Premium (Paystack, ou CinetPay).
 
 - ``POST /payments/premium`` : crée le paiement, renvoie l'adresse du guichet ;
-- ``GET /payments/{id}`` : état (vérifié auprès de CinetPay s'il est en attente) ;
-- ``/payments/cinetpay/notify`` : notification de CinetPay, simple signal de
-  vérification ; ``/payments/cinetpay/return`` : page de retour du client.
+- ``GET /payments/{id}`` : état (vérifié auprès du prestataire s'il est en attente) ;
+- ``/payments/paystack/notify`` (webhook signé) et ``/payments/cinetpay/notify`` :
+  simples signaux de vérification ; ``/payments/{prestataire}/return`` : page de
+  retour du client.
 """
 
+import json
 import logging
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Query, status
+from fastapi import APIRouter, Form, Query, Request, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
@@ -21,7 +23,7 @@ from footprono.core.config import Settings
 from footprono.core.errors import AppError, NotFoundError
 from footprono.notifications import push
 from footprono.notifications import service as notifications
-from footprono.payments import service
+from footprono.payments import paystack, service
 from footprono.payments.models import Payment
 
 logger = logging.getLogger(__name__)
@@ -132,11 +134,55 @@ async def return_page(
     transaction_id: Annotated[str | None, Query()] = None,
 ) -> HTMLResponse:
     """Page affichée après le guichet CinetPay : l'utilisateur revient à l'application."""
+    return await _return_html(session, settings, redis, transaction_id)
+
+
+@router.get("/payments/paystack/return", response_class=HTMLResponse, include_in_schema=False)
+async def paystack_return_page(
+    session: SessionDep,
+    settings: SettingsDep,
+    redis: RedisDep,
+    reference: Annotated[str | None, Query()] = None,
+) -> HTMLResponse:
+    """Page affichée après la page de paiement Paystack (``?reference=…``)."""
+    return await _return_html(session, settings, redis, reference)
+
+
+@router.post("/payments/paystack/notify", include_in_schema=False)
+async def paystack_notify(
+    request: Request, session: SessionDep, settings: SettingsDep, redis: RedisDep
+) -> dict[str, str]:
+    """Webhook Paystack : signature HMAC SHA-512 contrôlée, puis la transaction est
+    revérifiée auprès de Paystack (le contenu du message n'est jamais cru tel quel)."""
+    body = await request.body()
+    secret = settings.paystack_secret_key
+    signature = request.headers.get("x-paystack-signature")
+    if secret is None or not paystack.valid_signature(secret.get_secret_value(), body, signature):
+        logger.warning("paystack_notify_bad_signature")
+        return {"status": "ignored"}
+    try:
+        event = json.loads(body)
+        reference = str(event["data"]["reference"])
+    except (ValueError, KeyError, TypeError):
+        return {"status": "ignored"}
+    if event.get("event") != "charge.success":
+        return {"status": "ignored"}
+    try:
+        payment = await _confirm_and_notify(session, settings, redis, reference)
+    except AppError as exc:
+        logger.warning("payment_notify_failed", extra={"tx": reference, "error": exc.message})
+        return {"status": "ignored"}
+    return {"status": payment.status}
+
+
+async def _return_html(
+    session: AsyncSession, settings: Settings, redis: RedisDep, transaction_id: str | None
+) -> HTMLResponse:
     title, text = (
         "Paiement en cours de vérification",
         (
             "Retourne dans l'application FootProba : ton abonnement s'affiche dès que "
-            "CinetPay confirme le paiement."
+            "le paiement est confirmé."
         ),
     )
     if transaction_id:

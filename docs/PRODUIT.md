@@ -8,7 +8,7 @@ Code : `backend/src/footprono/accounts/plans.py`, `accounts/admin.py`,
 | Sujet | Décision |
 |---|---|
 | Formules | **7 jours de Premium offerts à l'inscription**, puis version gratuite ; Premium à **2 000 F CFA par mois** |
-| Activation de Premium | **Mobile Money** (CinetPay, Profil → Passer Premium, voir `PRODUCTION.md`) ; l'administrateur peut aussi l'accorder |
+| Activation de Premium | **Mobile Money** (Paystack : Wave, Orange Money, MTN MoMo ou carte ; Profil → Passer Premium, voir `PRODUCTION.md`) ; l'administrateur peut aussi l'accorder |
 | Langue | Français seulement |
 
 ## Ce que contient chaque formule

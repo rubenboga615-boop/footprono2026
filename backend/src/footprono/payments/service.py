@@ -1,9 +1,11 @@
 """Achat de Premium : création du paiement, puis confirmation vérifiée.
 
-Premium n'est accordé que si CinetPay confirme la transaction **et** que le
-montant et la devise sont ceux attendus. La confirmation est idempotente :
-notification CinetPay, retour de l'utilisateur et vérification périodique
-peuvent tous la déclencher, Premium n'est accordé qu'une fois.
+Prestataire : Paystack si sa clé est configurée, sinon CinetPay ; un paiement
+est toujours vérifié auprès du prestataire qui l'a créé. Premium n'est accordé
+que si le prestataire confirme la transaction **et** que le montant et la devise
+sont ceux attendus. La confirmation est idempotente : notification (webhook),
+retour de l'utilisateur et vérification périodique peuvent tous la déclencher,
+Premium n'est accordé qu'une fois.
 """
 
 import logging
@@ -20,23 +22,48 @@ from footprono.accounts.plans import PREMIUM_CURRENCY, PREMIUM_DAYS, PREMIUM_PRI
 from footprono.core.config import Settings
 from footprono.core.errors import NotFoundError, ServiceUnavailableError
 from footprono.notifications import service as notifications
-from footprono.payments.cinetpay import PAYMENT_DOWN, CinetPayClient
+from footprono.payments.cinetpay import PAYMENT_DOWN, CheckResult, CinetPayClient
 from footprono.payments.models import Payment
+from footprono.payments.paystack import PaystackClient
 
 logger = logging.getLogger(__name__)
 PROVIDER = "cinetpay"
+PROVIDER_NAMES = {"cinetpay": "CinetPay", "paystack": "Paystack"}
+
+
+def active_provider(settings: Settings) -> str:
+    return "paystack" if settings.paystack_secret_key is not None else PROVIDER
+
+
+async def _check(
+    settings: Settings, payment: Payment, transport: httpx.AsyncBaseTransport | None
+) -> CheckResult:
+    if payment.provider == "paystack":
+        return await PaystackClient.from_settings(settings, transport).check(payment.transaction_id)
+    return await CinetPayClient.from_settings(settings, transport).check(payment.transaction_id)
+
+
 # Un paiement non confirmé après ce délai n'est plus vérifié automatiquement.
 RECONCILE_WINDOW = timedelta(hours=24)
 
 
-def _urls(settings: Settings) -> tuple[str, str]:
+def _urls(settings: Settings, provider: str = PROVIDER) -> tuple[str, str]:
     if not settings.public_url:
         raise ServiceUnavailableError(
             "paiement indisponible : adresse publique du serveur (FP_PUBLIC_URL) non définie",
             public=PAYMENT_DOWN,
         )
     base = settings.public_url.rstrip("/") + settings.api_prefix
-    return f"{base}/payments/cinetpay/notify", f"{base}/payments/cinetpay/return"
+    return f"{base}/payments/{provider}/notify", f"{base}/payments/{provider}/return"
+
+
+def _email(settings: Settings, user: User) -> str:
+    """Paystack exige une adresse : celle du compte Google, sinon une adresse
+    technique propre au compte (aucune donnée personnelle)."""
+    if user.email:
+        return user.email
+    host = (settings.public_url or "footproba.app").split("//")[-1].split("/")[0]
+    return f"joueur{user.id}@{host}"
 
 
 async def start_premium(
@@ -45,11 +72,11 @@ async def start_premium(
     user: User,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> Payment:
-    client = CinetPayClient.from_settings(settings, transport)
-    notify_url, return_url = _urls(settings)
+    provider = active_provider(settings)
+    notify_url, return_url = _urls(settings, provider)
     payment = Payment(
         user_id=user.id,
-        provider=PROVIDER,
+        provider=provider,
         transaction_id=f"FP{user.id}T{secrets.token_hex(8).upper()}",
         amount=PREMIUM_PRICE,
         currency=PREMIUM_CURRENCY,
@@ -57,9 +84,25 @@ async def start_premium(
         status="pending",
         raw={},
     )
+    if provider == "paystack":
+        client = PaystackClient.from_settings(settings, transport)
+        session.add(payment)
+        await session.flush()
+        # Paystack revient sur cette page avec ?reference=… ; elle vérifie aussitôt.
+        payment.payment_url = await client.init(
+            reference=payment.transaction_id,
+            amount=payment.amount,
+            currency=payment.currency,
+            email=_email(settings, user),
+            callback_url=return_url,
+            metadata={"payment_id": payment.id, "offer": f"Premium {PREMIUM_DAYS} jours"},
+        )
+        await session.commit()
+        return payment
+    cinetpay = CinetPayClient.from_settings(settings, transport)
     session.add(payment)
     await session.flush()
-    payment.payment_url = await client.init(
+    payment.payment_url = await cinetpay.init(
         transaction_id=payment.transaction_id,
         amount=payment.amount,
         currency=payment.currency,
@@ -79,7 +122,7 @@ async def confirm(
     transport: httpx.AsyncBaseTransport | None = None,
     now: datetime | None = None,
 ) -> Payment:
-    """Vérifie la transaction auprès de CinetPay et accorde Premium une seule fois."""
+    """Vérifie la transaction auprès de son prestataire et accorde Premium une seule fois."""
     payment = await session.scalar(
         select(Payment).where(Payment.transaction_id == transaction_id).with_for_update()
     )
@@ -87,7 +130,7 @@ async def confirm(
         raise NotFoundError(f"paiement {transaction_id} inconnu")
     if payment.status != "pending":
         return payment
-    result = await CinetPayClient.from_settings(settings, transport).check(transaction_id)
+    result = await _check(settings, payment, transport)
     payment.provider_status, payment.method = result.provider_status, result.method
     payment.raw = result.raw
     if result.status == "accepted":
@@ -102,8 +145,9 @@ async def confirm(
             user = await session.get(User, payment.user_id)
             assert user is not None
             payment.status, payment.paid_at = "accepted", now
+            label = PROVIDER_NAMES.get(payment.provider, payment.provider)
             await admin.grant_premium(
-                session, None, user, payment.days, note=f"CinetPay {transaction_id}",
+                session, None, user, payment.days, note=f"{label} {transaction_id}",
                 now=now, kind="payment",
             )  # fmt: skip
             assert user.premium_until is not None

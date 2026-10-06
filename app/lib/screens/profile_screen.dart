@@ -402,8 +402,8 @@ class _PlanCard extends StatelessWidget {
       builder: (context) => AlertDialog(
         title: const Text('Premium · 30 jours'),
         content: Text(
-          'Tu vas payer $amount par Mobile Money (Orange, MTN, Moov, Wave) sur la page '
-          'sécurisée de CinetPay. Premium est activé dès que l\'opérateur confirme le paiement'
+          'Tu vas payer $amount par Mobile Money (Wave, Orange Money, MTN MoMo) ou carte sur la page '
+          'sécurisée de Paystack. Premium est activé dès que l\'opérateur confirme le paiement'
           '${plan.premium ? ', à la suite de ta période en cours' : ''}.\n\n'
           'Ce paiement est réel (contrairement aux paris, en argent fictif).',
         ),

@@ -486,9 +486,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   double get couponOdds => coupon.fold(1.0, (p, c) => p * c.offer.odds);
 
-  // --- Paiement Premium (Mobile Money, CinetPay) -----------------------------
+  // --- Paiement Premium (Mobile Money : Paystack, ou CinetPay) -----------------
 
-  /// Crée le paiement et ouvre le guichet CinetPay dans le navigateur.
+  /// Crée le paiement et ouvre la page de paiement du prestataire dans le navigateur.
   Future<void> buyPremium() async {
     final payment = await api.post('/payments/premium') as Json;
     pendingPayment = payment['id'] as int;

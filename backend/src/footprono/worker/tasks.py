@@ -200,14 +200,14 @@ def predict_if_needed() -> dict[str, Any]:
 @celery_app.task(name="footprono.check_payments")
 @tracked("check_payments")
 def check_payments() -> dict[str, Any]:
-    """Revérifie auprès de CinetPay les paiements en attente (moins de 24 h)."""
+    """Revérifie auprès du prestataire les paiements en attente (moins de 24 h)."""
     return asyncio.run(_check_payments())
 
 
 async def _check_payments() -> dict[str, Any]:
     settings = get_settings()
-    if settings.cinetpay_api_key is None:
-        return {"status": "idle", "reason": "CinetPay non configuré"}
+    if settings.cinetpay_api_key is None and settings.paystack_secret_key is None:
+        return {"status": "idle", "reason": "aucun prestataire de paiement configuré"}
     engine = create_engine(settings)
     redis = create_redis(settings)
     push = push_sender_or_none(settings)

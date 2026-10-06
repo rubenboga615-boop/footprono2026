@@ -167,7 +167,7 @@ aucun secret n'est nécessaire.
   avec l'adresse et le nom → écran « Presque prêt » (pays, 18 ans) →
   `POST /auth/google/register` (même essai Premium et solde de départ que par numéro).
 - Compte créé avec Google : ni numéro ni mot de passe (le Mobile Money se règle sur
-  le guichet CinetPay). Suppression du compte : nouvelle connexion Google demandée.
+  la page Paystack). Suppression du compte : nouvelle connexion Google demandée.
 - Profil → « Lier mon compte Google » (`POST /me/google`) : le même compte se
   connecte ensuite avec Google ou avec le numéro (Premium, solde, paris inchangés).
   « Délier » (`DELETE /me/google`) seulement si le compte a un numéro et un mot de passe.
@@ -219,7 +219,7 @@ Projet Firebase « footprono-56616 », application Android `com.footprono.footpr
 
 ## Pas encore disponible
 
-- Paiement Mobile Money : en place (Profil → Passer Premium) dès que CinetPay est configuré sur le serveur.
+- Paiement Mobile Money : en place (Profil → Passer Premium) dès que Paystack (ou CinetPay) est configuré sur le serveur.
 - Vérification du numéro par SMS.
 - Connexion Google sur la version web.
 
