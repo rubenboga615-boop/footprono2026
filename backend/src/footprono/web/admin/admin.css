@@ -202,6 +202,11 @@ tbody tr.link:hover td { background: rgba(255,255,255,.025); }
 .file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sel { font-size: 13px; color: var(--text2); padding: 5px 0; border-top: 1px solid var(--line2); }
 .sel:first-child { border-top: 0; }
+.files { width: 100%; table-layout: fixed; }
+.files .file { cursor: pointer; }
+.files .file .nm { white-space: normal; overflow-wrap: anywhere; }
+.files .meta { display: none; font-size: 11.5px; color: var(--text3); }
+.files .tools { width: 190px; }
 .acct-tools { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .drop { border: 1.5px dashed var(--line); border-radius: 16px; padding: 22px; text-align: center; color: var(--text2); cursor: pointer; display: block; }
 .drop.over { border-color: var(--accent2); background: rgba(124,58,237,.08); }
@@ -246,6 +251,8 @@ tbody tr.link:hover td { background: rgba(255,255,255,.025); }
   .hours { font-size: 9.5px; } .tl .last { font-size: 11px; line-height: 1.2; }
   .log { height: 52vh; }
   .hide-sm { display: none; }
+  .files .meta { display: block; }
+  .files .tools { width: 128px; }
   .tabbar { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; padding: 8px 6px calc(12px + env(safe-area-inset-bottom)); background: rgba(10,9,15,.92); backdrop-filter: blur(12px); border-top: 1px solid var(--line2); }
   .tabbar a { display: flex; flex-direction: column; align-items: center; gap: 3px; font: 600 10.5px var(--body); color: var(--text3); text-decoration: none; }
   .tabbar a svg { width: 21px; height: 21px; }

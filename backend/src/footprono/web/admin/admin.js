@@ -752,14 +752,17 @@ async function filesPage() {
   }
   const iconFor = (n) => (n.endsWith(".dump") ? "i-db" : n.includes("moteur") ? "i-chart" : "i-file");
   const rows = list.map((f) => h("tr", {},
-    h("td", {}, h("div", { class: "file" }, h("span", { class: "fi" }, icon(iconFor(f.name))), h("span", { text: f.name }))),
+    // Nom et taille : le nom se replie sur téléphone pour garder les boutons à l'écran ;
+    // toucher le fichier le télécharge aussi.
+    h("td", {}, h("div", { class: "file", onclick: () => download(f.name) }, h("span", { class: "fi" }, icon(iconFor(f.name))),
+      h("div", { style: "min-width:0" }, h("div", { class: "nm", text: f.name }), h("div", { class: "meta", text: `${bytes(f.size)} · ${when(f.modified_at)}` })))),
     h("td", { class: "hide-sm", text: bytes(f.size) }), h("td", { class: "hide-sm", text: when(f.modified_at) }),
-    h("td", {}, h("div", { class: "acct-tools" },
-      h("button", { class: "btn sm", type: "button", onclick: () => download(f.name) }, icon("i-down"), h("span", { class: "hide-sm", text: "Télécharger" })),
+    h("td", { class: "tools" }, h("div", { class: "acct-tools" },
+      h("button", { class: "btn sm", type: "button", onclick: () => download(f.name) }, icon("i-down"), h("span", { text: "Télécharger" })),
       h("button", { class: "icon-btn", type: "button", title: "Supprimer", "aria-label": "Supprimer", onclick: () => remove(f.name) }, icon("i-trash"))))));
   view(h("p", { class: "note", style: "margin:0 0 12px", text: "Exports pour l'étude, archives et rapports produits par les actions, gardés 30 jours. Jamais de donnée personnelle ; les sauvegardes de la base ne sont pas téléchargeables." }),
-    card(null, list.length ? h("div", { class: "scroll" }, h("table", {},
-      h("thead", {}, h("tr", {}, h("th", { text: "Fichier" }), h("th", { class: "hide-sm", text: "Taille" }), h("th", { class: "hide-sm", text: "Date" }), h("th"))),
+    card(null, list.length ? h("div", { class: "scroll" }, h("table", { class: "files" },
+      h("thead", {}, h("tr", {}, h("th", { text: "Fichier" }), h("th", { class: "hide-sm", text: "Taille", style: "width:90px" }), h("th", { class: "hide-sm", text: "Date", style: "width:130px" }), h("th", { class: "tools" }))),
       h("tbody", {}, ...rows))) : h("div", { class: "empty", text: "Aucun fichier. Les actions « Exporter les données », « Évaluer le moteur »… en produisent." })));
 }
 
