@@ -146,6 +146,26 @@ Fonctionnement :
   `FP_CINETPAY_SITE_ID`) ; un paiement est toujours vérifié auprès du prestataire
   qui l'a créé.
 
+### Wave (Checkout API, ou envoi « à la main »)
+
+Le joueur choisit parmi les moyens configurés (`GET /payments/methods`), Wave
+d'abord.
+
+- **Wave « à la main »** (en attendant le compte marchand) : `FP_WAVE_MANUAL_NUMBER=+225…`
+  dans `deploy/.env`. L'application affiche le numéro et le montant ; le joueur
+  envoie 2 000 F avec Wave puis la capture du reçu sur WhatsApp (message prérempli
+  avec son numéro de compte). **Avant d'offrir Premium, vérifier la réception dans
+  l'application Wave** (montant, heure), puis console → Comptes → fiche du compte →
+  Offrir Premium 30 jours, motif « Wave <référence du reçu> ».
+- **Wave Business (API)** : portail Wave Business → Développeurs → clé d'API
+  « Checkout » → `FP_WAVE_API_KEY=…` (serveur seulement). Webhook :
+  `https://<domaine>/api/v1/payments/wave/notify` (événements `checkout.session.*`).
+  Le serveur crée une session (`POST /v1/checkout/sessions`, montant en francs
+  entiers), l'application ouvre Wave, et Premium n'est accordé qu'après lecture de
+  la session chez Wave (`GET /v1/checkout/sessions/search?client_reference=…` :
+  `payment_status` « succeeded », montant et devise contrôlés). Le webhook n'est
+  qu'un signal. Page de retour : `/api/v1/payments/wave/return`.
+
 ## Sauvegardes
 
 - Chaque jour à 3 h (UTC) : `deploy/backups/footprono-AAAAMMJJ-HHMM.dump`,
@@ -183,7 +203,7 @@ Fonctionnement :
 | Tentatives de connexion limitées (10 échecs / 15 min / numéro) | ratelimit.py |
 | Métriques non publiques (`/metrics` → 404) | Caddyfile |
 | Sauvegardes quotidiennes + copie hors serveur | backup, scp |
-| Paiement vérifié auprès du prestataire (Paystack, CinetPay), jamais sur la seule notification | payments/service.py |
+| Paiement vérifié auprès du prestataire (Wave, Paystack, CinetPay), jamais sur la seule notification | payments/service.py |
 | APK publié : HTTPS seulement (HTTP en clair permis dans les versions de développement) | AndroidManifest.xml |
 | Console : code de sécurité à 6 chiffres **obligatoire** (sans lui, seule la page Sécurité s'ouvre) | deps.py (`console_require_totp`) |
 | Mot de passe actuel deviné avec un jeton volé (changement, suppression) : mêmes limites que la connexion | accounts.py |

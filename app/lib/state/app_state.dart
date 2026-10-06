@@ -531,11 +531,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   double get couponOdds => coupon.fold(1.0, (p, c) => p * c.offer.odds);
 
-  // --- Paiement Premium (Mobile Money : Paystack, ou CinetPay) -----------------
+  // --- Paiement Premium (Wave, Paystack, CinetPay ; ou Wave manuel) -----------
+
+  /// Moyens de paiement proposés par le serveur : prix, `methods` [{id, label}] et
+  /// `manual` (numéro Wave de FootProba, vérification par l'administrateur) ou null.
+  Future<Json> paymentMethods() async => await api.get('/payments/methods') as Json;
 
   /// Crée le paiement et ouvre la page de paiement du prestataire dans le navigateur.
-  Future<void> buyPremium() async {
-    final payment = await api.post('/payments/premium') as Json;
+  Future<void> buyPremium([String? method]) async {
+    final payment = await api.post('/payments/premium', {'method': method}) as Json;
     pendingPayment = payment['id'] as int;
     final opened = await openUrl(Uri.parse(payment['payment_url'] as String));
     if (!opened) {

@@ -24,6 +24,7 @@ class FakeServer {
   final List<Map<String, dynamic>> placedBets = [];
   final List<String> devices = [];
   String paymentStatus = 'pending';
+  String? boughtWith;
   final List<Map<String, String>> smartQueries = [];
   final List<Map<String, String>> teamQueries = [];
   final List<Map<String, dynamic>> bookingCodes = [];
@@ -166,7 +167,19 @@ class FakeServer {
         body = me;
       case 'GET /me/notifications':
         body = [];
+      case 'GET /payments/methods':
+        body = {
+          'price': 2000,
+          'currency': 'XOF',
+          'days': 30,
+          'methods': [
+            {'id': 'wave', 'label': 'Wave'},
+            {'id': 'paystack', 'label': 'Orange Money, MTN, Wave ou carte'},
+          ],
+          'manual': {'wave_number': '+2250700000000', 'whatsapp': '+2250500649904'},
+        };
       case 'POST /payments/premium':
+        boughtWith = (jsonDecode(r.body) as Map)['method'] as String?;
         return http.Response(
           jsonEncode({
             'id': 1,
@@ -1182,8 +1195,9 @@ void main() {
     await tester.tap(find.textContaining('Passer Premium'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Ce paiement est réel'), findsOneWidget);
-    await tester.tap(find.text('Payer'));
+    await tester.tap(find.text('Orange Money, MTN, Wave ou carte'));
     await tester.pumpAndSettle();
+    expect(server.boughtWith, 'paystack');
     expect(opened.single.toString(), 'https://checkout.cinetpay.com/payment/abc');
 
     // Retour dans l'application avant confirmation : en attente.
@@ -1199,6 +1213,39 @@ void main() {
     expect(find.text('Paiement reçu : Premium est activé.'), findsOneWidget);
     expect(state.premium, isTrue);
     expect(state.pendingPayment, isNull);
+  });
+
+  testWidgets('Premium : Wave manuel, numéro affiché et capture envoyée sur WhatsApp', (tester) async {
+    SharedPreferences.setMockInitialValues({'token': 'jeton'});
+    final server = FakeServer();
+    final opened = <Uri>[];
+    final state = AppState(
+      api: ApiClient(baseUrl: 'http://serveur', httpClient: MockClient(server.handle)),
+      socketFactory: (_) => null,
+      openUrl: (url) async {
+        opened.add(url);
+        return true;
+      },
+    );
+    await tester.binding.setSurfaceSize(const Size(430, 1400));
+    await tester.pumpWidget(FootProbaApp(state: state));
+    await state.init();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.textContaining('Passer Premium'), 200);
+    await tester.tap(find.textContaining('Passer Premium'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Wave (envoi au numéro FootProba)'));
+    await tester.pumpAndSettle();
+    expect(find.text('+2250700000000'), findsOneWidget);
+    expect(server.boughtWith, isNull);
+    await tester.tap(find.text('Envoyer la capture'));
+    await tester.pumpAndSettle();
+    final text = opened.single.queryParameters['text']!;
+    expect(opened.single.host, 'wa.me');
+    expect(text, contains('par Wave au +2250700000000'));
+    expect(text, contains('compte n° '));
   });
 
   testWidgets('Coupon intelligent : profil et période choisis, coupon expliqué, ajouté au coupon', (

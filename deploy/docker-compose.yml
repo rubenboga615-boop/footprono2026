@@ -49,7 +49,9 @@ x-backend: &backend
     FP_FCM_CREDENTIALS_FILE: ${FP_FCM_CREDENTIALS_FILE:-}
     # Paiement Mobile Money : retour et notification du prestataire sur l'adresse publique.
     FP_PUBLIC_URL: https://${FP_DOMAIN}
-    # Paystack (prioritaire s'il est configuré), sinon CinetPay. Clés secrètes : .env seulement.
+    # Wave, Paystack, CinetPay : ceux qui ont une clé sont proposés au joueur. Clés : .env seulement.
+    FP_WAVE_API_KEY: ${FP_WAVE_API_KEY:-}
+    FP_WAVE_MANUAL_NUMBER: ${FP_WAVE_MANUAL_NUMBER:-}
     FP_PAYSTACK_SECRET_KEY: ${FP_PAYSTACK_SECRET_KEY:-}
     FP_CINETPAY_API_KEY: ${FP_CINETPAY_API_KEY:-}
     FP_CINETPAY_SITE_ID: ${FP_CINETPAY_SITE_ID:-}

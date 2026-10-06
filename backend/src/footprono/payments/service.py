@@ -1,7 +1,8 @@
 """Achat de Premium : création du paiement, puis confirmation vérifiée.
 
-Prestataire : Paystack si sa clé est configurée, sinon CinetPay ; un paiement
-est toujours vérifié auprès du prestataire qui l'a créé. Premium n'est accordé
+Prestataires : Wave, Paystack, CinetPay, selon les clés configurées ; le joueur
+choisit quand il y en a plusieurs (sinon le premier). Un paiement est toujours
+vérifié auprès du prestataire qui l'a créé. Premium n'est accordé
 que si le prestataire confirme la transaction **et** que le montant et la devise
 sont ceux attendus. La confirmation est idempotente : notification (webhook),
 retour de l'utilisateur et vérification périodique peuvent tous la déclencher,
@@ -25,19 +26,43 @@ from footprono.notifications import service as notifications
 from footprono.payments.cinetpay import PAYMENT_DOWN, CheckResult, CinetPayClient
 from footprono.payments.models import Payment
 from footprono.payments.paystack import PaystackClient
+from footprono.payments.wave import WaveClient
 
 logger = logging.getLogger(__name__)
 PROVIDER = "cinetpay"
-PROVIDER_NAMES = {"cinetpay": "CinetPay", "paystack": "Paystack"}
+PROVIDER_NAMES = {"cinetpay": "CinetPay", "paystack": "Paystack", "wave": "Wave"}
+# Ce que le joueur voit pour chaque prestataire.
+METHOD_LABELS = {
+    "wave": "Wave",
+    "paystack": "Orange Money, MTN, Wave ou carte",
+    "cinetpay": "Orange Money, MTN, Moov ou Wave",
+}
 
 
-def active_provider(settings: Settings) -> str:
-    return "paystack" if settings.paystack_secret_key is not None else PROVIDER
+def available_providers(settings: Settings) -> list[str]:
+    """Prestataires configurés, dans l'ordre proposé (Wave d'abord : 1 % de frais)."""
+    out = []
+    if settings.wave_api_key is not None:
+        out.append("wave")
+    if settings.paystack_secret_key is not None:
+        out.append("paystack")
+    if settings.cinetpay_api_key is not None:
+        out.append("cinetpay")
+    return out
+
+
+def active_provider(settings: Settings, wanted: str | None = None) -> str:
+    providers = available_providers(settings)
+    if wanted is not None and wanted in providers:
+        return wanted
+    return providers[0] if providers else PROVIDER
 
 
 async def _check(
     settings: Settings, payment: Payment, transport: httpx.AsyncBaseTransport | None
 ) -> CheckResult:
+    if payment.provider == "wave":
+        return await WaveClient.from_settings(settings, transport).check(payment.transaction_id)
     if payment.provider == "paystack":
         return await PaystackClient.from_settings(settings, transport).check(payment.transaction_id)
     return await CinetPayClient.from_settings(settings, transport).check(payment.transaction_id)
@@ -71,8 +96,9 @@ async def start_premium(
     settings: Settings,
     user: User,
     transport: httpx.AsyncBaseTransport | None = None,
+    method: str | None = None,
 ) -> Payment:
-    provider = active_provider(settings)
+    provider = active_provider(settings, method)
     notify_url, return_url = _urls(settings, provider)
     payment = Payment(
         user_id=user.id,
@@ -84,6 +110,21 @@ async def start_premium(
         status="pending",
         raw={},
     )
+    if provider == "wave":
+        wave = WaveClient.from_settings(settings, transport)
+        session.add(payment)
+        await session.flush()
+        # Wave revient sur cette page (succès ou échec) ; elle vérifie aussitôt.
+        back = f"{return_url}?transaction_id={payment.transaction_id}"
+        payment.payment_url = await wave.init(
+            client_reference=payment.transaction_id,
+            amount=payment.amount,
+            currency=payment.currency,
+            success_url=back,
+            error_url=back,
+        )
+        await session.commit()
+        return payment
     if provider == "paystack":
         client = PaystackClient.from_settings(settings, transport)
         session.add(payment)

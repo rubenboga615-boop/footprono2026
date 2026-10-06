@@ -70,6 +70,11 @@ class Settings(BaseSettings):
     # Paystack (tableau de bord → Settings → API Keys & Webhooks), secret. Si elle est
     # définie, Paystack est le prestataire des nouveaux paiements (sinon CinetPay).
     paystack_secret_key: SecretStr | None = None
+    # Wave Business (Checkout API), clé secrète : paiement depuis l'application Wave.
+    wave_api_key: SecretStr | None = None
+    # Paiement Wave « à la main » en attendant un compte marchand : numéro Wave qui
+    # reçoit les 2 000 F ; l'administrateur vérifie la réception puis offre Premium.
+    wave_manual_number: str | None = None
     # Connexion avec Google (Firebase Authentication) : identifiant public du projet
     # Firebase, celui de l'application. Vide : connexion Google indisponible.
     firebase_project_id: str | None = "footprono-56616"
@@ -131,6 +136,8 @@ class Settings(BaseSettings):
         "cinetpay_api_key",
         "cinetpay_site_id",
         "paystack_secret_key",
+        "wave_api_key",
+        "wave_manual_number",
         "firebase_project_id",
         "support_whatsapp",
         mode="before",

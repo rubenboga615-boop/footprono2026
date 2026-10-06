@@ -1,8 +1,10 @@
-"""Paiement de Premium (Paystack, ou CinetPay).
+"""Paiement de Premium (Wave, Paystack, CinetPay).
 
+- ``GET /payments/methods`` : moyens de paiement proposés (et paiement Wave manuel) ;
 - ``POST /payments/premium`` : crée le paiement, renvoie l'adresse du guichet ;
 - ``GET /payments/{id}`` : état (vérifié auprès du prestataire s'il est en attente) ;
-- ``/payments/paystack/notify`` (webhook signé) et ``/payments/cinetpay/notify`` :
+- ``/payments/paystack/notify`` (webhook signé), ``/payments/cinetpay/notify`` et
+  ``/payments/wave/notify`` :
   simples signaux de vérification ; ``/payments/{prestataire}/return`` : page de
   retour du client.
 """
@@ -10,14 +12,15 @@
 import json
 import logging
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Form, Query, Request, status
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from footprono.accounts.plans import PREMIUM_CURRENCY, PREMIUM_DAYS, PREMIUM_PRICE
 from footprono.api.deps import CurrentUserDep, RedisDep, SessionDep, SettingsDep
 from footprono.core.config import Settings
 from footprono.core.errors import AppError, NotFoundError
@@ -58,9 +61,37 @@ async def _confirm_and_notify(
     return payment
 
 
+class BuyIn(BaseModel):
+    method: str | None = Field(None, max_length=16, examples=["wave"])
+
+
+@router.get("/payments/methods")
+async def payment_methods(settings: SettingsDep) -> dict[str, Any]:
+    """Moyens proposés au joueur ; ``manual`` : paiement Wave sur le numéro de FootProba,
+    vérifié par l'administrateur (en attendant un compte marchand)."""
+    return {
+        "price": PREMIUM_PRICE,
+        "currency": PREMIUM_CURRENCY,
+        "days": PREMIUM_DAYS,
+        "methods": [
+            {"id": p, "label": service.METHOD_LABELS[p]}
+            for p in service.available_providers(settings)
+        ],
+        "manual": (
+            {"wave_number": settings.wave_manual_number, "whatsapp": settings.support_whatsapp}
+            if settings.wave_manual_number
+            else None
+        ),
+    }
+
+
 @router.post("/payments/premium", response_model=PaymentOut, status_code=status.HTTP_201_CREATED)
-async def buy_premium(user: CurrentUserDep, session: SessionDep, settings: SettingsDep) -> Payment:
-    return await service.start_premium(session, settings, user)
+async def buy_premium(
+    user: CurrentUserDep, session: SessionDep, settings: SettingsDep, body: BuyIn | None = None
+) -> Payment:
+    return await service.start_premium(
+        session, settings, user, method=body.method if body else None
+    )
 
 
 @router.get("/me/payments", response_model=list[PaymentOut])
@@ -166,6 +197,36 @@ async def paystack_notify(
     except (ValueError, KeyError, TypeError):
         return {"status": "ignored"}
     if event.get("event") != "charge.success":
+        return {"status": "ignored"}
+    try:
+        payment = await _confirm_and_notify(session, settings, redis, reference)
+    except AppError as exc:
+        logger.warning("payment_notify_failed", extra={"tx": reference, "error": exc.message})
+        return {"status": "ignored"}
+    return {"status": payment.status}
+
+
+@router.get("/payments/wave/return", response_class=HTMLResponse, include_in_schema=False)
+async def wave_return_page(
+    session: SessionDep,
+    settings: SettingsDep,
+    redis: RedisDep,
+    transaction_id: Annotated[str | None, Query()] = None,
+) -> HTMLResponse:
+    """Page affichée au retour de l'application Wave (succès ou échec)."""
+    return await _return_html(session, settings, redis, transaction_id)
+
+
+@router.post("/payments/wave/notify", include_in_schema=False)
+async def wave_notify(
+    request: Request, session: SessionDep, settings: SettingsDep, redis: RedisDep
+) -> dict[str, str]:
+    """Webhook Wave : simple signal. La session est revérifiée auprès de Wave avec notre
+    clé (montant, devise, état) ; le contenu du message n'est jamais cru tel quel."""
+    try:
+        event = json.loads(await request.body())
+        reference = str(event["data"]["client_reference"])
+    except (ValueError, KeyError, TypeError):
         return {"status": "ignored"}
     try:
         payment = await _confirm_and_notify(session, settings, redis, reference)
