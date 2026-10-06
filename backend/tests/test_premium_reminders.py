@@ -54,7 +54,7 @@ async def test_reminders_three_days_before_then_the_day_before(db_factory: Facto
     assert set(notes) == set(ids)
     assert notes[ids[0]].title == "Ton essai Premium se termine dans 3 jours"
     assert notes[ids[1]].title == "Ton Premium se termine demain"
-    assert "Passer Premium" in notes[ids[1]].body
+    assert "Profil → Prolonger" in notes[ids[1]].body
 
     # Deux jours plus tard, l'essai arrive à la veille : second rappel.
     async with db_factory() as session:

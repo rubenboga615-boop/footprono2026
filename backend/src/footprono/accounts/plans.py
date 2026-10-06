@@ -3,7 +3,7 @@
 - Gratuit : matchs, marchés 1X2 / plus-moins de buts / les deux marquent
   (prédictions, offre, paris), bookmaker virtuel, coupons, montante sans
   suggestions, page publique de fiabilité.
-- Premium (2 000 F CFA par mois, 7 jours offerts à l'inscription) : tous les
+- Premium (2 000 F CFA par mois, sans essai automatique) : tous les
   marchés (handicaps, mi-temps, scores exacts, corners, cartons, tirs…),
   suggestions de montante, analyses détaillées.
 

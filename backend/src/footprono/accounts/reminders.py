@@ -58,7 +58,7 @@ async def send_premium_reminders(session: AsyncSession, now: datetime | None = N
             notifications.add(
                 session, user.id, KIND, f"{what} se termine {label}",
                 f"Fin le {user.premium_until:%d/%m à %H:%M} (GMT). Garde tous les marchés, "
-                "l'analyse et le Coupon intelligent : Profil → Passer Premium.",
+                "l'analyse et le Coupon intelligent : Profil → Prolonger.",
                 {"key": key, "screen": "premium"},
             )  # fmt: skip
             sent += 1

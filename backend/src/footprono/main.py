@@ -39,7 +39,7 @@ class _WebApp(StaticFiles):
 
 # Date de la version en vigueur des pages légales (confidentialité, conditions) : à
 # changer à chaque modification importante du texte.
-LEGAL_EFFECTIVE_DATE = "2 octobre 2026"
+LEGAL_EFFECTIVE_DATE = "6 octobre 2026"
 
 ADMIN_HEADERS = {
     "Content-Security-Policy": (
