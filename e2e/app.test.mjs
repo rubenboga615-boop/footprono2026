@@ -66,9 +66,9 @@ await check('inscription', async () => {
 
 await check('matchs à venir avec probabilités du moteur', async () => {
   await visible(text(/^Matchs (à venir|du jour)/));
-  // Chaque carte de match est un bouton : son nom contient les probabilités.
-  await visible(button(/1 · \d+.*N · \d+.*2 · \d+/s));
-  await visible(button(/Les deux marquent · \d+/));
+  // Chaque carte de match est un bouton : son nom contient les cases 1, N, 2 et les buts.
+  await visible(button(/ vs .*\d+\s?%.*\d+\s?%.*\d+\s?%/s));
+  await visible(button(/Les 2 marquent \d+/));
 });
 
 await check('match : probabilités et cote réelle ajoutée au coupon', async () => {
@@ -90,17 +90,17 @@ await check('coupon : pari placé, gain calculé', async () => {
 await check('bookmaker : pari en cours, solde débité', async () => {
   await nav('Bookmaker');
   await visible(text('Mes paris'));
-  await visible(text('99 000 F CFA'));
+  await visible(text('99 000'));
 });
 
 await check('profil : essai Premium de 7 jours', async () => {
   await nav('Profil');
   await visible(text('FootProba Premium'));
-  await visible(text('Actif'));
+  await visible(text('ACTIF'));
 });
 
 await check('fiabilité : page publique', async () => {
-  await text('Fiabilité du modèle').click();
+  await text('Fiabilité du moteur').click();
   await visible(text(/Annoncé contre réalisé/));
   await visible(text('Backtest'));
   await button('Retour').click();
