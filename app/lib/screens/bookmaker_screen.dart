@@ -104,6 +104,7 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
                 children: [
                   const TwoToneTitle('Bookmaker', 'virtuel'),
                   const SizedBox(height: 16),
+                  const OddsDownBanner(),
                   GlassCard(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                     child: Column(

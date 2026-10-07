@@ -2,17 +2,23 @@
 
 import json
 import zipfile
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono import app_release
 from footprono.accounts.cli import main as admin_main
 from footprono.core.config import Settings
 from footprono.core.errors import AppError
+from footprono.football.models import BookmakerOdds
 
 from .conftest import make_settings
+from .test_bets import world  # noqa: F401 (fixture partagée)
 
 
 def _archive(tmp: Path, build: int, apk: bytes = b"APK") -> Path:
@@ -66,3 +72,20 @@ def test_publish_command_rejects_wrong_file(
     (tmp_path / "x.txt").write_text("pas une archive")
     assert admin_main(["publish-apk", str(tmp_path / "x.txt")]) == 1
     assert "n'est pas l'archive" in capsys.readouterr().err
+
+
+async def test_status_says_when_odds_are_down(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Sans cotes récentes (source coupée), l'application l'annonce aux joueurs."""
+    assert (await client.get("/api/v1/app/status")).json()["odds_available"] is True
+    async with db_factory() as session:
+        await session.execute(
+            update(BookmakerOdds).values(last_seen_at=datetime.now(UTC) - timedelta(days=2))
+        )
+        await session.commit()
+    status = (await client.get("/api/v1/app/status")).json()
+    assert status["odds_available"] is False
+    assert status["odds_seen_at"] is not None

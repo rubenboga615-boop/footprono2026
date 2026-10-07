@@ -88,6 +88,7 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
                 children: [
                   const BackHeader('Coupons', 'du jour'),
                   const SizedBox(height: 14),
+                  const OddsDownBanner(),
                   if (byProfile == null)
                     Row(
                       children: [

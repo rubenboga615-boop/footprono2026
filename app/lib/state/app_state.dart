@@ -226,6 +226,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // Préférence illisible : ignorée.
     }
     unawaited(checkUpdate());
+    unawaited(checkStatus());
     if (api.token != null) {
       try {
         await refreshMe();
@@ -617,6 +618,19 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return status;
   }
 
+  /// Cotes des bookmakers disponibles (GET /app/status) ; fausses quand la source est
+  /// coupée : bookmaker, coupons du jour et suggestions l'expliquent par un bandeau.
+  final oddsAvailable = ValueNotifier<bool>(true);
+
+  Future<void> checkStatus() async {
+    try {
+      final s = await api.get('/app/status') as Json;
+      oddsAvailable.value = s['odds_available'] as bool? ?? true;
+    } catch (_) {
+      // Serveur injoignable ou ancien : pas de bandeau.
+    }
+  }
+
   /// Demande au serveur la dernière version de l'application ; silencieux en cas d'échec.
   Future<void> checkUpdate() async {
     if (!android || build <= 0) return;
@@ -683,7 +697,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed && pendingPayment != null) {
       unawaited(_announcePayment());
     }
-    if (state == AppLifecycleState.resumed) unawaited(checkUpdate());
+    if (state == AppLifecycleState.resumed) {
+      unawaited(checkUpdate());
+      unawaited(checkStatus());
+    }
   }
 
   Future<void> _announcePayment() async {

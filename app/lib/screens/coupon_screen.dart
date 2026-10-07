@@ -209,6 +209,7 @@ class _CouponScreenState extends State<CouponScreen> {
                 ],
               ),
               const SizedBox(height: 14),
+              const OddsDownBanner(),
               _Banner(
                 icon: Icons.star_outline_rounded,
                 title: 'Coupon intelligent',

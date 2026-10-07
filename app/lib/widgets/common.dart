@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../api/client.dart';
+import '../state/app_state.dart';
 import '../theme.dart';
 
 /// Charge une donnée et affiche chargement, erreur (avec « Réessayer ») ou contenu.
@@ -76,6 +78,46 @@ class ErrorPanel extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Bandeau « cotes indisponibles » (source des cotes coupée) : rien sinon.
+class OddsDownBanner extends StatelessWidget {
+  const OddsDownBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: context.read<AppState>().oddsAvailable,
+      builder: (context, available, _) => available
+          ? const SizedBox.shrink()
+          : Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Fp.warning.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Fp.warning.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.info_outline_rounded, size: 18, color: Fp.warning),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Cotes momentanément indisponibles : les paris, les coupons du jour et les '
+                        'suggestions reprendront dès leur retour. Les probabilités du moteur restent '
+                        'consultables.',
+                        style: Fp.body(13, color: Fp.warning, height: 1.4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 }

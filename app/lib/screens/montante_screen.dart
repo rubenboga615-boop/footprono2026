@@ -77,6 +77,7 @@ class _MontanteListScreenState extends State<MontanteListScreen> {
               child: ListView(
                 padding: pagePadding(context, 26, 120, maxWidth: 1000),
                 children: [
+                  const OddsDownBanner(),
                   if (current != null)
                     MontanteView(montante: current, onChanged: _refresh)
                   else

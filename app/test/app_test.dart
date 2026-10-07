@@ -30,6 +30,7 @@ class FakeServer {
   String paymentStatus = 'pending';
   String? boughtWith;
   bool oldServer = false;
+  bool oddsAvailable = true;
   Map<String, dynamic>? betsSummary;
   final List<Map<String, String>> smartQueries = [];
   final List<Map<String, String>> teamQueries = [];
@@ -173,6 +174,8 @@ class FakeServer {
         body = me;
       case 'GET /me/notifications':
         body = [];
+      case 'GET /app/status':
+        body = {'odds_available': oddsAvailable};
       case 'GET /payments/methods' when oldServer:
         // Ancien serveur : « methods » pris pour un numéro de paiement.
         return _error(422, 'validation_error', 'Requête invalide');
@@ -1370,6 +1373,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('296'), findsOneWidget);
     expect(find.textContaining('-3,6'), findsOneWidget);
+  });
+
+  testWidgets('cotes coupées : bandeau dans le bookmaker et les coupons du jour', (tester) async {
+    SharedPreferences.setMockInitialValues({'token': 'jeton'});
+    final server = FakeServer()..oddsAvailable = false;
+    final state = AppState(
+      api: ApiClient(baseUrl: 'http://serveur', httpClient: MockClient(server.handle)),
+      socketFactory: (_) => null,
+    );
+    await tester.binding.setSurfaceSize(const Size(430, 1400));
+    await tester.pumpWidget(FootProbaApp(state: state));
+    await state.init();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bookmaker'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Cotes momentanément indisponibles'), findsOneWidget);
+    // Retour des cotes : le bandeau disparaît.
+    server.oddsAvailable = true;
+    await state.checkStatus();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Cotes momentanément indisponibles'), findsNothing);
   });
 
   testWidgets('Premium : Wave manuel, numéro affiché et capture envoyée sur WhatsApp', (tester) async {
