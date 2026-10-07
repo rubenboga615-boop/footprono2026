@@ -4,6 +4,7 @@ import math
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
+import numpy as np
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import delete, select, text, update
@@ -300,3 +301,26 @@ def test_market_warning_is_per_market() -> None:
     assert "Seulement 170 matchs" in (reliability._market_warning("BTTS", 170, None) or "")
     assert "Pas d'avis" in (reliability._market_warning("BTTS", 0, "SUI") or "")
     assert "Aucun pronostic" in (reliability._market_warning("BTTS", 0, "EPL") or "")
+
+
+def test_stale_competition_is_paused() -> None:
+    """Résultats manquants (source coupée) : championnat en pause ; données à jour : rien."""
+    from footprono.engine.history import History
+    from footprono.predictions.service import stale_competitions
+
+    day = np.datetime64("2026-10-20", "D")
+    dates = [day - np.timedelta64(d, "D") for d in (4, 5, 6, 7, 4, 5, 6, 7, 1)]
+    comps = ["SUI"] * 4 + ["EPL"] * 4 + ["SUI"]
+    # SUI : 3 matchs sur 4 sans résultat (le match d'hier ne compte pas encore) ; EPL à jour.
+    finished = [True, False, False, False, True, True, True, True, False]
+    n = len(dates)
+    nan = np.full(n, np.nan)
+    hist = History(
+        match_id=np.arange(1, n + 1), competition=np.array(comps, dtype=np.str_),
+        season=np.full(n, 2026), date=np.array(dates, dtype="datetime64[D]"),
+        home=np.arange(n), away=np.arange(n) + 100, finished=np.array(finished),
+        excluded=np.zeros(n, dtype=bool), hg=nan, ag=nan, hht=nan, aht=nan, hxg=nan, axg=nan,
+    )  # fmt: skip
+    assert stale_competitions(hist, day, set()) == {"SUI": {"played": 4, "missing": 3}}
+    # Deux matchs reportés (connus comme tels) ne comptent pas : 2 restants, trop peu.
+    assert stale_competitions(hist, day, {2, 3}) == {}

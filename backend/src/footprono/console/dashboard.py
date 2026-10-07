@@ -226,6 +226,15 @@ async def dashboard(session: AsyncSession, redis: Redis, settings: Settings) -> 
                 "aujourd'hui",
             }
         )
+    stale = ((prediction.report or {}).get("stale") or {}) if prediction is not None else {}
+    if stale:
+        todo.append(
+            {
+                "level": "warning",
+                "text": "pronostics en pause, résultats manquants (source coupée ?) : "
+                + ", ".join(sorted(stale)),
+            }
+        )
     if last_odds is None or now - last_odds > timedelta(hours=7):
         todo.append(
             {

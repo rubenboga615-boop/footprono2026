@@ -343,6 +343,16 @@ API :
 Durée : environ 30 s ici, quelques minutes sur le téléphone (l'essentiel est
 l'apprentissage de la correction).
 
+## Pause d'un championnat aux résultats manquants (07/10/2026)
+
+Si la moitié au moins des matchs d'un championnat joués il y a 3 à 10 jours n'a toujours
+pas de résultat (source coupée, abonnement API-Football expiré), le championnat n'est
+plus pronostiqué : ses pronostics seraient calculés sur des données périmées et
+compteraient pour toujours sur la page Fiabilité. Les matchs reportés connus ne comptent
+pas ; il faut au moins 3 matchs dans la fenêtre. Le rapport du calcul (`stale`) et le
+tableau de bord de la console le signalent ; la reprise est automatique dès que les
+résultats reviennent (`predictions/service.py`, `stale_competitions`).
+
 ## Commandes
 
 ```bash

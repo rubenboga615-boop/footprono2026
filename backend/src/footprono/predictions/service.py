@@ -198,6 +198,35 @@ async def _recent_stretches(session: AsyncSession, as_of: date) -> dict[str, flo
     return out
 
 
+# Protection : un championnat dont les résultats n'arrivent plus (source coupée, abonnement
+# API-Football expiré) n'est plus pronostiqué. Sur ses matchs joués il y a 3 à 10 jours
+# (laissés deux jours aux sources pour publier), si la moitié au moins n'a toujours pas de
+# résultat, ses pronostics seraient calculés sur des données périmées et compteraient
+# quand même, pour toujours, sur la page Fiabilité. Reprise automatique au retour des données.
+STALE_FROM, STALE_TO = 10, 3  # jours avant la date de calcul
+STALE_SHARE = 0.5
+STALE_MIN_MATCHES = 3
+
+
+def stale_competitions(
+    hist: History, day: np.datetime64, unplayed: set[int]
+) -> dict[str, dict[str, int]]:
+    """Championnats aux résultats manquants : {code: {"played": n, "missing": m}}."""
+    recent = (
+        ~hist.excluded
+        & (hist.date >= day - np.timedelta64(STALE_FROM, "D"))
+        & (hist.date < day - np.timedelta64(STALE_TO, "D"))
+        & ~np.isin(hist.match_id, list(unplayed))
+    )
+    out = {}
+    for comp in sorted({str(c) for c in hist.competition[recent]}):
+        rows = recent & (hist.competition == comp)
+        played, missing = int(rows.sum()), int((rows & ~hist.finished).sum())
+        if played >= STALE_MIN_MATCHES and missing >= STALE_SHARE * played:
+            out[comp] = {"played": played, "missing": missing}
+    return out
+
+
 async def predict_upcoming(
     session: AsyncSession,
     as_of: date | None = None,
@@ -232,16 +261,25 @@ async def predict_upcoming(
         await session.scalars(select(Match.id).where(Match.api_status.in_(UNPLAYED_STATUSES)))
     )
     skipped = window & np.isin(hist.match_id, list(unplayed))
-    upcoming = np.where(window & ~skipped)[0]
+    stale = stale_competitions(hist, day, unplayed)
+    paused = window & np.isin(hist.competition, list(stale))
+    upcoming = np.where(window & ~skipped & ~paused)[0]
     competitions = sorted({str(c) for c in hist.competition[upcoming]})
     report: dict[str, Any] = {
         "competitions": {},
         "errors": [],
         "postponed": int(skipped.sum()),
+        # Championnats en pause (résultats manquants) : aucun pronostic publié.
+        "stale": stale,
         # Matchs examinés (prédits ou écartés) : un match à venir absent de cette
         # liste est nouveau et déclenche une nouvelle exécution (prediction_needed).
         "window": [int(x) for x in hist.match_id[window]],
     }
+    for comp, info in stale.items():
+        notify(
+            f"{comp} en pause : {info['missing']} résultats manquants sur {info['played']} "
+            f"matchs joués il y a {STALE_TO} à {STALE_FROM} jours"
+        )
     notify(f"{len(upcoming)} matchs à prédire ({', '.join(competitions) or 'aucun'})")
     if len(upcoming):
         ctx = build_context(hist)
