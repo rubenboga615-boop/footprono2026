@@ -24,7 +24,7 @@ from footprono.console.jobs import JobContext
 from footprono.console.registry import Action, Param, register
 from footprono.core.errors import AppError
 from footprono.football.models import DataSource
-from footprono.ingestion import history, live
+from footprono.ingestion import cup_odds_check, history, live
 from footprono.ingestion.cli import parse_seasons
 from footprono.ingestion.coverage import coverage_report, format_coverage
 from footprono.ingestion.quality import run_quality_checks
@@ -960,6 +960,65 @@ register(
                 help="séparés par des virgules, ex. 106 (Pologne), 283 (Roumanie)",
             ),
             Param("first_season", "Depuis la saison", "int", default=2010, minimum=2000),
+        ),
+    )
+)
+
+
+async def cup_odds(ctx: JobContext, params: dict[str, Any]) -> str:
+    leagues = [int(x) for x in params["leagues"].replace(" ", "").split(",") if x]
+    season = params.get("season") or cup_check_season()
+    report = await cup_odds_check.check_cup_odds(ctx.settings, leagues, season, ctx.log)
+    if report["status"] != "ok":
+        raise AppError(f"vérification impossible : {report.get('error')}")
+    ctx.result = report
+    parts = []
+    for name, r in report["leagues"].items():
+        ours = r["our_bookmakers"]
+        if not r["fixtures_with_odds_page1"]:
+            parts.append(f"{name} : aucune cote")
+        elif not ours:
+            parts.append(f"{name} : cotes, mais pas chez nos bookmakers")
+        else:
+            parts.append(f"{name} : cotes chez {', '.join(ours)}")
+    return " ; ".join(parts) + f" ({report['requests']} requêtes)"
+
+
+def cup_check_season() -> int:
+    return cup_odds_check.cup_season(datetime.now(UTC).date())
+
+
+register(
+    Action(
+        id="cup_odds",
+        title="Cotes des coupes d'Europe (vérification)",
+        family="Données",
+        description=(
+            "Avant d'ajouter les coupes d'Europe : API-Football donne-t-elle des cotes pour "
+            "leurs prochains matchs, chez nos bookmakers (1xBet, Bet365, Pinnacle), et sur "
+            "quels marchés ? Rien n'est enregistré."
+        ),
+        risk="lecture",
+        run=cup_odds,
+        cost="2 requêtes par compétition",
+        duration="moins d'une minute",
+        params=(
+            Param(
+                "leagues",
+                "Identifiants API-Football",
+                "text",
+                default="2,3,848",
+                pattern=r"\d{1,5}( *, *\d{1,5})*",
+                help="2 : Ligue des Champions, 3 : Europa League, 848 : Conférence League",
+            ),
+            Param(
+                "season",
+                "Saison (année de début)",
+                "int",
+                default=0,
+                minimum=0,
+                help="0 : saison en cours",
+            ),
         ),
     )
 )
