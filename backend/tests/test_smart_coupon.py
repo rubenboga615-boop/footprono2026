@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any
 
 from httpx import AsyncClient
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.accounts import service as accounts
@@ -164,6 +164,10 @@ async def test_daily_coupons_settled_and_public(
         assert created["equilibre"].startswith("2 sélection(s)")
         again = await smart_coupon.create_daily(session, MORNING)
         assert again["equilibre"] == "déjà créé"
+        # Équilibré et Audacieux : cote totale d'au moins 2,00 (Sûr : pas de minimum).
+        for c in (await session.scalars(select(SmartCoupon))).all():
+            if c.profile != "sur":
+                assert c.total_odds >= Decimal("2.00")
 
     # m1 1-0 : « audacieux » (+2,5 buts) perdu sans attendre m2 ; « équilibré » en cours.
     assert await _result(db_factory, m1, 1, 0) == {"won": 0, "lost": 1, "partial": 0, "void": 0}

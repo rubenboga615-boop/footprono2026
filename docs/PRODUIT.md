@@ -226,9 +226,14 @@ Onglet **Coupon** → carte « Coupon intelligent » (Premium).
   par le joueur (`GET /smart-coupon?profile=&period=&size=`).
 
 **Coupons du jour** (Premium ; bilan et coupons réglés publics) : chaque matin à
-08:05 UTC (après cotes et prédictions), un coupon par profil (Sûr : 3
-sélections, Équilibré et Audacieux : 2) est enregistré **avant** les matchs,
-puis réglé avec les paris (mêmes règles). Rien n'est effacé ; bilan par
+08:05 UTC (après cotes et prédictions), un coupon par profil est enregistré
+**avant** les matchs. Sûr : jusqu'à 3 sélections, sans cote minimale (vers 70 % de
+réussite, cote 1,4 à 1,8). Équilibré et Audacieux : les sélections les plus probables
+du profil, ajoutées jusqu'à une cote totale d'au moins **2,00** (3 au plus), sinon pas
+de coupon ce jour-là (décision du 07/10/2026, rejouée sur la saison 2025-26 :
+Équilibré 2,6 sélections, cote médiane 2,42, 40 % annoncé pour 38 % réalisé ;
+Audacieux 1,8 sélection, cote médiane 2,70, 35 % pour 35 %). Les coupons sont
+réglés avec les paris (mêmes règles). Rien n'est effacé ; bilan par
 profil : probabilité annoncée moyenne contre taux de réussite observé.
 Sans Premium, un coupon pas encore réglé montre son profil, sa cote, sa chance et
 son avancement, mais ni ses sélections ni son code (`locked`, vérifié par le serveur

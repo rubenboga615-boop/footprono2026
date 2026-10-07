@@ -502,7 +502,15 @@ async def generate(
 # ------------------------------------------------------------ coupons du jour
 
 # Coupons publics générés chaque matin pour la journée (après cotes et prédictions).
-DAILY_SIZE = {"sur": 3, "equilibre": 2, "audacieux": 2}
+# Coupons du jour : nombre de sélections au plus, et cote totale minimale (None : aucune).
+# Équilibré et Audacieux visent au moins 2,00 (décision du 07/10/2026 ; rejoué sur la saison
+# 2025-26 : Équilibré 2,6 sélections, cote médiane 2,42, 40 % annoncé, 38 % réalisé) ;
+# Sûr garde sa règle (vers 70 % de réussite, cote 1,4 à 1,8).
+DAILY_RULES: dict[str, tuple[int, Decimal | None]] = {
+    "sur": (3, None),
+    "equilibre": (3, Decimal("2.00")),
+    "audacieux": (3, Decimal("2.00")),
+}
 HISTORY_LIMIT = 60
 
 
@@ -511,7 +519,7 @@ async def create_daily(session: AsyncSession, now: datetime | None = None) -> di
     now = now or datetime.now(UTC)
     day = now.date()
     out: dict[str, Any] = {}
-    for profile, size in DAILY_SIZE.items():
+    for profile, (size, min_odds) in DAILY_RULES.items():
         exists = await session.scalar(
             select(SmartCoupon.id).where(SmartCoupon.day == day, SmartCoupon.profile == profile)
         )
@@ -519,7 +527,9 @@ async def create_daily(session: AsyncSession, now: datetime | None = None) -> di
             out[profile] = "déjà créé"
             continue
         start, end = period_window("today", now)
-        picks = (await best_angles(session, PROFILES[profile], start, end, now))[:size]
+        ranked = await best_angles(session, PROFILES[profile], start, end, now)
+        # Sélections les plus probables, ajoutées jusqu'à la cote minimale (sinon pas de coupon).
+        picks = ranked[:size] if min_odds is None else target_coupon(ranked, min_odds, size)
         if not picks:
             out[profile] = "aucune sélection"
             continue
