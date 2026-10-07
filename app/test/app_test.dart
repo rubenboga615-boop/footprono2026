@@ -30,6 +30,7 @@ class FakeServer {
   String paymentStatus = 'pending';
   String? boughtWith;
   bool oldServer = false;
+  Map<String, dynamic>? betsSummary;
   final List<Map<String, String>> smartQueries = [];
   final List<Map<String, String>> teamQueries = [];
   final List<Map<String, dynamic>> bookingCodes = [];
@@ -709,6 +710,8 @@ class FakeServer {
             ref('Tim Kirk', 6, 2.5),
           ],
         };
+      case 'GET /me/bets-summary' when betsSummary != null:
+        body = betsSummary;
       case 'GET /bets':
         body = [];
       case 'GET /me/wallet/entries':
@@ -1339,6 +1342,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(server.boughtWith, isNull);
     expect(opened.single.toString(), 'https://checkout.cinetpay.com/payment/abc');
+  });
+
+  testWidgets('bookmaker : en-tête calculé sur tous les paris (serveur), pas sur les 100 chargés', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'token': 'jeton'});
+    final server = FakeServer()
+      ..betsSummary = {
+        'bets': 296,
+        'settled': 296,
+        'staked': 536205,
+        'returned': 516608,
+        'yield': -0.036,
+        'at_stake': 0,
+        'last_30_days': -2784,
+      };
+    final state = AppState(
+      api: ApiClient(baseUrl: 'http://serveur', httpClient: MockClient(server.handle)),
+      socketFactory: (_) => null,
+    );
+    await tester.binding.setSurfaceSize(const Size(430, 1400));
+    await tester.pumpWidget(FootProbaApp(state: state));
+    await state.init();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bookmaker'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('296'), findsOneWidget);
+    expect(find.textContaining('-3,6'), findsOneWidget);
   });
 
   testWidgets('Premium : Wave manuel, numéro affiché et capture envoyée sur WhatsApp', (tester) async {

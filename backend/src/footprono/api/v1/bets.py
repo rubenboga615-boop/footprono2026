@@ -1,9 +1,10 @@
 """Bookmaker virtuel : offre d'un match, paris, historique (argent fictif)."""
 
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import aliased
 
 from footprono.accounts.plans import PremiumRequiredError, market_allowed
@@ -189,6 +190,40 @@ async def list_bets(
         stmt = stmt.where(Bet.status == status_)
     bets = (await session.scalars(stmt.order_by(Bet.id.desc()).limit(limit))).all()
     return [await _bet_out(session, b) for b in bets]
+
+
+@router.get("/me/bets-summary")
+async def my_bets_summary(user: CurrentUserDep, session: SessionDep) -> dict[str, Any]:
+    """En-tête du bookmaker : tous les paris du joueur (la liste, elle, n'en charge que 100).
+    Mêmes règles que Mon bilan : rendement sur les paris réglés, annulés exclus."""
+    since = datetime.now(UTC) - timedelta(days=30)
+    row = (
+        await session.execute(
+            select(
+                func.count(Bet.id),
+                func.count(Bet.id).filter(Bet.status == "settled"),
+                func.coalesce(func.sum(Bet.stake).filter(Bet.status == "settled"), 0),
+                func.coalesce(func.sum(Bet.payout).filter(Bet.status == "settled"), 0),
+                func.coalesce(func.sum(Bet.stake).filter(Bet.status == "open"), 0),
+                func.coalesce(
+                    func.sum(func.coalesce(Bet.payout, 0) - Bet.stake).filter(
+                        Bet.status == "settled", Bet.placed_at >= since
+                    ),
+                    0,
+                ),
+            ).where(Bet.user_id == user.id)
+        )
+    ).one()
+    bets, settled, staked, returned, at_stake, month = (int(x) for x in row)
+    return {
+        "bets": bets,
+        "settled": settled,
+        "staked": staked,
+        "returned": returned,
+        "yield": None if staked == 0 else round((returned - staked) / staked, 4),
+        "at_stake": at_stake,
+        "last_30_days": month,
+    }
 
 
 @router.get("/me/record")

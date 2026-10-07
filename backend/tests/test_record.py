@@ -102,6 +102,18 @@ async def test_record_counts_only_my_settled_bets(
     assert bands[(0.5, 0.6)]["enough"] is False  # une seule sélection : peu de paris
     assert 0.9 not in [b["announced"] for b in body["calibration"]]  # pari de l'autre joueur
 
+    # En-tête du bookmaker : tous les paris (pas seulement les 100 chargés), mêmes totaux.
+    summary = (await client.get("/api/v1/me/bets-summary", headers=await _login(client))).json()
+    assert summary == {
+        "bets": 28,
+        "settled": 26,
+        "staked": body["staked"],
+        "returned": body["returned"],
+        "yield": body["yield"],
+        "at_stake": 30000,
+        "last_30_days": 9000 - 5000 + 15 * 600 - 10 * 1000,
+    }
+
     # Cette semaine : 38 000 (combiné, annulé, en cours) ; la précédente : 25 000.
     assert body["stakes_7d"] == 38000
     assert body["stakes_prev_7d"] == 25000

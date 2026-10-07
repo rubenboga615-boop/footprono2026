@@ -32,12 +32,28 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
     }
   }
 
-  Future<(List<Bet>, List<Json>)> _load(ApiClient api) async {
+  Future<(List<Bet>, List<Json>, Json?)> _load(ApiClient api) async {
     final results = await Future.wait([
       api.get('/bets', {'limit': 100}),
       api.get('/me/wallet/entries', {'limit': 100}),
+      _summary(api),
     ]);
-    return ([for (final b in results[0] as List) Bet(b as Json)], (results[1] as List).cast<Json>());
+    return (
+      [for (final b in results[0] as List) Bet(b as Json)],
+      (results[1] as List).cast<Json>(),
+      results[2] as Json?,
+    );
+  }
+
+  /// Totaux de tous les paris (la liste n'en charge que 100) ; null avec un serveur
+  /// pas encore à jour : l'en-tête se calcule alors sur la liste chargée.
+  static Future<Json?> _summary(ApiClient api) async {
+    try {
+      return await api.get('/me/bets-summary') as Json;
+    } on ApiException catch (e) {
+      if (e.status == 404 || e.status == 422) return null;
+      rethrow;
+    }
   }
 
   @override
@@ -49,22 +65,35 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
       backgroundColor: Colors.transparent,
       body: SafeArea(
         bottom: false,
-        child: Loader<(List<Bet>, List<Json>)>(
+        child: Loader<(List<Bet>, List<Json>, Json?)>(
           key: _key,
           load: () => _load(state.api),
           builder: (context, data, reload) {
-            final (bets, entries) = data;
+            final (bets, entries, summary) = data;
             final open = bets.where((b) => b.status == 'open').toList();
             final settled = bets.where((b) => b.status != 'open').toList();
-            final atStake = open.fold<int>(0, (a, b) => a + b.stake);
-            final staked = settled.fold<int>(0, (a, b) => a + b.stake);
-            final returned = settled.fold<int>(0, (a, b) => a + (b.payout ?? 0));
-            final roi = staked > 0 ? (returned - staked) / staked : null;
-            // Résultat des paris réglés placés ces 30 derniers jours (maquette v2).
-            final since = DateTime.now().subtract(const Duration(days: 30));
-            final month = settled
-                .where((b) => b.placedAt != null && b.placedAt!.isAfter(since))
-                .fold<int>(0, (a, b) => a + (b.payout ?? 0) - b.stake);
+            // En-tête : tous les paris du joueur (mêmes chiffres que Mon bilan).
+            final int atStake;
+            final double? roi;
+            final int month;
+            final int count;
+            if (summary != null) {
+              atStake = summary['at_stake'] as int;
+              roi = (summary['yield'] as num?)?.toDouble();
+              month = summary['last_30_days'] as int;
+              count = summary['bets'] as int;
+            } else {
+              atStake = open.fold<int>(0, (a, b) => a + b.stake);
+              final staked = settled.fold<int>(0, (a, b) => a + b.stake);
+              final returned = settled.fold<int>(0, (a, b) => a + (b.payout ?? 0));
+              roi = staked > 0 ? (returned - staked) / staked : null;
+              // Résultat des paris réglés placés ces 30 derniers jours (maquette v2).
+              final since = DateTime.now().subtract(const Duration(days: 30));
+              month = settled
+                  .where((b) => b.placedAt != null && b.placedAt!.isAfter(since))
+                  .fold<int>(0, (a, b) => a + (b.payout ?? 0) - b.stake);
+              count = bets.length;
+            }
             return RefreshIndicator(
               onRefresh: () async {
                 await guard(context, state.refreshMe);
@@ -137,7 +166,7 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
                               ),
                               const TextSpan(text: '      Paris '),
                               TextSpan(
-                                text: '${bets.length}',
+                                text: thousands(count),
                                 style: Fp.body(13, weight: FontWeight.w700, color: Fp.text),
                               ),
                             ],
