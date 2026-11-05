@@ -106,6 +106,34 @@ COMPETITIONS: tuple[CompetitionRef, ...] = (
 COMPETITIONS_BY_CODE = {c.code: c for c in COMPETITIONS}
 
 
+@dataclass(frozen=True)
+class CupRef:
+    """Coupe d'Europe : moteur à part (Elo commun aux championnats et aux coupes,
+    résultats seulement), jamais mêlée aux modèles des championnats."""
+
+    code: str
+    name: str
+    api_football_id: int
+    first_season: int
+
+
+CUPS: tuple[CupRef, ...] = (
+    CupRef("UCL", "Ligue des Champions", 2, 2018),
+    CupRef("UEL", "Ligue Europa", 3, 2018),
+    CupRef("UECL", "Ligue Conférence", 848, 2021),
+)
+CUPS_BY_CODE = {c.code: c for c in CUPS}
+# Dossiers de l'archive de l'historique API-Football (collecte de la console).
+CUP_ARCHIVE_DIRS = {"UCL": "UCL", "UEL": "UEL", "UECL": "UECL"}
+LEAGUE_CODES: tuple[str, ...] = tuple(c.code for c in COMPETITIONS)
+
+
+def cup_season(today: date | None = None) -> int:
+    """Saison d'une coupe d'Europe : année de début (les qualifications commencent en juin)."""
+    today = today or date.today()
+    return today.year if today.month >= 6 else today.year - 1
+
+
 def current_season(competition: "CompetitionRef | str", today: date | None = None) -> int:
     """Saison en cours d'un championnat : année civile (Norvège, Suède) ou année de
     début d'une saison qui reprend en juillet-août."""

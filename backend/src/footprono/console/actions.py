@@ -24,7 +24,7 @@ from footprono.console.jobs import JobContext
 from footprono.console.registry import Action, Param, register
 from footprono.core.errors import AppError
 from footprono.football.models import DataSource
-from footprono.ingestion import cup_odds_check, history, live
+from footprono.ingestion import cup_odds_check, cups, history, live
 from footprono.ingestion.cli import parse_seasons
 from footprono.ingestion.coverage import coverage_report, format_coverage
 from footprono.ingestion.quality import run_quality_checks
@@ -186,6 +186,56 @@ register(
                 options=competition_options,
             ),
             Param("first_season", "Depuis la saison", "int", default=2018, minimum=2010),
+            Param(
+                "folder",
+                "Dossier de l'archive",
+                "text",
+                default="",
+                help="vide : le dossier de collecte du serveur (FP_HISTORY_ARCHIVE_DIR)",
+            ),
+        ),
+    )
+)
+
+
+async def cups_import(ctx: JobContext, params: dict[str, Any]) -> str:
+    folder = Path(params["folder"]) if params.get("folder") else None
+    async with ctx.factory() as session:
+        archive = await cups.import_cup_archive(
+            session, folder or ctx.settings.history_archive_dir, ctx.log
+        )
+        current = (
+            await cups.update_cups(session, ctx.settings, log=ctx.log)
+            if params.get("current", True)
+            else {"status": "skipped"}
+        )
+    ctx.result = {"archive": archive, "current": current}
+    total = sum(r["inserted"] + r["updated"] for r in archive.values())
+    if current.get("status") == "unavailable":
+        ctx.log(f"saison en cours non chargée : {current.get('error')}")
+    return (
+        f"coupes d'Europe : {total} matchs de l'archive chargés ; saison en cours : "
+        f"{current.get('status')}"
+    )
+
+
+register(
+    Action(
+        id="cups_import",
+        title="Coupes d'Europe : importer les matchs",
+        family="Données",
+        description=(
+            "Ligue des Champions, Ligue Europa, Ligue Conférence : l'historique depuis "
+            "l'archive collectée (dossiers UCL, UEL, UECL), puis le calendrier et les "
+            "résultats de la saison en cours. Rejouable sans doublon."
+        ),
+        risk="modifie",
+        run=cups_import,
+        exclusive=True,
+        cost="3 requêtes (saison en cours) ; l'archive n'en coûte aucune",
+        duration="1 à 5 min",
+        params=(
+            Param("current", "Saison en cours aussi", "bool", default=True),
             Param(
                 "folder",
                 "Dossier de l'archive",

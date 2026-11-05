@@ -14,6 +14,7 @@ from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -25,6 +26,7 @@ from sqlalchemy import (
     String,
     Time,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -176,6 +178,10 @@ class Match(Base):
     # (« NS » à venir, « PST » reporté, « FT » terminé…).
     kickoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     api_status: Mapped[str | None] = mapped_column(String(8))
+    # Coupes d'Europe : tour (« League Stage - 3 », « Round of 16 »…) et terrain neutre
+    # (finale) ; sans objet en championnat.
+    round: Mapped[str | None] = mapped_column(String(60))
+    neutral: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Suivi en direct (API-Football) : minute et score pendant le match.
     live_minute: Mapped[int | None] = mapped_column(SmallInteger)
     live_home_goals: Mapped[int | None] = mapped_column(SmallInteger)
