@@ -31,6 +31,7 @@ from footprono.ingestion.quality import run_quality_checks
 from footprono.ingestion.reference import COMPETITIONS, current_season
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.ingestion.sources import api_football
+from footprono.predictions import cups as cup_predictions
 from footprono.predictions import service as prediction_service
 from footprono.predictions.service import DEFAULT_DAYS_AHEAD
 
@@ -288,8 +289,52 @@ async def predict(ctx: JobContext, params: dict[str, Any]) -> str:
     for error in report.get("errors", []):
         ctx.log(f"erreur : {error}")
     n = sum(c.get("matches", 0) for c in report.get("competitions", {}).values())
-    ctx.result = {"run_id": run.id, "status": run.status, "matches": n}
-    return f"exécution n°{run.id} {run.status} : {n} matchs prédits"
+    cups_n = 0
+    if ctx.settings.cups_predictions:
+        async with ctx.factory() as session:
+            cup_run = await cup_predictions.predict_cups(session, days_ahead=params["days_ahead"])
+        for error in cup_run.report.get("errors", []):
+            ctx.log(f"coupes d'Europe, erreur : {error}")
+        cups_n = cup_run.report.get("matches", 0)
+    else:
+        ctx.log("coupes d'Europe : pronostics désactivés (FP_CUPS_PREDICTIONS)")
+    ctx.result = {"run_id": run.id, "status": run.status, "matches": n, "cup_matches": cups_n}
+    return (
+        f"exécution n°{run.id} {run.status} : {n} matchs prédits ; coupes d'Europe : "
+        f"{cups_n} matchs"
+    )
+
+
+async def cups_backtest(ctx: JobContext, params: dict[str, Any]) -> str:
+    async with ctx.factory() as session:
+        result = await cup_predictions.refresh_backtest(session)
+    ll = result["log_loss"]["1X2"]
+    ctx.result = {"matches": result["matches"], "log_loss": ll}
+    for code, r in result["by_competition"].items():
+        ctx.log(f"{code} : {r['matches']} matchs, {r['log_loss']} (naïf {r['naive_log_loss']})")
+    return (
+        f"{result['matches']} matchs de coupe : log loss {ll['model']} contre {ll['naive']} "
+        "pour la référence naïve (affiché sur la page Fiabilité)"
+    )
+
+
+register(
+    Action(
+        id="cups_backtest",
+        title="Backtest des coupes d'Europe",
+        family="Moteur",
+        description=(
+            "Chaque match de coupe depuis 2022-23 prédit avec les seuls matchs d'avant lui. "
+            "Le résultat s'affiche sur la page Fiabilité (filtre de la coupe). À relancer "
+            "après l'import des coupes."
+        ),
+        risk="modifie",
+        run=cups_backtest,
+        exclusive=True,
+        cost="aucune requête",
+        duration="moins d'une minute",
+    )
+)
 
 
 register(

@@ -23,6 +23,7 @@ from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.notifications import service as notifications
 from footprono.notifications.push import sender_or_none as push_sender_or_none
 from footprono.payments import service as payment_service
+from footprono.predictions import cups as cup_predictions
 from footprono.predictions import service as prediction_service
 from footprono.worker.celery_app import celery_app
 
@@ -196,9 +197,24 @@ async def _predict_upcoming(only_if_needed: bool = False) -> dict[str, Any]:
                 return {"status": "skipped", "reason": "prédictions à jour"}
             run = await prediction_service.predict_upcoming(session)
             report = {k: v for k, v in run.report.items() if k != "window"}
+            # Coupes d'Europe : moteur à part ; une erreur n'annule pas les championnats.
+            try:
+                if not get_settings().cups_predictions:
+                    raise _CupsDisabled
+                cup_run = await cup_predictions.predict_cups(session)
+                report["cups"] = {"run_id": cup_run.id, **cup_run.report}
+            except _CupsDisabled:
+                report["cups"] = {"status": "disabled"}
+            except Exception as exc:  # source extérieure : consignée, jamais bloquante
+                logger.warning("cups_predict_failed", extra={"error": str(exc)})
+                report["cups"] = {"status": "failed", "error": str(exc)[:300]}
             return {"run_id": run.id, "status": run.status, "reason": reason, "report": report}
     finally:
         await engine.dispose()
+
+
+class _CupsDisabled(Exception):
+    """Pronostics des coupes désactivés (FP_CUPS_PREDICTIONS)."""
 
 
 @celery_app.task(name="footprono.predict_if_needed")

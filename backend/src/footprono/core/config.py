@@ -88,6 +88,10 @@ class Settings(BaseSettings):
     # Alertes de l'administrateur (application ntfy) : serveur de publication.
     alerts_ntfy_url: str = "https://ntfy.sh"
 
+    # Pronostics des coupes d'Europe : désactivés tant que l'audit des marchés n'est pas
+    # fini (docs/MOTEUR.md, « Coupes d'Europe ») ; les matchs sont importés quand même.
+    cups_predictions: bool = False
+
     # Comptes et bookmaker virtuel (argent fictif, montants entiers en devise).
     access_token_days: int = Field(default=30, ge=1)
     # Console : code de sécurité (application d'authentification) obligatoire ; sans

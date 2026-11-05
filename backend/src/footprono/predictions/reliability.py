@@ -26,6 +26,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.engine.history import MARKET_BOOKMAKERS
 from footprono.engine.tiers import tier
+from footprono.ingestion.reference import CUPS_BY_CODE
+from footprono.predictions.cups import stored_backtest
 
 MIN_SAMPLE = 200
 # Tranche du graphique de calibration : en dessous, l'écart annoncé / observé y est
@@ -198,6 +200,11 @@ def _market_warning(market: str, n: int, competition: str | None) -> str | None:
     """Avertissement propre au marché : son échantillon, pas celui de tous les marchés
     (« les deux marquent » n'existe pas dans les championnats sans xG)."""
     if n == 0:
+        if market != "1X2" and competition in CUPS_BY_CODE:
+            return (
+                "Coupes d'Europe : le moteur ne donne que le résultat du match et la double "
+                "chance (pas de modèle des buts)."
+            )
         if market == "BTTS" and competition is not None and tier(competition).level == 2:
             return (
                 "Pas d'avis du moteur sur « les deux marquent » dans ce championnat "
@@ -334,9 +341,11 @@ async def load_scored(
     rows = (await session.execute(_PREDICTIONS, {"competition": competition, "since": since})).all()
     out = []
     for mid, day, comp, home, away, hg, ag, _created, version, ph, pd, pa, over, yes in rows:
-        if None in (ph, pd, pa, over):
+        if None in (ph, pd, pa):
             continue
-        probs = {"1X2": (ph, pd, pa), "OU|2.5": (over, 1 - over)}
+        probs: dict[str, tuple[float, ...]] = {"1X2": (ph, pd, pa)}
+        if over is not None:  # absent pour les coupes d'Europe (1X2 seulement)
+            probs["OU|2.5"] = (over, 1 - over)
         if yes is not None:  # absent au niveau de données 2 (engine/tiers.py)
             probs["BTTS"] = (yes, 1 - yes)
         out.append(
@@ -423,5 +432,9 @@ async def reliability_report(
             }
             for r in reversed(rows[-recent:] if recent else [])
         ],
-        "backtest": backtest_for(competition),
+        "backtest": (
+            await stored_backtest(session)
+            if competition in CUPS_BY_CODE
+            else backtest_for(competition)
+        ),
     }

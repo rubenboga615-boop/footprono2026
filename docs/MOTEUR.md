@@ -353,6 +353,33 @@ pas ; il faut au moins 3 matchs dans la fenêtre. Le rapport du calcul (`stale`)
 tableau de bord de la console le signalent ; la reprise est automatique dès que les
 résultats reviennent (`predictions/service.py`, `stale_competitions`).
 
+## Coupes d'Europe : moteur à part (étude du 07/10/2026, en service le 05/11/2026)
+
+Ligue des Champions, Ligue Europa, Ligue Conférence (`engine/cups.py`,
+`predictions/cups.py`). Résultats seulement : l'archive API-Football n'a ni statistiques
+ni cotes passées des coupes.
+
+- **Une note Elo par équipe**, commune aux championnats et aux coupes : mise à jour après
+  chaque match de nos 20 championnats (K = 10, avantage du terrain 65) et de coupe (K = 55,
+  avantage 100, aucun en finale) ; l'écart de buts pèse (1 ; 1,5 ; (11 + écart) / 8).
+- Une équipe d'un de nos championnats démarre à 1 500, une équipe d'ailleurs (Kazakhstan,
+  Azerbaïdjan…) à 1 350 : ses matchs européens la situent ensuite.
+- **Note → probabilités :** logit ordonné (domicile, nul, extérieur) appris sur les matchs
+  de coupe déjà joués depuis juillet 2019 (une saison pour que les notes se placent).
+- **Marchés :** 1X2 et double chance seulement (pas de modèle des buts : plus/moins 2,5
+  ne battait la référence naïve que de 0,005). Score du temps réglementaire : celui des
+  paris (prolongation et tirs au but n'y comptent pas).
+- Étude (réglages choisis sur 2020-22, test 2022-23 → 2026-27, 3 989 matchs, chacun prédit
+  avec les seuls matchs d'avant lui) : 1X2 log loss **0,961** contre 1,044 pour la
+  référence naïve ; C1 0,933, C3 0,958, C4 0,977 ; calibration à 2 points près entre 10
+  et 70 %, un peu prudente au-dessus de 70 % (annoncé 74 %, observé 81 %).
+- **Jamais mêlé aux championnats :** l'historique des championnats (`load_history`)
+  ignore les matchs de coupe. Les pronostics de coupe sont enregistrés avant les matchs et
+  comptent sur la page Fiabilité ; leur backtest (console : « Backtest des coupes
+  d'Europe ») est montré au filtre de la coupe.
+- Les applications d'avant les coupes ne reçoivent pas les matchs de coupe
+  (`/predictions/upcoming?cups=true` pour celles qui les affichent).
+
 ## Commandes
 
 ```bash

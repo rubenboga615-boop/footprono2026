@@ -17,6 +17,7 @@ from footprono.core.errors import NotFoundError
 from footprono.engine.markets import Selection, offered
 from footprono.football.models import Competition, Match, MatchStatus
 from footprono.football.schemas import MatchOut
+from footprono.ingestion.reference import CUPS_BY_CODE
 from footprono.predictions.models import MatchPrediction, PredictionRun
 from footprono.predictions.reliability import reliability_report
 from footprono.predictions.schemas import (
@@ -70,6 +71,13 @@ async def _latest(
     return {p.match_id: (p, r) for p, r in rows.tuples()}
 
 
+def _expected(pred: MatchPrediction) -> ExpectedGoals | None:
+    """Buts attendus ; aucun pour les coupes d'Europe (moteur sans modèle des buts)."""
+    if pred.lambda_home <= 0 and pred.lambda_away <= 0:
+        return None
+    return ExpectedGoals(home=pred.lambda_home, away=pred.lambda_away)
+
+
 @router.get("/matches/{match_id}/prediction", response_model=PredictionOut)
 async def get_match_prediction(
     match_id: int,
@@ -94,7 +102,7 @@ async def get_match_prediction(
         engine_version=run.engine_version,
         as_of=run.as_of,
         created_at=pred.created_at,
-        expected_goals=ExpectedGoals(home=pred.lambda_home, away=pred.lambda_away),
+        expected_goals=_expected(pred),
         markets=[_selection(k, pred.markets[k]) for k in keys],
         counts=pred.counts if premium else None,
         context=pred.context if premium else None,
@@ -110,6 +118,9 @@ async def list_upcoming(
     date_from: date | None = None,
     date_to: date | None = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    cups: Annotated[
+        bool, Query(description="inclure les coupes d'Europe (application qui sait les afficher)")
+    ] = False,
 ) -> list[UpcomingMatchOut]:
     start = date_from or datetime.now(UTC).date()
     end = date_to or start + timedelta(days=10)
@@ -118,6 +129,10 @@ async def list_upcoming(
     )
     if competition:
         stmt = stmt.where(Competition.code == competition.upper())
+    elif not cups:
+        # Les applications d'avant les coupes attendent toujours « plus/moins 2,5 » et les
+        # buts attendus : elles ne reçoivent pas les matchs de coupe.
+        stmt = stmt.where(Competition.code.not_in(list(CUPS_BY_CODE)))
     rows = (
         (
             await session.execute(
@@ -139,11 +154,13 @@ async def list_upcoming(
                 run_id=run.id,
                 engine_version=run.engine_version,
                 created_at=pred.created_at,
-                expected_goals=ExpectedGoals(home=pred.lambda_home, away=pred.lambda_away),
+                expected_goals=_expected(pred),
                 home=_selection("1X2||home", m["1X2||home"]),
                 draw=_selection("1X2||draw", m["1X2||draw"]),
                 away=_selection("1X2||away", m["1X2||away"]),
-                over_2_5=_selection("OU|2.5|over", m["OU|2.5|over"]),
+                over_2_5=_selection("OU|2.5|over", m["OU|2.5|over"])
+                if "OU|2.5|over" in m
+                else None,
                 both_score=_selection("BTTS||yes", m["BTTS||yes"]) if "BTTS||yes" in m else None,
             )
         out.append(UpcomingMatchOut(match=MatchOut(**_match_out(*row)), prediction=summary))

@@ -43,7 +43,8 @@ class PredictionOut(BaseModel):
     engine_version: str
     as_of: date
     created_at: datetime
-    expected_goals: ExpectedGoals
+    # None : coupes d'Europe (pas de modèle des buts, engine/cups.py).
+    expected_goals: ExpectedGoals | None
     markets: list[SelectionOut]
     # Corners, cartons, tirs et analyse détaillée : Premium (None en version gratuite).
     counts: dict[str, Any] | None
@@ -60,11 +61,12 @@ class PredictionSummary(BaseModel):
     run_id: int
     engine_version: str
     created_at: datetime
-    expected_goals: ExpectedGoals
+    expected_goals: ExpectedGoals | None
     home: SelectionOut
     draw: SelectionOut
     away: SelectionOut
-    over_2_5: SelectionOut
+    # Absent pour les coupes d'Europe (1X2 et double chance seulement).
+    over_2_5: SelectionOut | None
     # Absent pour les championnats de niveau 2 (pas d'avis du moteur, engine/tiers.py).
     both_score: SelectionOut | None
 
