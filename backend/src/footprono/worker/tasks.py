@@ -17,7 +17,7 @@ from footprono.core.config import Settings, get_settings
 from footprono.core.errors import AppError
 from footprono.db.session import create_engine, create_session_factory
 from footprono.football.models import DataSource
-from footprono.ingestion import cups, live
+from footprono.ingestion import cups, live, nations
 from footprono.ingestion.reference import COMPETITIONS, current_season
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.notifications import service as notifications
@@ -97,6 +97,13 @@ async def _ingest_current_season() -> dict[str, Any]:
         except Exception as exc:  # source extérieure : consignée, jamais bloquante
             logger.warning("cups_update_failed", extra={"error": str(exc)})
             cup_report = {"status": "failed", "error": str(exc)[:300]}
+        # Sélections nationales : même principe (deux requêtes par compétition).
+        try:
+            async with create_session_factory(engine)() as session:
+                nation_report = await nations.update_nations(session, settings)
+        except Exception as exc:  # source extérieure : consignée, jamais bloquante
+            logger.warning("nations_update_failed", extra={"error": str(exc)})
+            nation_report = {"status": "failed", "error": str(exc)[:300]}
         # Scores confirmés par football-data : paris récents revus si un score a changé.
         bets = await _settle(engine, settings)
     finally:
@@ -114,6 +121,7 @@ async def _ingest_current_season() -> dict[str, Any]:
         "files": {f"{f['source']}:{f['competition']}": f["status"] for f in report["files"]},
         "quality_errors": report["quality"]["errors"],
         "cups": {k: cup_report.get(k) for k in ("status", "season", "cups", "error")},
+        "nations": {k: nation_report.get(k) for k in ("status", "competitions", "error")},
     }
 
 

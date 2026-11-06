@@ -136,6 +136,98 @@ CUP_ARCHIVE_DIRS = {"UCL": "UCL", "UEL": "UEL", "UECL": "UECL"}
 LEAGUE_CODES: tuple[str, ...] = tuple(c.code for c in COMPETITIONS)
 
 
+@dataclass(frozen=True)
+class NationRef:
+    """Compétition de sélections nationales : moteur à part (résultats seulement), jamais
+    mêlée aux modèles des championnats ni des coupes. ``official`` : faux pour les amicaux
+    (servent aux notes, pas de pronostic publié)."""
+
+    code: str
+    name: str
+    api_football_id: int
+    official: bool = True
+
+
+# Codes = dossiers de l'archive de l'historique (ingestion/history.py, NATIONAL).
+NATIONS: tuple[NationRef, ...] = (
+    NationRef("CAN", "Coupe d'Afrique des Nations", 6),
+    NationRef("CANQ", "CAN : éliminatoires", 36),
+    NationRef("WC", "Coupe du Monde", 1),
+    NationRef("WCQ_AFR", "Coupe du Monde : éliminatoires Afrique", 29),
+    NationRef("WCQ_EUR", "Coupe du Monde : éliminatoires Europe", 32),
+    NationRef("WCQ_SAM", "Coupe du Monde : éliminatoires Amérique du Sud", 34),
+    NationRef("EURO", "Euro", 4),
+    NationRef("EUROQ", "Euro : éliminatoires", 960),
+    NationRef("UNL", "Ligue des Nations", 5),
+    NationRef("COPA", "Copa America", 9),
+    NationRef("AMICAL", "Matchs amicaux", 10, official=False),
+)
+NATIONS_BY_CODE = {n.code: n for n in NATIONS}
+# Ni championnat ni coupe d'Europe : hors des modèles et contrôles des championnats.
+NON_LEAGUE_CODES: tuple[str, ...] = (*CUPS_BY_CODE, *NATIONS_BY_CODE)
+
+
+@dataclass(frozen=True)
+class FinalPhase:
+    """Phase finale d'un tournoi : dates, pays hôtes (noms API-Football) et, pour un
+    tournoi à plusieurs pays, les villes de chacun. Terrain neutre sauf pour un pays hôte
+    qui reçoit chez lui."""
+
+    start: date
+    end: date
+    hosts: dict[str, frozenset[str] | None]  # None : toutes les villes du tournoi
+
+
+def _cities(*names: str) -> frozenset[str]:
+    return frozenset(names)
+
+
+# Dates : la CAN 2019 d'API-Football mêle éliminatoires et phase finale (même saison,
+# « Group Stage ») ; seules les dates les séparent.
+FINAL_PHASES: dict[tuple[str, int], FinalPhase] = {
+    ("CAN", 2019): FinalPhase(date(2019, 6, 21), date(2019, 7, 19), {"Egypt": None}),
+    ("CAN", 2021): FinalPhase(date(2022, 1, 9), date(2022, 2, 6), {"Cameroon": None}),
+    ("CAN", 2023): FinalPhase(date(2024, 1, 13), date(2024, 2, 11), {"Ivory Coast": None}),
+    ("CAN", 2025): FinalPhase(date(2025, 12, 21), date(2026, 1, 18), {"Morocco": None}),
+    ("WC", 2018): FinalPhase(date(2018, 6, 14), date(2018, 7, 15), {"Russia": None}),
+    ("WC", 2022): FinalPhase(date(2022, 11, 20), date(2022, 12, 18), {"Qatar": None}),
+    ("WC", 2026): FinalPhase(date(2026, 6, 11), date(2026, 7, 19), {
+        "Mexico": _cities("Mexico City", "Zapopan", "Monterrey"),
+        "Canada": _cities("Toronto", "Vancouver"),
+        "USA": _cities(
+            "Inglewood", "Santa Clara", "East Rutherford", "Boston", "Houston", "Arlington",
+            "Philadelphia", "Atlanta", "Seattle", "Miami Gardens", "Kansas City", "Dallas",
+            "New-York", "San-Francisco", "Miami", "Los Angeles",
+        ),
+    }),
+    ("EURO", 2020): FinalPhase(date(2021, 6, 11), date(2021, 7, 11), {
+        "Italy": _cities("Roma"), "Azerbaijan": _cities("Baku"),
+        "Denmark": _cities("København"), "Russia": _cities("St. Petersburg"),
+        "England": _cities("London"), "Romania": _cities("Bucureşti"),
+        "Netherlands": _cities("Amsterdam"), "Scotland": _cities("Glasgow"),
+        "Spain": _cities("Sevilla"), "Hungary": _cities("Budapest"),
+        "Germany": _cities("München"),
+    }),
+    ("EURO", 2024): FinalPhase(date(2024, 6, 14), date(2024, 7, 14), {"Germany": None}),
+    ("COPA", 2019): FinalPhase(date(2019, 6, 14), date(2019, 7, 7), {"Brazil": None}),
+    ("COPA", 2021): FinalPhase(date(2021, 6, 13), date(2021, 7, 11), {"Brazil": None}),
+    ("COPA", 2024): FinalPhase(date(2024, 6, 20), date(2024, 7, 15), {}),  # États-Unis
+}  # fmt: skip
+
+
+def nation_neutral(code: str, season: int, day: date, home: str, city: str | None) -> bool:
+    """Terrain neutre d'un match de sélections : en phase finale, sauf pays hôte chez lui
+    (le club qui reçoit est celui listé à domicile) ; ailleurs, l'équipe qui reçoit joue
+    chez elle (éliminatoires, Ligue des Nations, amicaux)."""
+    phase = FINAL_PHASES.get((code, season))
+    if phase is None or not phase.start <= day <= phase.end:
+        return False
+    if home not in phase.hosts:
+        return True
+    cities = phase.hosts[home]
+    return cities is not None and city not in cities
+
+
 def cup_season(today: date | None = None) -> int:
     """Saison d'une coupe d'Europe : année de début (les qualifications commencent en juin)."""
     today = today or date.today()

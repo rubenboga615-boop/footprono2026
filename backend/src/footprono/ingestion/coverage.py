@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from footprono.ingestion.reference import (
     COMPETITIONS,
     COMPETITIONS_BY_CODE,
-    CUPS_BY_CODE,
+    NON_LEAGUE_CODES,
     current_season,
 )
 from footprono.ingestion.sources.api_football import HALF_SPLIT_FIRST_SEASON
@@ -108,8 +108,8 @@ def _years(years: set[int]) -> str:
 
 
 async def coverage_report(session: AsyncSession) -> dict[str, Any]:
-    # Coupes d'Europe : import à part (console « Coupes d'Europe : importer les matchs »).
-    result = await session.execute(_QUERY, {"cups": list(CUPS_BY_CODE)})
+    # Coupes d'Europe et sélections : import à part (console).
+    result = await session.execute(_QUERY, {"cups": list(NON_LEAGUE_CODES)})
     rows = [dict(r) for r in result.mappings().all()]
     for r in rows:
         for k in COLUMNS:

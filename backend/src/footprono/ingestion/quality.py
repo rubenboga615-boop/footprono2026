@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from footprono.ingestion.reference import (
     AWARDED_MATCHES,
     COMPETITIONS_BY_CODE,
-    CUPS_BY_CODE,
     INTERRUPTED_SEASONS,
+    NON_LEAGUE_CODES,
     current_season,
 )
 
@@ -168,9 +168,9 @@ async def run_quality_checks(session: AsyncSession, today: date | None = None) -
 
     for row in (await session.execute(_SEASON_SUMMARY, {"stale_before": stale_before})).mappings():
         code, year, sid = row["code"], row["start_year"], row["season_id"]
-        if code in CUPS_BY_CODE:
-            # Coupes d'Europe : ni équipes fixes ni aller-retour complet ; ces contrôles
-            # de championnat ne s'y appliquent pas.
+        if code in NON_LEAGUE_CODES:
+            # Coupes d'Europe et sélections : ni équipes fixes ni aller-retour complet ;
+            # ces contrôles de championnat ne s'y appliquent pas.
             continue
         n_teams, n_matches, n_finished = row["n_teams"], row["n_matches"], row["n_finished"]
         # Saison terminée : avant la saison en cours de ce championnat (année civile en

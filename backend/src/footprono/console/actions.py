@@ -24,7 +24,7 @@ from footprono.console.jobs import JobContext
 from footprono.console.registry import Action, Param, register
 from footprono.core.errors import AppError
 from footprono.football.models import DataSource
-from footprono.ingestion import cup_odds_check, cups, history, live
+from footprono.ingestion import cup_odds_check, cups, history, live, nations
 from footprono.ingestion.cli import parse_seasons
 from footprono.ingestion.coverage import coverage_report, format_coverage
 from footprono.ingestion.quality import run_quality_checks
@@ -234,6 +234,59 @@ register(
         run=cups_import,
         exclusive=True,
         cost="3 requêtes (saison en cours) ; l'archive n'en coûte aucune",
+        duration="1 à 5 min",
+        params=(
+            Param("current", "Saison en cours aussi", "bool", default=True),
+            Param(
+                "folder",
+                "Dossier de l'archive",
+                "text",
+                default="",
+                help="vide : le dossier de collecte du serveur (FP_HISTORY_ARCHIVE_DIR)",
+            ),
+        ),
+    )
+)
+
+
+async def nations_import(ctx: JobContext, params: dict[str, Any]) -> str:
+    folder = Path(params["folder"]) if params.get("folder") else None
+    async with ctx.factory() as session:
+        archive = await nations.import_nations_archive(
+            session, folder or ctx.settings.history_archive_dir, ctx.log
+        )
+        current = (
+            await nations.update_nations(session, ctx.settings, log=ctx.log)
+            if params.get("current", True)
+            else {"status": "skipped"}
+        )
+    ctx.result = {"archive": archive, "current": current}
+    total = sum(r["inserted"] + r["updated"] for r in archive.values())
+    skipped = sum(r["skipped"] for r in archive.values())
+    if current.get("status") == "unavailable":
+        ctx.log(f"saison en cours non chargée : {current.get('error')}")
+    return (
+        f"sélections : {total} matchs de l'archive chargés ({skipped} amicaux de clubs ou "
+        f"de jeunes écartés) ; saison en cours : {current.get('status')}"
+    )
+
+
+register(
+    Action(
+        id="nations_import",
+        title="Sélections : importer les matchs",
+        family="Données",
+        description=(
+            "CAN, Coupe du Monde, Euro, Copa America, Ligue des Nations, éliminatoires et "
+            "matchs amicaux : l'historique depuis l'archive collectée, puis le calendrier et "
+            "les résultats en cours. Amicaux : seulement entre deux sélections qui jouent une "
+            "compétition officielle (API-Football y mêle des clubs et des équipes de jeunes). "
+            "Rejouable sans doublon."
+        ),
+        risk="modifie",
+        run=nations_import,
+        exclusive=True,
+        cost="22 requêtes (saison en cours) ; l'archive n'en coûte aucune",
         duration="1 à 5 min",
         params=(
             Param("current", "Saison en cours aussi", "bool", default=True),

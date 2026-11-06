@@ -13,7 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.football.referees import referee_key
-from footprono.ingestion.reference import AWARDED_MATCHES, CUPS_BY_CODE
+from footprono.ingestion.reference import AWARDED_MATCHES, NON_LEAGUE_CODES
 
 # Statistiques de match : colonne (domicile) de la requête, extérieur = suivante.
 STATS = {
@@ -138,7 +138,7 @@ def _nan(value: object) -> float:
 
 
 async def load_history(session: AsyncSession) -> History:
-    rows = (await session.execute(_MATCHES, {"cups": list(CUPS_BY_CODE)})).all()
+    rows = (await session.execute(_MATCHES, {"cups": list(NON_LEAGUE_CODES)})).all()
     n = len(rows)
     ids = np.array([r[0] for r in rows], dtype=np.int64)
     hist = History(

@@ -17,7 +17,7 @@ from footprono.core.errors import NotFoundError
 from footprono.engine.markets import Selection, offered
 from footprono.football.models import Competition, Match, MatchStatus
 from footprono.football.schemas import MatchOut
-from footprono.ingestion.reference import CUPS_BY_CODE
+from footprono.ingestion.reference import CUPS_BY_CODE, NATIONS_BY_CODE
 from footprono.predictions.models import MatchPrediction, PredictionRun
 from footprono.predictions.reliability import reliability_report
 from footprono.predictions.schemas import (
@@ -135,6 +135,9 @@ async def list_upcoming(
         # buts attendus : elles ne reçoivent pas les matchs de coupe. Pronostics des coupes
         # désactivés (FP_CUPS_PREDICTIONS) : pas de matchs de coupe sans pronostic.
         stmt = stmt.where(Competition.code.not_in(list(CUPS_BY_CODE)))
+    if not competition:
+        # Sélections nationales : pas encore de pronostics (moteur à venir).
+        stmt = stmt.where(Competition.code.not_in(list(NATIONS_BY_CODE)))
     rows = (
         (
             await session.execute(

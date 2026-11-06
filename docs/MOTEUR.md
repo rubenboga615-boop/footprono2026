@@ -428,6 +428,29 @@ sur la page Fiabilité ; leur backtest est montré au filtre de la coupe. Les ap
 d'avant les coupes ne reçoivent pas les matchs de coupe (`/predictions/upcoming?cups=true`
 pour celles qui les affichent). Publication : `FP_CUPS_PREDICTIONS` (désactivé par défaut).
 
+## Sélections nationales : données en base (étape B1, 06/11/2026)
+
+CAN et éliminatoires, Coupe du Monde et éliminatoires (Afrique, Europe, Amérique du Sud),
+Euro et éliminatoires, Ligue des Nations, Copa America, matchs amicaux
+(`ingestion/nations.py`, console « Sélections : importer les matchs », saison en cours
+chaque matin : deux requêtes par compétition). Résultats seulement. Moteur à venir
+(étape B2) : rien n'est encore publié, ni dans l'application ni dans les coupons.
+
+- **Équipes** : créées au pays « Sélections », retrouvées par leur identifiant
+  API-Football, jamais par leur nom (un club « Brazil » n'est pas la sélection ; nom déjà
+  pris : « Brazil (Sélections) »).
+- **Amicaux** : API-Football y mêle des matchs de clubs et d'équipes de jeunes (U17 à
+  U23). Archive 2018-2026 : 3 895 « amicaux », 2 052 écartés (603 des 928 de 2026) ; seuls
+  ceux entre deux sélections qui jouent une compétition officielle sont gardés (160 à 270
+  par an).
+- **Terrain neutre** (`reference.FINAL_PHASES`) : en phase finale, sauf pour le pays hôte
+  qui reçoit chez lui (Euro 2020 et Coupe du Monde 2026 : par ville). Les dates séparent
+  la phase finale : la CAN 2019 d'API-Football mêle éliminatoires et phase finale dans la
+  même saison. Ailleurs (éliminatoires, Ligue des Nations, amicaux) : l'équipe qui reçoit
+  est chez elle. Archive : Coupe du Monde 217 matchs neutres sur 232, CAN 195 sur 358.
+- Hors des modèles, des contrôles de qualité et de la couverture des championnats
+  (`NON_LEAGUE_CODES`), hors de `/competitions` et de `/predictions/upcoming`.
+
 ## Commandes
 
 ```bash

@@ -44,6 +44,7 @@ class CupFixture:
     status: str
     fulltime: tuple[int, int] | None
     halftime: tuple[int, int] | None
+    city: str | None = None
 
     @property
     def neutral(self) -> bool:
@@ -68,6 +69,7 @@ def parse_fixture(item: dict[str, Any]) -> CupFixture:
         status=str((fx.get("status") or {}).get("short") or "NS"),
         fulltime=_score(score.get("fulltime")),
         halftime=_score(score.get("halftime")),
+        city=(fx.get("venue") or {}).get("city"),
     )
 
 
@@ -85,8 +87,13 @@ async def sync_cups(session: AsyncSession) -> None:
         )
 
 
-async def _team_ids(session: AsyncSession, teams: dict[int, str]) -> dict[int, int]:
-    """Identifiant API-Football → équipe en base (créée si elle n'existe pas)."""
+async def _team_ids(
+    session: AsyncSession, teams: dict[int, str], country: str = CUP_COUNTRY, by_name: bool = True
+) -> dict[int, int]:
+    """Identifiant API-Football → équipe en base (créée si elle n'existe pas).
+
+    ``by_name`` faux (sélections nationales) : jamais reliée à une équipe existante par son
+    nom (« Brazil » n'est pas un club), seulement par son identifiant."""
     src = DataSource.API_FOOTBALL
     rows = (
         await session.execute(
@@ -94,17 +101,21 @@ async def _team_ids(session: AsyncSession, teams: dict[int, str]) -> dict[int, i
         )
     ).tuples()
     aliases = dict(rows.all())
-    by_name = dict((await session.execute(select(Team.name, Team.id))).tuples().all())
+    names = dict((await session.execute(select(Team.name, Team.id))).tuples().all())
     out: dict[int, int] = {}
     for api_id, name in teams.items():
-        team_id = aliases.get(f"#{api_id}") or aliases.get(name) or by_name.get(name)
+        team_id = aliases.get(f"#{api_id}")
+        if team_id is None and by_name:
+            team_id = aliases.get(name) or names.get(name)
         if team_id is None:
+            # Nom déjà pris (club homonyme) : la sélection est créée avec un nom distinct.
+            label = name if name not in names else f"{name} ({country})"
             team_id = await session.scalar(
-                insert(Team).values(name=name, country=CUP_COUNTRY).returning(Team.id)
+                insert(Team).values(name=label, country=country).returning(Team.id)
             )
             assert team_id is not None
-            by_name[name] = team_id
-        for alias in (f"#{api_id}", name):
+            names[label] = team_id
+        for alias in (f"#{api_id}", name) if by_name else (f"#{api_id}",):
             if alias not in aliases:
                 await session.execute(
                     insert(TeamAlias)
@@ -117,11 +128,22 @@ async def _team_ids(session: AsyncSession, teams: dict[int, str]) -> dict[int, i
 
 
 async def load_cup_fixtures(
-    session: AsyncSession, code: str, items: list[dict[str, Any]]
+    session: AsyncSession,
+    code: str,
+    items: list[dict[str, Any]],
+    *,
+    country: str = CUP_COUNTRY,
+    by_name: bool = True,
+    neutral: Callable[[CupFixture], bool] | None = None,
 ) -> dict[str, int]:
-    """Crée ou met à jour les matchs d'une coupe (retrouvés par identifiant API-Football)."""
+    """Crée ou met à jour les matchs d'une coupe (retrouvés par identifiant API-Football).
+
+    Sert aussi aux sélections nationales (``country``, ``by_name`` et ``neutral`` :
+    ingestion/nations.py)."""
     fixtures = [parse_fixture(i) for i in items]
-    teams = await _team_ids(session, {t[1]: t[0] for f in fixtures for t in (f.home, f.away)})
+    teams = await _team_ids(
+        session, {t[1]: t[0] for f in fixtures for t in (f.home, f.away)}, country, by_name
+    )
     existing = {
         m.api_football_id: m
         for m in (
@@ -156,7 +178,7 @@ async def load_cup_fixtures(
             "away_goals_ht": f.halftime[1] if finished and f.halftime else None,
             "api_status": f.status[:8],
             "round": f.round,
-            "neutral": f.neutral,
+            "neutral": neutral(f) if neutral else f.neutral,
             "result_source": "api_football" if finished else None,
         }
         stats["finished"] += finished
