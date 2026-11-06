@@ -267,6 +267,17 @@ async def _sync_calendars(
     return out
 
 
+def regulation_score(item: dict[str, Any]) -> tuple[int | None, int | None]:
+    """Score du temps réglementaire, celui des paris : après une prolongation (« AET ») ou
+    des tirs au but (« PEN »), ``goals`` compte la prolongation ; ``score.fulltime`` non."""
+    status = (item.get("fixture") or {}).get("status", {}).get("short")
+    if status in ("AET", "PEN"):
+        full = (item.get("score") or {}).get("fulltime") or {}
+        return full.get("home"), full.get("away")
+    goals = item.get("goals") or {}
+    return goals.get("home"), goals.get("away")
+
+
 async def follow_live(
     session: AsyncSession,
     settings: Settings,
@@ -378,21 +389,18 @@ async def follow_live(
                     live_away_goals=fixture.away_goals,
                 )
                 report["live"] += 0 if fixture.finished else 1
-            if (
-                fixture.finished
-                and fixture.home_goals is not None
-                and fixture.away_goals is not None
-            ):
+            home_goals, away_goals = regulation_score(item)
+            if fixture.finished and home_goals is not None and away_goals is not None:
                 values.update(
                     status=MatchStatus.FINISHED,
-                    home_goals=fixture.home_goals,
-                    away_goals=fixture.away_goals,
+                    home_goals=home_goals,
+                    away_goals=away_goals,
                     home_goals_ht=fixture.home_goals_ht,
                     away_goals_ht=fixture.away_goals_ht,
                     result_source="api_football",
                 )
-                report["finished"].append(f"{label} {fixture.home_goals}-{fixture.away_goals}")
-                progress(f"terminé : {label} {fixture.home_goals}-{fixture.away_goals}")
+                report["finished"].append(f"{label} {home_goals}-{away_goals}")
+                progress(f"terminé : {label} {home_goals}-{away_goals}")
             await session.execute(update(Match).where(Match.id == match.id).values(**values))
         response = statistics.get(fixture.fixture_id)
         if response is None:

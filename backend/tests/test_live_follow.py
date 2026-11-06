@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.football.models import DataSource, Match, MatchStatus, MatchTeamStats
 from footprono.ingestion import service
-from footprono.ingestion.live import collect_injuries, follow_live
+from footprono.ingestion.live import collect_injuries, follow_live, regulation_score
 from footprono.ingestion.reference import COMPETITIONS
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.ingestion.sources import api_football
@@ -173,3 +173,14 @@ async def test_follow_live_updates_score_then_finishes(
     assert done is not None
     assert done.result_source == "football_data"
     assert (done.home_goals, done.away_goals) != (9, 9)
+
+
+def test_regulation_score_ignores_extra_time() -> None:
+    """Coupe : 1-1 après 90 minutes, 2-1 après prolongation ; le pari se règle sur 1-1."""
+    item = _item(1, "AET", 120, (2, 1), (0, 0))
+    item["score"]["fulltime"] = {"home": 1, "away": 1}
+    assert regulation_score(item) == (1, 1)
+    pens = _item(2, "PEN", 120, (1, 1), (0, 0))
+    pens["score"]["fulltime"] = {"home": 1, "away": 1}
+    assert regulation_score(pens) == (1, 1)
+    assert regulation_score(_item(3, "FT", 90, (3, 0), (1, 0))) == (3, 0)
