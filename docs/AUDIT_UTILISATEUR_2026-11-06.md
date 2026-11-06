@@ -166,3 +166,19 @@ Aucune erreur JavaScript de l'application (seul Firebase, bloqué sur la machine
 4. « Ajouter au coupon » : requêtes en parallèle ou données incluses, avec une progression.
 5. Petits textes : 10 → 12, ordre des matchs expliqué, « match(s) », forme, objectif de montante.
 6. Accessibilité : boutons retour, libellés des sélections et des boutons Retirer / Remplacer.
+
+## 8. Nouvel essai après publication de la version web (APK et web 131)
+
+| Point | Avant | Après |
+|---|---|---|
+| Serbie et Israël dans les filtres, nom au lieu de « ISR » | absents, code brut | **corrigé** |
+| Carte « Lier mon compte Google » dans le profil | absente | présente |
+| Grosse cote 25, Prochaine journée | 16 à 19 s | **16,3 à 18,6 s** (inchangé) |
+| Équilibré, Prochaine journée | 16,3 s | **17,8 s** (inchangé) |
+| Grosse cote 25, Aujourd'hui | 2,1 s | 2,0 s |
+| Ajouter au coupon (7 sélections) | 15,5 s, 21 requêtes | **13,4 s, 20 requêtes**, toujours sans progression |
+| Suggestions de montante | 18,9 s, « Modèle 76 % » contre 63 % selon la cote | **16,1 s**, mêmes écarts (76 % pour des cotes de 1,55 à 1,58) |
+| « 10 au maximum » dans l'onglet Coupon | faux | **toujours faux** |
+
+La nouvelle version web règle le retard de l'application, mais pas la lenteur, qui vient
+du serveur : les mêmes requêtes prennent le même temps depuis le navigateur et en appel direct.
