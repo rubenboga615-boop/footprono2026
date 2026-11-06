@@ -182,3 +182,23 @@ Aucune erreur JavaScript de l'application (seul Firebase, bloqué sur la machine
 
 La nouvelle version web règle le retard de l'application, mais pas la lenteur, qui vient
 du serveur : les mêmes requêtes prennent le même temps depuis le navigateur et en appel direct.
+
+## 9. Corrections (06/11/2026, dans l'ordre demandé)
+
+1. **Serveur** (migration 0029, `bookmaker/service.py`) : index des cotes par match et
+   bookmaker (la base ne lit plus les cotes des autres bookmakers), cotes et pronostics
+   gardés 10 minutes pour le coupon intelligent, les coupons du jour et les suggestions
+   (un seul calcul pour tous les joueurs et tous les profils), pronostics lus sans leur
+   contexte. Base de mesure locale (180 matchs, 2,3 millions de cotes, 12 bookmakers) :
+   2,0 s → 1,4 s au premier appel, **0,05 s** ensuite. La cote du pari est toujours relue.
+2. **Application** : 60 s de délai pour le coupon intelligent et les suggestions (20 s
+   ailleurs), message d'attente qui évolue (« Le moteur étudie… », « Encore quelques
+   secondes… », « Le serveur est très occupé… »). Suggestions demandées une seule fois.
+3. **Ajouter au coupon** : requêtes en parallèle, « Ajout 3 / 7… » sur le bouton.
+4. **Suggestions de montante** : la cote la plus basse de la plage d'abord, puis le moins
+   de sélections, puis le match le plus proche ; plus jamais par probabilité du moteur
+   (docs/MOTEUR.md).
+5. **Textes** : « 12 au maximum » ; « 1 match écarté » / « 2 matchs écartés ».
+
+À vérifier après déploiement (serveur et version web) : le coupon Grosse cote 25 sur
+« Prochaine journée », deux fois de suite ; la seconde doit répondre en moins d'une seconde.
