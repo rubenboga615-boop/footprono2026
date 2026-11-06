@@ -418,7 +418,7 @@ async def run_ingestion(
         )
         await loader.sync_reference(session)
         run = IngestionRun(
-            source="+".join(r.source.value for r in requests),
+            source="+".join(dict.fromkeys(r.source.value for r in requests)),
             status="running",
             parameters={
                 "requests": [

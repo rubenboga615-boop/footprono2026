@@ -336,7 +336,8 @@ class IngestionRun(Base):
     __tablename__ = "ingestion_runs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    source: Mapped[str] = mapped_column(String(32))
+    # Sources de l'exécution, sans doublon (« football_data+understat+api_football »).
+    source: Mapped[str] = mapped_column(String(128))
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(16))

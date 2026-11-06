@@ -584,3 +584,25 @@ def test_current_season_calendar_year() -> None:
     assert current_season("NOR", date(2027, 3, 15)) == 2027  # année civile
     assert current_season("SUI", date(2027, 3, 15)) == 2026  # saison 2026-27
     assert current_season("SUI", date(2027, 8, 1)) == 2027
+
+
+async def test_morning_ingestion_of_three_sources_and_two_seasons_starts(
+    db_factory: Factory, tmp_path: Path
+) -> None:
+    """Ingestion du matin (3 sources, 2 saisons en cours : Norvège et Suède en année
+    civile) : elle échouait avant de commencer (sources sur plus de 32 caractères)."""
+    from footprono.football.models import IngestionRun
+
+    empty = tmp_path / "vide"
+    empty.mkdir()
+    requests = [
+        IngestionRequest(source, codes, [season], empty)
+        for season, codes in ((2026, ["NOR"]), (2026, ["EPL"]))
+        for source in (DataSource.FOOTBALL_DATA, DataSource.UNDERSTAT, DataSource.API_FOOTBALL)
+    ]
+    report = await run_ingestion(db_factory, make_settings(raw_data_dir=tmp_path), requests)
+    assert report["status"] in ("ok", "partial")
+    async with db_factory() as session:
+        run = await session.scalar(select(IngestionRun).order_by(IngestionRun.id.desc()))
+    assert run is not None
+    assert run.source == "football_data+understat+api_football"
