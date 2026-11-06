@@ -1256,7 +1256,7 @@ class _SuggestionsScreenState extends State<SuggestionsScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'classées par probabilité du modèle',
+                        'la cote la plus basse d\'abord',
                         textAlign: TextAlign.right,
                         style: Fp.body(12, color: Fp.text2),
                       ),

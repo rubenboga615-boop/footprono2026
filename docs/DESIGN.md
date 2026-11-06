@@ -69,9 +69,10 @@ version web et à l'administration).
 6. Calcul exact au franc près (arrondi inférieur, comme un bookmaker).
 7. **Pari de chaque palier : suggestions automatiques + choix manuel.** L'écran
    « Pari du palier » propose les 3 paris (simple ou combiné de 2 à 3
-   sélections) dont la cote totale est dans la plage, classés par probabilité du
-   modèle, avec l'écart entre la probabilité du modèle et celle déduite de la
-   cote ; un pari moins probable que sa cote est signalé « déconseillé ».
+   sélections) dont la cote totale est dans la plage, la cote la plus basse
+   d'abord (le plus probable selon le bookmaker), avec la probabilité du modèle
+   et celle déduite de la cote côte à côte (06/11/2026 : plus classés par
+   probabilité du modèle, voir docs/MOTEUR.md).
    « Composer moi-même » ouvre le Coupon en mode palier (1 à 3 sélections,
    contrôle de la plage). Rien n'est joué sans validation de l'utilisateur.
    Les combinés dans un même match sont calculés à partir de la même

@@ -618,6 +618,20 @@ est la plus proche de la cible. Résultat sur les mêmes données : cote 10,07,
 moteur 9,6 %, cote 9,9 % ; aux cotes de 25 à 100, le moteur est plus prudent
 que la cote. L'application affiche toujours les deux.
 
+## Suggestions de montante : même règle que la Grosse cote (06/11/2026)
+
+Essai réel sur le site (palier 1, cote 1,55 à 1,65) : les trois suggestions, classées par
+probabilité du moteur, annonçaient toutes **76 %** pour **63 à 64 %** selon la cote. Dans une
+plage de cote fixe, trier par probabilité du moteur revient à trier par désaccord avec la
+cote : on proposait précisément les paris où le moteur se trompe le plus souvent (voir
+ci-dessus).
+
+Retenu : la cote la plus basse de la plage d'abord (le plus probable selon le bookmaker,
+marge comprise), puis le moins de sélections (moins de marges cumulées), puis le match le
+plus proche. Les combinés sont formés à partir des sélections dont la cote peut atteindre la
+plage, dans l'ordre des coups d'envoi, jamais dans l'ordre de l'avis du moteur. Les deux
+probabilités restent affichées côte à côte (`bookmaker/suggestions.py`, `rank`).
+
 ## Championnats sans xG : le moteur sans xG, et des xG « maison » tirés des tirs (03/10/2026)
 
 Expérience préalable à l'ouverture d'autres championnats : sur nos 5 championnats

@@ -65,9 +65,11 @@ Argent **fictif**. Code : `backend/src/footprono/accounts/`, `bookmaker/`,
   référence (6 paliers, 5 000 F CFA, 1,60 → 1,90) redonne **150 582 F CFA**
   et **3,3 %** (test automatique).
 - Suggestions : les 3 paris (simple ou combiné de 2 à 3 matchs différents)
-  dans la plage, classés par probabilité du moteur, avec l'écart à la
-  probabilité déduite de la cote ; « déconseillé » si le moteur juge le pari
-  moins probable que sa cote. Mi-temps la plus prolifique exclue.
+  dans la plage, la cote la plus basse d'abord (le plus probable selon le
+  bookmaker), puis le moins de sélections, puis le match le plus proche ;
+  probabilité du moteur et probabilité déduite de la cote côte à côte. Plus
+  jamais classés par probabilité du moteur (06/11/2026, docs/MOTEUR.md).
+  Mi-temps la plus prolifique exclue.
 
 ## Notifications
 

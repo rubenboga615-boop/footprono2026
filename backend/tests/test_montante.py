@@ -1,6 +1,6 @@
 """Montante : plan, suggestions, paliers, avancement au règlement, encaissement."""
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -156,3 +156,29 @@ async def test_montante_end_to_end(
     assert plan["status"] == "lost"
     assert plan["steps"][1]["out_of_range"] is True
     assert plan["cashable"] == 1_850  # seule la part sécurisée reste acquise
+
+
+def test_suggestions_never_ranked_on_disagreement_with_the_odds() -> None:
+    """Dans une plage de cote fixe, le plus probable selon le moteur est celui qui contredit
+    le plus la cote (essai réel du 06/11/2026 : 76 % contre 63 %). Classement neutre : cote la
+    plus basse, puis moins de sélections, puis le match le plus proche."""
+    from footprono.bookmaker import service, suggestions
+
+    t0 = datetime(2026, 11, 7, 15, tzinfo=UTC)
+
+    def cand(mid: int, odds: str, p: float, hours: int = 0) -> suggestions.Candidate:
+        offer = service.Offer(
+            "1X2", "", "home", Decimal(odds), "1xBet", mid, t0, "Match Winner — Home"
+        )
+        return suggestions.Candidate(mid, t0 + timedelta(hours=hours), offer, p)
+
+    pool = [
+        cand(1, "1.64", 0.76),  # le moteur y croit le plus : pas une raison de la proposer
+        cand(2, "1.55", 0.60, hours=5),
+        cand(3, "1.55", 0.58, hours=1),
+        cand(4, "1.25", 0.70),  # 1,25 fois 1,25 = 1,5625 : combiné de 2, après les simples
+        cand(5, "1.25", 0.70),
+        cand(6, "2.40", 0.45),  # hors plage
+    ]
+    ranked = suggestions.rank(pool, Decimal("1.55"), Decimal("1.65"))
+    assert [[s["match_id"] for s in r["selections"]] for r in ranked] == [[3], [2], [4, 5]]
