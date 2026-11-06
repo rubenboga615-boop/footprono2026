@@ -526,6 +526,8 @@ async def test_api_football_archive_is_the_results_source(
         _af_item(4, "2024-09-01", luzern, yb, (None, None), status="NS"),  # jamais joué
         _af_item(5, "2030-05-01", luzern, basel, (None, None), status="NS"),  # à venir
         _af_item(6, "2025-06-01", basel, xamax, (2, 0), round_="Relegation Round"),
+        # Tapis vert sans score officiel (Israël 2025-26) : comme un match jamais joué.
+        _af_item(7, "2024-09-08", yb, lugano, (None, None), status="AWD"),
     ]
     (folder / "2024" / "fixtures.json").write_text(json.dumps(items))
     stats = [
@@ -548,7 +550,7 @@ async def test_api_football_archive_is_the_results_source(
     assert entry["status"] == "incomplete", entry  # le match 2 n'a pas de statistiques
     assert entry["matches_inserted"] == 4  # 1, 2, 3 (tapis vert) et 5 (à venir)
     assert any("1 matchs hors championnat" in i for i in entry["issues"])
-    assert any("1 matchs non joués d'il y a plus de 30 jours" in i for i in entry["issues"])
+    assert any("2 matchs non joués d'il y a plus de 30 jours" in i for i in entry["issues"])
     assert not any("Free Kicks" in i for i in entry["issues"])
     async with db_factory() as session:
         rows = {

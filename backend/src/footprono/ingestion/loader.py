@@ -77,6 +77,11 @@ def _chunks(
         yield rows[start : start + size]
 
 
+def _awarded_with_score(f: ApiFixture) -> bool:
+    """Match donné sur tapis vert dont la source donne le score officiel."""
+    return f.status == "AWD" and f.home_goals is not None and f.away_goals is not None
+
+
 async def sync_reference(session: AsyncSession) -> None:
     """Crée ou met à jour compétitions, équipes et alias depuis le référentiel."""
     for comp in COMPETITIONS:
@@ -656,9 +661,10 @@ async def load_api_football(
             match = partner.get(i)
             if match is not None:
                 pairs.append((f, match, home, away))
-            elif results_from_api and (f.finished or f.status == "AWD"):
+            elif results_from_api and (f.finished or _awarded_with_score(f)):
                 # « AWD » : match donné sur tapis vert, score officiel enregistré et exclu
-                # de l'apprentissage (engine/history.py).
+                # de l'apprentissage (engine/history.py). Sans score officiel (Israël
+                # 2025-26) : traité comme un match jamais joué.
                 created = await session.scalar(
                     insert(Match)
                     .values(

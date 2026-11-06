@@ -11,6 +11,7 @@ from footprono.engine.history import load_history
 from footprono.football.models import Match, MatchStatus, Team, TeamAlias
 from footprono.ingestion import cups
 from footprono.ingestion.loader import sync_reference
+from footprono.ingestion.quality import run_quality_checks
 from footprono.ingestion.reference import cup_season
 
 Factory = async_sessionmaker[AsyncSession]
@@ -73,6 +74,11 @@ async def test_cup_matches_loaded_and_kept_out_of_leagues(db_factory: Factory) -
         assert await session.scalar(select(func.count()).where(Team.name == "Qarabag FK")) == 0
 
         assert len(await load_history(session)) == before  # aucun match de coupe
+        # Contrôle de qualité des championnats : les coupes n'y passent pas (pas de faux
+        # « 3 équipes, 18 ou 20 attendues » dans le rapport du matin).
+        quality = await run_quality_checks(session, today=date(2026, 11, 6))
+        assert not [f for f in quality["findings"] if f["competition"] == "UCL"]
+        assert not [s for s in quality["seasons"] if s["competition"] == "UCL"]
 
 
 def test_cup_season() -> None:
