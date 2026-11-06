@@ -182,3 +182,38 @@ def test_suggestions_never_ranked_on_disagreement_with_the_odds() -> None:
     ]
     ranked = suggestions.rank(pool, Decimal("1.55"), Decimal("1.65"))
     assert [[s["match_id"] for s in r["selections"]] for r in ranked] == [[3], [2], [4, 5]]
+
+
+async def test_each_montante_gets_its_own_matches(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    """Deux montantes du même joueur ne reçoivent jamais les mêmes matchs (constat du
+    06/11/2026 : mêmes paris partout, donc le même risque deux fois)."""
+    await _predict(db_factory, [world["m1"], world["m2"]])
+    headers = await _login(client)
+    await make_premium(db_factory, "+22997111111")
+    body = {"start_stake": 1000, "steps": [{"odds_min": "1.80", "odds_max": "1.90"}] * 4}
+    first = (await client.post("/api/v1/montantes", json=body, headers=headers)).json()["id"]
+    second = (await client.post("/api/v1/montantes", json=body, headers=headers)).json()["id"]
+
+    def matches(proposals: dict[str, Any]) -> set[int]:
+        return {sel["match_id"] for s in proposals["suggestions"] for sel in s["selections"]}
+
+    url = "/api/v1/montantes/{}/suggestions"
+    one = (await client.get(url.format(first), headers=headers)).json()
+    two = (await client.get(url.format(second), headers=headers)).json()
+    assert matches(one) == {world["m1"], world["m2"]}
+    assert matches(two) == set()  # plus aucun autre match : rien plutôt que les mêmes paris
+
+    # Pari placé sur m1 par la première montante : m2 seul lui reste… et revient à la seconde
+    # seulement si la première ne le propose plus (ici elle a déjà misé : rien à proposer).
+    placed = await client.post(
+        f"/api/v1/montantes/{first}/bet",
+        json={"selections": [_sel(world["m1"], "1X2", "home")]},
+        headers=headers,
+    )
+    assert placed.status_code == 201
+    two = (await client.get(url.format(second), headers=headers)).json()
+    assert matches(two) == {world["m2"]}

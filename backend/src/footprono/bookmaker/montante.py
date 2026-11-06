@@ -282,3 +282,70 @@ def _product(values: list[float | None]) -> float | None:
 async def _selection_probs(session: AsyncSession, bet_id: int) -> list[float | None]:
     rows = await session.scalars(select(BetSelection).where(BetSelection.bet_id == bet_id))
     return [s.model_probability for s in rows]
+
+
+async def step_suggestions(
+    session: AsyncSession, montante: Montante, *, redis: Any = None, now: datetime | None = None
+) -> list[dict[str, Any]]:
+    """Suggestions du palier en cours, différentes d'une montante à l'autre du même joueur.
+
+    Avant (constat du 06/11/2026) : deux montantes au même palier recevaient exactement les
+    mêmes paris ; suivre les deux revenait à miser deux fois sur le même événement (s'il
+    perd, les deux montantes tombent ensemble). Sont donc écartés les matchs :
+    - des paris en cours des autres montantes actives du joueur ;
+    - des suggestions des montantes actives plus anciennes (elles choisissent d'abord).
+    """
+    from footprono.bookmaker import suggestions
+
+    others = list(
+        await session.scalars(
+            select(Montante)
+            .where(
+                Montante.user_id == montante.user_id,
+                Montante.status == "active",
+                Montante.id != montante.id,
+            )
+            .order_by(Montante.id)
+        )
+    )
+    taken: set[int] = set()
+    for other in others:
+        taken |= await _open_matches(session, other)
+    for other in [o for o in others if o.id < montante.id]:
+        if await _open_matches(session, other):
+            continue  # déjà misé : ses matchs sont écartés ci-dessus
+        low, high = await _current_range(session, other)
+        for s in await suggestions.suggest(
+            session, low, high, now=now, redis=redis, exclude_matches=frozenset(taken)
+        ):
+            taken |= {sel["match_id"] for sel in s["selections"]}
+    low, high = await _current_range(session, montante)
+    return await suggestions.suggest(
+        session, low, high, now=now, redis=redis, exclude_matches=frozenset(taken)
+    )
+
+
+async def _current_range(session: AsyncSession, montante: Montante) -> tuple[Decimal, Decimal]:
+    step = await session.scalar(
+        select(MontanteStep).where(
+            MontanteStep.montante_id == montante.id, MontanteStep.number == montante.current_step
+        )
+    )
+    if step is None:
+        raise NotFoundError(f"palier {montante.current_step} introuvable")
+    return step.odds_min, step.odds_max
+
+
+async def _open_matches(session: AsyncSession, montante: Montante) -> set[int]:
+    """Matchs du pari en cours du palier actuel de cette montante (vide si rien n'est misé)."""
+    step = await session.scalar(
+        select(MontanteStep).where(
+            MontanteStep.montante_id == montante.id, MontanteStep.number == montante.current_step
+        )
+    )
+    bet = await _open_bet(session, step) if step is not None else None
+    if bet is None:
+        return set()
+    return set(
+        await session.scalars(select(BetSelection.match_id).where(BetSelection.bet_id == bet.id))
+    )

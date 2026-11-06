@@ -10,7 +10,7 @@ from sqlalchemy import select
 from footprono.accounts.plans import require_premium
 from footprono.api.deps import CurrentUserDep, RedisDep, SessionDep
 from footprono.api.v1.bets import _bet_out
-from footprono.bookmaker import montante, service, suggestions
+from footprono.bookmaker import montante, service
 from footprono.bookmaker.montante_models import Montante, MontanteStep
 from footprono.bookmaker.schemas import BetOut, SelectionIn
 from footprono.core.errors import NotFoundError
@@ -84,9 +84,7 @@ async def step_suggestions(
         "odds_min": step.odds_min,
         "odds_max": step.odds_max,
         "stake": m.next_stake,
-        "suggestions": await suggestions.suggest(
-            session, step.odds_min, step.odds_max, redis=redis
-        ),
+        "suggestions": await montante.step_suggestions(session, m, redis=redis),
     }
 
 

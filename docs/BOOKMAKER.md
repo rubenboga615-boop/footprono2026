@@ -118,3 +118,16 @@ migration 0029 (12 bookmakers relevés, 2 jouables).
 
 Application : délai de 60 secondes pour ces calculs (20 ailleurs), attente expliquée
 (`SlowWait`), ajout au coupon des matchs en parallèle avec « Ajout 3 / 7… ».
+
+## Montantes : des matchs différents pour chaque montante (06/11/2026)
+
+Constat du fondateur : deux montantes au même palier recevaient exactement les mêmes
+suggestions ; les suivre toutes revenait à miser deux fois sur le même événement. Les
+suggestions d'une montante écartent maintenant les matchs des paris en cours des autres
+montantes actives du joueur, et ceux suggérés aux montantes plus anciennes
+(`montante.step_suggestions`). S'il ne reste aucun autre match dans la plage, l'écran le
+dit plutôt que de reproposer les mêmes paris.
+
+Combinés : déjà permis (2 ou 3 matchs), mais à cote égale un combiné est un peu moins sûr
+qu'un pari simple (marge du bookmaker payée sur chaque match) ; le classement neutre
+propose d'abord le moins de sélections.

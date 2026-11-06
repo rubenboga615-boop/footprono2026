@@ -113,9 +113,14 @@ async def suggest(
     now: datetime | None = None,
     limit: int = 3,
     redis: Redis | None = None,
+    exclude_matches: frozenset[int] = frozenset(),
 ) -> list[dict[str, Any]]:
+    """``exclude_matches`` : matchs déjà pris par les autres montantes du joueur."""
     now = now or datetime.now(UTC)
-    return rank(await _candidates(session, high, now, redis), low, high, limit)
+    pool = [
+        c for c in await _candidates(session, high, now, redis) if c.match_id not in exclude_matches
+    ]
+    return rank(pool, low, high, limit)
 
 
 def rank(

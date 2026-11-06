@@ -1266,7 +1266,8 @@ class _SuggestionsScreenState extends State<SuggestionsScreen> {
                 const SizedBox(height: 12),
                 if (list.isEmpty)
                   const EmptyState(
-                    'Aucun pari avec une cote réelle dans cette plage pour l\'instant.',
+                    'Aucun pari avec une cote réelle dans cette plage pour l\'instant. Les matchs déjà pris '
+                    'par tes autres montantes en cours sont écartés : ton risque reste réparti.',
                     icon: Icons.search_off_rounded,
                   ),
                 for (final (i, s) in list.indexed)
