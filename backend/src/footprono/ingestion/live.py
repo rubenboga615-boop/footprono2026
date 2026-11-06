@@ -31,7 +31,13 @@ from footprono.football.models import (
     StatPeriod,
 )
 from footprono.ingestion import loader, raw_store, service
-from footprono.ingestion.reference import COMPETITIONS, COMPETITIONS_BY_CODE, current_season
+from footprono.ingestion.reference import (
+    COMPETITIONS,
+    COMPETITIONS_BY_CODE,
+    CUPS,
+    cup_season,
+    current_season,
+)
 from footprono.ingestion.sources import api_football
 from footprono.ingestion.sources.api_football_odds import (
     OddsQuote,
@@ -106,7 +112,12 @@ async def collect_odds(
         books, missing = await _bookmaker_ids(client, settings.odds_bookmakers)
         for name in missing:
             report["issues"].append(f"bookmaker « {name} » absent d'API-Football : non relevé")
-        for comp in COMPETITIONS:
+        # Coupes d'Europe aussi (saison de juillet à juin) : leurs matchs sont en base par
+        # l'import des coupes ; cotes gardées pour comparer plus tard le moteur au marché.
+        targets = [(c.code, c.api_football_id, seasons[c.code]) for c in COMPETITIONS] + [
+            (c.code, c.api_football_id, cup_season(fetched_at.date())) for c in CUPS
+        ]
+        for code, league_id, season in targets:
             for name, book_id in books.items():
                 page, total = 1, 1
                 while page <= min(total, MAX_PAGES):
@@ -116,18 +127,13 @@ async def collect_odds(
                         break
                     body = await client.get(
                         "/odds",
-                        {
-                            "league": comp.api_football_id,
-                            "season": seasons[comp.code],
-                            "bookmaker": book_id,
-                            "page": page,
-                        },
+                        {"league": league_id, "season": season, "bookmaker": book_id, "page": page},
                     )
                     pages.append(body)
                     found, _, total = parse_odds_page(body)
                     quotes.extend(found)
                     page += 1
-                progress(f"{comp.code} {name} : {len(quotes)} cotes relevées au total")
+                progress(f"{code} {name} : {len(quotes)} cotes relevées au total")
         report["requests"] = client.used
 
     report["calendar"] = await _sync_calendars(session, settings, seasons, calendars, fetched_at)

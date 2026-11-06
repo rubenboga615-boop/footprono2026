@@ -1,5 +1,6 @@
 """Cotes des bookmakers pour les matchs à venir (API-Football simulée)."""
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -11,9 +12,10 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.football.models import BookmakerOdds, DataSource, Match
-from footprono.ingestion import service
+from footprono.ingestion import cups, service
 from footprono.ingestion.live import collect_odds
-from footprono.ingestion.reference import COMPETITIONS
+from footprono.ingestion.loader import sync_reference
+from footprono.ingestion.reference import COMPETITIONS, CUPS, cup_season
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.ingestion.sources import api_football
 from footprono.ingestion.sources.api_football_odds import (
@@ -185,8 +187,9 @@ async def test_collect_odds_keeps_only_changes(
     assert "bookmaker « Pinnacle » absent d'API-Football : non relevé" in first["issues"]
     assert "1 matchs API-Football inconnus en base : ignorés" in first["issues"]
     assert first["unmapped_bets"] == {"Player to Score": {"partial": False, "values": ["X"]}}
-    # Chaque championnat x 2 bookmakers trouvés = une page chacun, + la liste des bookmakers.
-    assert calls.count("/odds") == 2 * len(COMPETITIONS)
+    # Chaque championnat et chaque coupe x 2 bookmakers trouvés = une page chacun, + la liste
+    # des bookmakers.
+    assert calls.count("/odds") == 2 * (len(COMPETITIONS) + len(CUPS))
 
     stamp[0] = "2026-10-08T13:00:00+00:00"  # la source confirme les mêmes prix plus tard
     async with db_factory() as session:
@@ -210,3 +213,54 @@ async def test_collect_odds_keeps_only_changes(
     assert Decimal(home["price"]) == Decimal("1.90")
     assert (home["market"], home["line"], home["selection"]) == ("1X2", None, "home")
     assert rows[("Player to Score", "X")]["market"] is None
+
+
+async def test_collect_odds_includes_european_cups(
+    db_factory: Factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Les cotes des matchs de coupe sont relevées (saison de coupe, juillet à juin)."""
+    upcoming = {
+        "fixture": {"id": 7000, "date": "2026-11-25T20:00:00+00:00", "status": {"short": "NS"}},
+        "league": {"id": 2, "season": 2026, "round": "League Stage - 5"},
+        "teams": {"home": {"id": 100, "name": "Club 100"}, "away": {"id": 101, "name": "Club 101"}},
+        "score": {"fulltime": {"home": None, "away": None},
+                  "halftime": {"home": None, "away": None}},
+    }  # fmt: skip
+    async with db_factory() as session:
+        await sync_reference(session)
+        await cups.sync_cups(session)
+        await cups.load_cup_fixtures(session, "UCL", [upcoming])
+        await session.commit()
+    seen: list[dict[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        params = dict(request.url.params)
+        headers = {"x-ratelimit-requests-remaining": "7000", "x-ratelimit-remaining": "290"}
+        if request.url.path == "/status":
+            body: Any = {"response": {"requests": {"current": 1, "limit_day": 7500}}}
+        elif request.url.path == "/odds/bookmakers":
+            body = {"response": [{"id": 11, "name": "1xBet"}]}
+        elif request.url.path == "/odds" and params.get("league") == "2":
+            seen.append(params)
+            body = {
+                "response": [_odds_item(7000, "1xBet", "2.10")],
+                "paging": {"current": 1, "total": 1},
+            }
+        else:
+            body = {"response": [], "paging": {"current": 1, "total": 1}}
+        return httpx.Response(200, json={**body, "errors": []}, headers=headers)
+
+    monkeypatch.setattr(service, "api_football_transport", httpx.MockTransport(handler))
+    monkeypatch.setattr(api_football.ApiFootballClient, "__init__", _fast_init)
+    settings = make_settings(raw_data_dir=tmp_path / "raw", api_football_key="k" * 32)
+    async with db_factory() as session:
+        report = await collect_odds(session, settings)
+        match_id = await session.scalar(select(Match.id).where(Match.api_football_id == 7000))
+        prices = list(
+            await session.scalars(
+                select(BookmakerOdds.price).where(BookmakerOdds.match_id == match_id)
+            )
+        )
+    assert report["matches"] == 1
+    assert Decimal("2.10") in prices
+    assert seen[0]["season"] == str(cup_season(datetime.now(UTC).date()))

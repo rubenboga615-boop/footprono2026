@@ -43,6 +43,7 @@ from footprono.football.schemas import (
 from footprono.football.team_stats import lock_premium, merited_table, team_profile
 from footprono.ingestion.live import LIVE_STATUSES
 from footprono.ingestion.quality import run_quality_checks
+from footprono.ingestion.reference import CUPS_BY_CODE
 from footprono.ingestion.sources.api_football_odds import REFERENCE_ONLY, map_bet
 
 router = APIRouter(tags=["données"])
@@ -83,8 +84,13 @@ def _match_out(match: Match, home: Team, away: Team, code: str, year: int) -> di
 
 
 @router.get("/competitions", response_model=list[CompetitionOut])
-async def list_competitions(session: SessionDep) -> list[CompetitionOut]:
-    competitions = (await session.scalars(select(Competition).order_by(Competition.id))).all()
+async def list_competitions(session: SessionDep, cups: bool = False) -> list[CompetitionOut]:
+    """Championnats ; coupes d'Europe avec ``cups=true`` (les applications d'avant les coupes
+    les proposeraient dans le classement mérité, sans aucun sens pour une coupe)."""
+    query = select(Competition).order_by(Competition.id)
+    if not cups:
+        query = query.where(Competition.code.not_in(list(CUPS_BY_CODE)))
+    competitions = (await session.scalars(query)).all()
     rows = await session.execute(
         select(
             Season.competition_id,

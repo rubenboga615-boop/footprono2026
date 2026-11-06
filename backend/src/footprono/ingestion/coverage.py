@@ -14,7 +14,12 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from footprono.ingestion.reference import COMPETITIONS, COMPETITIONS_BY_CODE, current_season
+from footprono.ingestion.reference import (
+    COMPETITIONS,
+    COMPETITIONS_BY_CODE,
+    CUPS_BY_CODE,
+    current_season,
+)
 from footprono.ingestion.sources.api_football import HALF_SPLIT_FIRST_SEASON
 
 COLUMNS = {
@@ -49,7 +54,7 @@ _QUERY = text(
     from matches m
     join seasons s on s.id = m.season_id
     join competitions c on c.id = s.competition_id
-    where m.status = 'finished'
+    where m.status = 'finished' and c.code <> ALL(CAST(:cups AS text[]))
     group by c.code, s.start_year
     order by c.code, s.start_year
     """
@@ -103,7 +108,9 @@ def _years(years: set[int]) -> str:
 
 
 async def coverage_report(session: AsyncSession) -> dict[str, Any]:
-    rows = [dict(r) for r in (await session.execute(_QUERY)).mappings().all()]
+    # Coupes d'Europe : import à part (console « Coupes d'Europe : importer les matchs »).
+    result = await session.execute(_QUERY, {"cups": list(CUPS_BY_CODE)})
+    rows = [dict(r) for r in result.mappings().all()]
     for r in rows:
         for k in COLUMNS:
             r[k] = float(r[k])

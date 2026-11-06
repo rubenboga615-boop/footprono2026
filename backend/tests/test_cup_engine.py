@@ -155,6 +155,12 @@ async def test_backtest_predictions_api_and_reliability(
     async with db_factory() as session:  # analyse détaillée (Premium) : forme, confrontations
         analysis = await match_analysis(session, match_id)
     assert analysis
+    # Liste des compétitions : les coupes seulement sur demande (classement mérité, arbitres).
+    codes = {c["code"] for c in (await client.get("/api/v1/competitions")).json()}
+    assert "UCL" not in codes
+    assert "EPL" in codes
+    with_cups = (await client.get("/api/v1/competitions", params={"cups": "true"})).json()
+    assert "UCL" in {c["code"] for c in with_cups}
     old_app = (
         await client.get("/api/v1/predictions/upcoming", params={"date_from": "2026-11-20"})
     ).json()
