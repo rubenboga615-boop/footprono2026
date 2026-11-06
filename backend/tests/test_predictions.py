@@ -3,6 +3,7 @@
 import math
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -346,3 +347,25 @@ def test_markets_audit_covers_every_published_family() -> None:
     published = [f for f in families if f["withdrawn"] is None]
     assert len(published) == 29
     assert max(f["max_gap_points"] for f in published) < 4
+
+
+async def test_reliability_page_kept_a_few_minutes(
+    client: AsyncClient, app: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Page Fiabilité : calcul gardé quelques minutes (6 à 7 s à chaque ouverture en
+    production), puis refait."""
+    from footprono.api.v1 import predictions as route
+
+    from .conftest import make_settings
+
+    app.state.settings = make_settings(reliability_cache_seconds=60)
+    params = {"competition": "ZZZ_CACHE_TEST", "recent": 3}
+    await app.state.redis.delete("reliability:v1:ZZZ_CACHE_TEST::3")
+    first = (await client.get("/api/v1/reliability", params=params)).json()
+
+    async def fail(*_: Any, **__: Any) -> Any:
+        raise AssertionError("recalculé")
+
+    monkeypatch.setattr(route, "reliability_report", fail)
+    assert (await client.get("/api/v1/reliability", params=params)).json() == first
+    await app.state.redis.delete("reliability:v1:ZZZ_CACHE_TEST::3")

@@ -4,14 +4,18 @@ Les probabilités sont celles du moteur ; aucune n'est comparée aux cotes pour
 annoncer une « value » (principe n° 4, docs/MOTEUR.md).
 """
 
+import contextlib
+import json
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
+from fastapi.encoders import jsonable_encoder
+from redis.exceptions import RedisError
 from sqlalchemy import func, select
 
 from footprono.accounts.plans import FREE_MARKETS, is_premium
-from footprono.api.deps import OptionalUserDep, SessionDep, SettingsDep
+from footprono.api.deps import OptionalUserDep, RedisDep, SessionDep, SettingsDep
 from footprono.api.v1.football import _match_out, _match_select
 from footprono.core.errors import NotFoundError
 from footprono.engine.markets import Selection, offered
@@ -193,14 +197,29 @@ async def list_prediction_runs(
 @router.get("/reliability")
 async def reliability(
     session: SessionDep,
+    redis: RedisDep,
+    settings: SettingsDep,
     competition: str | None = None,
     since: Annotated[date | None, Query(description="matchs joués à partir de cette date")] = None,
     recent: Annotated[int, Query(ge=0, le=100)] = 20,
-) -> dict[str, Any]:
-    """Fiabilité publique : prédictions faites avant les matchs face aux résultats (gratuit)."""
-    return await reliability_report(
-        session,
-        competition=competition.upper() if competition else None,
-        since=since,
-        recent=recent,
+) -> Any:
+    """Fiabilité publique : prédictions faites avant les matchs face aux résultats (gratuit).
+
+    Calcul gardé quelques minutes (6 à 7 s à chaque ouverture en production, essai du
+    06/11/2026) : les chiffres ne changent qu'au règlement des matchs."""
+    code = competition.upper() if competition else None
+    ttl = settings.reliability_cache_seconds
+    key = f"reliability:v1:{code or ''}:{since or ''}:{recent}"
+    cached = None
+    if ttl > 0:
+        with contextlib.suppress(RedisError):  # Redis indisponible : calcul direct
+            cached = await redis.get(key)
+    if cached is not None:
+        return Response(content=cached, media_type="application/json")
+    report = jsonable_encoder(
+        await reliability_report(session, competition=code, since=since, recent=recent)
     )
+    if ttl > 0:
+        with contextlib.suppress(RedisError):
+            await redis.set(key, json.dumps(report), ex=ttl)
+    return report

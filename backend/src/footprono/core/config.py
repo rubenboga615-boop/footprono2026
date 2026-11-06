@@ -93,6 +93,8 @@ class Settings(BaseSettings):
     cups_predictions: bool = False
     # Pronostics des sélections nationales (matchs officiels) : désactivés par défaut.
     nations_predictions: bool = False
+    # Page Fiabilité : calcul gardé ce nombre de secondes (0 : jamais gardé, pour les tests).
+    reliability_cache_seconds: int = 600
 
     # Comptes et bookmaker virtuel (argent fictif, montants entiers en devise).
     access_token_days: int = Field(default=30, ge=1)

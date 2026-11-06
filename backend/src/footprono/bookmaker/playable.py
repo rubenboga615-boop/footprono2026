@@ -28,6 +28,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.bookmaker import service
+from footprono.bookmaker.rules import automatic
 from footprono.football.models import BookmakerOdds, Match, MatchStatus
 from footprono.predictions.models import PredictionRun
 
@@ -39,6 +40,8 @@ HORIZON = timedelta(days=15)  # au-delà de la plus longue période proposée (1
 TTL = timedelta(days=2)
 
 Offers = dict[int, dict[str, service.Offer]]
+# Données préparées déjà décodées (par processus), valables pour une seule empreinte.
+_decoded: dict[Any, Any] = {}
 Probs = dict[int, dict[str, float]]
 
 
@@ -98,15 +101,21 @@ async def refresh(session: AsyncSession, redis: Redis, now: datetime | None = No
         )
     )
     offers, probs = await _compute(session, ids, now)
-    mapping = {
-        str(i): json.dumps(
+    mapping = {}
+    for i in ids:
+        # Seulement les sélections utilisables (marché choisi automatiquement, probabilité du
+        # moteur connue) : le reste (des centaines de clés par match) ralentissait la lecture.
+        kept = {
+            k: o
+            for k, o in offers.get(i, {}).items()
+            if automatic(o.market) and k in probs.get(i, {})
+        }
+        mapping[str(i)] = json.dumps(
             {
-                "offers": {k: _offer_out(o) for k, o in offers.get(i, {}).items()},
-                "probs": probs.get(i, {}),
+                "offers": {k: _offer_out(o) for k, o in kept.items()},
+                "probs": {k: probs[i][k] for k in kept},
             }
         )
-        for i in ids
-    }
     mapping[STAMP_FIELD] = current
     async with redis.pipeline(transaction=True) as pipe:
         pipe.delete(KEY)
@@ -120,36 +129,45 @@ async def load(
     session: AsyncSession, ids: list[int], now: datetime, redis: Redis | None = None
 ) -> tuple[Offers, Probs]:
     """Cotes jouables et probabilités du moteur de ces matchs : préparées si elles sont à
-    jour, sinon calculées (les matchs absents des données préparées aussi)."""
+    jour, sinon calculées (les matchs absents des données préparées aussi). Préparées, elles
+    ne contiennent que les marchés choisis automatiquement (Coupon intelligent, suggestions)."""
     if not ids:
         return {}, {}
     raw: list[str | None] = []
+    current = ""
     if redis is not None:
         try:
             values: list[str | None] = await cast(
                 Awaitable[list[str | None]], redis.hmget(KEY, [STAMP_FIELD, *map(str, ids)])
             )
-            if values[0] == await stamp(session):
+            current = await stamp(session)
+            if values[0] == current:
                 raw = values[1:]
         except RedisError as exc:  # Redis indisponible : calcul direct, jamais d'erreur
             logger.warning("playable_cache_unavailable", extra={"error": str(exc)})
     offers: Offers = {}
     probs: Probs = {}
     missing = []
+    if raw and _decoded.get("stamp") != current:
+        _decoded.clear()
+        _decoded["stamp"] = current
     for i, value in zip(ids, raw or [None] * len(ids), strict=True):
         if value is None:
             missing.append(i)
             continue
-        data = json.loads(value)
-        kept = {}
-        for k, d in data["offers"].items():
-            o = _offer_in(d)
-            if o.checked_at is None or now - o.checked_at <= service.ODDS_MAX_AGE:
-                kept[k] = o
+        if i not in _decoded:
+            data = json.loads(value)
+            _decoded[i] = ({k: _offer_in(d) for k, d in data["offers"].items()}, data["probs"])
+        all_offers, match_probs = _decoded[i]
+        kept = {
+            k: o
+            for k, o in all_offers.items()
+            if o.checked_at is None or now - o.checked_at <= service.ODDS_MAX_AGE
+        }
         if kept:
             offers[i] = kept
-        if data["probs"]:
-            probs[i] = data["probs"]
+        if match_probs:
+            probs[i] = match_probs
     if missing:
         more_offers, more_probs = await _fallback(session, missing, now)
         offers.update(more_offers)

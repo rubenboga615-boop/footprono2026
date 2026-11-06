@@ -43,6 +43,8 @@ def make_settings(**overrides: object) -> Settings:
         "registrations_per_ip": 0,
         # Code de sécurité de la console : testé à part (test_console_security).
         "console_require_totp": False,
+        # Page Fiabilité jamais gardée en cache (Redis partagé entre les tests).
+        "reliability_cache_seconds": 0,
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # type: ignore[call-arg]

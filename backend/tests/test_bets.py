@@ -269,19 +269,43 @@ async def test_playable_selections_prepared_in_advance(
 ) -> None:
     """Sélections jouables préparées après la collecte : mêmes offres que le calcul direct,
     jamais de données périmées (empreinte, âge des cotes), Redis en panne sans erreur."""
+    from datetime import date
+
     from redis.asyncio import Redis
 
     from footprono.bookmaker import playable, service
     from footprono.cache.redis import create_redis
+    from footprono.predictions.models import MatchPrediction, PredictionRun
 
     m1, m2 = world["m1"], world["m2"]
     redis = create_redis(make_settings())
     try:
         async with db_factory() as session:
-            direct = await service.match_offers(session, [m1, m2], NOW)
+            run = PredictionRun(
+                engine_version="test", as_of=date(2026, 1, 1), status="ok", parameters={},
+                report={},
+            )  # fmt: skip
+            session.add(run)
+            await session.flush()
+            for m in (m1, m2):
+                session.add(
+                    MatchPrediction(
+                        run_id=run.id, match_id=m, lambda_home=1.5, lambda_away=1.0, rho=0.0,
+                        share_home=0.45, share_away=0.45, counts={}, context={},
+                        markets={"1X2||home": [0.6, 0, 0, 0], "1X2||draw": [0.25, 0, 0, 0]},
+                    )
+                )  # fmt: skip
+            await session.commit()
+            all_offers = await service.match_offers(session, [m1, m2], NOW)
+            # Préparées : seulement les sélections utilisables (probabilité du moteur connue).
+            direct = {
+                m: {k: o for k, o in all_offers[m].items() if k in ("1X2||home", "1X2||draw")}
+                for m in (m1, m2)
+            }
             assert await playable.refresh(session, redis, NOW) >= 2
-            offers, _ = await playable.load(session, [m1, m2], NOW, redis)
+            offers, probs = await playable.load(session, [m1, m2], NOW, redis)
             assert offers == direct
+            assert probs[m1] == {"1X2||home": 0.6, "1X2||draw": 0.25}
 
             # Lu tout prêt : aucun calcul des cotes.
             async def fail(*_: Any, **__: Any) -> Any:

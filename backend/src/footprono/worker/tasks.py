@@ -326,6 +326,23 @@ def _catch_up_on_start(sender: Any = None, **_: Any) -> None:
     if getattr(sender, "app", None) is not celery_app:
         return
     predict_if_needed.apply_async(countdown=30)
+    # Après une mise à jour du serveur, les sélections jouables sont préparées tout de
+    # suite (sinon le Coupon intelligent attendait la collecte des cotes suivante, 3 h).
+    refresh_playable.apply_async(countdown=20)
+
+
+@celery_app.task(name="footprono.refresh_playable")
+def refresh_playable() -> dict[str, Any]:
+    """Sélections jouables préparées (bookmaker/playable.py)."""
+    return asyncio.run(_refresh_playable_task())
+
+
+async def _refresh_playable_task() -> dict[str, Any]:
+    engine = create_engine(get_settings())
+    try:
+        return await _refresh_playable(engine, get_settings())
+    finally:
+        await engine.dispose()
 
 
 @celery_app.task(name="footprono.premium_reminders")
