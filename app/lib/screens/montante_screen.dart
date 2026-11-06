@@ -1123,21 +1123,28 @@ class _MontanteDetailScreenState extends State<MontanteDetailScreen> {
 
 // --- Pari du palier : suggestions ----------------------------------------------
 
-class SuggestionsScreen extends StatelessWidget {
+class SuggestionsScreen extends StatefulWidget {
   const SuggestionsScreen({super.key, required this.montanteId});
   final int montanteId;
 
+  @override
+  State<SuggestionsScreen> createState() => _SuggestionsScreenState();
+}
+
+class _SuggestionsScreenState extends State<SuggestionsScreen> {
+  int get montanteId => widget.montanteId;
+
+  /// Demandé une seule fois : le calcul étudie toute la période (plusieurs secondes).
+  late final Future<(Json, Map<int, MatchInfo>)> _loading = _load(context.read<AppState>().api);
+
   Future<(Json, Map<int, MatchInfo>)> _load(ApiClient api) async {
-    final data = await api.get('/montantes/$montanteId/suggestions') as Json;
+    final data = await api.get('/montantes/$montanteId/suggestions', null, ApiClient.slowTimeout) as Json;
     final ids = <int>{
       for (final s in data['suggestions'] as List)
         for (final sel in s['selections'] as List) sel['match_id'] as int,
-    };
-    final matches = <int, MatchInfo>{};
-    for (final id in ids) {
-      matches[id] = MatchInfo(await api.get('/matches/$id') as Json);
-    }
-    return (data, matches);
+    }.toList();
+    final infos = await Future.wait([for (final id in ids) api.get('/matches/$id')]);
+    return (data, {for (final (i, id) in ids.indexed) id: MatchInfo(infos[i] as Json)});
   }
 
   Future<void> _play(BuildContext context, Json suggestion, Json data) async {
@@ -1181,13 +1188,12 @@ class SuggestionsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.read<AppState>();
     const padding = EdgeInsets.fromLTRB(18, 16, 18, 32);
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: FutureBuilder<(Json, Map<int, MatchInfo>)>(
-          future: _load(state.api),
+          future: _loading,
           builder: (context, snap) {
             const header = Padding(
               padding: EdgeInsets.only(bottom: 16),
@@ -1198,7 +1204,7 @@ class SuggestionsScreen extends StatelessWidget {
                 padding: padding,
                 children: const [
                   header,
-                  Center(child: CircularProgressIndicator()),
+                  SlowWait(what: 'les matchs des prochains jours'),
                 ],
               );
             }

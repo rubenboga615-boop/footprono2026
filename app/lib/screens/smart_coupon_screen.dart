@@ -88,7 +88,9 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
   int hour = 0;
   final Set<String> competitions = {};
   final Set<int> excludedMatches = {};
-  bool busy = false;
+  bool composing = false; // le moteur compose le coupon
+  String? adding; // « Ajout 3 / 7… » pendant l'ajout au coupon
+  bool get busy => composing || adding != null;
   bool more = false; // « Plus de réglages » ouvert
   Json? result;
   Object? error;
@@ -107,7 +109,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
   Future<void> _generate() async {
     final state = context.read<AppState>();
     setState(() {
-      busy = true;
+      composing = true;
       error = null;
     });
     try {
@@ -120,7 +122,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
         if (_period == 'range') ...{'date_from': _iso(day), 'date_to': _iso(rangeTo ?? day)},
         if (SmartCouponScreen.hours[hour].$1 != null) 'after_hour': '${SmartCouponScreen.hours[hour].$1}',
       };
-      final r = await state.api.get(_withLists(query)) as Json;
+      final r = await state.api.get(_withLists(query), null, ApiClient.slowTimeout) as Json;
       if (mounted) setState(() => result = r);
     } on ApiException catch (e) {
       // Premium terminé ou retiré depuis la dernière mise à jour : le profil est relu,
@@ -130,7 +132,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
     } catch (e) {
       if (mounted) setState(() => error = e);
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted) setState(() => composing = false);
     }
   }
 
@@ -218,11 +220,17 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
   }
 
   Future<void> _addToCoupon(List<Json> selections) async {
-    setState(() => busy = true);
+    setState(() => adding = 'Ajout…');
     try {
-      await addSelectionsToCoupon(context.read<AppState>(), selections);
+      await addSelectionsToCoupon(
+        context.read<AppState>(),
+        selections,
+        onProgress: (done, total) {
+          if (mounted) setState(() => adding = 'Ajout $done / $total…');
+        },
+      );
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted) setState(() => adding = null);
     }
   }
 
@@ -355,7 +363,11 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                           InputChip(label: Text(e.value), onDeleted: () => state.includeTeam(e.key)),
                         if (excludedMatches.isNotEmpty)
                           InputChip(
-                            label: Text('${excludedMatches.length} match(s) écarté(s)'),
+                            label: Text(
+                              excludedMatches.length == 1
+                                  ? '1 match écarté'
+                                  : '${excludedMatches.length} matchs écartés',
+                            ),
                             onDeleted: () => setState(excludedMatches.clear),
                           ),
                       ],
@@ -364,8 +376,9 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                   const SizedBox(height: 10),
                   FilledButton(
                     onPressed: busy ? null : _generate,
-                    child: Text(busy ? 'Recherche…' : 'Composer le coupon'),
+                    child: Text(composing ? 'Recherche…' : 'Composer le coupon'),
                   ),
+                  if (composing) const SlowWait(),
                 ],
                 [
                   const SizedBox(height: 14),
@@ -400,7 +413,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                         Expanded(
                           child: FilledButton(
                             onPressed: busy ? null : () => _addToCoupon(_sels(coupon)),
-                            child: const Text('Ajouter au coupon'),
+                            child: Text(adding ?? 'Ajouter au coupon'),
                           ),
                         ),
                       ],
@@ -881,18 +894,32 @@ class _SmartHistoryScreenState extends State<SmartHistoryScreen> {
 
 /// Ajoute des sélections (coupon intelligent ou coupon du jour) au coupon personnel, aux
 /// cotes actuelles relues sur le serveur ; une sélection sans cote disponible est comptée.
-Future<void> addSelectionsToCoupon(AppState state, List<Json> selections) async {
+Future<void> addSelectionsToCoupon(
+  AppState state,
+  List<Json> selections, {
+  void Function(int done, int total)? onProgress,
+}) async {
+  // Match et cotes du moment de chaque sélection, tous demandés en même temps : l'un après
+  // l'autre, 7 sélections prenaient 15 secondes sans aucun signe (essai réel du 06/11/2026).
+  var done = 0;
+  final total = selections.length;
+  onProgress?.call(0, total);
+  Future<(MatchInfo, Offer?)> load(Json s) async {
+    final id = s['match_id'] as int;
+    final key = '${s['market']}|${s['line'] ?? ''}|${s['selection']}';
+    final got = await Future.wait([state.api.get('/matches/$id'), state.api.get('/matches/$id/offer')]);
+    onProgress?.call(++done, total);
+    final offer = [for (final o in got[1] as List) Offer(o as Json)].where((o) => o.key == key).firstOrNull;
+    return (MatchInfo(got[0] as Json), offer);
+  }
+
   var added = 0, missing = 0;
   try {
-    for (final s in selections) {
-      final id = s['match_id'] as int;
-      final match = MatchInfo(await state.api.get('/matches/$id') as Json);
-      final key = '${s['market']}|${s['line'] ?? ''}|${s['selection']}';
-      final offers = [for (final o in await state.api.get('/matches/$id/offer') as List) Offer(o as Json)];
-      final offer = offers.where((o) => o.key == key).firstOrNull;
+    // Ajoutées dans l'ordre du coupon proposé, une fois tout reçu.
+    for (final (match, offer) in await Future.wait(selections.map(load))) {
       if (offer == null) {
         missing++;
-      } else if (!state.inCoupon(id, key)) {
+      } else if (!state.inCoupon(match.id, offer.key)) {
         state.toggleCoupon(match, offer);
         added++;
       }

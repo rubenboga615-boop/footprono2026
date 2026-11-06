@@ -34,6 +34,11 @@ class ApiClient {
   http.Client get httpClient => _http;
   static const timeout = Duration(seconds: 20);
 
+  /// Calculs du moteur sur toute une période (coupon intelligent, suggestions de montante) :
+  /// plusieurs centaines de matchs à étudier, parfois plus de 20 secondes quand le serveur
+  /// est chargé. L'écran explique l'attente (``SlowWait``) au lieu d'abandonner trop tôt.
+  static const slowTimeout = Duration(seconds: 60);
+
   Uri uri(String path, [Map<String, Object?>? query]) {
     final root = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
     // Une liste devient un paramètre répété (?match_ids=1&match_ids=2).
@@ -59,21 +64,21 @@ class ApiClient {
     if (token != null) 'Authorization': 'Bearer $token',
   };
 
-  Future<dynamic> get(String path, [Map<String, Object?>? query]) =>
-      _send(() => _http.get(uri(path, query), headers: _headers));
+  Future<dynamic> get(String path, [Map<String, Object?>? query, Duration? wait]) =>
+      _send(() => _http.get(uri(path, query), headers: _headers), wait ?? timeout);
 
   Future<dynamic> post(String path, [Object? body]) =>
-      _send(() => _http.post(uri(path), headers: _headers, body: jsonEncode(body ?? const {})));
+      _send(() => _http.post(uri(path), headers: _headers, body: jsonEncode(body ?? const {})), timeout);
 
-  Future<dynamic> delete(String path) => _send(() => _http.delete(uri(path), headers: _headers));
+  Future<dynamic> delete(String path) => _send(() => _http.delete(uri(path), headers: _headers), timeout);
 
   Future<dynamic> put(String path, [Object? body]) =>
-      _send(() => _http.put(uri(path), headers: _headers, body: jsonEncode(body ?? const {})));
+      _send(() => _http.put(uri(path), headers: _headers, body: jsonEncode(body ?? const {})), timeout);
 
-  Future<dynamic> _send(Future<http.Response> Function() request) async {
+  Future<dynamic> _send(Future<http.Response> Function() request, Duration wait) async {
     final http.Response res;
     try {
-      res = await request().timeout(timeout);
+      res = await request().timeout(wait);
     } on TimeoutException {
       throw ApiException(
         0,

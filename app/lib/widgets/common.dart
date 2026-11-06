@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -333,5 +335,69 @@ Future<T?> guard<T>(
         ..showSnackBar(SnackBar(content: Text(e.message), backgroundColor: const Color(0xFF3A1430)));
     }
     return null;
+  }
+}
+
+/// Attente d'un calcul du moteur sur toute une période (coupon intelligent, suggestions) :
+/// une roue, puis une explication qui change avec le temps, pour que le joueur sache que
+/// rien n'est bloqué (essai réel du 06/11/2026 : 18 s avec « Recherche… » pour seul signe).
+class SlowWait extends StatefulWidget {
+  const SlowWait({super.key, this.what = 'les matchs de la période'});
+  final String what;
+
+  /// Message affiché après ``seconds`` secondes d'attente.
+  static String message(int seconds, String what) {
+    if (seconds >= 30) {
+      return 'Le serveur est très occupé. Tu peux encore patienter un peu ou réessayer plus tard.';
+    }
+    if (seconds >= 12) return 'Encore quelques secondes : il y a beaucoup de matchs à étudier.';
+    if (seconds >= 4) return 'Le moteur étudie $what…';
+    return 'Recherche…';
+  }
+
+  @override
+  State<SlowWait> createState() => _SlowWaitState();
+}
+
+class _SlowWaitState extends State<SlowWait> {
+  int seconds = 0;
+  Timer? timer;
+
+  @override
+  void initState() {
+    super.initState();
+    timer = Timer.periodic(const Duration(seconds: 1), (_) => setState(() => seconds++));
+  }
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2.2, color: Fp.accentLight),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                SlowWait.message(seconds, widget.what),
+                style: Fp.body(13, color: Fp.text2, height: 1.4),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
