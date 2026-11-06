@@ -271,6 +271,8 @@ async def predict_upcoming(
         "postponed": int(skipped.sum()),
         # Championnats en pause (résultats manquants) : aucun pronostic publié.
         "stale": stale,
+        # xG Understat absents (site en panne) remplacés par ceux d'API-Football.
+        "xg_api_filled": hist.api_xg_filled,
         # Matchs examinés (prédits ou écartés) : un match à venir absent de cette
         # liste est nouveau et déclenche une nouvelle exécution (prediction_needed).
         "window": [int(x) for x in hist.match_id[window]],

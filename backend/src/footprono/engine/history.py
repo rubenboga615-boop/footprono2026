@@ -1,7 +1,8 @@
 """Historique des matchs en tableaux numpy, chargé depuis la base.
 
-Une ligne par match ; les valeurs absentes sont ``nan``. Aucune donnée n'est
-complétée : un match sans xG garde ``nan`` et le modèle en tient compte.
+Une ligne par match ; les valeurs absentes sont ``nan``. Seule donnée complétée : les
+xG Understat absents, remplacés par ceux d'API-Football remis au niveau Understat
+(``fill_api_xg``). Un match sans aucun xG garde ``nan`` et le modèle en tient compte.
 """
 
 from dataclasses import dataclass, field
@@ -54,6 +55,8 @@ class History:
     # Passes dangereuses (« deep », Understat) : vides si non chargées.
     hdeep: FloatArray = field(default_factory=lambda: np.array([], dtype=np.float64))
     adeep: FloatArray = field(default_factory=lambda: np.array([], dtype=np.float64))
+    # Matchs dont les xG Understat absents ont été remplacés par ceux d'API-Football.
+    api_xg_filled: int = 0
 
     def __len__(self) -> int:
         return len(self.match_id)
@@ -93,7 +96,8 @@ _MATCHES = text(
            CASE WHEN src.api THEN sa.shots_on_goal ELSE m.away_shots_on_target END,
            CASE WHEN src.api THEN sh.fouls ELSE m.home_fouls END,
            CASE WHEN src.api THEN sa.fouls ELSE m.away_fouls END,
-           m.api_referee, m.referee, xh.deep AS hdeep, xa.deep AS adeep, m.api_status
+           m.api_referee, m.referee, xh.deep AS hdeep, xa.deep AS adeep, m.api_status,
+           sh.expected_goals, sa.expected_goals
     FROM matches m
     JOIN seasons s ON s.id = m.season_id
     JOIN competitions c ON c.id = s.competition_id
@@ -215,11 +219,56 @@ async def load_history(session: AsyncSession) -> History:
                 for col, price in prices.items():
                     hist.odds[f"{timing}_{key}"][i, col] = price
                 break
+    hist.api_xg_filled = fill_api_xg(
+        hist, np.array([_nan(r[32]) for r in rows]), np.array([_nan(r[33]) for r in rows])
+    )
     # Championnats de niveau 2 : xG « maison » tirés des tirs (engine/tiers.py).
     from footprono.engine.tiers import apply_shot_xg
 
     apply_shot_xg(hist)
     return hist
+
+
+# Remplacement des xG Understat absents (site en panne depuis le 20 septembre 2026) :
+# rapport Understat / API-Football sur les matchs qui ont les deux, dans l'année qui
+# précède chaque match, et au moins API_XG_MIN_MATCHES matchs pour l'estimer.
+API_XG_WINDOW_DAYS = 365
+API_XG_MIN_MATCHES = 100
+
+
+def fill_api_xg(hist: History, api_h: FloatArray, api_a: FloatArray) -> int:
+    """Complète sur place les xG Understat absents avec ceux d'API-Football.
+
+    Les xG d'API-Football suivent ceux d'Understat (corrélation 0,94) mais sont plus bas
+    (1,40 contre 1,52 par équipe et par match) : multipliés, championnat par championnat,
+    par le rapport des deux sur l'année précédente (calculé avant le match : jamais de
+    données futures). Panne simulée sur 2023-2025 (docs/MOTEUR.md) : meilleur que les
+    buts seuls sur chaque saison et chaque marché, presque au niveau d'Understat.
+    Les passes dangereuses (« deep ») restent absentes. Renvoie le nombre de matchs complétés.
+    """
+    filled = 0
+    has_api = ~np.isnan(api_h) & ~np.isnan(api_a)
+    has_us = ~np.isnan(hist.hxg) & ~np.isnan(hist.axg)
+    for comp in np.unique(hist.competition):
+        c = hist.competition == comp
+        both = np.where(c & has_us & has_api)[0]
+        todo = np.where(c & ~has_us & has_api)[0]
+        if not len(both) or not len(todo):
+            continue
+        days = hist.date[both]  # l'historique est trié par date
+        us_sum = np.concatenate([[0.0], np.cumsum(hist.hxg[both] + hist.axg[both])])
+        api_sum = np.concatenate([[0.0], np.cumsum(api_h[both] + api_a[both])])
+        end = np.searchsorted(days, hist.date[todo], side="left")
+        start = np.searchsorted(
+            days, hist.date[todo] - np.timedelta64(API_XG_WINDOW_DAYS, "D"), side="left"
+        )
+        for i, lo, hi in zip(todo, start, end, strict=True):
+            if hi - lo < API_XG_MIN_MATCHES:
+                continue
+            k = (us_sum[hi] - us_sum[lo]) / max(api_sum[hi] - api_sum[lo], 1e-9)
+            hist.hxg[i], hist.axg[i] = k * api_h[i], k * api_a[i]
+            filled += 1
+    return filled
 
 
 def season_start(start_year: int) -> np.datetime64:

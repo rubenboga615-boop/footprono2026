@@ -1042,3 +1042,39 @@ jour.
 Correction : `footprono-engine backtest/audit/calibration` avec la couche de correction
 échouaient pour un championnat commençant en 2018 (sa première saison, sans passé, était
 prédite) ; la première saison de chaque championnat n'est plus évaluée.
+
+## xG d'API-Football à la place d'Understat en panne (06/11/2026)
+
+Understat ne répond plus (le site lui-même affiche « Nous reviendrons bientôt ») : dernier
+xG le 20/09/2026, 203 matchs des 5 grands championnats sans xG au 06/11/2026. Le moteur
+prenait alors les vrais buts (un match sans xG garde ses buts : goals.py, masque `ok`).
+
+Les xG d'API-Football arrivent déjà avec les statistiques de match (aucune requête de
+plus) : corrélation 0,94 avec Understat sur 12 874 matchs communs, mais plus bas (1,40
+contre 1,52 par équipe et par match). Ils sont donc multipliés, championnat par
+championnat, par le rapport Understat / API-Football de l'année qui précède chaque match
+(au moins 100 matchs avec les deux ; jamais de données futures). Les passes dangereuses
+(« deep », Understat seulement) restent absentes.
+
+Panne simulée sur 2023-24, 2024-25 et 2025-26 (xG API-Football complets depuis 2023) :
+à partir du 20 septembre, xG Understat retirés jusqu'à la fin de la saison. Modèle de
+production (buts + correction), mêmes matchs (4 663) ; A = buts seuls, B = xG
+API-Football, C = Understat complet (référence). Log loss :
+
+| | C (Understat) | A (buts seuls) | B (API-Football) | gain B sur A (IC 95 %) |
+|---|---|---|---|---|
+| 1X2 | 0,9812 | 0,9865 | 0,9825 | +0,41 % [+0,12 ; +0,69] |
+| Plus/moins 2,5 | 0,6728 | 0,6785 | 0,6732 | +0,77 % [+0,43 ; +1,11] |
+| Les deux marquent | 0,6835 | 0,6865 | 0,6835 | +0,43 % [+0,17 ; +0,69] |
+
+- B meilleur que A sur chaque saison et chaque marché (le plus faible : +0,17 %), et dans
+  chaque championnat (Serie A 1X2 : égalité, +0,02 %).
+- Sept premières semaines seulement (situation du 06/11/2026, 922 matchs) : mêmes gains.
+- B presque au niveau d'Understat : +0,13 % en 1X2, +0,07 % en plus/moins 2,5, égal en
+  « les deux marquent ».
+- Calibration 1X2 de B : toutes les tranches à moins de 3 points (ou 2σ) de l'observé.
+
+En service : `history.fill_api_xg` ; nombre de matchs complétés dans le rapport de
+chaque calcul (`xg_api_filled`). Au retour d'Understat, ses xG reprennent la main
+d'eux-mêmes (le remplacement ne touche que les matchs sans xG Understat). Le classement
+« mérité » (football/team_stats.py) lit Understat seul et garde son avertissement.
