@@ -20,6 +20,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     SmallInteger,
@@ -289,6 +290,12 @@ class BookmakerOdds(Base):
     """
 
     __tablename__ = "bookmaker_odds"
+    # Dernier relevé des seuls bookmakers jouables, sans lire les autres (migration 0029).
+    __table_args__ = (
+        Index(
+            "ix_bookmaker_odds_match_bookmaker_bet", "match_id", "bookmaker", "bet", "value", "id"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)

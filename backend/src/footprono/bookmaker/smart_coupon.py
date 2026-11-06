@@ -235,13 +235,12 @@ async def _candidates(
 async def window_candidates(
     session: AsyncSession, start: datetime, end: datetime, now: datetime, filters: Filters
 ) -> list[list[Pick]]:
-    """Sélections jouables de chaque match de la période (deux requêtes en tout)."""
+    """Sélections jouables de chaque match de la période (cache de quelques minutes)."""
     rows = [
         r for r in await _matches(session, start, end, filters.competitions) if filters.keeps(r[0])
     ]
     ids = [m.id for m, *_ in rows]
-    offers = await service.match_offers(session, ids, now)
-    probs = await service.models_probabilities(session, ids)
+    offers, probs = await service.cached_offers_and_probabilities(session, ids, now)
     return [
         _picks(m, home, away, comp, offers.get(m.id, {}), probs.get(m.id, {}))
         for m, home, away, comp in rows

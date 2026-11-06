@@ -5,7 +5,10 @@ Cotes : **réelles**, dernier relevé 1xBet de la sélection, Bet365 en secours
 jouable : aucune cote n'est inventée.
 """
 
+import asyncio
 import math
+import time
+import weakref
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -145,16 +148,58 @@ async def models_probabilities(
     """Dernière prédiction de plusieurs matchs en une requête : {match: {clé: proba}}."""
     if not match_ids:
         return {}
-    preds = await session.scalars(
-        select(MatchPrediction)
+    # Les marchés seulement : chaque version complète (contexte, moyennes) est lourde.
+    preds = await session.execute(
+        select(MatchPrediction.match_id, MatchPrediction.markets)
         .where(MatchPrediction.match_id.in_(list(match_ids)))
         .order_by(MatchPrediction.match_id, MatchPrediction.run_id.desc())
         .distinct(MatchPrediction.match_id)
     )
     return {
-        p.match_id: {k: Selection(*row).effective_probability for k, row in p.markets.items()}
-        for p in preds
+        match_id: {k: Selection(*row).effective_probability for k, row in markets.items()}
+        for match_id, markets in preds.tuples()
     }
+
+
+# Cotes et pronostics d'une période, gardés quelques minutes pour le Coupon intelligent,
+# les coupons du jour et les suggestions de montante. Avant : 16 à 19 secondes par demande
+# en production (06/11/2026), recalculées à chaque joueur et à chaque profil. Les cotes sont
+# relevées toutes les 3 heures : 10 minutes de retard au plus ne changent pas le coupon, et
+# la cote est toujours relue au moment du pari (``place_bet`` ne passe pas par ce cache).
+WINDOW_CACHE_TTL = 600.0  # secondes
+_window_cache: dict[int, tuple[float, dict[str, Offer], dict[str, float]]] = {}
+_window_locks: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock] = (
+    weakref.WeakKeyDictionary()
+)  # un verrou par boucle d'événements (les tests en créent plusieurs)
+
+
+def clear_window_cache() -> None:
+    _window_cache.clear()
+
+
+async def cached_offers_and_probabilities(
+    session: AsyncSession, match_ids: Sequence[int], now: datetime | None = None
+) -> tuple[dict[int, dict[str, Offer]], dict[int, dict[str, float]]]:
+    """``match_offers`` et ``models_probabilities``, avec un cache de quelques minutes par match.
+
+    Seuls les matchs absents ou expirés sont relus, en deux requêtes. Un verrou évite que
+    plusieurs joueurs arrivés en même temps relisent tous la même période."""
+    lock = _window_locks.setdefault(asyncio.get_running_loop(), asyncio.Lock())
+    async with lock:
+        clock = time.monotonic()
+        for mid in [m for m, (at, *_) in _window_cache.items() if clock - at > WINDOW_CACHE_TTL]:
+            del _window_cache[mid]
+        missing = [m for m in dict.fromkeys(match_ids) if m not in _window_cache]
+        if missing:
+            offers = await match_offers(session, missing, now)
+            probs = await models_probabilities(session, missing)
+            for m in missing:
+                _window_cache[m] = (clock, offers.get(m, {}), probs.get(m, {}))
+        found = [(m, _window_cache[m]) for m in match_ids]
+    return (
+        {m: offers for m, (_, offers, _) in found if offers},
+        {m: probs for m, (_, _, probs) in found if probs},
+    )
 
 
 def _check_open(match: Match, now: datetime) -> None:

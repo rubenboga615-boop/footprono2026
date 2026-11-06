@@ -88,6 +88,9 @@ def migrated_database() -> None:
 
 @pytest.fixture
 async def db_engine(migrated_database: None) -> AsyncIterator[AsyncEngine]:
+    from footprono.bookmaker.service import clear_window_cache
+
+    clear_window_cache()  # cotes gardées quelques minutes : jamais d'un test à l'autre
     engine = create_engine(make_settings())
     async with engine.begin() as conn:
         await conn.execute(text(f"TRUNCATE {_DATA_TABLES} RESTART IDENTITY CASCADE"))

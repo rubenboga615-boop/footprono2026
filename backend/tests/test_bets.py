@@ -230,3 +230,35 @@ async def test_offers_of_several_matches_at_once(
         assert set(both[m1]) == {"1X2||draw", "1X2||away", "OU|2.5|over"}
         assert set(both[m2]) == {"1X2||home", "1X2||draw", "1X2||away"}
         assert await service.match_offers(session, []) == {}
+
+
+async def test_window_cache_keeps_odds_a_few_minutes(
+    world: dict[str, Any], db_factory: Factory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Coupon intelligent : cotes d'une période gardées quelques minutes (un seul calcul pour
+    tous les joueurs et tous les profils), relues ensuite ; la cote du pari reste la vraie."""
+    import time
+
+    from footprono.bookmaker import service
+
+    m1 = world["m1"]
+    clock = [1000.0]
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+    async with db_factory() as session:
+        offers, probs = await service.cached_offers_and_probabilities(session, [m1, 999_999], NOW)
+        assert offers[m1]["1X2||home"].odds == Decimal("1.85")
+        assert 999_999 not in offers
+        assert probs == {}
+        await session.execute(
+            update(BookmakerOdds)
+            .where(BookmakerOdds.match_id == m1, BookmakerOdds.value == "Home")
+            .values(price=Decimal("2.10"))
+        )
+        await session.commit()
+        clock[0] += service.WINDOW_CACHE_TTL - 1  # encore dans le cache
+        offers, _ = await service.cached_offers_and_probabilities(session, [m1], NOW)
+        assert offers[m1]["1X2||home"].odds == Decimal("1.85")
+        assert (await service.match_offer(session, m1, NOW))["1X2||home"].odds == Decimal("2.10")
+        clock[0] += 2  # expiré : relu
+        offers, _ = await service.cached_offers_and_probabilities(session, [m1], NOW)
+        assert offers[m1]["1X2||home"].odds == Decimal("2.10")

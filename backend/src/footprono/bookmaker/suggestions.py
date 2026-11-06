@@ -52,8 +52,7 @@ async def _candidates(session: AsyncSession, high: Decimal, now: datetime) -> li
     ).all()
     out = []
     ids = [m.id for m in matches]
-    all_offers = await service.match_offers(session, ids, now)
-    all_probs = await service.models_probabilities(session, ids)
+    all_offers, all_probs = await service.cached_offers_and_probabilities(session, ids, now)
     for match in matches:
         offers, probs = all_offers.get(match.id, {}), all_probs.get(match.id, {})
         for k, offer in offers.items():
