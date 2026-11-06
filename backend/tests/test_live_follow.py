@@ -144,6 +144,8 @@ async def test_follow_live_updates_score_then_finishes(
         MatchStatus.SCHEDULED, "2H", 67,
     )  # fmt: skip
     assert (playing.live_home_goals, playing.live_away_goals) == (1, 0)
+    # Coup d'envoi d'API-Football repris à chaque passage (15 h 00, pas 15 h 10 en base).
+    assert playing.kickoff_at == datetime(2025, 5, 25, 15, 0, tzinfo=UTC)
     assert (done.status, done.home_goals, done.away_goals) == (MatchStatus.FINISHED, 9, 9)
     assert (done.home_goals_ht, done.result_source) == (4, "api_football")
     assert n_stats == 6  # 2 équipes x 3 périodes

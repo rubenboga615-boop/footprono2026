@@ -47,6 +47,7 @@ from footprono.football.analysis import match_analysis
 from footprono.football.models import Competition, Match, MatchStatus, Season, Team
 from footprono.ingestion.live import LIVE_STATUSES
 from footprono.notifications import service as notifications
+from footprono.predictions.models import MatchPrediction
 
 
 @dataclass(frozen=True)
@@ -331,42 +332,74 @@ def _avg(x: float | None) -> str:
 
 
 def _form(results: list[dict[str, Any]]) -> str:
+    """Forme, le plus récent à droite (même ordre partout dans l'application)."""
     letters = {"W": "V", "D": "N", "L": "D"}
-    return "".join(letters[r["result"]] for r in results) or "—"
+    return "".join(letters[r["result"]] for r in reversed(results)) or "—"
 
 
 def reasons(analysis: dict[str, Any], pick: Pick) -> list[str]:
-    """Deux faits au plus qui éclairent la sélection (aucune opinion)."""
+    """Deux faits au plus qui éclairent la sélection (aucune opinion), toujours sur ce que
+    le pari compte : jamais des buts pour un pari sur les corners (essai réel du 06/11/2026).
+
+    Paris sur les buts : d'abord les buts attendus par le moteur pour ce match (la base de
+    sa probabilité), puis les buts par match des deux équipes cette saison."""
     market = pick.offer.market
     sh, sa = analysis["season"]["home"], analysis["season"]["away"]
     home, away = pick.home, pick.away
     out: list[str] = []
-    if market.startswith(("CORNERS_",)):
-        out.append(f"Corners par match cette saison : {home} {_avg(sh.get('corners'))}, "
-                   f"{away} {_avg(sa.get('corners'))}")  # fmt: skip
-    elif market.startswith(("SHOTS_", "SOT_")):
-        out.append(f"Tirs cadrés par match : {home} {_avg(sh.get('shots_on_target'))}, "
-                   f"{away} {_avg(sa.get('shots_on_target'))}")  # fmt: skip
-    elif market in ("1X2", "DC", "EH", "AH", "HT_1X2", "DNB", "WIN_TO_NIL"):
-        out.append(f"Forme (5 derniers) : {home} {_form(analysis['form']['home'])}, "
-                   f"{away} {_form(analysis['form']['away'])}")  # fmt: skip
-        out.append(f"Buts marqués / encaissés par match : {home} {_avg(sh.get('goals_for'))} / "
-                   f"{_avg(sh.get('goals_against'))}, {away} {_avg(sa.get('goals_for'))} / "
-                   f"{_avg(sa.get('goals_against'))}")  # fmt: skip
-    else:  # buts : total, par équipe, les deux marquent, clean sheet, mi-temps
-        out.append(f"Buts par match (marqués + encaissés) : {home} "
-                   f"{_avg(_sum(sh.get('goals_for'), sh.get('goals_against')))}, {away} "
-                   f"{_avg(_sum(sa.get('goals_for'), sa.get('goals_against')))}")  # fmt: skip
-        if sh.get("xg_for") is not None and sa.get("xg_for") is not None:
+
+    def per_match(label: str, h: float | None, a: float | None) -> None:
+        if h is not None and a is not None:
+            out.append(f"{label} : {home} {_avg(h)}, {away} {_avg(a)}")
+
+    if market.startswith("CORNERS_"):
+        per_match("Corners par match (obtenus + concédés) cette saison",
+                  _sum(sh.get("corners"), sh.get("corners_against")),
+                  _sum(sa.get("corners"), sa.get("corners_against")))  # fmt: skip
+        per_match("Corners obtenus par match", sh.get("corners"), sa.get("corners"))
+    elif market.startswith(("CARDS_", "BOOKING_")):
+        per_match("Cartons reçus par match cette saison", sh.get("cards"), sa.get("cards"))
+    elif market.startswith("SOT_"):
+        per_match("Tirs cadrés par match cette saison",
+                  sh.get("shots_on_target"), sa.get("shots_on_target"))  # fmt: skip
+    elif market.startswith("SHOTS_"):
+        per_match("Tirs par match cette saison", sh.get("shots"), sa.get("shots"))
+    else:
+        expected = analysis.get("expected_goals")
+        if expected is not None:
+            lh, la = expected
             out.append(
-                f"xG créés par match : {home} {_avg(sh['xg_for'])}, {away} {_avg(sa['xg_for'])}"
+                f"Buts attendus par le moteur : {home} {_avg(lh)}, {away} {_avg(la)} "
+                f"({_avg(lh + la)} au total)"
             )
-    h2h = analysis["head_to_head"]
-    if len(out) < 2 and h2h:
-        goals = [sum(int(x) for x in m["score"].split("-")) for m in h2h]
-        out.append(f"{len(h2h)} dernières confrontations : {sum(goals) / len(goals):.1f} buts "
-                   "par match".replace(".", ","))  # fmt: skip
+        if market in ("1X2", "DC", "EH", "AH", "HT_1X2", "DNB", "WIN_TO_NIL"):
+            out.append(f"Forme (5 derniers, le plus récent à droite) : {home} "
+                       f"{_form(analysis['form']['home'])}, {away} "
+                       f"{_form(analysis['form']['away'])}")  # fmt: skip
+        else:  # buts : total, par équipe, les deux marquent, clean sheet, mi-temps
+            per_match("Buts par match (marqués + encaissés) cette saison",
+                      _sum(sh.get("goals_for"), sh.get("goals_against")),
+                      _sum(sa.get("goals_for"), sa.get("goals_against")))  # fmt: skip
+        h2h = analysis["head_to_head"]
+        if len(out) < 2 and h2h:
+            goals = [sum(int(x) for x in m["score"].split("-")) for m in h2h]
+            out.append(f"{len(h2h)} dernières confrontations : {sum(goals) / len(goals):.1f} "
+                       "buts par match".replace(".", ","))  # fmt: skip
     return out[:2]
+
+
+async def _analysis(session: AsyncSession, match_id: int) -> dict[str, Any]:
+    """Faits du match, avec les buts attendus par le moteur (dernière prédiction)."""
+    analysis = await match_analysis(session, match_id)
+    pred = await session.scalar(
+        select(MatchPrediction)
+        .where(MatchPrediction.match_id == match_id)
+        .order_by(MatchPrediction.run_id.desc())
+        .limit(1)
+    )
+    if pred is not None:
+        analysis["expected_goals"] = (pred.lambda_home, pred.lambda_away)
+    return analysis
 
 
 def _sum(a: float | None, b: float | None) -> float | None:
@@ -511,9 +544,7 @@ async def generate(
                 return out
     total, probability = summarize(chosen)
     out["coupon"] = {
-        "selections": [
-            _selection_out(pk, await match_analysis(session, pk.match.id)) for pk in chosen
-        ],
+        "selections": [_selection_out(pk, await _analysis(session, pk.match.id)) for pk in chosen],
         "total_odds": total,
         "probability": round(probability, 6),
         "implied_probability": round(float(1 / total), 6),
@@ -521,7 +552,7 @@ async def generate(
         "one_in": max(1, round(1 / probability)) if probability > 0 else None,
     }
     out["alternatives"] = [
-        _selection_out(pk, await match_analysis(session, pk.match.id)) for pk in others
+        _selection_out(pk, await _analysis(session, pk.match.id)) for pk in others
     ]
     return out
 
@@ -727,14 +758,24 @@ BOOKING_CODE = re.compile(r"^[A-Z0-9]{4,16}$")
 WON_RESULTS = frozenset({"win", "half_win"})
 
 
-def live_state(selection: dict[str, Any], match: Match | None) -> dict[str, Any]:
-    """État d'une sélection pour l'affichage : réglée, en cours (minute, score) ou à venir."""
+def live_state(
+    selection: dict[str, Any],
+    match: Match | None,
+    counts: dict[tuple[int, str], tuple[int, int]] | None = None,
+) -> dict[str, Any]:
+    """État d'une sélection pour l'affichage : réglée, en cours (minute, score) ou à venir.
+    Marché de comptage terminé : ses corners (cartons, tirs) en plus du score
+    (``count`` et ``count_label``, voir ``settlement.finished_counts``)."""
     result = selection.get("result", "pending")
     out: dict[str, Any] = {"state": "settled" if result != "pending" else "upcoming"}
     if match is None:
         return out
     if match.status is MatchStatus.FINISHED:
         out["score"] = [match.home_goals, match.away_goals]
+        stat = settlement.count_stat(selection.get("market", ""))
+        if stat is not None and counts and (match.id, stat) in counts:
+            out["count"] = list(counts[(match.id, stat)])
+            out["count_label"] = settlement.COUNT_LABELS[stat]
         if result == "pending":
             out["state"] = "finished"  # résultat connu, règlement au prochain passage
     elif match.api_status in LIVE_STATUSES:
@@ -751,11 +792,16 @@ def _locked(coupon: SmartCoupon, premium: bool) -> bool:
 
 
 def _coupon_out(
-    coupon: SmartCoupon, matches: dict[int, Match], *, premium: bool = True
+    coupon: SmartCoupon,
+    matches: dict[int, Match],
+    *,
+    premium: bool = True,
+    counts: dict[tuple[int, str], tuple[int, int]] | None = None,
 ) -> dict[str, Any]:
     locked = _locked(coupon, premium)
     selections = [
-        {**sel, **live_state(sel, matches.get(sel["match_id"]))} for sel in coupon.selections
+        {**sel, **live_state(sel, matches.get(sel["match_id"]), counts)}
+        for sel in coupon.selections
     ]
     validated = sum(sel.get("result") in WON_RESULTS for sel in selections)
     started = any(sel["state"] != "upcoming" for sel in selections)
@@ -823,10 +869,15 @@ async def day_coupons(
     ).all()
     yesterday = today - timedelta(days=1)
     order = list(PROFILES)
+    counts = await settlement.finished_counts(
+        session,
+        [(matches[s["match_id"]], s["market"]) for c in coupons for s in c.selections
+         if s["match_id"] in matches],
+    )  # fmt: skip
     return {
         "day": day,
         "coupons": sorted(
-            (_coupon_out(c, matches, premium=premium) for c in coupons),
+            (_coupon_out(c, matches, premium=premium, counts=counts) for c in coupons),
             key=lambda c: order.index(c["profile"]),
         ),
         "summary": {

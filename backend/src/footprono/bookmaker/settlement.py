@@ -155,6 +155,36 @@ def counts_grade(
     return count_markets(stat, _point_mass((31, 31), values)).get(key)
 
 
+# Libellé de la statistique d'un marché de comptage, pour l'affichage d'un pari réglé.
+COUNT_LABELS = {"corners": "corners", "cards": "cartons", "shots": "tirs",
+                "shots_on_target": "tirs cadrés"}  # fmt: skip
+
+
+def count_stat(market: str) -> str | None:
+    """Statistique comptée par ce marché (corners, cartons, tirs), None pour un marché de buts."""
+    return COUNT_PREFIXES.get(market.split("_")[0])
+
+
+async def finished_counts(
+    session: AsyncSession, pairs: list[tuple[Match, str]]
+) -> dict[tuple[int, str], tuple[int, int]]:
+    """Corners, cartons ou tirs de chaque match terminé (domicile, extérieur), pour les
+    sélections de comptage : un pari « plus de 7,5 corners » s'affiche avec ses corners, pas
+    avec le score en buts (essai réel du 06/11/2026)."""
+    out: dict[tuple[int, str], tuple[int, int]] = {}
+    stats: dict[int, dict[int, MatchTeamStats]] = {}
+    for match, market in pairs:
+        stat = count_stat(market)
+        if stat is None or match.status is not MatchStatus.FINISHED or (match.id, stat) in out:
+            continue
+        if match.id not in stats:
+            stats[match.id] = await _match_stats(session, match.id)
+        values = _count_values(match, stats[match.id], stat)
+        if values is not None:
+            out[(match.id, stat)] = values
+    return out
+
+
 async def _match_stats(session: AsyncSession, match_id: int) -> dict[int, MatchTeamStats]:
     rows = await session.scalars(
         select(MatchTeamStats).where(

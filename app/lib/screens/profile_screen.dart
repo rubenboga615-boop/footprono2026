@@ -310,7 +310,10 @@ class ProfileScreen extends StatelessWidget {
                       children: [
                         _Item(
                           icon: Icons.notifications_none_rounded,
-                          title: 'Notifications',
+                          // Le badge rouge de l'onglet Profil : dit en clair ici.
+                          title: state.unread > 0
+                              ? 'Notifications · ${state.unread} non lue${state.unread > 1 ? 's' : ''}'
+                              : 'Notifications',
                           badge: state.unread,
                           onTap: () => open(const NotificationsScreen()),
                         ),

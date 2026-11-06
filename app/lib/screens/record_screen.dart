@@ -186,7 +186,7 @@ class _Band extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Annoncées ${percent(v('low'))} à ${percent(v('high'))} · ${b['selections']} sélection(s)',
+            'Annoncées ${percent(v('low'))} à ${percent(v('high'))} · ${b['selections']} sélection${(b['selections'] as int) > 1 ? 's' : ''}',
             style: Fp.body(13, weight: FontWeight.w600),
           ),
           const SizedBox(height: 6),

@@ -694,6 +694,7 @@ class _MatchViewState extends State<_MatchView> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text('Forme · 5 derniers matchs', style: Fp.title(15, weight: FontWeight.w600)),
+            Text('Le plus récent à droite.', style: Fp.body(12, color: Fp.text3)),
             const SizedBox(height: 6),
             formRow(m.home.name, form['home'] as List),
             formRow(m.away.name, form['away'] as List),

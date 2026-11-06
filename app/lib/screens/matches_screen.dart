@@ -50,11 +50,23 @@ class _MatchesScreenState extends State<MatchesScreen> {
             final (upcoming, live) = data;
             final days = <DateTime>{for (final u in upcoming) _day(u.match.date)}.toList()..sort();
             final selectedDay = day != null && days.contains(day) ? day : (days.isEmpty ? null : days.first);
-            final comps = <String>{for (final u in upcoming) u.match.competition}.toList()..sort();
-            final shown = upcoming
-                .where((u) => competition.isEmpty || u.match.competition == competition)
-                .where((u) => selectedDay == null || _day(u.match.date) == selectedDay)
-                .toList();
+            // Filtres par importance (5 grands d'abord), matchs par heure de coup d'envoi : le
+            // prochain match en premier (essai réel du 06/11/2026 : rangés par championnat, les
+            // heures se mélangeaient). Le championnat reste écrit sur chaque match.
+            final comps = <String>{for (final u in upcoming) u.match.competition}.toList()
+              ..sort((a, b) => competitionRank(a).compareTo(competitionRank(b)));
+            final shown =
+                upcoming
+                    .where((u) => competition.isEmpty || u.match.competition == competition)
+                    .where((u) => selectedDay == null || _day(u.match.date) == selectedDay)
+                    .toList()
+                  ..sort((a, b) {
+                    final t = a.match.date.compareTo(b.match.date);
+                    return t != 0
+                        ? t
+                        : competitionRank(a.match.competition)
+                              .compareTo(competitionRank(b.match.competition));
+                  });
             final today = _day(DateTime.now());
             final desk = DesktopScope.of(context);
             return RefreshIndicator(

@@ -249,8 +249,14 @@ class BetSel {
       kickoffAt = parseDate(j['kickoff_at']),
       state = j['state'] as String? ?? 'upcoming',
       minute = j['minute'] as int?,
-      score = (j['score'] as List?)?.cast<int?>();
+      score = (j['score'] as List?)?.cast<int?>(),
+      count = (j['count'] as List?)?.cast<int>(),
+      countLabel = j['count_label'] as String?;
   final String homeTeam;
+
+  /// Marché de comptage terminé : corners (cartons, tirs) domicile et extérieur, et leur nom.
+  final List<int>? count;
+  final String? countLabel;
 
   /// Suivi du match : upcoming, live (minute, score), finished (résultat bientôt noté), settled.
   final String state;

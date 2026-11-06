@@ -185,7 +185,8 @@ class _CreateMontanteState extends State<_CreateMontante> {
             {'odds_min': r.start.toStringAsFixed(2), 'odds_max': r.end.toStringAsFixed(2)},
         ],
       });
-      showMessage('Montante lancée : choisis le pari du palier 1.');
+      // Pas de message en bas de l'écran : il cachait la carte « Suggestions du moteur » du
+      // palier 1, justement celle à toucher (essai réel du 06/11/2026). L'écran du plan suffit.
       widget.onCreated();
     } on ApiException catch (e) {
       showMessage(e.message, error: true);
@@ -351,7 +352,16 @@ class _Goal extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Text('Objectif', style: Fp.body(12, color: Fp.text2)),
-        Text('${_range(range)} F', style: Fp.body(13, weight: FontWeight.w700)),
+        // Même chiffre que la dernière ligne du plan (« environ »), fourchette en dessous.
+        Text(
+          range[0] == range[1] ? '${_range(range)} F' : '${_about(range)} F environ',
+          style: Fp.body(13, weight: FontWeight.w700),
+        ),
+        if (range[0] != range[1])
+          Text(
+            'entre ${_range(range, sep: ' et ')} F',
+            style: Fp.body(11, color: Fp.text3),
+          ),
       ],
     );
   }
@@ -791,7 +801,15 @@ class _MontanteViewState extends State<MontanteView> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text('Objectif', style: Fp.body(12, color: Fp.text2)),
-                        Text('${_range(goal)} F', style: Fp.body(14, weight: FontWeight.w800)),
+                        Text(
+                          goal[0] == goal[1] ? '${_range(goal)} F' : '${_about(goal)} F environ',
+                          style: Fp.body(14, weight: FontWeight.w800),
+                        ),
+                        if (goal[0] != goal[1])
+                          Text(
+                            'entre ${_range(goal, sep: ' et ')} F',
+                            style: Fp.body(11, color: Fp.text3),
+                          ),
                       ],
                     ),
                 ],

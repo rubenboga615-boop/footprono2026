@@ -136,6 +136,26 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
     }
   }
 
+  /// La règle du coupon proposé, avec la raison d'une cote au-dessus de la cible.
+  static String? _rule(Json r) {
+    final coupon = r['coupon'] as Json?;
+    if (coupon == null) return null;
+    // Cotes envoyées en texte par le serveur (« 29.07 ») : lues comme dans le reste de l'écran.
+    final total = double.parse('${coupon['total_odds']}');
+    final target = r['target_odds'] == null ? null : double.parse('${r['target_odds']}');
+    if (target != null) {
+      final over = total / target - 1;
+      return 'Règle : les sélections les plus sûres de la période selon le moteur (une par match), '
+          'ajoutées une à une jusqu\'à dépasser la cote visée. Cote obtenue ${odds(total)} pour '
+          '${odds(target)} visée${over > 0.1 ? ' : la dernière sélection ajoutée fait dépasser la cible' : ''}.';
+    }
+    final range = (r['range'] as List?)?.map((v) => double.parse('$v')).toList();
+    if (range == null || range.length < 2) return null;
+    return 'Règle : les sélections les plus sûres de la période parmi celles que le moteur annonce '
+        'entre ${percent(range[0])} et ${percent(range[1])} (profil '
+        '${r['profile_label']}), une par match. C\'est pourquoi leurs pourcentages se ressemblent.';
+  }
+
   /// Paramètres répétés (championnats, exclusions) : ajoutés à la main dans l'adresse.
   String _withLists(Map<String, Object?> query) {
     final parts = [
@@ -392,6 +412,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                     _CouponCard(
                       coupon: coupon,
                       big: _big,
+                      rule: _rule(result!),
                       onReplace: busy ? null : _replace,
                       onExclude: busy ? null : _exclude,
                     ),
@@ -466,7 +487,11 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
 }
 
 class _CouponCard extends StatelessWidget {
-  const _CouponCard({required this.coupon, this.big = false, this.onReplace, this.onExclude});
+  const _CouponCard({required this.coupon, this.big = false, this.rule, this.onReplace, this.onExclude});
+
+  /// Comment le moteur a composé ce coupon, en une phrase (essai réel du 06/11/2026 : le
+  /// joueur ne comprenait ni les « 60 % » partout ni la cote au-dessus de la cible).
+  final String? rule;
   final Json coupon;
   final bool big;
   final void Function(Json)? onReplace;
@@ -512,6 +537,10 @@ class _CouponCard extends StatelessWidget {
                       ],
                     ),
             ),
+          ],
+          if (rule != null) ...[
+            const Divider(height: 18),
+            Text(rule!, style: Fp.body(12.5, color: Fp.text2, height: 1.45)),
           ],
           const Divider(height: 18),
           Row(
@@ -894,6 +923,9 @@ class _SmartHistoryScreenState extends State<SmartHistoryScreen> {
 
 /// Ajoute des sélections (coupon intelligent ou coupon du jour) au coupon personnel, aux
 /// cotes actuelles relues sur le serveur ; une sélection sans cote disponible est comptée.
+/// « 1 sélection ajoutée », « 7 sélections ajoutées ».
+String _selections(int n) => '$n sélection${n > 1 ? 's' : ''} ajoutée${n > 1 ? 's' : ''}';
+
 Future<void> addSelectionsToCoupon(
   AppState state,
   List<Json> selections, {
@@ -926,8 +958,8 @@ Future<void> addSelectionsToCoupon(
     }
     showMessage(
       missing > 0
-          ? '$added sélection(s) ajoutée(s) ; $missing sans cote disponible à présent.'
-          : '$added sélection(s) ajoutée(s) au coupon (onglet Coupon).',
+          ? '${_selections(added)} ; $missing sans cote disponible à présent.'
+          : '${_selections(added)} au coupon (onglet Coupon).',
     );
   } on ApiException catch (e) {
     showMessage(e.message, error: true);

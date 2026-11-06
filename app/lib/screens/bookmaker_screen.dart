@@ -371,6 +371,15 @@ class _BetRow extends StatelessWidget {
   }
 }
 
+/// Combiné perdu avant la fin de tous ses matchs : dit pourquoi les autres sélections restent
+/// « à venir » (essai réel du 06/11/2026 : rien ne le disait).
+String? lostEarly(Bet b) {
+  if (b.outcome != 'lost' || !b.selections.any((s) => s.result == 'pending')) return null;
+  final first = b.selections.where((s) => s.result == 'loss' || s.result == 'half_loss').firstOrNull;
+  final where = first == null ? '' : ' sur ${first.homeTeam} – ${first.awayTeam}';
+  return 'Pari perdu$where : les autres matchs ne comptent plus. Ils restent affichés pour information.';
+}
+
 /// Avancement d'un combiné en cours, comme chez un bookmaker :
 /// « 3 sur 11 validées · 1 en cours · 7 à venir ».
 String betProgress(Bet b) {
@@ -390,12 +399,25 @@ String betProgress(Bet b) {
   ].join(' · ');
 }
 
+/// Ce qui compte pour une sélection : le score, ou pour un pari sur les corners (cartons,
+/// tirs) leur nombre, « · 11 corners (6-5) » ; jamais le score en buts à côté d'un pari sur
+/// les corners (essai réel du 06/11/2026).
+String scoreText(String market, List<int?>? score, List<int>? count, String? countLabel) {
+  if (count != null && count.length == 2) {
+    return ' · ${count[0] + count[1]} ${countLabel ?? ''} (${count[0]}-${count[1]})';
+  }
+  if (isCountMarket(market)) return '';
+  return score == null || score[0] == null ? '' : ' · ${score[0]}-${score[1]}';
+}
+
+bool isCountMarket(String market) =>
+    const ['CORNERS', 'CARDS', 'SHOTS', 'SOT', 'BOOKING'].contains(market.split('_').first);
+
 /// Date et état du match d'une sélection : « Sam. 7 nov. 15:00 · en cours 67' · 1-1 ».
 String selectionState(BetSel s) {
   final k = s.kickoffAt?.toLocal();
   final when = k == null ? '' : '${shortDate(k)} ${hourMinute(k)}';
-  final sc = s.score;
-  final score = sc == null || sc[0] == null ? '' : ' · ${sc[0]}-${sc[1]}';
+  final score = scoreText(s.market, s.score, s.count, s.countLabel);
   final state = switch (s.result) {
     'pending' => switch (s.state) {
       'live' => 'en cours${s.minute == null ? '' : ' ${s.minute}\''}$score',
@@ -537,6 +559,10 @@ class BetCard extends StatelessWidget {
               betProgress(b),
               style: Fp.body(12, color: Fp.text2, weight: FontWeight.w600),
             ),
+          ],
+          if (lostEarly(b) case final note?) ...[
+            const SizedBox(height: 8),
+            Text(note, style: Fp.body(12, color: Fp.text2, height: 1.4)),
           ],
           const Divider(height: 18),
           KeyValue('Mise · cote ${odds(b.totalOdds)}', money(b.stake, b.currency)),

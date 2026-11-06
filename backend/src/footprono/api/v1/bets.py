@@ -9,7 +9,7 @@ from sqlalchemy.orm import aliased
 
 from footprono.accounts.plans import PremiumRequiredError, market_allowed
 from footprono.api.deps import CurrentUserDep, OptionalUserDep, SessionDep
-from footprono.bookmaker import service, smart_coupon
+from footprono.bookmaker import service, settlement, smart_coupon
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.bookmaker.record import player_record
 from footprono.bookmaker.schemas import (
@@ -139,6 +139,9 @@ async def _bet_out(session: SessionDep, bet: Bet) -> BetOut:
         .where(Match.id.in_([s.match_id for s in selections]))
     )
     info = {m.id: (m, h, a) for m, h, a in rows.tuples()}
+    counts = await settlement.finished_counts(
+        session, [(info[s.match_id][0], s.market) for s in selections if s.match_id in info]
+    )
     out = []
     for s in selections:
         item = BetSelectionOut.model_validate(s)
@@ -146,12 +149,13 @@ async def _bet_out(session: SessionDep, bet: Bet) -> BetOut:
             match, item.home_team, item.away_team = info[s.match_id]
             item.kickoff_at = match.kickoff_at
             # Suivi comme chez un bookmaker : à venir, en cours (minute, score) ou terminé.
-            state = smart_coupon.live_state({"result": s.result}, match)
+            state = smart_coupon.live_state({"result": s.result, "market": s.market}, match, counts)
             item.state, item.minute, item.score = (
                 state["state"],
                 state.get("minute"),
                 state.get("score"),
             )
+            item.count, item.count_label = state.get("count"), state.get("count_label")
         out.append(item)
     return BetOut(
         id=bet.id,

@@ -406,6 +406,11 @@ async def follow_live(
             report["lineups"] = report.get("lineups", 0) + 1
         if match.status is MatchStatus.SCHEDULED:
             values: dict[str, Any] = {"api_status": fixture.status, "live_updated_at": now}
+            # Coup d'envoi retardé ou avancé : repris à chaque passage (avant : à la collecte
+            # des cotes suivante, jusqu'à 3 h plus tard ; essai réel du 06/11/2026, un match
+            # affiché « à venir 18:00 » alors qu'il commençait vers 18 h 45).
+            if fixture.kickoff is not None and fixture.kickoff != match.kickoff_at:
+                values.update(kickoff_at=fixture.kickoff, match_date=fixture.kickoff.date())
             if fixture.status in LIVE_STATUSES or fixture.finished:
                 values.update(
                     live_minute=item["fixture"]["status"].get("elapsed"),

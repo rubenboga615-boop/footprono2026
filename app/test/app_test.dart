@@ -392,9 +392,14 @@ class FakeServer {
       case 'GET /smart-coupon':
         if (!premium) return _error(403, 'premium_required', 'réservé à Premium');
         smartQueries.add(r.url.queryParameters);
+        final target = r.url.queryParameters['target_odds'];
         body = {
           'profile': 'equilibre',
+          'profile_label': 'Équilibré',
           'period': '3days',
+          // Comme le serveur : cote visée en texte (Grosse cote), sinon la tranche du profil.
+          'target_odds': target,
+          'range': target == null ? [0.6, 0.75] : null,
           'coupon': {
             'selections': [smartSel],
             'total_odds': '1.85',
@@ -1166,6 +1171,8 @@ void main() {
     });
     expect(find.textContaining('1 chance sur 2'), findsOneWidget); // probabilité 0,62
     expect(find.textContaining('Coupon à gros risque'), findsOneWidget);
+    // Règle du coupon expliquée (cotes reçues en texte, comme du serveur).
+    expect(find.textContaining('jusqu\'à dépasser la cote visée'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Exclure'));
     await tester.pumpAndSettle();

@@ -138,10 +138,18 @@ async def _season_averages(
                 func.count(own(Match.home_shots_on_target, Match.away_shots_on_target)),
                 func.sum(own(Match.home_corners, Match.away_corners)),
                 func.count(own(Match.home_corners, Match.away_corners)),
+                func.sum(own(Match.away_corners, Match.home_corners)),
+                func.sum(own(Match.home_shots, Match.away_shots)),
+                func.count(own(Match.home_shots, Match.away_shots)),
+                func.sum(
+                    own(Match.home_yellow_cards, Match.away_yellow_cards)
+                    + func.coalesce(own(Match.home_red_cards, Match.away_red_cards), 0)
+                ),
+                func.count(own(Match.home_yellow_cards, Match.away_yellow_cards)),
             ).where(played)
         )
     ).one()
-    n, gf, ga, sot, n_sot, corners, n_corners = row
+    n, gf, ga, sot, n_sot, corners, n_corners, corners_against, shots, n_shots, cards, n_cards = row
     xg_row = (
         await session.execute(
             select(
@@ -166,7 +174,10 @@ async def _season_averages(
         "xg_for": _avg(xg, n_xg),
         "xg_against": _avg(xga, n_xg),
         "shots_on_target": _avg(sot, n_sot),
+        "shots": _avg(shots, n_shots),
         "corners": _avg(corners, n_corners),
+        "corners_against": _avg(corners_against, n_corners),
+        "cards": _avg(cards, n_cards),
     }
 
 

@@ -11,6 +11,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'bookmaker_screen.dart' as bookmaker;
 import 'share_coupon.dart';
 import 'smart_coupon_screen.dart';
 
@@ -258,6 +259,14 @@ class _DailyCouponCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           ProbBar(count == 0 ? 0 : validated / count, color: Fp.win),
+          if (c['status'] == 'lost' &&
+              ((c['selections'] as List?) ?? const []).any((s) => (s as Json)['result'] == 'pending')) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Coupon perdu : les matchs restants ne comptent plus. Ils restent affichés pour information.',
+              style: Fp.body(12, color: Fp.text2, height: 1.4),
+            ),
+          ],
           const SizedBox(height: 12),
           if (locked)
             Row(
@@ -458,8 +467,12 @@ class _LiveSelection extends StatelessWidget {
   Widget build(BuildContext context) {
     final home = s['home'] as String, away = s['away'] as String;
     final result = (s['result'] ?? 'pending') as String;
-    final score = (s['score'] as List?)?.cast<int?>();
-    final scoreText = score == null ? '' : ' · ${score[0]}-${score[1]}';
+    final scoreText = bookmaker.scoreText(
+      s['market'] as String? ?? '',
+      (s['score'] as List?)?.cast<int?>(),
+      (s['count'] as List?)?.cast<int>(),
+      s['count_label'] as String?,
+    );
     final kickoff = s['kickoff_at'] as String?;
     final (Color dot, String state) = switch (s['state']) {
       'live' => (Fp.warning, 'en cours${s['minute'] == null ? '' : ' ${s['minute']}\''}$scoreText'),

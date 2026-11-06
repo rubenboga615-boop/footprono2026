@@ -159,7 +159,8 @@ class _CouponScreenState extends State<CouponScreen> {
       }
       showMessage(
         removed > 0
-            ? 'Cotes mises à jour ; $removed sélection(s) retirée(s) : plus de cote disponible.'
+            ? 'Cotes mises à jour ; $removed sélection${removed > 1 ? 's' : ''} retirée${removed > 1 ? 's' : ''} : '
+                  'plus de cote disponible.'
             : 'Cotes mises à jour.',
       );
     } on ApiException catch (e) {

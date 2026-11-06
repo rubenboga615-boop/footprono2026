@@ -66,7 +66,10 @@ class _TeamScreenState extends State<TeamScreen> {
         BackHeader(
           widget.name,
           '',
-          subtitle: '${competitionName(comp)} ${seasonLabel(year)} · ${v['matches']} matchs joués',
+          // Matchs de toute la saison (avant : ceux du lieu choisi, « 6 » au lieu de 11).
+          subtitle:
+              '${competitionName(comp)} ${seasonLabel(year)} · ${(venues['all'] as Json)['matches']} matchs joués'
+              '${_venues[venue].$1 == 'all' ? '' : ' (dont ${v['matches']} ${_venues[venue].$1 == 'home' ? 'à domicile' : 'à l\'extérieur'})'}',
           trailing: SquareButton(
             icon: Icons.leaderboard_rounded,
             tooltip: 'Classement mérité',
@@ -130,6 +133,7 @@ class _TeamScreenState extends State<TeamScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('Forme · 5 derniers matchs', style: Fp.title(15, weight: FontWeight.w600)),
+        Text('Le plus récent en haut.', style: Fp.body(12, color: Fp.text3)),
         const SizedBox(height: 10),
         if (form.isEmpty)
           Text('Aucun match terminé.', style: Fp.body(13, color: Fp.text2))

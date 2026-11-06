@@ -76,6 +76,9 @@ class BetSelectionOut(BaseModel):
     state: str = "upcoming"
     minute: int | None = None
     score: list[int | None] | None = None
+    # Marché de comptage terminé : corners (cartons, tirs) domicile et extérieur.
+    count: list[int] | None = None
+    count_label: str | None = None
 
 
 class BetOut(BaseModel):

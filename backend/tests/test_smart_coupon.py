@@ -508,3 +508,49 @@ async def test_history_pages_and_30_days_split_by_profile(
     assert (month["equilibre"]["won"], month["audacieux"]["won"]) == (10, 6)
     assert month["audacieux"]["announced"] == 0.25
     assert day["summary"]["last_30_days"] == {"settled": 90, "won": 31}
+
+
+def test_reasons_always_about_what_the_bet_counts() -> None:
+    """Raisons du coupon : des corners pour un pari sur les corners (jamais des buts), et pour
+    un pari sur les buts, les buts attendus par le moteur (essai réel du 06/11/2026)."""
+    from types import SimpleNamespace
+
+    season = {
+        "goals_for": 1.4, "goals_against": 1.1, "corners": 5.2, "corners_against": 4.6,
+        "cards": 2.1, "shots": 12.0, "shots_on_target": 4.3,
+    }  # fmt: skip
+    analysis: dict[str, Any] = {
+        "season": {"home": season, "away": season},
+        "form": {"home": [{"result": "W"}, {"result": "L"}], "away": []},
+        "head_to_head": [{"score": "2-1"}],
+        "expected_goals": (1.3, 0.9),
+    }
+
+    def pick(market: str) -> Any:
+        return SimpleNamespace(
+            offer=SimpleNamespace(market=market), home="Everton", away="Coventry"
+        )
+
+    corners = smart_coupon.reasons(analysis, pick("CORNERS_OU"))
+    assert corners[0].startswith("Corners par match (obtenus + concédés)")
+    assert not any("buts" in r for r in corners)
+    assert smart_coupon.reasons(analysis, pick("CARDS_OU"))[0].startswith("Cartons reçus")
+    goals = smart_coupon.reasons(analysis, pick("OU"))
+    assert goals[0] == "Buts attendus par le moteur : Everton 1,3, Coventry 0,9 (2,2 au total)"
+    result = smart_coupon.reasons(analysis, pick("1X2"))
+    assert result[1].endswith("Everton DV, Coventry —")  # le plus récent à droite
+
+
+def test_count_bet_shows_its_corners_not_the_score() -> None:
+    """Pari « plus de 7,5 corners » réglé : ses corners (« 11 corners (6-5) »), pas le score."""
+    from footprono.football.models import Match, MatchStatus
+
+    match = Match(id=7, status=MatchStatus.FINISHED, home_goals=0, away_goals=0)
+    state = smart_coupon.live_state(
+        {"result": "win", "market": "CORNERS_OU"}, match, {(7, "corners"): (6, 5)}
+    )
+    assert state["count"] == [6, 5]
+    assert state["count_label"] == "corners"
+    goals = smart_coupon.live_state({"result": "win", "market": "OU"}, match, {})
+    assert goals["score"] == [0, 0]
+    assert "count" not in goals

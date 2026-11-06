@@ -321,6 +321,13 @@ const competitionNames = {
 
 String competitionName(String code) => competitionNames[code.toUpperCase()] ?? code;
 
+/// Rang d'importance d'une compétition (ordre de [competitionNames] : les 5 grands championnats
+/// d'abord), pour ranger les filtres autrement que par code.
+int competitionRank(String code) {
+  final i = competitionNames.keys.toList().indexOf(code.toUpperCase());
+  return i < 0 ? competitionNames.length : i;
+}
+
 const _selectionOrder = [
   'home',
   'draw',
