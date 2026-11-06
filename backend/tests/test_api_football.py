@@ -37,6 +37,9 @@ async def test_competitions(client: AsyncClient) -> None:
         "EPL", "LA_LIGA", "SERIE_A", "BUNDESLIGA", "LIGUE_1", "POR", "BEL", "NED", "GRE", "TUR",
         "SCO", "SUI", "NOR", "SWE", "DEN", "AUT", "POL", "CZE", "CRO", "ROU", "SRB", "ISR",
     }  # fmt: skip
+    # Classement mérité (application) : seulement les championnats avec xG Understat.
+    assert competitions["EPL"]["understat_slug"] == "EPL"
+    assert competitions["POR"]["understat_slug"] is None
     assert competitions["EPL"]["seasons"] == [
         {"start_year": 2024, "label": "2024-25", "matches": 380, "finished": 380}
     ]

@@ -114,6 +114,8 @@ async def list_competitions(session: SessionDep, cups: bool = False) -> list[Com
             name=c.name,
             country=c.country,
             n_teams=c.n_teams,
+            # Le classement mérité (xG Understat) n'est proposé que pour ces championnats.
+            understat_slug=c.understat_slug,
             seasons=seasons.get(c.id, []),
         )
         for c in competitions
