@@ -102,6 +102,14 @@ COMPETITIONS: tuple[CompetitionRef, ...] = (
     CompetitionRef(
         "ROU", "Liga I", "Romania", 16, None, None, 283, team_counts=(14, 16), playoffs=True
     ),
+    # Étude du 06/11/2026 (docs/MOTEUR.md, « Serbie et Israël en service ; Chypre
+    # écartée ») : 14 équipes en Serbie depuis 2026-27.
+    CompetitionRef(
+        "SRB", "Super Liga", "Serbia", 16, None, None, 286, team_counts=(14, 16, 20), playoffs=True
+    ),
+    CompetitionRef(
+        "ISR", "Ligat ha'Al", "Israel", 14, None, None, 383, team_counts=(14,), playoffs=True
+    ),
 )
 COMPETITIONS_BY_CODE = {c.code: c for c in COMPETITIONS}
 

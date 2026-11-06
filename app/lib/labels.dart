@@ -302,6 +302,8 @@ const competitionNames = {
   'CZE': 'Championnat tchèque',
   'CRO': 'HNL croate',
   'ROU': 'Liga I roumaine',
+  'SRB': 'Super Liga serbe',
+  'ISR': 'Ligat ha\'Al israélienne',
 };
 
 String competitionName(String code) => competitionNames[code.toUpperCase()] ?? code;

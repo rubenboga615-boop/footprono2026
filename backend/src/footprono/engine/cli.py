@@ -55,6 +55,7 @@ from footprono.engine.correction import DEFAULT_FEATURES
 from footprono.engine.counts import counts_config
 from footprono.engine.goals import GoalsConfig
 from footprono.engine.history import History, load_history
+from footprono.engine.tiers import tier
 from footprono.ingestion.cli import parse_competitions, parse_seasons
 from footprono.ingestion.reference import COMPETITIONS
 from footprono.predictions.service import predict_upcoming
@@ -277,9 +278,12 @@ def audit_command(hist: History, args: argparse.Namespace) -> None:
     _progress("marchés de buts…")
     entries = goal_entries(hist, pred)
     past = goal_history(hist, args.competitions, args.seasons)
-    for stat in EVALUATED_COUNTS:
+    # Corners, cartons et tirs : proposés au niveau 1 seulement (engine/tiers.py) ; au
+    # niveau 2, les statistiques peuvent manquer des saisons entières (Israël avant 2021).
+    with_counts = [c for c in args.competitions if tier(c).level == 1]
+    for stat in EVALUATED_COUNTS if with_counts else ():
         _progress(f"{stat}…")
-        e, p = count_entries(hist, args.competitions, args.seasons, stat, counts_config(stat))
+        e, p = count_entries(hist, with_counts, args.seasons, stat, counts_config(stat))
         entries += e
         past += p
     report = audit_report(entries, past)

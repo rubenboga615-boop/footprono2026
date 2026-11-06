@@ -900,6 +900,39 @@ dossier (`FP_HISTORY_ARCHIVE_DIR`), l'une reprend où l'autre s'est arrêtée ; 
 et progression en direct, arrêt propre, archive pour l'étude, et import en base des
 compétitions déjà dans l'application.
 
+## Serbie et Israël en service ; Chypre écartée (06/11/2026)
+
+Historique de l'archive `api-football-historique` (collecte du 06/11/2026, saisons 2018 à
+2026) importé par le vrai chargeur ; équipes du référentiel tirées des matchs de
+championnat de l'archive (noms API-Football). Statistiques de match : Serbie depuis 2019
+(2019 à 2021 en grande partie vides chez API-Football), Israël depuis 2021 (non couvertes
+avant), Chypre 2018-2021 seulement dans l'archive (2022-2025 pas encore collectées ; 2026
+non couvert par API-Football). Aucune source de cotes passées. Réglages du niveau 2 tels
+quels, rien de réglé sur ces championnats.
+
+| Championnat | Matchs 2022-25 | 1-N-2 / naïf | +2,5 / naïf | 1-N-2 2019-21 / naïf | Favoris ≥ 60 % annoncé / observé |
+|---|---|---|---|---|---|
+| Serbie | 1 184 | 0,9612 / 1,0717 | 0,6783 / 0,6942 | 0,9287 / 1,0797 | 72,3 / 74,0 |
+| Israël | 959 | 1,0059 / 1,0848 | 0,6881 / 0,6947 | 1,0328 / 1,0849 | 66,1 / 68,9 |
+| Chypre | 1 015 | 0,9548 / 1,0642 | 0,6946 / 0,6951 | 1,0256 / 1,0935 | 75,0 / 69,6 |
+
+Lecture : **Serbie** et **Israël** passent le même filtre que les championnats déjà en
+service (mieux que la référence naïve sur les deux marchés et sur les deux périodes pour le
+1-N-2 ; calibration du 1-N-2 à 1,0 et 1,7 point en moyenne). **Chypre écartée** : favoris
+surestimés de 5 points (tranche 80-90 % : 85 annoncé, 73 observé), plus/moins 2,5 pas
+mieux que la référence naïve, statistiques de la saison en cours absentes chez
+API-Football.
+
+Audit de tous les marchés (`footprono-engine audit`, 2022-25) : tout validé pour les deux
+ensemble ; pour Israël seul, « mi-temps : buts » sans apport (+0,7 %) : **retiré pour
+Israël** (`TIER_2_ISRAEL`). « Les deux marquent » et ses combinés : retirés au niveau 2
+comme ailleurs. L'audit n'évalue plus corners, cartons et tirs hors du niveau 1 (ils n'y
+sont pas proposés ; Israël n'a pas de statistiques avant 2021 et l'audit s'arrêtait).
+
+Les clubs serbes et israéliens déjà créés par l'import des coupes d'Europe (Étoile rouge,
+Partizan, Maccabi Haïfa…) sont repris tels quels : une seule fiche par club, la même note
+Elo en championnat et en coupe.
+
 ## Pologne, Tchéquie, Croatie, Roumanie en service ; Australie écartée (06/10/2026)
 
 Historique de l'archive `api-football-historique` (collecte des 05 et 06/10/2026, saisons

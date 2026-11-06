@@ -59,11 +59,16 @@ TIER_2 = Tier(
 # (annoncé 44,6 %, observé 39,6 % sur 1 370 cas) : retiré pour eux seulement.
 TIER_2_NO_CLEAN_SHEET = replace(TIER_2, withdrawn=NO_BTTS | {"CLEAN_SHEET"})
 
+# Israël : buts à la mi-temps sans apport à l'audit 2022-25 (+0,7 % de log loss gagnée).
+TIER_2_ISRAEL = replace(TIER_2, withdrawn=NO_BTTS | {"HT_OU"})
+
 # Niveau 2 : tirs sans xG (football-data, ou API-Football depuis la Suisse).
 _TIER_2_CODES = "POR BEL NED GRE TUR SCO SUI NOR SWE DEN AUT"
 TIERS: dict[str, Tier] = {
     **{code: TIER_2 for code in _TIER_2_CODES.split()},
     **{code: TIER_2_NO_CLEAN_SHEET for code in ("POL", "CZE", "CRO", "ROU")},
+    "SRB": TIER_2,
+    "ISR": TIER_2_ISRAEL,
 }
 
 
