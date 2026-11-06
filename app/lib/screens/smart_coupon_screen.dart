@@ -46,6 +46,9 @@ class SmartCouponScreen extends StatefulWidget {
     'ROU',
     'SRB',
     'ISR',
+    'UCL',
+    'UEL',
+    'UECL',
   ];
   static const targets = [10, 25, 50, 100];
   static const hours = [(null, 'Toute heure'), (15, 'Après 15 h'), (18, 'Après 18 h'), (20, 'Après 20 h')];
