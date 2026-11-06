@@ -44,6 +44,9 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
     'ROU',
     'SRB',
     'ISR',
+    'UCL',
+    'UEL',
+    'UECL',
   ];
   int market = 0;
   String competition = '';

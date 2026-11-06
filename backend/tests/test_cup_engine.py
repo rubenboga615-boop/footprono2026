@@ -7,10 +7,12 @@ from typing import Any
 
 import numpy as np
 import pytest
+from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from footprono.core.config import Settings
 from footprono.engine import cups as engine
 from footprono.football.analysis import match_analysis
 from footprono.football.models import Match, MatchStatus
@@ -18,6 +20,8 @@ from footprono.ingestion import cups
 from footprono.ingestion.loader import sync_reference
 from footprono.predictions import cups as cup_predictions
 from footprono.predictions.models import MatchPrediction
+
+from .conftest import make_settings
 
 Factory = async_sessionmaker[AsyncSession]
 
@@ -95,8 +99,13 @@ def _season_items(seed: int = 3) -> list[dict[str, Any]]:
     return items
 
 
+@pytest.fixture
+def settings() -> Settings:
+    return make_settings(cups_predictions=True)
+
+
 async def test_backtest_predictions_api_and_reliability(
-    db_factory: Factory, client: AsyncClient
+    db_factory: Factory, client: AsyncClient, app: FastAPI
 ) -> None:
     items = _season_items()
     upcoming = {
@@ -171,6 +180,13 @@ async def test_backtest_predictions_api_and_reliability(
         )
     ).json()
     cup = next(u for u in upcoming_list if u["match"]["id"] == match_id)
+    # Pronostics des coupes désactivés (FP_CUPS_PREDICTIONS) : pas de matchs de coupe.
+    app.state.settings = make_settings(cups_predictions=False)
+    hidden = await client.get(
+        "/api/v1/predictions/upcoming", params={"date_from": "2026-11-20", "cups": "true"}
+    )
+    assert all(u["match"]["id"] != match_id for u in hidden.json())
+    app.state.settings = make_settings(cups_predictions=True)
     assert cup["prediction"]["over_2_5"] is None  # plus/moins 2,5 : non publié en coupe
     assert cup["prediction"]["both_score"] is not None
     assert cup["prediction"]["expected_goals"] is not None

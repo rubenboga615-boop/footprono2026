@@ -11,7 +11,7 @@ from fastapi import APIRouter, Query
 from sqlalchemy import func, select
 
 from footprono.accounts.plans import FREE_MARKETS, is_premium
-from footprono.api.deps import OptionalUserDep, SessionDep
+from footprono.api.deps import OptionalUserDep, SessionDep, SettingsDep
 from footprono.api.v1.football import _match_out, _match_select
 from footprono.core.errors import NotFoundError
 from footprono.engine.markets import Selection, offered
@@ -114,6 +114,7 @@ async def get_match_prediction(
 @router.get("/predictions/upcoming", response_model=list[UpcomingMatchOut])
 async def list_upcoming(
     session: SessionDep,
+    settings: SettingsDep,
     competition: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
@@ -129,9 +130,10 @@ async def list_upcoming(
     )
     if competition:
         stmt = stmt.where(Competition.code == competition.upper())
-    elif not cups:
+    elif not cups or not settings.cups_predictions:
         # Les applications d'avant les coupes attendent toujours « plus/moins 2,5 » et les
-        # buts attendus : elles ne reçoivent pas les matchs de coupe.
+        # buts attendus : elles ne reçoivent pas les matchs de coupe. Pronostics des coupes
+        # désactivés (FP_CUPS_PREDICTIONS) : pas de matchs de coupe sans pronostic.
         stmt = stmt.where(Competition.code.not_in(list(CUPS_BY_CODE)))
     rows = (
         (

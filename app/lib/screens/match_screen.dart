@@ -291,7 +291,8 @@ class _MatchViewState extends State<_MatchView> {
               ],
             ),
             const SizedBox(height: 10),
-            KeyValue('Buts attendus', '${decimal(p.xgHome)} - ${decimal(p.xgAway)}'),
+            if ((p.xgHome, p.xgAway) case (final double h, final double a))
+              KeyValue('Buts attendus', '${decimal(h)} - ${decimal(a)}'),
             if (scores.isNotEmpty) ...[
               const SizedBox(height: 14),
               Text('Scores les plus probables', style: Fp.title(15, weight: FontWeight.w600)),
@@ -570,7 +571,8 @@ class _MatchViewState extends State<_MatchView> {
           children: [
             Text('Situation', style: Fp.title(15, weight: FontWeight.w600)),
             const SizedBox(height: 8),
-            _TwoSided('Buts attendus', p.xgHome, p.xgAway, format: decimal),
+            if ((p.xgHome, p.xgAway) case (final double h, final double a))
+              _TwoSided('Buts attendus', h, a, format: decimal),
             if (rank != null) _TwoSided.text('Classement', '${rank[0].round()}e', '${rank[1].round()}e'),
             if (points != null) _TwoSided.text('Points', '${points[0].round()}', '${points[1].round()}'),
             if (rest != null)

@@ -602,7 +602,7 @@ class _SearchPaletteState extends State<_SearchPalette> {
     context
         .read<AppState>()
         .api
-        .get('/predictions/upcoming', {'limit': 400})
+        .get('/predictions/upcoming', {'limit': 400, 'cups': 'true'})
         .then((j) {
           if (mounted) setState(() => upcoming = [for (final u in j as List) Upcoming(u as Json)]);
         })

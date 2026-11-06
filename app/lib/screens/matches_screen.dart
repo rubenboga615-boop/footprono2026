@@ -27,7 +27,8 @@ class _MatchesScreenState extends State<MatchesScreen> {
   Future<(List<Upcoming>, List<MatchInfo>)> _load() async {
     final api = context.read<AppState>().api;
     final results = await Future.wait([
-      api.get('/predictions/upcoming', {'limit': 400}),
+      // Coupes d'Europe comprises (sans plus/moins 2,5 ni, parfois, buts attendus).
+      api.get('/predictions/upcoming', {'limit': 400, 'cups': 'true'}),
       api.get('/live'),
     ]);
     return (
@@ -193,7 +194,7 @@ class _MatchCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               [
-                '+2,5 buts ${percent(s.over25.probability)}',
+                if (s.over25 case final o?) '+2,5 buts ${percent(o.probability)}',
                 if (s.btts case final b?) 'Les 2 marquent ${percent(b.probability)}',
               ].join('  ·  '),
               style: Fp.body(12, color: Fp.text2),
@@ -354,7 +355,7 @@ class _MatchRow extends StatelessWidget {
       s?.home.probability,
       s?.draw.probability,
       s?.away.probability,
-      s?.over25.probability,
+      s?.over25?.probability,
       s?.btts?.probability,
     ];
     void open() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MatchScreen(matchId: m.id)));
@@ -445,7 +446,10 @@ class _MatchRow extends StatelessWidget {
               SizedBox(
                 width: 86,
                 child: Text(
-                  s == null ? '—' : '${decimal(s.xgHome, max: 1)} - ${decimal(s.xgAway, max: 1)}',
+                  switch ((s?.xgHome, s?.xgAway)) {
+                    (final double h, final double a) => '${decimal(h, max: 1)} - ${decimal(a, max: 1)}',
+                    _ => '—',
+                  },
                   textAlign: TextAlign.center,
                   style: Fp.body(13, color: Fp.textSoft, weight: FontWeight.w600),
                 ),

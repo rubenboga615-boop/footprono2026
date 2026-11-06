@@ -121,6 +121,12 @@ class MatchInfo {
   }
 }
 
+/// Buts attendus d'un côté ; null quand le pronostic n'en donne pas.
+double? _xg(Json j, String side) => switch (j['expected_goals']) {
+  final Json e => _d(e[side]),
+  _ => null,
+};
+
 /// Probabilité d'une sélection selon le moteur.
 class Prob {
   Prob(Json j)
@@ -144,15 +150,20 @@ class Summary {
     : home = Prob(j['home'] as Json),
       draw = Prob(j['draw'] as Json),
       away = Prob(j['away'] as Json),
-      over25 = Prob(j['over_2_5'] as Json),
+      over25 = j['over_2_5'] == null ? null : Prob(j['over_2_5'] as Json),
       btts = j['both_score'] == null ? null : Prob(j['both_score'] as Json),
-      xgHome = _d((j['expected_goals'] as Json)['home']),
-      xgAway = _d((j['expected_goals'] as Json)['away']);
-  final Prob home, draw, away, over25;
+      xgHome = _xg(j, 'home'),
+      xgAway = _xg(j, 'away');
+  final Prob home, draw, away;
+
+  /// Absent pour les coupes d'Europe (plus/moins 2,5 buts non publié).
+  final Prob? over25;
 
   /// Absent quand le moteur ne donne pas d'avis (championnats de niveau 2).
   final Prob? btts;
-  final double xgHome, xgAway;
+
+  /// Absents pour les anciens pronostics de coupe (sans modèle des buts).
+  final double? xgHome, xgAway;
 }
 
 class Upcoming {
@@ -171,8 +182,8 @@ class Prediction {
     : markets = [for (final m in j['markets'] as List) Prob(m as Json)],
       lockedMarkets = (j['locked_markets'] as List? ?? const []).cast<String>(),
       plan = j['plan'] as String? ?? 'free',
-      xgHome = _d((j['expected_goals'] as Json)['home']),
-      xgAway = _d((j['expected_goals'] as Json)['away']),
+      xgHome = _xg(j, 'home'),
+      xgAway = _xg(j, 'away'),
       counts = j['counts'] as Json?,
       context = j['context'] as Json?,
       engineVersion = j['engine_version'] as String,
@@ -180,7 +191,7 @@ class Prediction {
   final List<Prob> markets;
   final List<String> lockedMarkets;
   final String plan;
-  final double xgHome, xgAway;
+  final double? xgHome, xgAway;
   final Json? counts;
   final Json? context;
   final String engineVersion;
