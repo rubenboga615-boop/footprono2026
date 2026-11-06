@@ -198,3 +198,47 @@ async def test_postponed_match_is_refunded_after_48h(
         refunded = await session.get(Bet, bet["id"])
     assert refunded is not None
     assert (refunded.outcome, refunded.payout) == ("push", 3_000)
+
+
+async def test_each_selection_graded_as_soon_as_its_match_ends(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    """Combiné sur plusieurs matchs : comme chez un bookmaker, chaque sélection est notée dès
+    la fin de son match (avant : « en attente » jusqu'au dernier match), et chaque match
+    montre son état en direct (minute et score)."""
+    from footprono.bookmaker.settlement import settle_bets
+
+    headers = await _login(client)
+    combo = (
+        await client.post(
+            "/api/v1/bets",
+            json={
+                "stake": 2_000,
+                "selections": [_sel(world["m1"], "1X2", "home"), _sel(world["m2"], "1X2", "home")],
+            },
+            headers=headers,
+        )
+    ).json()
+    before = (await client.get(f"/api/v1/bets/{combo['id']}", headers=headers)).json()
+    assert [s["state"] for s in before["selections"]] == ["upcoming", "upcoming"]
+    assert before["selections"][0]["kickoff_at"] is not None
+
+    await _finish(db_factory, world["m1"], (2, 0), "api_football")
+    async with db_factory() as session:
+        await session.execute(
+            update(Match)
+            .where(Match.id == world["m2"])
+            .values(api_status="2H", live_minute=67, live_home_goals=1, live_away_goals=1)
+        )
+        await session.commit()
+        report = await settle_bets(session)
+    assert report["pending"] == 1  # m2 pas fini : le pari reste ouvert
+
+    bet = (await client.get(f"/api/v1/bets/{combo['id']}", headers=headers)).json()
+    assert bet["status"] == "open"
+    first, second = bet["selections"]
+    assert (first["result"], first["state"], first["score"]) == ("win", "settled", [2, 0])
+    assert (second["result"], second["state"]) == ("pending", "live")
+    assert (second["minute"], second["score"]) == (67, [1, 1])

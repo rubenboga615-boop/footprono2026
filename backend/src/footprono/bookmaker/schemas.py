@@ -72,6 +72,10 @@ class BetSelectionOut(BaseModel):
     home_team: str | None = None
     away_team: str | None = None
     kickoff_at: datetime | None = None
+    # État du match pour le suivi en direct : upcoming, live, finished, settled.
+    state: str = "upcoming"
+    minute: int | None = None
+    score: list[int | None] | None = None
 
 
 class BetOut(BaseModel):

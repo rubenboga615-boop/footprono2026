@@ -267,6 +267,11 @@ async def settle_bets(
         grades = [await grade_selection(session, s, now) for s in selections]
         lost = any(g is not None and g.result == "loss" for g in grades)
         if not lost and any(g is None for g in grades):
+            # Pari pas encore réglé : chaque sélection est notée dès la fin de son match,
+            # comme chez un vrai bookmaker (avant : « en attente » jusqu'au dernier match).
+            for s, g in zip(selections, grades, strict=True):
+                if g is not None:
+                    s.result = g.result
             report["pending"] += bet.status == "open"
             continue
         for s, g in zip(selections, grades, strict=True):

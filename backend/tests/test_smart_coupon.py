@@ -180,14 +180,29 @@ async def test_daily_coupons_settled_and_public(
         created = await smart_coupon.create_daily(session, MORNING)
         assert created["sur"] == "aucune sélection"
         assert created["equilibre"].startswith("2 sélection(s)")
+        # Un match ne sert qu'à un seul profil par jour : Équilibré a pris m1 et m2.
+        assert created["audacieux"] == "aucune sélection"
         again = await smart_coupon.create_daily(session, MORNING)
         assert again["equilibre"] == "déjà créé"
         # Équilibré et Audacieux : cote totale d'au moins 2,00 (Sûr : pas de minimum).
         for c in (await session.scalars(select(SmartCoupon))).all():
             if c.profile != "sur":
                 assert c.total_odds >= Decimal("2.00")
+        # Coupon d'un autre jour, sur les mêmes matchs (+2,5 buts), pour le règlement.
+        balanced = (await session.scalars(select(SmartCoupon))).one()
+        session.add(
+            SmartCoupon(
+                day=DAY - timedelta(days=1), profile="audacieux", size=2,
+                selections=[
+                    {**sel, "market": "OU", "line": "2.5", "selection": "over", "odds": "1.90"}
+                    for sel in balanced.selections
+                ],
+                total_odds=Decimal("3.61"), probability=0.25, status="pending",
+            )
+        )  # fmt: skip
+        await session.commit()
 
-    # m1 1-0 : « audacieux » (+2,5 buts) perdu sans attendre m2 ; « équilibré » en cours.
+    # m1 1-0 : +2,5 buts perdu, coupon perdu sans attendre m2 ; « équilibré » en cours.
     assert await _result(db_factory, m1, 1, 0) == {"won": 0, "lost": 1, "partial": 0, "void": 0}
     # m2 2-1 : « équilibré » gagné.
     assert await _result(db_factory, m2, 2, 1) == {"won": 1, "lost": 0, "partial": 0, "void": 0}
@@ -196,7 +211,8 @@ async def test_daily_coupons_settled_and_public(
     status = {c["profile"]: c["status"] for c in public["coupons"]}
     assert status == {"equilibre": "won", "audacieux": "lost"}
     lost = next(c for c in public["coupons"] if c["profile"] == "audacieux")
-    assert {s["match_id"]: s["result"] for s in lost["selections"]} == {m1: "loss", m2: "pending"}
+    # La sélection de m2 est notée après coup (avant : « en attente » pour toujours).
+    assert {s["match_id"]: s["result"] for s in lost["selections"]} == {m1: "loss", m2: "win"}
     assert public["stats"]["equilibre"] == {
         "label": "Équilibré", "settled": 1, "won": 1, "announced": 0.36, "observed": 1.0,
     }  # fmt: skip
@@ -410,6 +426,15 @@ async def test_daily_coupons_notification_once_all_codes_are_in(
     await make_premium(db_factory, "+22997111111")
     async with db_factory() as session:
         await smart_coupon.create_daily(session, MORNING)
+        # Deux matchs seulement : Équilibré les prend, Audacieux est ajouté à la main.
+        balanced = (await session.scalars(select(SmartCoupon))).one()
+        session.add(
+            SmartCoupon(
+                day=DAY, profile="audacieux", size=2, selections=balanced.selections,
+                total_odds=Decimal("3.42"), probability=0.36, status="pending",
+            )
+        )  # fmt: skip
+        await session.commit()
         day = await smart_coupon.day_coupons(session, DAY, MORNING)
         ids = [c["id"] for c in day["coupons"]]
         assert len(ids) == 2  # « sûr » : aucune sélection ce jour-là

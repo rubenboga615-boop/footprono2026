@@ -546,20 +546,30 @@ async def create_daily(session: AsyncSession, now: datetime | None = None) -> di
     now = now or datetime.now(UTC)
     day = now.date()
     out: dict[str, Any] = {}
-    for profile, (size, min_odds) in DAILY_RULES.items():
-        exists = await session.scalar(
-            select(SmartCoupon.id).where(SmartCoupon.day == day, SmartCoupon.profile == profile)
-        )
-        if exists is not None:
+    # Un match ne sert qu'à un seul profil par jour : le 04/11/2026, le même match (presque
+    # le même pari) dans Sûr et Audacieux a fait perdre les deux coupons sur un seul but.
+    existing = (await session.scalars(select(SmartCoupon).where(SmartCoupon.day == day))).all()
+    used = {sel["match_id"] for c in existing for sel in c.selections}
+    done = {c.profile for c in existing}
+    # Les profils qui doivent atteindre une cote minimale choisissent d'abord ; « Sûr »
+    # (3 matchs, sans cote minimale) trouve presque toujours ses matchs parmi les autres.
+    order = sorted(DAILY_RULES.items(), key=lambda item: item[1][1] is None)
+    for profile, (size, min_odds) in order:
+        if profile in done:
             out[profile] = "déjà créé"
             continue
         start, end = period_window("today", now)
-        ranked = await best_angles(session, PROFILES[profile], start, end, now)
+        ranked = [
+            pk
+            for pk in await best_angles(session, PROFILES[profile], start, end, now)
+            if pk.match.id not in used
+        ]
         # Sélections les plus probables, ajoutées jusqu'à la cote minimale (sinon pas de coupon).
         picks = ranked[:size] if min_odds is None else target_coupon(ranked, min_odds, size)
         if not picks:
             out[profile] = "aucune sélection"
             continue
+        used.update(pk.match.id for pk in picks)
         total, probability = summarize(picks)
         session.add(
             SmartCoupon(
@@ -596,11 +606,26 @@ def _stored(pick: Pick) -> dict[str, Any]:
 
 
 async def settle_pending(session: AsyncSession, now: datetime | None = None) -> dict[str, int]:
-    """Règle les coupons du jour dont tous les matchs sont connus (mêmes règles que les paris)."""
+    """Règle les coupons du jour dont tous les matchs sont connus (mêmes règles que les paris).
+
+    Chaque sélection est notée dès la fin de son match, même si le coupon attend d'autres
+    matchs ou est déjà perdu : un coupon perdu à 17 h gardait sa sélection de 19 h 30
+    « en attente » pour toujours (essai réel du 04/11/2026)."""
     now = now or datetime.now(UTC)
     settled = {"won": 0, "lost": 0, "partial": 0, "void": 0}
-    coupons = await session.scalars(select(SmartCoupon).where(SmartCoupon.status == "pending"))
+    coupons = await session.scalars(
+        select(SmartCoupon).where(
+            or_(
+                SmartCoupon.status == "pending",
+                SmartCoupon.settled_at >= now - settlement.RESETTLE_WINDOW,
+            )
+        )
+    )
     for coupon in coupons.all():
+        if coupon.status != "pending" and all(
+            s.get("result", "pending") != "pending" for s in coupon.selections
+        ):
+            continue
         grades, selections = [], []
         for s in coupon.selections:
             probe = BetSelection(
@@ -615,6 +640,8 @@ async def settle_pending(session: AsyncSession, now: datetime | None = None) -> 
             if grade is not None:
                 grades.append(grade)
         coupon.selections = selections
+        if coupon.status != "pending":
+            continue  # déjà réglé : seules les sélections restantes sont notées
         # Perdu dès qu'une sélection est perdue, sans attendre les autres matchs.
         if any(g.result == "loss" for g in grades) or len(grades) == len(selections):
             outcome, _ = settlement.bet_outcome(100, grades)
@@ -700,7 +727,7 @@ BOOKING_CODE = re.compile(r"^[A-Z0-9]{4,16}$")
 WON_RESULTS = frozenset({"win", "half_win"})
 
 
-def _live_state(selection: dict[str, Any], match: Match | None) -> dict[str, Any]:
+def live_state(selection: dict[str, Any], match: Match | None) -> dict[str, Any]:
     """État d'une sélection pour l'affichage : réglée, en cours (minute, score) ou à venir."""
     result = selection.get("result", "pending")
     out: dict[str, Any] = {"state": "settled" if result != "pending" else "upcoming"}
@@ -728,7 +755,7 @@ def _coupon_out(
 ) -> dict[str, Any]:
     locked = _locked(coupon, premium)
     selections = [
-        {**sel, **_live_state(sel, matches.get(sel["match_id"]))} for sel in coupon.selections
+        {**sel, **live_state(sel, matches.get(sel["match_id"]))} for sel in coupon.selections
     ]
     validated = sum(sel.get("result") in WON_RESULTS for sel in selections)
     started = any(sel["state"] != "upcoming" for sel in selections)
