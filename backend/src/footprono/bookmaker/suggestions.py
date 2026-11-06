@@ -51,9 +51,11 @@ async def _candidates(session: AsyncSession, high: Decimal, now: datetime) -> li
         )
     ).all()
     out = []
+    ids = [m.id for m in matches]
+    all_offers = await service.match_offers(session, ids, now)
+    all_probs = await service.models_probabilities(session, ids)
     for match in matches:
-        offers = await service.match_offer(session, match.id, now)
-        probs = await service.model_probabilities(session, match.id)
+        offers, probs = all_offers.get(match.id, {}), all_probs.get(match.id, {})
         for k, offer in offers.items():
             p = probs.get(k)
             if p is None or not automatic(offer.market) or not 1 < offer.odds <= high:

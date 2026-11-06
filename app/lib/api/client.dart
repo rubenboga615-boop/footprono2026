@@ -75,7 +75,11 @@ class ApiClient {
     try {
       res = await request().timeout(timeout);
     } on TimeoutException {
-      throw ApiException(0, 'timeout', 'Connexion trop lente. Réessaie dans un instant.');
+      throw ApiException(
+        0,
+        'timeout',
+        'FootProba n\'a pas répondu à temps (serveur occupé ou connexion lente). Réessaie dans un instant.',
+      );
     } catch (e) {
       throw ApiException(0, 'network', 'Impossible de joindre FootProba. Vérifie ta connexion internet.');
     }

@@ -199,3 +199,34 @@ async def test_withdrawn_odds_are_not_playable(
     selections = {(o["market"], o["selection"]) for o in offer}
     assert ("1X2", "home") not in selections
     assert ("1X2", "draw") in selections
+
+
+async def test_offers_of_several_matches_at_once(
+    world: dict[str, Any], db_factory: Factory
+) -> None:
+    """Toutes les cotes d'une période en une requête (Coupon intelligent) : mêmes offres
+    que match par match, cote retirée ou trop ancienne toujours écartée."""
+    from footprono.bookmaker import service
+
+    m1, m2 = world["m1"], world["m2"]
+    async with db_factory() as session:
+        await session.execute(  # m1 : « Home » retirée du dernier relevé 1xBet
+            update(BookmakerOdds)
+            .where(BookmakerOdds.match_id == m1, BookmakerOdds.bookmaker == "1xBet",
+                   BookmakerOdds.value != "Home")
+            .values(last_seen_at=NOW - timedelta(minutes=10))
+        )  # fmt: skip
+        await session.execute(  # m2 : relevé Bet365 trop ancien
+            update(BookmakerOdds)
+            .where(BookmakerOdds.match_id == m2, BookmakerOdds.bookmaker == "Bet365")
+            .values(last_seen_at=NOW - service.ODDS_MAX_AGE - timedelta(hours=1))
+        )  # fmt: skip
+        await session.commit()
+        both = await service.match_offers(session, [m1, m2, 999_999], NOW)
+        assert both == {
+            m1: await service.match_offer(session, m1, NOW),
+            m2: await service.match_offer(session, m2, NOW),
+        }
+        assert set(both[m1]) == {"1X2||draw", "1X2||away", "OU|2.5|over"}
+        assert set(both[m2]) == {"1X2||home", "1X2||draw", "1X2||away"}
+        assert await service.match_offers(session, []) == {}

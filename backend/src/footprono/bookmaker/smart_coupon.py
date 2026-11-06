@@ -212,17 +212,47 @@ class Filters:
         )
 
 
-async def _candidates(
-    session: AsyncSession, match: Match, home: str, away: str, comp: str, now: datetime
-) -> list[Pick]:
+def _picks(
+    match: Match, home: str, away: str, comp: str,
+    offers: dict[str, service.Offer], probs: dict[str, float],
+) -> list[Pick]:  # fmt: skip
     """Sélections jouables d'un match : marché retenu, vraie cote, probabilité du moteur."""
-    offers = await service.match_offer(session, match.id, now)
-    probs = await service.model_probabilities(session, match.id)
     return [
         Pick(match, home, away, comp, offer, p)
         for k, offer in offers.items()
         if (p := probs.get(k)) is not None and automatic(offer.market) and offer.odds >= MIN_ODDS
     ]
+
+
+async def _candidates(
+    session: AsyncSession, match: Match, home: str, away: str, comp: str, now: datetime
+) -> list[Pick]:
+    offers = await service.match_offer(session, match.id, now)
+    probs = await service.model_probabilities(session, match.id)
+    return _picks(match, home, away, comp, offers, probs)
+
+
+async def window_candidates(
+    session: AsyncSession, start: datetime, end: datetime, now: datetime, filters: Filters
+) -> list[list[Pick]]:
+    """Sélections jouables de chaque match de la période (deux requêtes en tout)."""
+    rows = [
+        r for r in await _matches(session, start, end, filters.competitions) if filters.keeps(r[0])
+    ]
+    ids = [m.id for m, *_ in rows]
+    offers = await service.match_offers(session, ids, now)
+    probs = await service.models_probabilities(session, ids)
+    return [
+        _picks(m, home, away, comp, offers.get(m.id, {}), probs.get(m.id, {}))
+        for m, home, away, comp in rows
+    ]
+
+
+def ranked_angles(profile: Profile, per_match: list[list[Pick]]) -> list[Pick]:
+    """L'angle de chaque match (voir ``choose``), du plus sûr au moins sûr."""
+    picks = [pk for c in per_match if (pk := angle(profile, c)) is not None]
+    picks.sort(key=lambda pk: (-pk.probability, pk.match.kickoff_at, pk.match.id))
+    return picks
 
 
 def angle(profile: Profile, candidates: list[Pick]) -> Pick | None:
@@ -264,15 +294,7 @@ async def best_angles(
 ) -> list[Pick]:
     """L'angle de chaque match (voir ``choose``), du plus sûr au moins sûr."""
     filters = filters or Filters(competitions=competitions)
-    picks = []
-    for match, home, away, comp in await _matches(session, start, end, filters.competitions):
-        if not filters.keeps(match):
-            continue
-        pick = angle(profile, await _candidates(session, match, home, away, comp, now))
-        if pick is not None:
-            picks.append(pick)
-    picks.sort(key=lambda pk: (-pk.probability, pk.match.kickoff_at, pk.match.id))
-    return picks
+    return ranked_angles(profile, await window_candidates(session, start, end, now, filters))
 
 
 def target_coupon(ranked: list[Pick], target: Decimal, max_size: int) -> list[Pick]:
@@ -450,12 +472,10 @@ async def generate(
         assert target_odds is not None
         # Un coupon par profil (ses angles, du plus probable au moins probable), puis le
         # plus probable des coupons qui atteignent la cote.
+        # Cotes et pronostics chargés une seule fois pour tous les profils.
+        per_match = await window_candidates(session, start, end, now, filters)
         coupons = [
-            target_coupon(
-                await best_angles(session, prof, start, end, now, filters=filters),
-                target_odds,
-                size,
-            )
+            target_coupon(ranked_angles(prof, per_match), target_odds, size)
             for prof in PROFILES.values()
         ]
         reached = [c for c in coupons if c]

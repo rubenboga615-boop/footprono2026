@@ -6,6 +6,7 @@ jouable : aucune cote n'est inventée.
 """
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -70,33 +71,54 @@ async def match_offer(
     session: AsyncSession, match_id: int, now: datetime | None = None
 ) -> dict[str, Offer]:
     """Cotes jouables d'un match, par clé du moteur (bookmaker préféré d'abord)."""
+    return (await match_offers(session, [match_id], now)).get(match_id, {})
+
+
+async def match_offers(
+    session: AsyncSession, match_ids: Sequence[int], now: datetime | None = None
+) -> dict[int, dict[str, Offer]]:
+    """Cotes jouables de plusieurs matchs en une requête : {match: {clé: offre}}.
+
+    Une requête par match faisait attendre le Coupon intelligent plus de 20 secondes
+    (des centaines de matchs, une fois par profil) : l'application affichait alors
+    « Connexion trop lente » alors que le réseau allait bien."""
     now = now or datetime.now(UTC)
+    if not match_ids:
+        return {}
+    o = BookmakerOdds
     last = (
-        select(func.max(BookmakerOdds.id))
-        .where(
-            BookmakerOdds.match_id == match_id,
-            BookmakerOdds.bookmaker.in_(PLAYABLE_BOOKMAKERS),
-        )
-        .group_by(BookmakerOdds.bookmaker, BookmakerOdds.bet, BookmakerOdds.value)
+        select(func.max(o.id))
+        .where(o.match_id.in_(list(match_ids)), o.bookmaker.in_(PLAYABLE_BOOKMAKERS))
+        .group_by(o.match_id, o.bookmaker, o.bet, o.value)
     )
-    rows = (await session.scalars(select(BookmakerOdds).where(BookmakerOdds.id.in_(last)))).all()
-    # Une cote ne compte que si le dernier relevé du bookmaker pour ce match la
-    # contenait encore (sinon elle a été retirée) et si ce relevé est récent.
-    latest_seen: dict[str, datetime] = {}
-    for r in rows:
-        latest_seen[r.bookmaker] = max(latest_seen.get(r.bookmaker, r.last_seen_at), r.last_seen_at)
-    offers: dict[str, Offer] = {}
+    # Dernier relevé de chaque bookmaker pour le match : une cote absente de ce relevé a
+    # été retirée. Calculé par la base, qui ne renvoie que les cotes encore valables.
+    latest = (
+        select(
+            o.id, o.match_id, o.bookmaker, o.bet, o.value, o.price, o.fetched_at,
+            o.source_updated_at, o.last_seen_at,
+            func.max(o.last_seen_at)
+            .over(partition_by=(o.match_id, o.bookmaker))
+            .label("bookmaker_seen"),
+        )
+        .where(o.id.in_(last))
+        .subquery()
+    )  # fmt: skip
+    rows = (
+        await session.execute(
+            select(latest).where(
+                latest.c.last_seen_at >= latest.c.bookmaker_seen,
+                latest.c.last_seen_at >= now - ODDS_MAX_AGE,
+            )
+        )
+    ).all()
+    out: dict[int, dict[str, Offer]] = {}
     rank = {b: i for i, b in enumerate(PLAYABLE_BOOKMAKERS)}
-    for r in sorted(rows, key=lambda r: rank[r.bookmaker]):
+    for r in sorted(rows, key=lambda r: (rank[r.bookmaker], r.id)):
         mapped = map_bet(r.bet, r.value)
-        withdrawn = r.last_seen_at < latest_seen[r.bookmaker]
-        if (
-            mapped is None
-            or mapped[0] in WITHDRAWN_MARKETS
-            or withdrawn
-            or now - r.last_seen_at > ODDS_MAX_AGE
-        ):
+        if mapped is None or mapped[0] in WITHDRAWN_MARKETS:
             continue
+        offers = out.setdefault(r.match_id, {})
         k = key(*mapped)
         if k not in offers:
             offers[k] = Offer(
@@ -109,20 +131,30 @@ async def match_offer(
                 source_updated_at=r.source_updated_at,
                 checked_at=r.last_seen_at,
             )
-    return offers
+    return out
 
 
 async def model_probabilities(session: AsyncSession, match_id: int) -> dict[str, float]:
     """Probabilité équivalente du moteur (dernière prédiction), par clé de marché."""
-    pred = await session.scalar(
-        select(MatchPrediction)
-        .where(MatchPrediction.match_id == match_id)
-        .order_by(MatchPrediction.run_id.desc())
-        .limit(1)
-    )
-    if pred is None:
+    return (await models_probabilities(session, [match_id])).get(match_id, {})
+
+
+async def models_probabilities(
+    session: AsyncSession, match_ids: Sequence[int]
+) -> dict[int, dict[str, float]]:
+    """Dernière prédiction de plusieurs matchs en une requête : {match: {clé: proba}}."""
+    if not match_ids:
         return {}
-    return {k: Selection(*row).effective_probability for k, row in pred.markets.items()}
+    preds = await session.scalars(
+        select(MatchPrediction)
+        .where(MatchPrediction.match_id.in_(list(match_ids)))
+        .order_by(MatchPrediction.match_id, MatchPrediction.run_id.desc())
+        .distinct(MatchPrediction.match_id)
+    )
+    return {
+        p.match_id: {k: Selection(*row).effective_probability for k, row in p.markets.items()}
+        for p in preds
+    }
 
 
 def _check_open(match: Match, now: datetime) -> None:
