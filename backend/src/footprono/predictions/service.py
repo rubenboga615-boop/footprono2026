@@ -149,7 +149,9 @@ def predict_match(
             "referee_factor": round(model.referee_factor.get(referee, 1.0), 4) if referee else None,
         }
         if stat in MARKET_NAMES:
-            markets.update({k: _selection_row(s) for k, s in count_markets(stat, joint).items()})
+            markets.update(
+                {k: _selection_row(s) for k, s in count_markets(stat, joint).items() if offered(k)}
+            )
     if "yellow_cards" in totals and "red_cards" in totals:
         booking = booking_points_markets(totals["yellow_cards"], totals["red_cards"])
         markets.update({k: _selection_row(s) for k, s in booking.items()})

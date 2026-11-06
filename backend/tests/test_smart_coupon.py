@@ -101,6 +101,8 @@ def test_sure_profile_aims_at_the_middle() -> None:
 def test_withdrawn_markets() -> None:
     assert not offered("ODD_EVEN||odd")
     assert not offered("HT_BTTS||yes")
+    assert not offered("SOT_1X2||home")  # tirs cadrés « le plus de » : retiré le 06/11/2026
+    assert offered("SOT_OU|4.5|over")
     assert not offered("HIGHEST_HALF||first")
     assert offered("BTTS||yes")
     assert offered("HT_OU|0.5|over")

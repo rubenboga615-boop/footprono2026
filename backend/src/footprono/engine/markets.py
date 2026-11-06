@@ -78,10 +78,13 @@ def asian_handicap(ft: FloatArray, margin: IntArray, line: float) -> Selection:
     return Selection(win=float(ft[d > 0].sum()), push=float(ft[d == 0].sum()))
 
 
-# Retirés de l'application (audit du 02/10/2026, docs/MARCHES.md) : le moteur
-# n'y fait pas mieux que la fréquence du championnat. Toujours calculés (et
-# réglés pour les paris déjà placés), mais ni enregistrés, ni proposés.
-WITHDRAWN_MARKETS = frozenset({"HT_BTTS", "HIGHEST_HALF", "ODD_EVEN"})
+# Retirés de l'application (docs/MARCHES.md). Toujours calculés (et réglés pour les paris
+# déjà placés), mais ni enregistrés, ni proposés.
+# - Audit du 02/10/2026 : le moteur n'y fait pas mieux que la fréquence du championnat.
+# - « Tirs cadrés : le plus de » (SOT_1X2), audit du 06/11/2026 : mal calibré (74 % annoncé,
+#   82 % arrivé ; quatre tranches hors de la règle de validation). Retour seulement après
+#   une correction qui passe la règle.
+WITHDRAWN_MARKETS = frozenset({"HT_BTTS", "HIGHEST_HALF", "ODD_EVEN", "SOT_1X2"})
 
 
 def offered(key: str) -> bool:

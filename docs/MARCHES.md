@@ -98,6 +98,13 @@ gagnée par le moteur. « À corriger » = au moins une tranche de probabilité
 | Cartons : le plus de | +1,3 % | +2,5 points vers 10-20 % |
 | Corners : total | +1,0 % | trop prudent : ±1,6 à 1,8 point |
 
+**Retiré le 06/11/2026** : tirs cadrés « le plus de » (`SOT_1X2`). Audit refait le
+06/11/2026 (mêmes saisons, 5 grands championnats) : toujours trop prudent (74 % annoncé,
+82 % arrivé vers 70-80 % ; 65 → 69 %, 84 → 90 % et 25 → 22 % ailleurs), quatre tranches
+hors de la règle de validation (écart > max(3 points, 2 erreurs types)). Les 29 autres
+familles publiées restent justes à 4 points près. Retour seulement après une correction
+qui passe la règle.
+
 **Sans apport** (pas mieux que la fréquence du championnat) : mi-temps
 « les deux marquent », mi-temps la plus prolifique, total pair / impair.
 **Retirés le 02/10/2026** (`engine/markets.py`, `WITHDRAWN_MARKETS`) : ni
