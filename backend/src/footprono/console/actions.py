@@ -32,6 +32,7 @@ from footprono.ingestion.reference import COMPETITIONS, current_season
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.ingestion.sources import api_football
 from footprono.predictions import cups as cup_predictions
+from footprono.predictions import nations as nation_predictions
 from footprono.predictions import service as prediction_service
 from footprono.predictions.service import DEFAULT_DAYS_AHEAD
 
@@ -351,10 +352,24 @@ async def predict(ctx: JobContext, params: dict[str, Any]) -> str:
         cups_n = cup_run.report.get("matches", 0)
     else:
         ctx.log("coupes d'Europe : pronostics désactivés (FP_CUPS_PREDICTIONS)")
-    ctx.result = {"run_id": run.id, "status": run.status, "matches": n, "cup_matches": cups_n}
+    nations_n = 0
+    if ctx.settings.nations_predictions:
+        async with ctx.factory() as session:
+            nation_run = await nation_predictions.predict_nations(
+                session, days_ahead=params["days_ahead"]
+            )
+        for error in nation_run.report.get("errors", []):
+            ctx.log(f"sélections, erreur : {error}")
+        nations_n = nation_run.report.get("matches", 0)
+    else:
+        ctx.log("sélections : pronostics désactivés (FP_NATIONS_PREDICTIONS)")
+    ctx.result = {
+        "run_id": run.id, "status": run.status, "matches": n, "cup_matches": cups_n,
+        "nation_matches": nations_n,
+    }  # fmt: skip
     return (
         f"exécution n°{run.id} {run.status} : {n} matchs prédits ; coupes d'Europe : "
-        f"{cups_n} matchs"
+        f"{cups_n} matchs ; sélections : {nations_n} matchs"
     )
 
 
@@ -388,6 +403,44 @@ register(
         ),
         risk="modifie",
         run=cups_backtest,
+        exclusive=True,
+        cost="aucune requête",
+        duration="moins d'une minute",
+    )
+)
+
+
+async def nations_backtest(ctx: JobContext, params: dict[str, Any]) -> str:
+    async with ctx.factory() as session:
+        result = await nation_predictions.refresh_backtest(session)
+    ll = result["log_loss"]["1X2"]
+    ctx.result = {"matches": result["matches"], "log_loss": ll}
+    for code, r in result["by_competition"].items():
+        ctx.log(f"{code} : {r['matches']} matchs, {r['log_loss']} (naïf {r['naive_log_loss']})")
+    for r in result["by_year"]:
+        ctx.log(f"Année {r['year']} : {r['matches']} matchs, 1X2 {r['log_loss_1x2']}")
+    for market, label in (("OU|2.5", "plus/moins 2,5"), ("BTTS", "les deux marquent")):
+        m = result["log_loss"][market]
+        ctx.log(f"{label} : {m['model']} (naïf {m['naive']})")
+    ctx.log(result["note"])
+    return (
+        f"{result['matches']} matchs officiels de sélections : log loss {ll['model']} contre "
+        f"{ll['naive']} pour la référence naïve (affiché sur la page Fiabilité)"
+    )
+
+
+register(
+    Action(
+        id="nations_backtest",
+        title="Backtest des sélections",
+        family="Moteur",
+        description=(
+            "Chaque année depuis 2021 prédite avec les deux années d'avant (matchs officiels "
+            "des sélections). Le résultat s'affiche sur la page Fiabilité. À relancer après "
+            "l'import des sélections."
+        ),
+        risk="modifie",
+        run=nations_backtest,
         exclusive=True,
         cost="aucune requête",
         duration="moins d'une minute",

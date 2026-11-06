@@ -307,6 +307,16 @@ const competitionNames = {
   'UCL': 'Ligue des Champions',
   'UEL': 'Ligue Europa',
   'UECL': 'Ligue Conférence',
+  'CAN': 'Coupe d\'Afrique des Nations',
+  'CANQ': 'CAN : éliminatoires',
+  'WC': 'Coupe du Monde',
+  'WCQ_AFR': 'Mondial : éliminatoires Afrique',
+  'WCQ_EUR': 'Mondial : éliminatoires Europe',
+  'WCQ_SAM': 'Mondial : éliminatoires Amérique du Sud',
+  'EURO': 'Euro',
+  'EUROQ': 'Euro : éliminatoires',
+  'UNL': 'Ligue des Nations',
+  'COPA': 'Copa America',
 };
 
 String competitionName(String code) => competitionNames[code.toUpperCase()] ?? code;

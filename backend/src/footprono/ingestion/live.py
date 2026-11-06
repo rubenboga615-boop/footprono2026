@@ -23,11 +23,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from footprono.core.config import Settings
 from footprono.football.models import (
     BookmakerOdds,
+    Competition,
     DataSource,
     Match,
     MatchStatus,
     MatchTeamSheet,
     MatchTeamStats,
+    Season,
     StatPeriod,
 )
 from footprono.ingestion import loader, raw_store, service
@@ -35,6 +37,7 @@ from footprono.ingestion.reference import (
     COMPETITIONS,
     COMPETITIONS_BY_CODE,
     CUPS,
+    NATIONS,
     cup_season,
     current_season,
 )
@@ -80,6 +83,24 @@ async def _bookmaker_ids(
     return found, missing
 
 
+async def _nation_targets(session: AsyncSession, now: datetime) -> list[tuple[str, int, int]]:
+    official = [n.code for n in NATIONS if n.official]
+    rows = await session.execute(
+        select(Competition.code, Competition.api_football_id, Season.start_year)
+        .join(Season, Season.competition_id == Competition.id)
+        .join(Match, Match.season_id == Season.id)
+        .where(
+            Competition.code.in_(official),
+            Match.status == MatchStatus.SCHEDULED,
+            Match.kickoff_at.between(now, now + timedelta(days=14)),
+        )
+        .distinct()
+    )
+    return [
+        (code, int(api_id), int(year)) for code, api_id, year in rows.tuples() if api_id is not None
+    ]
+
+
 async def collect_odds(
     session: AsyncSession,
     settings: Settings,
@@ -117,6 +138,9 @@ async def collect_odds(
         targets = [(c.code, c.api_football_id, seasons[c.code]) for c in COMPETITIONS] + [
             (c.code, c.api_football_id, cup_season(fetched_at.date())) for c in CUPS
         ]
+        # Sélections : les saisons qui ont un match officiel dans les 14 jours (pas de règle
+        # de saison commune) ; aucune requête hors des fenêtres internationales.
+        targets += await _nation_targets(session, fetched_at)
         for code, league_id, season in targets:
             for name, book_id in books.items():
                 page, total = 1, 1

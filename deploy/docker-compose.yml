@@ -45,6 +45,7 @@ x-backend: &backend
     # Aide aux joueurs (WhatsApp) et pronostics des coupes d'Europe (true pour les publier).
     FP_SUPPORT_WHATSAPP: ${FP_SUPPORT_WHATSAPP:-+2250500649904}
     FP_CUPS_PREDICTIONS: ${FP_CUPS_PREDICTIONS:-false}
+    FP_NATIONS_PREDICTIONS: ${FP_NATIONS_PREDICTIONS:-false}
     FP_BACKUP_KEEP_DAYS: ${FP_BACKUP_KEEP_DAYS:-14}
     # APK proposé en mise à jour (footprono-admin publish-apk).
     FP_APP_RELEASE_DIR: /data/app

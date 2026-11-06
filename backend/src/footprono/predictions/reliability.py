@@ -26,8 +26,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.engine.history import MARKET_BOOKMAKERS
 from footprono.engine.tiers import tier
-from footprono.ingestion.reference import CUPS_BY_CODE
+from footprono.ingestion.reference import CUPS_BY_CODE, NATIONS_BY_CODE
 from footprono.predictions.cups import stored_backtest
+from footprono.predictions.nations import stored_backtest as nations_backtest
 
 MIN_SAMPLE = 200
 # Tranche du graphique de calibration : en dessous, l'écart annoncé / observé y est
@@ -435,6 +436,8 @@ async def reliability_report(
         "backtest": (
             await stored_backtest(session)
             if competition in CUPS_BY_CODE
+            else await nations_backtest(session)
+            if competition in NATIONS_BY_CODE
             else backtest_for(competition)
         ),
     }

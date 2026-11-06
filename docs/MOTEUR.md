@@ -428,6 +428,50 @@ sur la page Fiabilité ; leur backtest est montré au filtre de la coupe. Les ap
 d'avant les coupes ne reçoivent pas les matchs de coupe (`/predictions/upcoming?cups=true`
 pour celles qui les affichent). Publication : `FP_CUPS_PREDICTIONS` (désactivé par défaut).
 
+## Sélections nationales : moteur (sélections 1.0, étude du 06/11/2026)
+
+`engine/nations.py`, `predictions/nations.py`. Publication : `FP_NATIONS_PREDICTIONS`
+(désactivé par défaut) ; pronostics des matchs officiels seulement.
+
+**Le modèle** : note Elo (K = 40 officiel, 20 amical ; avantage du terrain 60, aucun sur
+terrain neutre ; départ 1 500), niveaux de buts (poids 0,08), régression de Poisson des
+buts (écart de note, terrain neutre, niveaux), Dixon-Coles et part des buts en
+1re période ; appris au 1er janvier sur les matchs officiels des **deux** années d'avant.
+
+**Étude** (2 534 matchs officiels 2021-2026, chaque année prédite par le modèle de son
+1er janvier ; tous les marchés de l'application réglés comme les paris,
+`settlement.goals_grade`) : 1X2 0,877 (logit ordonné 0,881, naïf 1,073) ; Afrique 0,915
+(naïf 1,079). Règle validée le 06/11/2026 : gain > 0,5 %, aucune année sous −0,5 %, chaque
+tranche de 10 % (au moins 100 matchs) à 3 points **ou dans deux erreurs types**,
+Hosmer-Lemeshow p > 0,01 ; publié si le marché passe dans au moins **4 réglages sur 5**
+(fenêtre 2 ans × niveaux 0,05 / 0,08 / 0,12, fenêtres 3 et 4 ans).
+
+**Publiés** : 1X2 et double chance ; les deux marquent ; plus/moins 0,5, 1,5 et 2,5 ;
+résultat à la mi-temps ; mi-temps plus/moins 0,5 et 1,5 ; handicap européen −2, −3 et +1 ;
+plus/moins 2,5 + les deux marquent ; buts du club qui reçoit (0,5, 2,5, 3,5) et de l'autre
+(1,5, 3,5).
+
+**1X2 : favoris écrasants** (choix de l'utilisateur, option A) : annoncés à 95 %, ils
+gagnent 90 % (5 réglages sur 5). Une équipe annoncée à 90 % ou plus : **pas de pronostic du
+tout pour le match** (environ 7 % des matchs officiels : France-Gibraltar…, cotes de 1,05
+inutiles au coupon). Avec cette limite, le 1X2 passe dans les trois réglages à deux ans,
+pas à trois et quatre ans (outsider qui reçoit : 6 % annoncés, 10 % observés) ; une
+limite à 85 % fait pire. Correction logistique du 1X2 (comme les coupes) : pire, non
+retenue.
+
+**Non publiés** : scores exacts, mi-temps / fin de match, écart de buts, cage inviolée,
+gagner sans encaisser, combinés résultat + buts et résultat + les deux marquent,
+plus/moins 3,5 à 5,5, handicaps −1, +2 et +3, mi-temps plus/moins 2,5.
+
+Backtest du moteur en service (console « Backtest des sélections », sans les favoris
+écrasants : 2 361 matchs) : 1X2 0,9225 contre 1,0803 ; Afrique 0,9221 contre 1,0813 ;
+plus/moins 2,5 0,6737 contre 0,6881 ; les deux marquent 0,6760 contre 0,6853 ; calibration
+du 1X2 à 2 points près dans chaque tranche.
+
+Cotes : relevées pour les saisons qui ont un match officiel dans les 14 jours. Liste des
+matchs : `/predictions/upcoming?nations=true` (amicaux et favoris écrasants jamais
+listés).
+
 ## Sélections nationales : données en base (étape B1, 06/11/2026)
 
 CAN et éliminatoires, Coupe du Monde et éliminatoires (Afrique, Europe, Amérique du Sud),

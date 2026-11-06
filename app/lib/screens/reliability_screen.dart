@@ -47,6 +47,16 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
     'UCL',
     'UEL',
     'UECL',
+    'CAN',
+    'CANQ',
+    'WC',
+    'WCQ_AFR',
+    'WCQ_EUR',
+    'WCQ_SAM',
+    'EURO',
+    'EUROQ',
+    'UNL',
+    'COPA',
   ];
   int market = 0;
   String competition = '';

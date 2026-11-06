@@ -122,6 +122,9 @@ async def list_upcoming(
     cups: Annotated[
         bool, Query(description="inclure les coupes d'Europe (application qui sait les afficher)")
     ] = False,
+    nations: Annotated[
+        bool, Query(description="inclure les sélections nationales (matchs officiels pronostiqués)")
+    ] = False,
 ) -> list[UpcomingMatchOut]:
     start = date_from or datetime.now(UTC).date()
     end = date_to or start + timedelta(days=10)
@@ -135,8 +138,10 @@ async def list_upcoming(
         # buts attendus : elles ne reçoivent pas les matchs de coupe. Pronostics des coupes
         # désactivés (FP_CUPS_PREDICTIONS) : pas de matchs de coupe sans pronostic.
         stmt = stmt.where(Competition.code.not_in(list(CUPS_BY_CODE)))
-    if not competition:
-        # Sélections nationales : pas encore de pronostics (moteur à venir).
+    show_nations = bool(competition) or (nations and settings.nations_predictions)
+    if not show_nations:
+        # Sélections : demandées par l'application qui les affiche, pronostics activés
+        # (FP_NATIONS_PREDICTIONS).
         stmt = stmt.where(Competition.code.not_in(list(NATIONS_BY_CODE)))
     rows = (
         (
@@ -152,6 +157,9 @@ async def list_upcoming(
     for row in rows:
         summary = None
         found = latest.get(row[0].id)
+        if found is None and row[3] in NATIONS_BY_CODE and not competition:
+            # Sélections : amicaux et favoris écrasants ne sont jamais pronostiqués.
+            continue
         if found is not None:
             pred, run = found
             m = pred.markets

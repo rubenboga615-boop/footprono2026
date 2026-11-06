@@ -27,8 +27,8 @@ class _MatchesScreenState extends State<MatchesScreen> {
   Future<(List<Upcoming>, List<MatchInfo>)> _load() async {
     final api = context.read<AppState>().api;
     final results = await Future.wait([
-      // Coupes d'Europe comprises (sans plus/moins 2,5 ni, parfois, buts attendus).
-      api.get('/predictions/upcoming', {'limit': 400, 'cups': 'true'}),
+      // Coupes d'Europe et sélections comprises (sans plus/moins 2,5 en coupe).
+      api.get('/predictions/upcoming', {'limit': 400, 'cups': 'true', 'nations': 'true'}),
       api.get('/live'),
     ]);
     return (

@@ -31,6 +31,7 @@ void main() {
     expect(s.btts!.probability, 0.55);
     expect(competitionName('UCL'), 'Ligue des Champions');
     expect(competitionName('srb'), 'Super Liga serbe');
+    expect(competitionName('CAN'), 'Coupe d\'Afrique des Nations');
   });
 
   test('pronostic de championnat : tout est lu', () {

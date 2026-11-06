@@ -24,6 +24,7 @@ from footprono.notifications import service as notifications
 from footprono.notifications.push import sender_or_none as push_sender_or_none
 from footprono.payments import service as payment_service
 from footprono.predictions import cups as cup_predictions
+from footprono.predictions import nations as nation_predictions
 from footprono.predictions import service as prediction_service
 from footprono.worker.celery_app import celery_app
 
@@ -216,6 +217,16 @@ async def _predict_upcoming(only_if_needed: bool = False) -> dict[str, Any]:
             except Exception as exc:  # source extérieure : consignée, jamais bloquante
                 logger.warning("cups_predict_failed", extra={"error": str(exc)})
                 report["cups"] = {"status": "failed", "error": str(exc)[:300]}
+            # Sélections nationales : même principe (FP_NATIONS_PREDICTIONS).
+            if not get_settings().nations_predictions:
+                report["nations"] = {"status": "disabled"}
+            else:
+                try:
+                    nation_run = await nation_predictions.predict_nations(session)
+                    report["nations"] = {"run_id": nation_run.id, **nation_run.report}
+                except Exception as exc:  # jamais bloquante pour les championnats
+                    logger.warning("nations_predict_failed", extra={"error": str(exc)})
+                    report["nations"] = {"status": "failed", "error": str(exc)[:300]}
             return {"run_id": run.id, "status": run.status, "reason": reason, "report": report}
     finally:
         await engine.dispose()
