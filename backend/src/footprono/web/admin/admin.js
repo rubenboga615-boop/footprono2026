@@ -9,16 +9,23 @@ const TOKEN_KEY = "fp_admin_token";
 const POLL_MS = 1500;
 const FAMILY_ICON = { Données: "i-db", Moteur: "i-chip", Application: "i-phone", Comptes: "i-user", Diagnostic: "i-pulse" };
 const PAGES = [
-  { id: "dashboard", hash: "#/", title: "Tableau de bord", icon: "i-home" },
+  { id: "dashboard", hash: "#/", title: "Accueil", icon: "i-home" },
   { id: "actions", hash: "#/actions", title: "Actions", icon: "i-bolt" },
   { id: "journal", hash: "#/journal", title: "Journal", icon: "i-list" },
-  { id: "fichiers", hash: "#/fichiers", title: "Fichiers", icon: "i-file" },
-  { id: "codes", hash: "#/codes", title: "Codes du jour", icon: "i-ticket" },
-  { id: "comptes", hash: "#/comptes", title: "Comptes", icon: "i-user" },
-  { id: "paiements", hash: "#/paiements", title: "Paiements", icon: "i-card" },
+  { id: "comptes", hash: "#/comptes", title: "Comptes", icon: "i-user", group: "joueurs" },
+  { id: "paiements", hash: "#/paiements", title: "Paiements", icon: "i-card", group: "joueurs" },
+  { id: "codes", hash: "#/codes", title: "Codes du jour", icon: "i-ticket", group: "joueurs" },
+  { id: "beta", hash: "#/beta", title: "Observatoire bêta", icon: "i-search", group: "joueurs" },
   { id: "versions", hash: "#/versions", title: "Versions de l'app", icon: "i-phone" },
+  { id: "fichiers", hash: "#/fichiers", title: "Fichiers", icon: "i-file" },
   { id: "securite", hash: "#/securite", title: "Sécurité", icon: "i-shield" },
 ];
+// Onglets de la rubrique « Joueurs » (un seul bouton en bas sur téléphone).
+const PLAYER_TABS = [["comptes", "Comptes"], ["paiements", "Paiements"], ["codes", "Codes"], ["beta", "Bêta"]];
+function playerTabs(current) {
+  return h("div", { class: "seg" }, ...PLAYER_TABS.map(([id, label]) =>
+    h("a", { href: "#/" + id, class: id === current ? "on" : "", text: label })));
+}
 
 let token = readToken();
 let me = null;
@@ -146,8 +153,16 @@ const STATUS = {
 const RUN_STATUS = { ok: "ok", partial: "warn", error: "bad", failed: "bad", running: "acc", interrupted: "bad" };
 const RISK = { lecture: ["Lecture seule", "green"], modifie: ["Modifie les données", ""], irreversible: ["Irréversible", "red"] };
 function statusPill(status) { const [label, kind] = STATUS[status] || [status, ""]; return pill(label, kind, status === "running"); }
+// Section : petit titre au-dessus, contenu dans un seul panneau sobre (refonte du 06/11/2026 :
+// moins de blocs, l'essentiel d'abord).
 function card(title, ...children) {
-  return h("section", { class: "card" }, title ? h("h2", {}, ...[].concat(title)) : null, ...children);
+  return h("section", { class: "card" }, title ? h("h2", {}, ...[].concat(title)) : null,
+    h("div", { class: "panel" }, ...children));
+}
+// Bande de chiffres clés : une seule ligne, sans anneaux ni grosses cartes.
+function strip(items) {
+  return h("div", { class: "strip" }, ...items.map(([label, value, kind, sub]) =>
+    h("div", { class: "cell" }, h("span", { class: "k", text: label }), h("b", { class: kind || "", text: value }), sub ? h("small", { text: sub }) : null)));
 }
 function familyIcon(family, size) {
   return h("span", { class: "icon fam-" + family, style: size ? `width:${size}px;height:${size}px` : null }, icon(FAMILY_ICON[family] || "i-bolt"));
@@ -311,10 +326,13 @@ async function start() {
 // --- Navigation -----------------------------------------------------------------
 
 function stopTimer() { if (timer) clearTimeout(timer); timer = null; }
+let currentPage = "dashboard";
 function setPage(page, title) {
+  currentPage = page;
   document.getElementById("title").textContent = title;
   document.title = "FootProba · " + title;
-  for (const a of document.querySelectorAll("#nav a, #tabbar a")) a.classList.toggle("on", a.dataset.page === page);
+  const group = (PAGES.find((p) => p.id === page) || {}).group;
+  for (const a of document.querySelectorAll("#nav a, #tabbar a")) a.classList.toggle("on", a.dataset.page === page || (!!group && a.dataset.page === group));
 }
 function setStatus(text, kind) {
   const el = document.getElementById("status");
@@ -324,7 +342,9 @@ function setStatus(text, kind) {
 }
 function view(...children) {
   const el = document.getElementById("view");
-  el.replaceChildren(...children);
+  // Rubrique « Joueurs » : ses onglets en tête de chacune de ses pages.
+  const group = (PAGES.find((p) => p.id === currentPage) || {}).group;
+  el.replaceChildren(...(group === "joueurs" ? [playerTabs(currentPage)] : []), ...children);
   window.scrollTo(0, 0);
   return el;
 }
@@ -346,6 +366,7 @@ async function route() {
     else if (parts[0] === "paiements") await paymentsPage();
     else if (parts[0] === "versions") await versionsPage();
     else if (parts[0] === "securite") await securityPage();
+    else if (parts[0] === "beta") await betaPage();
     else if (parts[0] === "plus") plusPage();
     else await dashboardPage();
   } catch (err) {
@@ -389,75 +410,69 @@ function timeline(runs, jobs) {
 }
 
 async function dashboardPage() {
-  setPage("dashboard", "Tableau de bord");
+  setPage("dashboard", "Accueil");
   const d = await api("GET", CONSOLE + "/dashboard");
   lastDashboard = d;
   const s = d.services;
   const allOk = s.database && s.redis && s.workers > 0;
-  setStatus(allOk ? "Tout fonctionne" : "Un service ne répond pas", allOk ? "ok" : "bad");
-  const hour = new Date().getHours();
-  document.getElementById("title").textContent = (hour < 18 ? "Bonjour " : "Bonsoir ") + me.display_name.split(" ")[0];
+  const down = [!s.database && "base", !s.redis && "Redis", !s.workers && "worker"].filter(Boolean);
+  setStatus(allOk ? "Tout fonctionne" : (down.length > 1 ? down.length + " services arrêtés" : "1 service arrêté"), allOk ? "ok" : "bad");
   updateBadges(d);
 
-  const q = d.quota;
-  const quotaCard = q && q.limit
-    ? h("div", { class: "card kpi" }, ring(q.used / q.limit, Math.round((q.used / q.limit) * 100) + "%"),
-      h("div", {}, h("div", { class: "k", text: "API-Football" }), h("div", { class: "v", text: number(q.limit - q.used) }), h("div", { class: "s", text: "restantes sur " + number(q.limit) })))
-    : h("div", { class: "card kpi" }, ring(0, "—"), h("div", {}, h("div", { class: "k", text: "API-Football" }), h("div", { class: "v", text: "—" }), h("div", { class: "s", text: "quota indisponible" })));
-  const disk = d.disk;
-  const used = disk ? 1 - disk.free_gb / disk.total_gb : 0;
-  const backup = d.backup;
-  const kpis = h("div", { class: "kpis" },
-    h("div", { class: "card kpi" }, ring(allOk ? 1 : 0.5, allOk ? "OK" : "!", allOk ? "#34d399" : "#f472b6"),
-      h("div", {}, h("div", { class: "k", text: "Services" }), h("div", { class: "v", text: allOk ? "En marche" : "À vérifier" }),
-        h("div", { class: "s", text: (s.redis ? "Redis ✓" : "Redis ✗") + " · " + (s.workers ? "worker ✓" : "worker ✗") + (backup ? " · sauvegarde " + ago(backup.at) : "") }))),
-    quotaCard,
-    h("div", { class: "card kpi" }, ring(used, Math.round(used * 100) + "%", "#7fb7ff"),
-      h("div", {}, h("div", { class: "k", text: "Disque" }), h("div", { class: "v", text: disk ? String(disk.free_gb).replace(".", ",") + " Go" : "—" }), h("div", { class: "s", text: disk ? "libres sur " + disk.total_gb + " Go" : "" }))),
-    h("div", { class: "card kpi", style: "display:block" }, h("div", { class: "k", text: "Comptes" }),
-      h("div", { class: "btns" }, h("div", { class: "v", text: number(d.users.total) }), d.users.new_7d ? pill("+" + d.users.new_7d + " · 7 j", "ok") : null),
-      sparkline(d.users.trend || [d.users.total]), h("div", { class: "s", text: "dont " + number(d.users.premium) + " Premium" })));
-
+  // 1. À faire : ce qui demande une action, avec son bouton.
   const todo = d.todo.length ? d.todo.map((t) => {
     const kind = { error: "bad", warning: "warn", info: "inf" }[t.level];
-    const ic = { error: "i-warn", warning: "i-warn", info: "i-card" }[t.level];
+    const ic = t.link === "codes" ? "i-ticket" : (t.level === "info" ? "i-card" : "i-warn");
     let go = null;
     if (t.action) go = h("button", { class: "btn sm ghost", type: "button", text: "Lancer", onclick: () => { location.hash = "#/actions/" + t.action; } });
     if (t.link === "codes") go = h("button", { class: "btn sm", type: "button", text: "Saisir", onclick: () => { location.hash = "#/codes"; } });
-    return h("div", { class: "todo" }, h("span", { class: "ic " + kind }, icon(t.link === "codes" ? "i-ticket" : ic)), h("p", { text: t.text }), go);
-  }) : [h("div", { class: "empty", text: "Rien à traiter." })];
+    const text = t.text.replace("sur, equilibre, audacieux", "Sûr, Équilibré, Audacieux").replace(/\bequilibre\b/, "Équilibré").replace(/\bsur\b(?=,|$)/, "Sûr");
+    return h("div", { class: "todo" }, h("span", { class: "ic " + kind }, icon(ic)), h("p", { text: text.charAt(0).toUpperCase() + text.slice(1) }), go);
+  }) : [h("div", { class: "empty", text: "Rien à faire : tout est à jour." })];
 
-  const running = d.jobs.filter((j) => j.status === "running" || j.status === "queued");
-  const runningRows = running.length ? running.map((j) => h("div", { class: "job link", onclick: () => { location.hash = "#/jobs/" + j.id; } },
-    h("div", { style: "flex:1;min-width:0" }, h("div", { class: "t", text: j.title }), h("small", { text: j.status === "queued" ? "en attente du worker" : (j.eta_seconds ? "reste ≈ " + duration(j.eta_seconds) : "démarrée " + ago(j.started_at)) })),
-    bar(j.progress), h("span", { class: "note", text: j.progress ? Math.round(j.progress * 100) + " %" : "" }))) : [h("div", { class: "empty", text: "Aucune tâche en cours." })];
+  // 2. État : une ligne de chiffres.
+  const q = d.quota;
+  const disk = d.disk;
+  const backup = d.backup;
+  const state = strip([
+    ["Services", allOk ? "En marche" : down.join(", ") + " arrêté" + (down.length > 1 ? "s" : ""), allOk ? "okt" : "badt", backup ? "sauvegarde " + ago(backup.at) : null],
+    ["API-Football", q && q.limit ? number(q.limit - q.used) : "—", "", q && q.limit ? "restantes sur " + number(q.limit) : "quota indisponible"],
+    ["Disque libre", disk ? String(disk.free_gb).replace(".", ",") + " Go" : "—", disk && disk.free_gb / disk.total_gb < 0.15 ? "badt" : "", disk ? "sur " + disk.total_gb + " Go" : null],
+    ["Comptes", number(d.users.total), "", (d.users.new_7d ? "+" + d.users.new_7d + " en 7 j · " : "") + number(d.users.premium) + " Premium"],
+  ]);
 
-  const recent = d.jobs.slice(0, 6).map((j) => h("div", { class: "row link", onclick: () => { location.hash = "#/jobs/" + j.id; } },
-    h("span", {}, j.title), h("span", { class: "t", text: when(j.created_at) }), statusPill(j.status)));
+  // 3. Tâches automatiques : une ligne chacune (✓ ou !), cause de l'échec en dessous.
+  const tasks = (d.runs || []).map((task) => {
+    const last = task.runs[0];
+    const failed = last && last.status === "error";
+    const mark = !last ? h("span", { class: "mk mute", text: "–" }) : failed ? h("span", { class: "mk bad", text: "!" })
+      : last.status === "warning" ? h("span", { class: "mk warn", text: "!" }) : h("span", { class: "mk ok", text: "✓" });
+    const row = h("div", { class: "row" }, h("span", { class: "lbl" }, mark, task.label), h("span", { class: "t", text: last ? ago(last.at) : "pas encore passée" }));
+    if (!failed) return row;
+    return [row, h("div", { class: "tl-err" }, icon("i-warn"), h("span", { text: `${when(last.at)} · ${last.error || "cause non enregistrée (tâche arrêtée net : redémarrage du serveur ?)"}` }))];
+  }).flat();
+  for (const job of d.jobs.filter((j) => j.status === "running" || j.status === "queued")) {
+    tasks.unshift(h("div", { class: "row link", onclick: () => { location.hash = "#/jobs/" + job.id; } },
+      h("span", { class: "lbl" }, h("span", { class: "mk acc", text: "●" }), job.title),
+      h("span", { class: "t", text: job.status === "queued" ? "en attente" : (job.progress ? Math.round(job.progress * 100) + " %" : "en cours") })));
+  }
 
-  const lastRuns = [
-    ["Ingestion", d.last.ingestion], ["Pronostics", d.last.prediction],
-  ].map(([label, run]) => h("div", { class: "row" }, h("span", { text: label }),
-    h("span", { class: "t", text: run ? when(run.started_at) + (run.finished_at ? " · " + between(run.started_at, run.finished_at) : "") : "jamais" }),
-    run ? pill(run.status, RUN_STATUS[run.status]) : pill("—")));
-  lastRuns.push(h("div", { class: "row" }, h("span", { text: "Cotes" }), h("span", { class: "t", text: d.last.odds_at ? when(d.last.odds_at) : "jamais" }), pill(d.last.odds_at ? "relevées" : "—", d.last.odds_at ? "ok" : "")));
-  if (d.quality) lastRuns.push(h("div", { class: "row" }, h("span", { text: "Qualité" }), h("span", { class: "t", text: `${d.quality.errors} erreur(s), ${d.quality.warnings} avert.` }), pill(d.quality.errors ? "erreurs" : "ok", d.quality.errors ? "bad" : "ok")));
-  lastRuns.push(h("div", { class: "row link", onclick: () => { location.hash = "#/codes"; } }, h("span", { text: "Coupons du jour" }), h("span", { class: "t", text: d.coupons_today.count + " créé(s)" }),
-    d.coupons_today.missing_codes.length ? pill("codes à saisir", "warn") : pill(d.coupons_today.count ? "OK" : "—", d.coupons_today.count ? "ok" : "")));
+  // 4. Dernières actions lancées depuis la console.
+  const recent = d.jobs.slice(0, 5).map((j) => h("div", { class: "row link", onclick: () => { location.hash = "#/jobs/" + j.id; } },
+    h("span", { class: "lbl", text: j.title }), h("span", { class: "t", text: when(j.created_at) }), statusPill(j.status)));
 
-  view(kpis,
+  view(state,
     h("div", { class: "grid-2" },
-      card(["Tâches automatiques", h("small", { text: "dernières 24 h" })], ...timeline(d.runs || [], d.jobs)),
-      h("div", { style: "display:grid;gap:12px;align-content:start" },
-        card(["À traiter", d.todo.length ? pill(String(d.todo.length), "warn") : pill("0", "ok")], ...todo),
-        card("En cours", ...runningRows))),
-    h("div", { class: "grid-2e" },
-      card("Dernières exécutions", ...lastRuns),
-      card(["Dernières actions", h("a", { href: "#/journal", class: "small", text: "Tout le journal" })], ...(recent.length ? recent : [h("div", { class: "empty", text: "Aucune action lancée depuis la console." })]))));
+      h("div", {},
+        card(["À faire", d.todo.length ? pill(String(d.todo.length), "warn") : null], ...todo),
+        card(["Dernières actions", h("a", { href: "#/journal", class: "small", text: "Tout le journal" })], ...(recent.length ? recent : [h("div", { class: "empty", text: "Aucune action lancée depuis la console." })]))),
+      card("Tâches automatiques", ...(tasks.length ? tasks : [h("div", { class: "empty", text: "Aucune exécution enregistrée pour l'instant." })]))));
   timer = setTimeout(route, 30000);
 }
 
 function updateBadges(d) {
+  const todo = document.getElementById("nav-todo");
+  todo.hidden = !d.todo.length; todo.textContent = d.todo.length;
   const codes = document.getElementById("nav-codes");
   codes.hidden = !d.coupons_today.missing_codes.length;
   codes.textContent = d.coupons_today.missing_codes.length;
@@ -513,25 +528,37 @@ function actionTags(a) {
     a.produces_file ? h("span", { class: "tag" }, icon("i-file"), "fichier") : null,
     a.stoppable ? h("span", { class: "tag", text: "arrêtable" }) : null);
 }
+const FREQUENT_ACTIONS = ["collect_odds", "predict", "daily_coupons", "ingest_current"];
 async function actionsPage() {
   setPage("actions", "Actions");
   const actions = await getCatalog();
   const families = ["Toutes", ...new Set(actions.map((a) => a.family))];
   const counts = Object.fromEntries(families.map((f) => [f, f === "Toutes" ? actions.length : actions.filter((a) => a.family === f).length]));
-  const list = h("div", { class: "acts" });
+  const list = h("div");
   const fam = h("div", { class: "fam" });
-  const filter = h("input", { class: "input filter", type: "search", placeholder: "Filtrer…", value: textFilter, oninput: (e) => { textFilter = e.target.value; render(); } });
+  const filter = h("input", { class: "input filter", type: "search", placeholder: "Chercher une action…", value: textFilter, oninput: (e) => { textFilter = e.target.value; render(); } });
+  const line = (a) => h("button", { class: "act", type: "button", onclick: () => { location.hash = "#/actions/" + a.id; } },
+    familyIcon(a.family), h("span", { class: "t" }, h("b", { text: a.title }),
+      h("small", { text: [a.duration, a.cost, a.risk === "irreversible" ? "irréversible" : null].filter(Boolean).join(" · ") })),
+    h("span", { class: "go" }, icon("i-chevron")));
   function render() {
     fam.replaceChildren(...families.map((f) => h("button", { class: "f" + (f === familyFilter ? " on" : ""), type: "button", onclick: () => { familyFilter = f; render(); } }, f, h("b", { text: counts[f] }))));
     const t = textFilter.toLowerCase();
     const shown = actions.filter((a) => (familyFilter === "Toutes" || a.family === familyFilter) && (!t || (a.title + " " + a.description).toLowerCase().includes(t)));
-    list.replaceChildren(...(shown.length ? shown.map((a) => h("button", { class: "act", type: "button", onclick: () => { location.hash = "#/actions/" + a.id; } },
-      h("div", { class: "head" }, familyIcon(a.family), h("div", { class: "ttl", text: a.title })),
-      h("div", { class: "d", text: a.description }), actionTags(a))) : [h("div", { class: "empty", text: "Aucune action." })]));
+    const groups = [];
+    if (familyFilter === "Toutes" && !t) {
+      const frequent = FREQUENT_ACTIONS.map((id) => actions.find((a) => a.id === id)).filter(Boolean);
+      if (frequent.length) groups.push(card("Les plus utilisées", ...frequent.map(line)));
+    }
+    for (const f of families.slice(1)) {
+      const items = shown.filter((a) => a.family === f);
+      if (items.length) groups.push(card(f, ...items.map(line)));
+    }
+    list.replaceChildren(...(groups.length ? groups : [h("div", { class: "empty", text: "Aucune action." })]));
   }
   render();
   view(h("div", { class: "toolbar" }, fam, filter), list,
-    h("p", { class: "note", style: "margin-top:14px", text: "Le catalogue vient du serveur : une nouvelle action apparaît ici dès la mise à jour du serveur." }));
+    h("p", { class: "note", style: "margin-top:14px", text: "La description complète, le coût et les réglages s'ouvrent au toucher." }));
 }
 
 function paramField(p, initial, onChange) {
@@ -638,7 +665,7 @@ async function actionForm(actionId) {
     h("div", { class: "form-wrap" },
       card(null, h("div", { class: "btns", style: "margin-bottom:14px;flex-wrap:nowrap;align-items:flex-start" }, familyIcon(a.family), h("p", { class: "muted", style: "margin:0", text: a.description })),
         ...(fields.length ? fields.map((f) => f.el) : [h("p", { class: "note", text: "Aucun réglage : l'action se lance telle quelle." })]), confirmEl),
-      h("div", { class: "card sum" }, h("h2", { text: "Récapitulatif" }), summary, h("div", { style: "margin-top:14px" }, error, launch))));
+      h("section", { class: "card sum" }, h("h2", { text: "Récapitulatif" }), h("div", { class: "panel" }, summary, h("div", { style: "margin:12px 0 10px" }, error, launch)))));
 }
 
 // --- Journal et suivi ----------------------------------------------------------------
@@ -861,7 +888,7 @@ async function accountsPage() {
   const users = await api("GET", "/admin/users?limit=200" + (q ? "&q=" + encodeURIComponent(q) : "") + (status ? "&status=" + status : ""));
   const search = h("input", { class: "input filter", type: "search", placeholder: "Nom, numéro ou adresse", value: q });
   const form = h("form", { class: "toolbar", onsubmit: (e) => { e.preventDefault(); accountFilter.q = search.value.trim(); accountsPage(); } }, search, h("button", { class: "btn", type: "submit" }, icon("i-search"), "Chercher"));
-  const filters = h("div", { class: "chips", style: "margin-bottom:12px" }, ...ACCOUNT_FILTERS.map(([value, label]) =>
+  const filters = h("div", { class: "chips scroll-x", style: "margin-bottom:12px" }, ...ACCOUNT_FILTERS.map(([value, label]) =>
     h("button", { class: "chip" + (value === status ? " on" : ""), type: "button", text: label, onclick: () => { accountFilter.status = value; accountsPage(); } })));
   const open = (u) => { location.hash = "#/comptes/" + u.id; };
   const rows = users.map((u) => h("tr", {},
@@ -969,6 +996,13 @@ async function paymentsPage() {
   view(card(null, list.length ? h("div", { class: "scroll" }, h("table", {},
     h("thead", {}, h("tr", {}, h("th", { text: "Compte" }), h("th", { text: "Montant" }), h("th", { class: "hide-sm", text: "Formule" }), h("th", { text: "État" }), h("th", { class: "hide-sm", text: "Date" }))),
     h("tbody", {}, ...rows))) : h("div", { class: "empty", text: "Aucun paiement pour l'instant." })));
+}
+
+// --- Observatoire bêta --------------------------------------------------------------
+
+async function betaPage() {
+  setPage("beta", "Observatoire bêta");
+  view(card(null, h("div", { class: "empty", text: "Bientôt : activité des testeurs volontaires, sans nom ni numéro." })));
 }
 
 // --- Versions de l'application -----------------------------------------------------------
@@ -1162,7 +1196,7 @@ async function enableTotp() {
 
 function plusPage() {
   setPage("plus", "Plus");
-  view(card(null, h("div", { class: "plus-list" }, ...PAGES.filter((p) => !["dashboard", "actions", "journal"].includes(p.id)).map((p) =>
+  view(card(null, h("div", { class: "plus-list" }, ...PAGES.filter((p) => !["dashboard", "actions", "journal"].includes(p.id) && !p.group).map((p) =>
     h("a", { href: p.hash }, h("span", { class: "icon mute" }, icon(p.icon)), p.title)),
   h("a", { href: "#/", onclick: (e) => { e.preventDefault(); logout(); } }, h("span", { class: "icon bad" }, icon("i-out")), "Se déconnecter"))));
 }
@@ -1175,7 +1209,6 @@ document.addEventListener("DOMContentLoaded", () => {
   wireOtp();
   document.getElementById("logout").addEventListener("click", logout);
   document.getElementById("open-palette").addEventListener("click", openPalette);
-  document.getElementById("fab").addEventListener("click", openPalette);
   document.getElementById("palette").addEventListener("click", (e) => { if (e.target.id === "palette") closePalette(); });
   const input = document.getElementById("palette-input");
   input.addEventListener("input", () => renderPalette(input.value));

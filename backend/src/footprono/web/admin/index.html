@@ -40,6 +40,8 @@
     <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14 9l2 2"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17" cy="9" r="2.4"/><path d="M16 14.2c2.4.2 4.3 1.8 5 4.3"/></symbol>
     <symbol id="i-ball" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="m12 7 4 3-1.5 4.5h-5L8 10z"/><path d="M12 7V3M16 10l3.8-1.2M14.5 14.5l2.4 3.4M9.5 14.5l-2.4 3.4M8 10 4.2 8.8"/></symbol>
   </defs>
 </svg>
@@ -79,15 +81,18 @@
   <aside class="side">
     <div class="logo"><span class="mark"><svg><use href="#i-ball"/></svg></span><span><b>Foot<span>Proba</span></b><small>Console</small></span></div>
     <nav class="nav" id="nav">
-      <a href="#/" data-page="dashboard"><svg><use href="#i-home"/></svg>Tableau de bord</a>
+      <a href="#/" data-page="dashboard"><svg><use href="#i-home"/></svg>Accueil<span class="count" id="nav-todo" hidden></span></a>
       <a href="#/actions" data-page="actions"><svg><use href="#i-bolt"/></svg>Actions</a>
       <a href="#/journal" data-page="journal"><svg><use href="#i-list"/></svg>Journal<span class="count" id="nav-running" hidden></span></a>
-      <a href="#/fichiers" data-page="fichiers"><svg><use href="#i-file"/></svg>Fichiers</a>
-      <div class="grp">Exploitation</div>
-      <a href="#/codes" data-page="codes"><svg><use href="#i-ticket"/></svg>Codes du jour<span class="count" id="nav-codes" hidden></span></a>
+      <div class="grp">Joueurs</div>
       <a href="#/comptes" data-page="comptes"><svg><use href="#i-user"/></svg>Comptes</a>
       <a href="#/paiements" data-page="paiements"><svg><use href="#i-card"/></svg>Paiements</a>
-      <a href="#/versions" data-page="versions"><svg><use href="#i-phone"/></svg>Versions de l'app</a>
+      <a href="#/codes" data-page="codes"><svg><use href="#i-ticket"/></svg>Codes du jour<span class="count" id="nav-codes" hidden></span></a>
+      <a href="#/beta" data-page="beta"><svg><use href="#i-search"/></svg>Observatoire bêta</a>
+      <div class="grp">Application</div>
+      <a href="#/versions" data-page="versions"><svg><use href="#i-phone"/></svg>Versions</a>
+      <a href="#/fichiers" data-page="fichiers"><svg><use href="#i-file"/></svg>Fichiers</a>
+      <div class="grp">Compte</div>
       <a href="#/securite" data-page="securite"><svg><use href="#i-shield"/></svg>Sécurité<span class="count warn" id="nav-security" hidden>!</span></a>
     </nav>
     <div class="me">
@@ -107,7 +112,7 @@
   <nav class="tabbar" id="tabbar">
     <a href="#/" data-page="dashboard"><svg><use href="#i-home"/></svg>Accueil</a>
     <a href="#/actions" data-page="actions"><svg><use href="#i-bolt"/></svg>Actions</a>
-    <button type="button" class="fab" id="fab" aria-label="Lancer une action"><svg><use href="#i-search"/></svg></button>
+    <a href="#/comptes" data-page="joueurs"><svg><use href="#i-users"/></svg>Joueurs</a>
     <a href="#/journal" data-page="journal"><svg><use href="#i-list"/></svg>Journal</a>
     <a href="#/plus" data-page="plus"><svg><use href="#i-dots"/></svg>Plus</a>
   </nav>
