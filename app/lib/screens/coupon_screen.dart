@@ -237,7 +237,7 @@ class _CouponScreenState extends State<CouponScreen> {
               if (items.isEmpty)
                 const EmptyState(
                   'Coupon vide. Ouvre un match et touche une cote pour l\'ajouter.\n'
-                  'Un combiné réunit des matchs différents (10 au maximum).',
+                  'Un combiné réunit des matchs différents (${AppState.maxCoupon} au maximum).',
                   icon: Icons.confirmation_number_outlined,
                 )
               else ...[
