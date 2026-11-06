@@ -85,7 +85,8 @@ with played as (
 )
 select tm.id, tm.name, count(*) as played, sum(p.pts) as points, sum(p.gf) as gf,
        sum(p.ga) as ga, sum(a.xpts) as xpts, sum(a.xg) as xg, sum(a.xga) as xga,
-       count(a.xpts) as with_xpts
+       count(a.xpts) as with_xpts,
+       coalesce(sum(p.pts) filter (where a.xpts is not null), 0) as points_with_xpts
 from played p
 join teams tm on tm.id = p.team
 left join match_advanced_stats a
@@ -208,7 +209,9 @@ async def merited_table(session: AsyncSession, competition: str, season: int) ->
     table = []
     for i, r in enumerate(rows, start=1):
         xpts = _num(r["xpts"], 1)
-        luck = None if xpts is None else round(int(r["points"]) - xpts, 1)
+        # Écart sur les mêmes matchs : ceux dont Understat donne les xPts (sinon, des xG
+        # manquants faisaient croire à toutes les équipes qu'elles avaient de la chance).
+        luck = None if xpts is None else round(int(r["points_with_xpts"]) - xpts, 1)
         table.append(
             {
                 "rank": i,
@@ -239,6 +242,8 @@ async def merited_table(session: AsyncSession, competition: str, season: int) ->
         "luck_threshold": LUCK_THRESHOLD,
         # Faux si Understat n'a pas encore les xPts de quelques matchs : le dire.
         "complete": complete,
+        "matches_without_xpts": sum(int(r["played"]) - int(r["with_xpts"]) for r in rows) // 2,
+        "matches_played": sum(int(r["played"]) for r in rows) // 2,
         "table": table,
     }
 

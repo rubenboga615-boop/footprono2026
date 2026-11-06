@@ -105,9 +105,24 @@ class _MeritedScreenState extends State<MeritedScreen> {
         style: Fp.body(12, color: Fp.text3, weight: FontWeight.w600),
       ),
     );
+    final missing = data['matches_without_xpts'] as int?;
+    final played = data['matches_played'] as int?;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Au-dessus du tableau : sans xPts pour une partie des matchs, « Mérité » est
+        // incomplet ; l'écart ne compare que les matchs qui en ont.
+        if (data['complete'] != true) ...[
+          Text(
+            missing != null && played != null
+                ? 'xPts d\'Understat manquants pour $missing matchs sur $played : « Mérité » est '
+                      'incomplet, l\'écart ne compare que les matchs qui en ont.'
+                : 'Understat n\'a pas encore les xPts de quelques matchs : les points mérités de certaines '
+                      'équipes sont incomplets.',
+            style: Fp.body(12, color: Fp.warning, height: 1.4),
+          ),
+          const SizedBox(height: 8),
+        ],
         GlassCard.section(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
           child: Column(
@@ -145,14 +160,6 @@ class _MeritedScreenState extends State<MeritedScreen> {
           'Source des xPts : Understat.',
           style: Fp.body(12, color: Fp.text3, height: 1.4),
         ),
-        if (data['complete'] != true) ...[
-          const SizedBox(height: 8),
-          Text(
-            'Understat n\'a pas encore les xPts de quelques matchs : les points mérités de certaines équipes '
-            'sont incomplets.',
-            style: Fp.body(12, color: Fp.warning, height: 1.4),
-          ),
-        ],
       ],
     );
   }

@@ -1,10 +1,10 @@
 """Fiche équipe (stats avancées : Premium) et classement mérité (points réels contre xPts)."""
 
 from httpx import AsyncClient
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from footprono.football.models import Match
+from footprono.football.models import Match, MatchAdvancedStats
 
 from .conftest import make_premium
 from .test_analysis import _signup
@@ -82,3 +82,26 @@ async def test_merited_table_compares_points_and_xpts(
         assert t["verdict"] == expected
 
     assert (await client.get("/api/v1/competitions/EPL/seasons/1990/merited")).status_code == 404
+
+    # Understat injoignable (cas réel, octobre 2026) : 40 matchs sans xPts. L'écart ne
+    # compare que les matchs qui en ont, sinon toutes les équipes « ont de la chance ».
+    async with db_factory() as session:
+        ids = list(
+            await session.scalars(
+                select(Match.id)
+                .where(Match.status == "finished")
+                .order_by(Match.match_date.desc())
+                .limit(40)
+            )
+        )
+        await session.execute(
+            delete(MatchAdvancedStats).where(MatchAdvancedStats.match_id.in_(ids))
+        )
+        await session.commit()
+    partial = (await client.get("/api/v1/competitions/epl/seasons/2024/merited")).json()
+    assert partial["complete"] is False
+    assert partial["matches_without_xpts"] == 40
+    assert partial["matches_played"] == played
+    rows = [t for t in partial["table"] if t["xpts"] is not None]
+    assert all(t["luck"] <= round(t["points"] - t["xpts"], 1) for t in rows)
+    assert any(t["luck"] < round(t["points"] - t["xpts"], 1) for t in rows)
