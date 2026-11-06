@@ -197,3 +197,100 @@ terminés).
 2. Préparer les sélections jouables (Redis) au démarrage du serveur, pas seulement après
    la collecte des cotes.
 3. Mettre en cache le calcul de `/reliability` (6 à 7 s à chaque ouverture de la page).
+
+## 8. Écrans de la nouvelle version web (publiée à 19 h 24, essai à 22 h 05)
+
+Vérification : `main.dart.js` du 06/11 à 19:24:40 ; contient « Ajout … / … »,
+« Le moteur étudie », « 12 au maximum », « matchs écartés », « à venir », « terminé ».
+
+### 8.1 Coupon intelligent et ajout au coupon
+
+| Ce que j'ai fait | Mesure / ce que j'ai vu |
+|---|---|
+| Onglet Coupon vide | « Un combiné réunit des matchs différents (**12 au maximum**) » : corrigé |
+| Grosse cote 25 → Prochaine journée → Composer | coupon affiché en **2,7 s** ; « Recherche… » seulement (le message d'attente n'apparaît qu'après 4 s : normal) |
+| « Ajouter au coupon » (8 sélections) | **4,5 s, 16 requêtes** (hier 15,5 s, ce soir 9,3 s avec l'ancienne version) |
+| Bouton pendant l'ajout | « Ajout 0 / 8… » (0,3 s) → « 1 / 8 » (2,6 s) → « 3 / 8 » → « 5 / 8 » → « 7 / 8 » (4,0 s) |
+
+**Conforme.** Détail : le message final dit encore « 8 sélection(s) ajoutée(s) » (avec
+« (s) »). Le premier retour arrive à 2,6 s : un des 16 appels est plus lent que les autres.
+
+### 8.2 Suivi des paris (Bookmaker → Réglés → fiche d'un pari)
+
+| Pari | Ce qui est affiché pour chaque sélection |
+|---|---|
+| n° 24 (perdu) | « Ven. 6 nov. 20:00 · perdu · 3-1 » (rouge, croix) ; les 6 autres : « Sam. 7 nov. 13:00 · à venir », etc. (horloge) |
+| n° 20 (perdu) | « Ven. 6 nov. 18:00 · perdu · 4-1 », « … · gagné · 1-0 », etc. pour les 7 |
+
+**Conforme** : date, heure, état et score par sélection, lisibles (capture : fiche du pari
+n° 24). Restent :
+- **Score en buts sur les paris corners** (déjà vu en 6.3) : « Total de corners · Plus de
+  7,5 corners — gagné · 0-0 ». **Piste** : afficher le nombre de corners.
+- **Pari perdu avec 6 sélections « à venir »** (n° 24) : rien ne dit que le pari est déjà
+  perdu à cause de la première sélection et que les autres ne comptent plus. **Piste** :
+  une phrase « Pari perdu sur Everton – Coventry ; les autres matchs restent affichés pour
+  information ».
+- Avancement « x sur 7 validées · y en cours » non vérifiable ce soir : aucun pari ouvert
+  avec des matchs en cours au moment de l'essai. À revérifier demain après-midi.
+- Lecteur d'écran : la fiche est annoncée avec des mots anglais de Flutter (« Dialog »,
+  « Dismiss », « Scrim »).
+
+### 8.3 Coupons du jour
+
+| Ce que j'ai fait | Ce que j'ai vu |
+|---|---|
+| Aujourd'hui (06/11) | Sûr perdu (2/3 validées), Équilibré perdu (1/3), Audacieux **gagné** (2/2) |
+| Hier (05/11, aucun coupon) | « Aucun coupon ce jour-là : aucun match ne respectait les règles des profils (sélections dans leur tranche de probabilité, vraie cote, cote totale minimale). » |
+
+**Conforme** : la journée sans coupon est expliquée. Le message par profil absent n'a pas
+pu être vu (les trois profils étaient présents le 06/11).
+
+### 8.4 Nouvelle page Fiabilité
+
+| Ce que j'ai fait | Mesure / ce que j'ai vu |
+|---|---|
+| Profil → Fiabilité du moteur | page affichée en **6,5 s** (`/reliability` toujours 6 à 7 s) |
+| Écran | **tient sur un seul écran** : bandeau, choix du marché et du championnat, graphique, deux chiffres clés (7,9 % d'erreur en moins que la moyenne, 1,7 % de plus que les bookmakers) |
+| « Marché » | liste de **29 marchés** par famille, chacun avec son écart (« Résultat du match ✓ 3 pts » … « Cartons : le plus de ✓ 4 pts ») |
+| « Championnat » | « 5 grands » + 20 championnats |
+| Onglet « Depuis le lancement (394) » | calibration réelle par tranche |
+
+**Conforme dans l'ensemble.** Incohérences à corriger :
+1. **3 ou 4 points ?** Le bandeau dit « justes à **4** points près », la carte juste en
+   dessous « ✓ juste à **3** points près », et « Cartons : le plus de » a un ✓ avec
+   **4 pts** alors que la règle publiée est 3 points. Le joueur ne sait plus quelle est la
+   règle. **Piste** : une seule règle, et pas de ✓ au-delà.
+2. **Onglet « Depuis le lancement » sans avertissement** : 44 % annoncé → **58 %** arrivé,
+   64 % → **73 %** (écarts de 14 et 9 points), sans aucune mention, alors que l'onglet
+   Simulation affiche « ✓ juste à 3 points près ». **Piste** : afficher aussi le verdict sur
+   les résultats réels (« pas encore juste : trop prudent sur les favoris »), avec le nombre
+   de cas par tranche.
+3. **Filtre et note contradictoires** : le filtre indique « Championnat : 5 grands », la note
+   sous le graphique dit « Pronostics publiés avant les matchs, **tous les championnats** ».
+4. **Serbie et Israël absents** de la liste des championnats (22 en service, 20 listés).
+5. Les deux chiffres clés (7,9 % et 1,7 %) ne changent pas entre « Simulation » et « Depuis
+   le lancement » : on ne sait pas à quoi ils se rapportent.
+
+### 8.5 Suggestions de montante (écran)
+
+| Ce que j'ai fait | Mesure / ce que j'ai vu |
+|---|---|
+| Montante → carte « Suggestions du moteur » | écran affiché en **4,35 s** (`/suggestions` 3,6 s, puis 3 matchs en parallèle 0,5 s) |
+| Écran | « Suggestions — la cote la plus basse d'abord » ; 3 paris simples à 1,55 ; « Modèle 60 % / 68 % / 62 % — Selon la cote 64,5 % » |
+
+**Conforme.** Restent :
+- `/suggestions` à **3,6 s** ici (0,4 à 2,7 s plus tôt dans la soirée) : à surveiller.
+- La carte « Suggestions du moteur » **n'est pas un bouton pour le lecteur d'écran** (déjà
+  noté le 06/11) : je l'ai touchée par sa position.
+- Badge rouge **« 2 » sur l'onglet Profil** sans explication visible à l'ouverture du profil
+  (notifications ?). À vérifier.
+
+## 9. Bilan des écrans
+
+| Écran | Verdict |
+|---|---|
+| Ajout de 7 à 8 sélections | **corrigé** : 4,5 s avec progression |
+| Suivi des paris (date, état, score) | **corrigé** ; reste le score des paris corners |
+| Coupons du jour (libellés, jours sans coupon) | **corrigé** |
+| Page Fiabilité sur un seul écran | **en place** ; règle 3 / 4 points et résultats réels à clarifier ; 6,5 s de chargement |
+| Suggestions de montante | **corrigé** (matchs différents, tri neutre) ; 3,6 s |
