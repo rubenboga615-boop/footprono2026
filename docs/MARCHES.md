@@ -98,6 +98,10 @@ gagnée par le moteur. « À corriger » = au moins une tranche de probabilité
 | Cartons : le plus de | +1,3 % | +2,5 points vers 10-20 % |
 | Corners : total | +1,0 % | trop prudent : ±1,6 à 1,8 point |
 
+Résultat publié sur la page Fiabilité de l'application (une famille par marché, sa
+calibration par tranche et son avantage sur la moyenne du championnat) :
+`backend/src/footprono/predictions/data/markets_audit.json`, à régénérer après chaque audit.
+
 **Retiré le 06/11/2026** : tirs cadrés « le plus de » (`SOT_1X2`). Audit refait le
 06/11/2026 (mêmes saisons, 5 grands championnats) : toujours trop prudent (74 % annoncé,
 82 % arrivé vers 70-80 % ; 65 → 69 %, 84 → 90 % et 25 → 22 % ailleurs), quatre tranches

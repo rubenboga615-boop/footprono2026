@@ -544,6 +544,47 @@ class FakeServer {
           ],
           'versus_closing_odds': [],
           'recent': [],
+          'markets_audit': r.url.queryParameters['competition'] != null
+              ? null
+              : {
+                  'matches': 7081,
+                  'seasons': '2022-23 à 2025-26',
+                  'competitions': '5 grands championnats',
+                  'rule': 'Juste : écart de 3 points au plus.',
+                  'reference': 'Moyenne du championnat.',
+                  'families': [
+                    {
+                      'id': '1X2',
+                      'group': 'Résultat et buts',
+                      'label': 'Résultat du match',
+                      'skill': 0.079,
+                      'max_gap_points': 2.2,
+                      'passes_rule': true,
+                      'withdrawn': null,
+                      'calibration': [bin('0,7-0,8', 538, 0.742, 0.764), bin('0,8-0,9', 21, 0.84, 0.85)],
+                    },
+                    {
+                      'id': 'CORNERS_OU',
+                      'group': 'Corners',
+                      'label': 'Corners : total',
+                      'skill': 0.01,
+                      'max_gap_points': 1.8,
+                      'passes_rule': true,
+                      'withdrawn': null,
+                      'calibration': [bin('0,4-0,5', 900, 0.45, 0.43)],
+                    },
+                    {
+                      'id': 'SOT_1X2',
+                      'group': 'Tirs',
+                      'label': 'Tirs cadrés : le plus de',
+                      'skill': 0.095,
+                      'max_gap_points': 7.5,
+                      'passes_rule': false,
+                      'withdrawn': 'Retiré le 06/11/2026.',
+                      'calibration': [bin('0,7-0,8', 867, 0.743, 0.818)],
+                    },
+                  ],
+                },
           'backtest': {
             'label': 'Backtest',
             'matches': 7081,
@@ -1579,7 +1620,9 @@ void main() {
     expect(find.text('Voir les coupons plus anciens'), findsNothing);
   });
 
-  testWidgets('fiabilité : avertissement du marché affiché, tranches trop petites grisées', (tester) async {
+  testWidgets('fiabilité : verdict, un marché à la fois, pronostics publiés et autres championnats', (
+    tester,
+  ) async {
     await startApp(tester, loggedIn: true);
     final context = tester.element(find.byType(Scaffold).first);
     Navigator.of(
@@ -1587,11 +1630,33 @@ void main() {
       rootNavigator: true,
     ).push(MaterialPageRoute(builder: (_) => const ReliabilityScreen()));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Seulement'), findsNothing); // 1X2 : 550 matchs
-    expect(find.text('600 cas'), findsOneWidget);
-    expect(find.text('21 cas'), findsOneWidget);
-    expect(find.textContaining('Tranches grisées : moins de 50 cas'), findsOneWidget);
-    await tester.tap(find.text('Les 2 marquent'));
+    // Verdict d'abord : marchés publiés justes, marché retiré nommé.
+    expect(find.textContaining('Les 2 marchés publiés sont justes à 3 points près'), findsOneWidget);
+    expect(find.textContaining('Retiré : « Tirs cadrés : le plus de »'), findsOneWidget);
+    // Simulation du résultat du match : annoncé → arrivé, avantage sur la moyenne, bookmakers.
+    expect(find.text('✓ juste à 3 points près'), findsOneWidget);
+    expect(find.textContaining('74 → '), findsOneWidget);
+    expect(find.text('7,9\u00A0%'), findsOneWidget);
+    expect(find.textContaining('en plus que les bookmakers'), findsOneWidget);
+
+    // Liste des marchés : un autre marché s'affiche à la place.
+    await tester.tap(find.text('Résultat du match'));
+    await tester.pumpAndSettle();
+    expect(find.text('retiré'), findsOneWidget);
+    await tester.tap(find.text('Corners : total'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('45 → '), findsOneWidget);
+    expect(find.text('pas de cotes passées pour comparer aux bookmakers'), findsOneWidget);
+
+    // Autre championnat : marchés suivis, pronostics publiés et avertissement du petit échantillon.
+    await tester.tap(find.text('5 grands'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Premier League'));
+    await tester.pumpAndSettle();
+    expect(find.text('Résultat du match'), findsOneWidget);
+    await tester.tap(find.text('Résultat du match'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Les deux marquent'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Seulement 170 matchs sur ce marché'), findsOneWidget);
   });

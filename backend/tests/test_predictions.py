@@ -133,6 +133,7 @@ async def test_reliability_counts_only_predictions_made_before_kickoff(
     db_factory: async_sessionmaker[AsyncSession], upcoming: list[int], client: AsyncClient
 ) -> None:
     empty = (await client.get("/api/v1/reliability")).json()
+    assert len(empty["markets_audit"]["families"]) == 30  # tous les marchés
     assert empty["matches"] == 0
     assert empty["warning"] is not None
     assert empty["backtest"]["matches"] == 7081
@@ -324,3 +325,24 @@ def test_stale_competition_is_paused() -> None:
     assert stale_competitions(hist, day, set()) == {"SUI": {"played": 4, "missing": 3}}
     # Deux matchs reportés (connus comme tels) ne comptent pas : 2 restants, trop peu.
     assert stale_competitions(hist, day, {2, 3}) == {}
+
+
+def test_markets_audit_covers_every_published_family() -> None:
+    """Page Fiabilité : tous les marchés publiés, chacun avec sa calibration ; un marché
+    hors de la règle de validation est forcément retiré de l'application."""
+    from footprono.engine.markets import WITHDRAWN_MARKETS
+
+    audit = reliability.markets_audit()
+    families = audit["families"]
+    assert len(families) == 30
+    assert audit["matches"] == 7081
+    for f in families:
+        assert f["calibration"], f["id"]
+        assert f["group"]
+        assert f["label"]
+        if not f["passes_rule"]:
+            assert f["withdrawn"] is not None, f["id"]
+        assert (f["withdrawn"] is not None) == (f["id"] in WITHDRAWN_MARKETS), f["id"]
+    published = [f for f in families if f["withdrawn"] is None]
+    assert len(published) == 29
+    assert max(f["max_gap_points"] for f in published) < 4

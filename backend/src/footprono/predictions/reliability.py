@@ -15,10 +15,13 @@ Règles (docs/PRODUIT.md) :
 - Sous ``MIN_SAMPLE`` matchs, l'échantillon est signalé trop petit pour conclure.
 """
 
+import json
 import math
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
+from functools import cache
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import text
@@ -123,6 +126,16 @@ BACKTEST_LEVEL_2: dict[str, Any] = {
         "plus/moins 2,5 0,6784 contre 0,6685. Le moteur reste derrière les cotes de clôture."
     ),
 }
+
+
+@cache
+def markets_audit() -> dict[str, Any]:
+    """Audit de tous les marchés publiés (5 grands championnats, docs/MARCHES.md) : une
+    famille par marché, sa calibration par tranche et son avantage sur la moyenne du
+    championnat. Simulation sur des saisons passées, présentée comme telle."""
+    path = Path(__file__).parent / "data" / "markets_audit.json"
+    data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return data
 
 
 def backtest_for(competition: str | None) -> dict[str, Any]:
@@ -433,6 +446,8 @@ async def reliability_report(
             }
             for r in reversed(rows[-recent:] if recent else [])
         ],
+        # Tous les marchés : audit des 5 grands championnats (pas d'audit par championnat).
+        "markets_audit": markets_audit() if competition is None else None,
         "backtest": (
             await stored_backtest(session)
             if competition in CUPS_BY_CODE

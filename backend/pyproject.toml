@@ -67,6 +67,7 @@ footprono = [
     "db/migrations/*.mako",
     "db/migrations/versions/*.py",
     "ingestion/reference/*.csv",
+    "predictions/data/*.json",
     "web/*.html",
     "web/admin/*",
     "web/admin/fonts/*",
