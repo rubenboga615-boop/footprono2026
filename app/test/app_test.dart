@@ -874,8 +874,12 @@ Future<(AppState, FakeServer)> startApp(
   UrlOpener? openUrl,
   ApkInstaller? installer,
   GoogleAuthBridge? google,
+  bool googleRedirectPending = false,
 }) async {
-  SharedPreferences.setMockInitialValues(loggedIn ? {'token': 'jeton'} : {});
+  SharedPreferences.setMockInitialValues({
+    if (loggedIn) 'token': 'jeton',
+    if (googleRedirectPending) 'google_redirect_pending': true,
+  });
   final server = FakeServer(premium: premium);
   final state = AppState(
     api: ApiClient(baseUrl: 'http://serveur', httpClient: MockClient(server.handle)),
@@ -1765,8 +1769,17 @@ void main() {
   });
 
   testWidgets('version web sur téléphone : retour de Google après redirection', (tester) async {
+    // Démarrage ordinaire (aucune connexion Google commencée) : Firebase n'est pas
+    // attendu, rien ne reprend même si un ancien résultat traîne.
+    final (plain, _) = await startApp(tester, google: FakeGoogle()..redirect = 'jeton-google');
+    expect(plain.googleSignup, isNull);
+
     // Pas connecté : la connexion reprend (compte Google inconnu → « Presque prêt »).
-    final (state, _) = await startApp(tester, google: FakeGoogle()..redirect = 'jeton-google');
+    final (state, _) = await startApp(
+      tester,
+      google: FakeGoogle()..redirect = 'jeton-google',
+      googleRedirectPending: true,
+    );
     expect(state.googleSignup?.email, 'kossi@gmail.com');
 
     // Connecté : la demande venait du Profil, le compte Google est lié.
@@ -1774,6 +1787,7 @@ void main() {
       tester,
       loggedIn: true,
       google: FakeGoogle()..redirect = 'jeton-google',
+      googleRedirectPending: true,
     );
     expect(server.googleLinked, isTrue);
     expect(find.text('Compte Google lié.'), findsOneWidget);

@@ -204,6 +204,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   static const _kServer = 'server_url';
   static const _kToken = 'token';
   static const _kExcludedTeams = 'excluded_teams';
+  // Connexion Google commencée (version web sur téléphone : la page part chez Google et
+  // revient) : la suite n'est cherchée au démarrage que dans ce cas.
+  static const _kGoogleRedirect = 'google_redirect_pending';
 
   /// Nombre maximum de sélections d'un coupon (comme le serveur).
   static const maxCoupon = 12;
@@ -283,8 +286,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<String?> _googleToken() async {
     final g = google;
     if (g == null) return null;
+    await _prefs?.setBool(_kGoogleRedirect, true);
     try {
-      return await g.idToken();
+      final token = await g.idToken();
+      if (token != null) await _prefs?.remove(_kGoogleRedirect);
+      return token;
     } catch (_) {
       throw ApiException(0, 'google', 'Connexion Google impossible. Réessaie ou utilise ton numéro.');
     }
@@ -314,12 +320,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Retour de Google après redirection (version web sur téléphone) : connecté, la
   /// demande venait du Profil (lier le compte) ; sinon de l'écran de connexion.
+  /// Retour de Google après une connexion par redirection. Cherché seulement si une
+  /// connexion a été commencée, et jamais plus de 10 secondes : sinon l'application
+  /// attendait Firebase à chaque démarrage et restait sur le chargement quand Firebase
+  /// ne se chargeait pas (réseau lent, bloqueur, panne de Google).
   Future<void> _resumeGoogleRedirect() async {
     final g = google;
-    if (g == null) return;
+    if (g == null || _prefs?.getBool(_kGoogleRedirect) != true) return;
+    await _prefs?.remove(_kGoogleRedirect);
     final String? token;
     try {
-      token = await g.redirectResult();
+      token = await g.redirectResult().timeout(const Duration(seconds: 10));
     } catch (_) {
       showMessage('Connexion Google impossible. Réessaie ou utilise ton numéro.', error: true);
       return;
