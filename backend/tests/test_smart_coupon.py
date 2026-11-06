@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -22,6 +23,21 @@ Factory = async_sessionmaker[AsyncSession]
 DAY = (NOW + timedelta(days=1)).date()
 KICKOFF = datetime(DAY.year, DAY.month, DAY.day, 20, tzinfo=UTC)
 MORNING = datetime(DAY.year, DAY.month, DAY.day, 8, 5, tzinfo=UTC)
+
+
+class _FrozenClock(datetime):
+    """Horloge du coupon arrêtée à NOW (celle des matchs de test) : sans elle, une suite
+    lancée avant minuit et finie après voit « demain » changer de jour en cours de route."""
+
+    @classmethod
+    def now(cls, tz: Any = None) -> "_FrozenClock":
+        moment = NOW if tz is None else NOW.astimezone(tz)
+        return cls.fromtimestamp(moment.timestamp(), moment.tzinfo)
+
+
+@pytest.fixture(autouse=True)
+def _frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(smart_coupon, "datetime", _FrozenClock)
 
 
 async def _evening(factory: Factory, ids: list[int]) -> None:
@@ -433,7 +449,7 @@ async def test_daily_coupons_notification_once_all_codes_are_in(
 async def test_history_pages_and_30_days_split_by_profile(
     client: AsyncClient, db_factory: Factory
 ) -> None:
-    today = datetime.now(UTC).date()
+    today = NOW.date()
     async with db_factory() as session:
         for d in range(1, 31):  # 30 jours, 3 coupons par jour : 90 coupons réglés
             for profile, p, won in (("sur", 0.6, d % 2 == 0), ("equilibre", 0.45, d % 3 == 0),
