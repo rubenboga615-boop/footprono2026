@@ -544,7 +544,7 @@ class FakeServer {
           ],
           'versus_closing_odds': [],
           'recent': [],
-          'markets_audit': r.url.queryParameters['competition'] != null
+          'markets_audit': !{null, 'BIG5'}.contains(r.url.queryParameters['competition'])
               ? null
               : {
                   'matches': 7081,
@@ -1631,13 +1631,20 @@ void main() {
     ).push(MaterialPageRoute(builder: (_) => const ReliabilityScreen()));
     await tester.pumpAndSettle();
     // Verdict d'abord : marchés publiés justes, marché retiré nommé.
-    expect(find.textContaining('Les 2 marchés publiés sont justes à 3 points près'), findsOneWidget);
+    expect(find.textContaining('Les 2 marchés publiés respectent la règle de justesse'), findsOneWidget);
     expect(find.textContaining('Retiré : « Tirs cadrés : le plus de »'), findsOneWidget);
     // Simulation du résultat du match : annoncé → arrivé, avantage sur la moyenne, bookmakers.
-    expect(find.text('✓ juste à 3 points près'), findsOneWidget);
+    expect(find.text('✓ règle respectée · écart max 3 pts'), findsOneWidget);
     expect(find.textContaining('74 → '), findsOneWidget);
     expect(find.text('7,9\u00A0%'), findsOneWidget);
     expect(find.textContaining('en plus que les bookmakers'), findsOneWidget);
+
+    // Pronostics publiés : verdict et chiffres clés tirés des résultats réels.
+    await tester.tap(find.text('Depuis le lancement (550)'));
+    await tester.pumpAndSettle();
+    expect(find.text('✓ règle respectée'), findsOneWidget);
+    expect(find.text('7,5\u00A0%'), findsOneWidget); // 0,99 contre 1,07 (fréquence observée)
+    expect(find.textContaining('5 grands championnats'), findsOneWidget);
 
     // Liste des marchés : un autre marché s'affiche à la place.
     await tester.tap(find.text('Résultat du match'));

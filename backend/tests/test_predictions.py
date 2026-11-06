@@ -198,6 +198,11 @@ async def test_reliability_counts_only_predictions_made_before_kickoff(
 
     other = (await client.get("/api/v1/reliability", params={"competition": "L1"})).json()
     assert other["matches"] == 0
+    # « 5 grands championnats » : les mêmes pronostics que l'audit de tous les marchés.
+    big5 = (await client.get("/api/v1/reliability", params={"competition": "big5"})).json()
+    assert big5["matches"] == n
+    assert len(big5["markets_audit"]["families"]) == 30
+    assert report["markets_audit"] is None
 
 
 async def test_prediction_needed_catches_up_after_downtime_and_new_fixtures(

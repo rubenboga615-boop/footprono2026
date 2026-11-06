@@ -34,6 +34,8 @@ from footprono.predictions.cups import stored_backtest
 from footprono.predictions.nations import stored_backtest as nations_backtest
 
 MIN_SAMPLE = 200
+# Filtre « 5 grands championnats » (celui de l'audit de tous les marchés) : ``BIG5``.
+BIG5 = ("EPL", "LA_LIGA", "SERIE_A", "BUNDESLIGA", "LIGUE_1")
 # Tranche du graphique de calibration : en dessous, l'écart annoncé / observé y est
 # surtout du hasard (tranche grisée dans l'application).
 MIN_BIN = 50
@@ -163,7 +165,7 @@ _PREDICTIONS = text(
     WHERE m.status = 'finished'
       AND m.home_goals IS NOT NULL AND m.away_goals IS NOT NULL
       AND mp.created_at < COALESCE(m.kickoff_at, m.match_date::timestamp AT TIME ZONE 'UTC')
-      AND (CAST(:competition AS text) IS NULL OR c.code = :competition)
+      AND (CAST(:codes AS text[]) IS NULL OR c.code = ANY(CAST(:codes AS text[])))
       AND (CAST(:since AS date) IS NULL OR m.match_date >= :since)
     ORDER BY mp.match_id, mp.created_at DESC
     """
@@ -352,7 +354,8 @@ def _versus_closing(
 async def load_scored(
     session: AsyncSession, *, competition: str | None = None, since: date | None = None
 ) -> list[Scored]:
-    rows = (await session.execute(_PREDICTIONS, {"competition": competition, "since": since})).all()
+    codes = None if competition is None else list(BIG5) if competition == "BIG5" else [competition]
+    rows = (await session.execute(_PREDICTIONS, {"codes": codes, "since": since})).all()
     out = []
     for mid, day, comp, home, away, hg, ag, _created, version, ph, pd, pa, over, yes in rows:
         if None in (ph, pd, pa):
@@ -447,7 +450,7 @@ async def reliability_report(
             for r in reversed(rows[-recent:] if recent else [])
         ],
         # Tous les marchés : audit des 5 grands championnats (pas d'audit par championnat).
-        "markets_audit": markets_audit() if competition is None else None,
+        "markets_audit": markets_audit() if competition in (None, "BIG5") else None,
         "backtest": (
             await stored_backtest(session)
             if competition in CUPS_BY_CODE
