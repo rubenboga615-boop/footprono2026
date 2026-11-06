@@ -312,6 +312,11 @@ async def cups_backtest(ctx: JobContext, params: dict[str, Any]) -> str:
     ctx.result = {"matches": result["matches"], "log_loss": ll}
     for code, r in result["by_competition"].items():
         ctx.log(f"{code} : {r['matches']} matchs, {r['log_loss']} (naïf {r['naive_log_loss']})")
+    for r in result["by_season"]:
+        ctx.log(f"Saison {r['season']} : {r['matches']} matchs, 1X2 {r['log_loss_1x2']}")
+    for market, label in (("OU|2.5", "plus/moins 2,5 (non publié)"), ("BTTS", "les deux marquent")):
+        m = result["log_loss"][market]
+        ctx.log(f"{label} : {m['model']} (naïf {m['naive']})")
     return (
         f"{result['matches']} matchs de coupe : log loss {ll['model']} contre {ll['naive']} "
         "pour la référence naïve (affiché sur la page Fiabilité)"
@@ -324,7 +329,7 @@ register(
         title="Backtest des coupes d'Europe",
         family="Moteur",
         description=(
-            "Chaque match de coupe depuis 2022-23 prédit avec les seuls matchs d'avant lui. "
+            "Chaque saison de coupe depuis 2022-23 prédite avec les seules saisons d'avant. "
             "Le résultat s'affiche sur la page Fiabilité (filtre de la coupe). À relancer "
             "après l'import des coupes."
         ),

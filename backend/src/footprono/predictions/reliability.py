@@ -200,10 +200,10 @@ def _market_warning(market: str, n: int, competition: str | None) -> str | None:
     """Avertissement propre au marché : son échantillon, pas celui de tous les marchés
     (« les deux marquent » n'existe pas dans les championnats sans xG)."""
     if n == 0:
-        if market != "1X2" and competition in CUPS_BY_CODE:
+        if market == "OU|2.5" and competition in CUPS_BY_CODE:
             return (
-                "Coupes d'Europe : le moteur ne donne que le résultat du match et la double "
-                "chance (pas de modèle des buts)."
+                "Coupes d'Europe : plus/moins 2,5 buts non publié (niveau de buts trop "
+                "changeant d'une saison à l'autre pour être bien calibré)."
             )
         if market == "BTTS" and competition is not None and tier(competition).level == 2:
             return (
@@ -344,7 +344,7 @@ async def load_scored(
         if None in (ph, pd, pa):
             continue
         probs: dict[str, tuple[float, ...]] = {"1X2": (ph, pd, pa)}
-        if over is not None:  # absent pour les coupes d'Europe (1X2 seulement)
+        if over is not None:  # absent pour les coupes d'Europe (non publié)
             probs["OU|2.5"] = (over, 1 - over)
         if yes is not None:  # absent au niveau de données 2 (engine/tiers.py)
             probs["BTTS"] = (yes, 1 - yes)

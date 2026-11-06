@@ -353,32 +353,80 @@ pas ; il faut au moins 3 matchs dans la fenêtre. Le rapport du calcul (`stale`)
 tableau de bord de la console le signalent ; la reprise est automatique dès que les
 résultats reviennent (`predictions/service.py`, `stale_competitions`).
 
-## Coupes d'Europe : moteur à part (étude du 07/10/2026, en service le 05/11/2026)
+## Coupes d'Europe : moteur des buts (coupes 2.0, étude du 06/11/2026)
 
 Ligue des Champions, Ligue Europa, Ligue Conférence (`engine/cups.py`,
-`predictions/cups.py`). Résultats seulement : l'archive API-Football n'a ni statistiques
-ni cotes passées des coupes.
+`predictions/cups.py`). Données : 7 166 matchs de coupe depuis 2018 (archive API-Football),
+résultats et score à la mi-temps ; ni statistiques (corners, cartons, tirs) ni cotes
+passées des coupes. Score du temps réglementaire : celui des paris.
 
-- **Une note Elo par équipe**, commune aux championnats et aux coupes : mise à jour après
-  chaque match de nos 20 championnats (K = 10, avantage du terrain 65) et de coupe (K = 55,
-  avantage 100, aucun en finale) ; l'écart de buts pèse (1 ; 1,5 ; (11 + écart) / 8).
-- Une équipe d'un de nos championnats démarre à 1 500, une équipe d'ailleurs (Kazakhstan,
-  Azerbaïdjan…) à 1 350 : ses matchs européens la situent ensuite.
-- **Note → probabilités :** logit ordonné (domicile, nul, extérieur) appris sur les matchs
-  de coupe déjà joués depuis juillet 2019 (une saison pour que les notes se placent).
-- **Marchés :** 1X2 et double chance seulement (pas de modèle des buts : plus/moins 2,5
-  ne battait la référence naïve que de 0,005). Score du temps réglementaire : celui des
-  paris (prolongation et tirs au but n'y comptent pas).
-- Étude (réglages choisis sur 2020-22, test 2022-23 → 2026-27, 3 989 matchs, chacun prédit
-  avec les seuls matchs d'avant lui) : 1X2 log loss **0,961** contre 1,044 pour la
-  référence naïve ; C1 0,933, C3 0,958, C4 0,977 ; calibration à 2 points près entre 10
-  et 70 %, un peu prudente au-dessus de 70 % (annoncé 74 %, observé 81 %).
-- **Jamais mêlé aux championnats :** l'historique des championnats (`load_history`)
-  ignore les matchs de coupe. Les pronostics de coupe sont enregistrés avant les matchs et
-  comptent sur la page Fiabilité ; leur backtest (console : « Backtest des coupes
-  d'Europe ») est montré au filtre de la coupe.
-- Les applications d'avant les coupes ne reçoivent pas les matchs de coupe
-  (`/predictions/upcoming?cups=true` pour celles qui les affichent).
+**Le modèle**
+
+- **Note Elo par équipe**, commune aux championnats et aux coupes : K = 10 et avantage du
+  terrain 65 en championnat, K = 55 et avantage 100 en coupe (aucun en finale) ; l'écart de
+  buts pèse (1 ; 1,5 ; (11 + écart) / 8). Départ : 1 500 pour une équipe de nos 20
+  championnats, 1 350 pour une équipe d'ailleurs.
+- **Niveaux de buts** : moyenne mobile des buts marqués et encaissés de chaque équipe, tous
+  matchs confondus (poids 0,04).
+- **Buts de chaque équipe** : régression de Poisson sur l'écart de note, le terrain neutre,
+  les niveaux de buts (attaque de l'une, défense de l'autre) et l'écart entre les équipes
+  de nos championnats et les autres ; puis Dixon-Coles et part des buts en 1re période,
+  comme pour les championnats. Appris au 1er juillet de chaque saison sur les matchs de
+  coupe depuis juillet 2019, **sans la période COVID** (mars 2020 → juin 2021 : stades
+  vides, phase finale de 2020 à Lisbonne en terrain neutre).
+- **Correction du 1X2** : les matchs serrés donnaient trop peu au club qui reçoit (35 %
+  annoncés, 40 % gagnés, chaque saison). Correction logistique de la probabilité du
+  domicile, apprise sur les prédictions des saisons passées (chacune faite par un modèle
+  qui ne la connaissait pas) ; le nul est ce qui reste. Corriger aussi l'extérieur
+  dégradait le pronostic : non retenu.
+
+**Étude** (4 151 matchs de 2022-23 à 2026-27, chaque saison prédite par le modèle de son
+1er juillet ; 97 sélections évaluées ; règle : battre la référence naïve chaque saison,
+calibration à 3 points près par tranche de 10 % et test de Hosmer-Lemeshow sur 2023-2026) :
+
+| Essai | 1X2 log loss | Sélections qui passent (tranches) |
+|---|---|---|
+| Elo + niveaux de buts | 0,9588 | 55 / 97 |
+| sans la période COVID | 0,9580 | 60 / 97 |
+| + équipes de nos championnats / d'ailleurs | **0,9567** | 63 / 97 |
+| + phase (qualifications, phase principale) | 0,9573 | 55 / 97 |
+| + match retour, coupe, poids des saisons récentes, tendance des buts | pas mieux | — |
+
+Pourquoi l'écart entre les deux groupes : une équipe de nos championnats qui recevait une
+équipe d'ailleurs était annoncée à 67 % et gagnait 72 % ; à l'extérieur, 49 % annoncés,
+51 % gagnés. Les équipes d'ailleurs jouent surtout entre elles en qualifications : leurs
+notes ne se mesuraient qu'entre elles.
+
+Backtest du moteur en service (console « Backtest des coupes d'Europe ») : 1X2 **0,9565**
+contre 1,0441 (naïf) ; C1 0,927, C3 0,960, C4 0,972 ; plus/moins 2,5 0,6817 contre
+0,6907 ; les deux marquent 0,6902 contre 0,6944.
+
+**Marchés publiés** (`published`) : 1X2 et double chance (corrigés), les deux équipes
+marquent, plus/moins 0,5 but, plus/moins 1,5 but à la mi-temps.
+
+**Non publiés** :
+
+- plus/moins 1,5 à 5,5 buts, mi-temps plus/moins 2,5 : le niveau de buts change trop d'une
+  saison à l'autre (2,76 buts annoncés, 2,95 observés en 2023-24 ; 2,77 contre 2,96 en
+  2026-27) ; sur 2023-2026, plus/moins 2,5 est mal calibré dans les matchs annoncés
+  fermés (42 % annoncés, 50 % observés ; Hosmer-Lemeshow p = 0,004). Corriger le total de
+  buts, pondérer les saisons récentes ou ajouter une tendance : pas mieux ;
+- handicaps européens : -1 et +2 mal calibrés, -2, -3 et +3 rejetés au test de
+  Hosmer-Lemeshow (les larges victoires sont sous-estimées) ;
+- buts d'une équipe, cage inviolée, gagne à zéro, mi-temps 1X2, mi-temps / fin de match,
+  écart de buts : décalés de 4 à 7 points (même cause que le 1X2 avant correction) ;
+- combinés 1X2 + buts, scores exacts : pas tous validés (2-1 sous la référence une saison) ;
+- corners, cartons, tirs : pas de statistiques de coupe en base.
+
+Limite connue : après correction, le 1X2 reste à 3 points au plus par tranche (domicile
+65 % annoncés → 62 % ; extérieur 55 % → 58 %, sur environ 300 matchs par tranche : dans la
+marge du hasard, Hosmer-Lemeshow p = 0,55 et 0,14).
+
+**Jamais mêlé aux championnats :** l'historique des championnats (`load_history`) ignore
+les matchs de coupe. Les pronostics de coupe sont enregistrés avant les matchs et comptent
+sur la page Fiabilité ; leur backtest est montré au filtre de la coupe. Les applications
+d'avant les coupes ne reçoivent pas les matchs de coupe (`/predictions/upcoming?cups=true`
+pour celles qui les affichent). Publication : `FP_CUPS_PREDICTIONS` (désactivé par défaut).
 
 ## Commandes
 

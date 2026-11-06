@@ -72,7 +72,7 @@ async def _latest(
 
 
 def _expected(pred: MatchPrediction) -> ExpectedGoals | None:
-    """Buts attendus ; aucun pour les coupes d'Europe (moteur sans modèle des buts)."""
+    """Buts attendus ; aucun pour les pronostics de coupe d'avant le moteur coupes 2.0."""
     if pred.lambda_home <= 0 and pred.lambda_away <= 0:
         return None
     return ExpectedGoals(home=pred.lambda_home, away=pred.lambda_away)
