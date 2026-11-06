@@ -1,5 +1,6 @@
 """Console v2 : fichiers, versions de l'application, comptes, frise des tâches, études."""
 
+import asyncio
 import io
 import json
 import sys
@@ -238,6 +239,30 @@ async def test_run_process_streams_output_and_stops_on_request(
     ctx.stop_requested = True
     with pytest.raises(JobStoppedError):
         await actions.run_process(ctx, [sys.executable, "-c", "import time; time.sleep(30)"])
+
+
+@pytest.mark.parametrize("light", [False, True])
+async def test_export_data_light_leaves_odds_and_predictions_empty(
+    settings: Settings, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, light: bool
+) -> None:
+    seen: list[list[str]] = []
+
+    async def fake_run(ctx: JobContext, argv: list[str], **_: Any) -> int:
+        seen.append(argv)
+        await asyncio.to_thread(Path(argv[argv.index("-f") + 1]).write_bytes, b"PGDMP")
+        return 0
+
+    monkeypatch.setattr(actions, "run_process", fake_run)
+    ctx = _Ctx(settings)
+    monkeypatch.setattr(type(ctx), "files_dir", tmp_path)
+    summary = await actions.export_data(ctx, {"light": light})
+    empty = {a.split("=", 1)[1] for a in seen[0] if a.startswith("--exclude-table-data=")}
+    # Données personnelles toujours vides ; cotes et pronostics vides en version légère.
+    assert set(actions.PERSONAL_TABLES) <= empty
+    assert (set(actions.HEAVY_TABLES) <= empty) is light
+    assert "matches" not in empty
+    assert "teams" not in empty
+    assert ("-leger.dump" in summary) is light
 
 
 def _fake_api(request: httpx.Request) -> httpx.Response:

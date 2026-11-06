@@ -786,16 +786,27 @@ PERSONAL_TABLES = (
 )  # fmt: skip
 
 
+# Fichier léger : sans les cotes ni les pronostics enregistrés (les trois quarts du
+# fichier) ; matchs, équipes et statistiques suffisent aux études du moteur des buts.
+HEAVY_TABLES = ("bookmaker_odds", "match_odds", "match_predictions")
+
+
 async def export_data(ctx: JobContext, params: dict[str, Any]) -> str:
     url = make_url(str(ctx.settings.database_url))
-    target = ctx.files_dir / f"footproba-donnees-{_today()}.dump"
+    light = bool(params.get("light"))
+    suffix = "-leger" if light else ""
+    target = ctx.files_dir / f"footproba-donnees-{_today()}{suffix}.dump"
+    empty = PERSONAL_TABLES + (HEAVY_TABLES if light else ())
     argv = [
         "pg_dump", "-h", url.host or "localhost", "-p", str(url.port or 5432),
         "-U", url.username or "postgres", "-d", url.database or "",
         "-Fc", "-Z", "9", "-f", str(target),
-        *[f"--exclude-table-data={t}" for t in PERSONAL_TABLES],
+        *[f"--exclude-table-data={t}" for t in empty],
     ]  # fmt: skip
-    ctx.log("Export des données football (sans données personnelles)…")
+    ctx.log(
+        "Export des données football (sans données personnelles"
+        + (", sans cotes ni pronostics)…" if light else ")…")
+    )
     code = await run_process(ctx, argv, env={"PGPASSWORD": url.password or ""})
     if code != 0:
         target.unlink(missing_ok=True)
@@ -820,6 +831,15 @@ register(
         cost="aucune requête",
         duration="1 à 5 min",
         produces_file=True,
+        params=(
+            Param(
+                "light",
+                "Fichier léger (sans les cotes ni les pronostics)",
+                "bool",
+                default=False,
+                help="quelques Mo au lieu d'environ 50 : à choisir pour l'envoyer par le chat",
+            ),
+        ),
     )
 )
 
