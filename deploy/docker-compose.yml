@@ -40,6 +40,11 @@ x-backend: &backend
     # Politique de confidentialité (/confidentialite).
     FP_LEGAL_NAME: ${FP_LEGAL_NAME:-FootProba (société en cours d'immatriculation)}
     FP_CONTACT_EMAIL: ${FP_CONTACT_EMAIL:-[adresse e-mail à compléter]}
+    FP_PRIVACY_PAYMENT_PROVIDER: ${FP_PRIVACY_PAYMENT_PROVIDER:-Paystack}
+    FP_PRIVACY_HOSTING: ${FP_PRIVACY_HOSTING:-Hetzner Online GmbH (Allemagne), serveur à Helsinki, Finlande (Union européenne)}
+    # Aide aux joueurs (WhatsApp) et pronostics des coupes d'Europe (true pour les publier).
+    FP_SUPPORT_WHATSAPP: ${FP_SUPPORT_WHATSAPP:-+2250500649904}
+    FP_CUPS_PREDICTIONS: ${FP_CUPS_PREDICTIONS:-false}
     FP_BACKUP_KEEP_DAYS: ${FP_BACKUP_KEEP_DAYS:-14}
     # APK proposé en mise à jour (footprono-admin publish-apk).
     FP_APP_RELEASE_DIR: /data/app
