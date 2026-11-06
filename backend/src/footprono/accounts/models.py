@@ -16,6 +16,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    false,
     func,
     true,
 )
@@ -48,6 +49,10 @@ class User(Base):
     daily_coupons_notifications: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true()
     )
+    # Période de test (FP_BETA_SHARING) : partage anonyme accepté par le joueur, sous un
+    # numéro de testeur (« Testeur n° 12 ») ; jamais son nom ni son numéro de téléphone.
+    beta_sharing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    beta_number: Mapped[int | None] = mapped_column(Integer, unique=True)
     # « user » ou « admin » (administration : abonnements, suivi des données).
     role: Mapped[str] = mapped_column(String(8), default="user")
     # Premium actif jusqu'à cette date (essai de 7 jours à l'inscription, puis
@@ -121,3 +126,18 @@ class AdminAction(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )
+
+
+class BetaEvent(Base):
+    """Problème ou action vus dans l'application par un testeur volontaire (mode bêta) :
+    écran ou adresse, durée, nature. Rattaché au seul numéro de testeur, jamais au compte."""
+
+    __tablename__ = "beta_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    beta_number: Mapped[int] = mapped_column(Integer, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    kind: Mapped[str] = mapped_column(String(16))  # error, slow, action
+    path: Mapped[str] = mapped_column(String(128))  # adresse sans identifiant, ou nom d'action
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    detail: Mapped[str | None] = mapped_column(String(200))

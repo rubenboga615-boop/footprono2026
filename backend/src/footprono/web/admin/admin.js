@@ -1000,9 +1000,86 @@ async function paymentsPage() {
 
 // --- Observatoire bêta --------------------------------------------------------------
 
+// Testeurs volontaires (FP_BETA_SHARING), toujours sans nom ni numéro : « Testeur n° 12 ».
+function percent(x, signed) {
+  if (x === null || x === undefined) return "—";
+  const v = Math.round(x * 100);
+  return (signed && v > 0 ? "+" : "") + String(v).replace("-", "−") + " %";
+}
+function seconds(ms) { return ms === null || ms === undefined ? "—" : (ms / 1000).toFixed(1).replace(".", ",") + " s"; }
+const BETA_KIND = { slow: "attente", error: "erreur" };
+
 async function betaPage() {
   setPage("beta", "Observatoire bêta");
-  view(card(null, h("div", { class: "empty", text: "Bientôt : activité des testeurs volontaires, sans nom ni numéro." })));
+  const d = await api("GET", CONSOLE + "/beta");
+  const s = d.summary;
+  const head = h("div", { class: "btns", style: "justify-content:space-between;align-items:center;margin-bottom:12px" },
+    h("p", { class: "muted", style: "margin:0" }, "Testeurs volontaires, sans nom ni numéro · ",
+      d.enabled ? pill("collecte active", "ok", true) : pill("collecte coupée (FP_BETA_SHARING=false)", "warn")),
+    h("div", { class: "btns" },
+      h("button", { class: "btn", type: "button", onclick: exportBeta }, "Exporter (sans données personnelles)"),
+      h("button", { class: "btn ghost danger", type: "button", onclick: eraseBeta }, "Tout effacer")));
+  const kpis = strip([
+    ["Testeurs volontaires", number(s.testers)],
+    ["Paris réglés", number(s.bets)],
+    ["Rendement global", percent(s.return, true), s.return < 0 ? "badt" : s.return > 0 ? "okt" : ""],
+    ["Problèmes (7 jours)", `${s.over_20s_7_days} · ${s.errors_7_days}`, s.over_20s_7_days + s.errors_7_days ? "badt" : "okt", "attentes > 20 s · erreurs"],
+  ]);
+  const table = (cols, rows, empty) => rows.length
+    ? h("div", { class: "scroll" }, h("table", {}, h("thead", {}, h("tr", {}, ...cols.map((c) => (c.startsWith("~") ? h("th", { class: "hide-sm", text: c.slice(1) }) : h("th", { text: c }))))), h("tbody", {}, ...rows)))
+    : h("div", { class: "empty", text: empty });
+  const testers = table(["Testeur", "Paris", "Réussite", "Rendement", "~Montantes", "Dernier problème"],
+    d.testers.map((t) => h("tr", {},
+      h("td", { style: "font-weight:600", text: "n° " + t.tester }),
+      h("td", { text: number(t.bets) }),
+      h("td", { text: percent(t.win_rate) }),
+      h("td", { class: t.return < 0 ? "badt" : t.return > 0 ? "okt" : "", text: percent(t.return, true) }),
+      h("td", { class: "hide-sm", text: t.montantes ? `${t.montantes} (palier ${t.montante_best_step} au plus)` : "0" }),
+      h("td", { class: t.last_problem ? "badt" : "", text: t.last_problem
+        ? `${t.last_problem.screen} : ${BETA_KIND[t.last_problem.kind]}${t.last_problem.duration_ms ? " " + seconds(t.last_problem.duration_ms) : ""}`
+        : "—" }))),
+    d.enabled ? "Aucun testeur pour l'instant : les joueurs l'activent dans Profil → Aider à améliorer FootProba." : "Aucun testeur.");
+  const screens = table(["Écran", "Attente moy.", "> 20 s", "Erreurs"],
+    d.screens.map((r) => h("tr", {}, h("td", { text: r.screen }), h("td", { text: seconds(r.average_ms) }),
+      h("td", { class: r.over_20s ? "badt" : "", text: r.over_20s }), h("td", { class: r.errors ? "badt" : "", text: r.errors }))),
+    "Rien de mesuré ces 7 derniers jours.");
+  const markets = table(["Marché", "Paris", "Annoncé", "Arrivé"],
+    d.markets.map((m) => h("tr", {}, h("td", { text: m.market }), h("td", { text: number(m.selections) }),
+      h("td", { text: percent(m.announced) }), h("td", { text: percent(m.observed) }))),
+    "Aucune sélection réglée.");
+  const sc = d.smart_coupons;
+  const lost = Object.entries(d.montantes_lost_at_step);
+  const total = lost.reduce((a, [, n]) => a + n, 0);
+  const [step, n] = lost.reduce((best, x) => (x[1] > best[1] ? x : best), ["", 0]);
+  const coupons = h("div", {},
+    strip([["Demandés", number(sc.composed)], ["Ajoutés au coupon", number(sc.added)], ["Non ajoutés", number(Math.max(0, sc.composed - sc.added))], ["Montantes perdues", number(total)]]),
+    h("p", { class: "note", style: "margin:10px 0", text: total
+      ? `Les montantes s'arrêtent le plus souvent au palier ${step} (${n} sur ${total}).`
+      : "Aucune montante perdue chez les testeurs." }));
+  view(head, kpis,
+    card("Testeurs", testers),
+    h("div", { class: "grid-2" }, card("Problèmes par écran (7 jours)", screens), card("Réussite par marché (paris des testeurs)", markets)),
+    card("Coupons intelligents et montantes", coupons),
+    h("p", { class: "note", style: "margin-top:12px", text: "« Annoncé » : probabilité moyenne du moteur au moment du pari ; « Arrivé » : part des sélections gagnées. Peu de paris : écarts encore peu significatifs." }));
+}
+async function exportBeta() {
+  try {
+    const data = await api("GET", CONSOLE + "/beta/export");
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const a = h("a", { href: URL.createObjectURL(blob), download: `footproba-observatoire-${new Date().toISOString().slice(0, 10)}.json` });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast("Export téléchargé : numéros de testeur seulement, ni nom ni téléphone.");
+  } catch (e) { toast(e.message); }
+}
+async function eraseBeta() {
+  const ok = await confirmBox("Tout effacer ?", "Fin de la période de test : tous les événements partagés sont supprimés et les numéros de testeur retirés. Les paris des joueurs ne sont pas touchés. Irréversible.", "Tout effacer", true);
+  if (!ok) return;
+  try {
+    const r = await api("DELETE", CONSOLE + "/beta");
+    toast(`Effacé : ${r.events} événements, ${r.testers} testeurs.`);
+    await betaPage();
+  } catch (e) { toast(e.message); }
 }
 
 // --- Versions de l'application -----------------------------------------------------------

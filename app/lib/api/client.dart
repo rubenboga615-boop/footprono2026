@@ -30,6 +30,9 @@ class ApiClient {
   String? token;
   final http.Client _http;
 
+  /// Suivi des temps de réponse et des erreurs (mode bêta) ; null : rien n'est suivi.
+  void Function(String path, Duration elapsed, ApiException? error)? observer;
+
   /// Client HTTP partagé (téléchargement de la mise à jour).
   http.Client get httpClient => _http;
   static const timeout = Duration(seconds: 20);
@@ -65,15 +68,36 @@ class ApiClient {
   };
 
   Future<dynamic> get(String path, [Map<String, Object?>? query, Duration? wait]) =>
-      _send(() => _http.get(uri(path, query), headers: _headers), wait ?? timeout);
+      _watch(path, () => _http.get(uri(path, query), headers: _headers), wait ?? timeout);
 
-  Future<dynamic> post(String path, [Object? body]) =>
-      _send(() => _http.post(uri(path), headers: _headers, body: jsonEncode(body ?? const {})), timeout);
+  Future<dynamic> post(String path, [Object? body]) => _watch(
+    path,
+    () => _http.post(uri(path), headers: _headers, body: jsonEncode(body ?? const {})),
+    timeout,
+  );
 
-  Future<dynamic> delete(String path) => _send(() => _http.delete(uri(path), headers: _headers), timeout);
+  Future<dynamic> delete(String path) =>
+      _watch(path, () => _http.delete(uri(path), headers: _headers), timeout);
 
-  Future<dynamic> put(String path, [Object? body]) =>
-      _send(() => _http.put(uri(path), headers: _headers, body: jsonEncode(body ?? const {})), timeout);
+  Future<dynamic> put(String path, [Object? body]) => _watch(
+    path,
+    () => _http.put(uri(path), headers: _headers, body: jsonEncode(body ?? const {})),
+    timeout,
+  );
+
+  Future<dynamic> _watch(String path, Future<http.Response> Function() request, Duration wait) async {
+    final watch = observer;
+    if (watch == null) return _send(request, wait);
+    final clock = Stopwatch()..start();
+    try {
+      final data = await _send(request, wait);
+      watch(path, clock.elapsed, null);
+      return data;
+    } on ApiException catch (e) {
+      watch(path, clock.elapsed, e);
+      rethrow;
+    }
+  }
 
   Future<dynamic> _send(Future<http.Response> Function() request, Duration wait) async {
     final http.Response res;

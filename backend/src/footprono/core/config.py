@@ -93,6 +93,10 @@ class Settings(BaseSettings):
     cups_predictions: bool = False
     # Pronostics des sélections nationales (matchs officiels) : désactivés par défaut.
     nations_predictions: bool = False
+    # Période de test : les joueurs peuvent partager leur activité de façon anonyme
+    # (profil → « Aider à améliorer FootProba ») ; Observatoire bêta dans la console.
+    # False : interrupteur caché, collecte arrêtée (effacer ensuite depuis la console).
+    beta_sharing: bool = False
     # Page Fiabilité : calcul gardé ce nombre de secondes (0 : jamais gardé, pour les tests).
     reliability_cache_seconds: int = 600
 

@@ -4,6 +4,7 @@ from footprono.api.v1 import (
     accounts,
     admin,
     app_release,
+    beta,
     bets,
     console,
     console_auth,
@@ -24,6 +25,7 @@ api_router.include_router(admin.router)
 api_router.include_router(console.router)
 api_router.include_router(console_auth.router)
 api_router.include_router(bets.router)
+api_router.include_router(beta.router)
 api_router.include_router(montantes.router)
 api_router.include_router(notifications.router)
 api_router.include_router(payments.router)

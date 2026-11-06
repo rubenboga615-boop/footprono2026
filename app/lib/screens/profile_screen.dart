@@ -352,6 +352,7 @@ class ProfileScreen extends StatelessWidget {
                             ),
                           },
                         ),
+                        if (me != null && me.betaAvailable) ...[const Divider(), _BetaItem(me: me)],
                         const Divider(),
                         _Item(
                           icon: Icons.verified_user_outlined,
@@ -770,6 +771,171 @@ class _SwitchItem extends StatelessWidget {
                   child: Switch(
                     value: value,
                     onChanged: onChanged,
+                    activeTrackColor: Fp.accent,
+                    activeThumbColor: Colors.white,
+                    trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Mode bêta (maquette validée le 06/11/2026) : éteint au départ ; l'allumer montre
+/// d'abord ce qui est partagé et ce qui ne l'est jamais, puis demande l'accord.
+class _BetaItem extends StatelessWidget {
+  const _BetaItem({required this.me});
+  final Me me;
+
+  /// Vrai : le joueur accepte de partager.
+  static Future<bool> explain(BuildContext context, {required bool ask}) async {
+    Widget point(String label, String text, Color color) => Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: '$label : ',
+              style: Fp.body(13.5, weight: FontWeight.w700, color: color),
+            ),
+            TextSpan(text: text),
+          ],
+        ),
+        style: Fp.body(13.5, color: Fp.text2),
+      ),
+    );
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Fp.background,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Aider à améliorer FootProba', style: Fp.title(18)),
+              const SizedBox(height: 8),
+              Text(
+                'Pendant la période de test seulement. Tu deviens « Testeur n° … » : personne ne '
+                'sait que c\'est toi.',
+                style: Fp.body(13.5, color: Fp.text2),
+              ),
+              point(
+                'Partagé',
+                'tes paris fictifs, gains, rendement, réussite par marché ; tes montantes ; les '
+                    'coupons intelligents demandés ; les erreurs et attentes trop longues de '
+                    'l\'application.',
+                Fp.win,
+              ),
+              point(
+                'Jamais partagé',
+                'ton nom, ton numéro, ton e-mail, ton compte Google, tes paiements.',
+                Fp.lossText,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tu peux l\'arrêter quand tu veux : ce qui a été partagé est alors effacé. À la fin '
+                'de la période de test, tout est effacé.',
+                style: Fp.body(13.5, color: Fp.text2),
+              ),
+              const SizedBox(height: 14),
+              if (ask) ...[
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('J\'accepte de partager'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Pas maintenant'),
+                ),
+              ] else
+                OutlinedButton(onPressed: () => Navigator.pop(context, false), child: const Text('Fermer')),
+            ],
+          ),
+        ),
+      ),
+    );
+    return ok ?? false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.read<AppState>();
+    Future<void> toggle(bool on) async {
+      if (on && !await explain(context, ask: true)) return;
+      if (!context.mounted) return;
+      await guard(context, () => state.setBetaSharing(on));
+    }
+
+    final tester = me.betaTester;
+    return MergeSemantics(
+      child: InkWell(
+        onTap: () => toggle(!me.betaSharing),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(Icons.science_outlined, color: Color(0xFFC9B2F8), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      children: [
+                        Text('Aider à améliorer FootProba', style: Fp.body(14, weight: FontWeight.w600)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0x22FBBF24),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(
+                            'TEST',
+                            style: Fp.body(11, weight: FontWeight.w700, color: Fp.warning),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      me.betaSharing && tester != null
+                          ? 'Tu partages en tant que « Testeur n° $tester ». Jamais ton nom ni ton numéro.'
+                          : 'Pendant la période de test, partage anonyme de ton activité et des problèmes '
+                                'rencontrés. Jamais ton nom ni ton numéro.',
+                      style: Fp.body(12.5, color: Fp.text2),
+                    ),
+                    const SizedBox(height: 4),
+                    GestureDetector(
+                      onTap: () => explain(context, ask: false),
+                      child: Text(
+                        'Ce qui est partagé ›',
+                        style: Fp.body(13, weight: FontWeight.w700, color: Fp.accentLight),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 46,
+                height: 28,
+                child: FittedBox(
+                  child: Switch(
+                    value: me.betaSharing,
+                    onChanged: toggle,
                     activeTrackColor: Fp.accent,
                     activeThumbColor: Colors.white,
                     trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),

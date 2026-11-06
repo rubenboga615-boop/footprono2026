@@ -166,6 +166,25 @@ d'abord.
   `payment_status` « succeeded », montant et devise contrôlés). Le webhook n'est
   qu'un signal. Page de retour : `/api/v1/payments/wave/return`.
 
+## Mode bêta (période de test)
+
+Partage **volontaire, anonyme et temporaire** de l'activité des joueurs testeurs, lu dans
+la console (Joueurs → Bêta, « Observatoire bêta »). Coupé par défaut.
+
+- Ouvrir la période de test : `FP_BETA_SHARING=true` dans `deploy/.env`, puis redémarrer
+  (`docker compose up -d`). Le profil de l'application montre alors « Aider à améliorer
+  FootProba » (éteint) ; le joueur lit ce qui est partagé et ce qui ne l'est jamais, puis
+  accepte.
+- Partagé : temps de chargement et erreurs des écrans, actions du Coupon intelligent, et un
+  résumé des paris fictifs (réussite, rendement, marchés, montantes). Le joueur n'est qu'un
+  numéro (« Testeur n° 12 ») : ni nom, ni téléphone, ni e-mail, ni paiement ne sortent
+  (Observatoire et export « sans données personnelles »).
+- Le joueur l'éteint quand il veut : ses événements sont effacés. Supprimer son compte les
+  efface aussi. Au plus 2 000 événements par testeur et par jour.
+- Fin de la période de test : `FP_BETA_SHARING=false` (plus rien n'est collecté ni proposé),
+  puis « Tout effacer » dans l'Observatoire (événements et numéros de testeur supprimés).
+- La politique de confidentialité mentionne ce partage (version du 6 novembre 2026).
+
 ## Sauvegardes
 
 - Chaque jour à 3 h (UTC) : `deploy/backups/footprono-AAAAMMJJ-HHMM.dump`,

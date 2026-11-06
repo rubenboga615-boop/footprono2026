@@ -74,7 +74,7 @@ async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
 _DATA_TABLES = (
     "match_odds, match_advanced_stats, matches, seasons, team_aliases, teams, "
     "competitions, raw_files, ingestion_runs, match_predictions, prediction_runs, users, "
-    "smart_coupons, app_settings"
+    "smart_coupons, app_settings, beta_events"
 )
 
 

@@ -12,6 +12,7 @@ import '../api/client.dart';
 import '../api/models.dart';
 import '../labels.dart';
 import '../update/installer.dart';
+import 'beta_reporter.dart';
 
 /// Messages éphémères (erreurs, confirmations, notifications reçues).
 final messengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -127,7 +128,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     this.android = !kIsWeb,
     ApkInstaller? installer,
   }) : openUrl = openUrl ?? _openInBrowser,
-       installer = installer ?? (android && !kIsWeb ? ChannelInstaller() : null);
+       installer = installer ?? (android && !kIsWeb ? ChannelInstaller() : null) {
+    api.observer = beta.observe;
+  }
+
+  /// Mode bêta : partage volontaire et anonyme pendant la période de test.
+  late final beta = BetaReporter(api);
 
   /// Version installée (comparée à GET /app/version) ; APK Android seulement.
   final int build;
@@ -480,6 +486,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     _pushToken = null;
     api.token = null;
     me = null;
+    beta.enabled = false;
     coupon.clear();
     unread = 0;
     await _prefs?.remove(_kToken);
@@ -491,9 +498,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await refreshMe();
   }
 
+  /// Mode bêta : le joueur accepte (ou arrête) de partager son activité, sans nom ni numéro.
+  Future<void> setBetaSharing(bool on) async {
+    if (!on) await beta.flush();
+    await api.put('/me/beta', {'enabled': on});
+    await refreshMe();
+  }
+
   Future<void> refreshMe() async {
     try {
       me = Me(await api.get('/me') as Json);
+      beta.enabled = me!.betaSharing;
       notifyListeners();
     } on ApiException catch (e) {
       if (e.isUnauthorized) {
@@ -712,6 +727,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       unawaited(checkUpdate());
       unawaited(checkStatus());
     }
+    if (state == AppLifecycleState.paused) unawaited(beta.flush());
   }
 
   Future<void> _announcePayment() async {

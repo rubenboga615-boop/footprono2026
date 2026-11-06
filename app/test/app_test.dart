@@ -37,6 +37,9 @@ class FakeServer {
   final List<Map<String, dynamic>> bookingCodes = [];
   bool admin = false;
   bool dailyNotifications = true;
+  bool betaAvailable = false;
+  bool betaSharing = false;
+  final betaEvents = <Map<String, dynamic>>[];
   int latestBuild = 50;
   bool deleted = false;
   int minimumBuild = 0;
@@ -119,6 +122,9 @@ class FakeServer {
     'email': googleLinked ? 'kossi@gmail.com' : null,
     'google_linked': googleLinked,
     'has_password': true,
+    'beta_available': betaAvailable,
+    'beta_sharing': betaAvailable && betaSharing,
+    'beta_tester': betaAvailable && betaSharing ? 3 : null,
   };
 
   Future<http.Response> handle(http.Request r) async {
@@ -204,6 +210,13 @@ class FakeServer {
       case 'GET /payments/1':
         if (paymentStatus == 'accepted') premium = true;
         body = {'id': 1, 'status': paymentStatus};
+      case 'PUT /me/beta':
+        betaSharing = (jsonDecode(r.body) as Map)['enabled'] as bool;
+        body = {'enabled': betaSharing, 'tester': betaSharing ? 3 : null};
+      case 'POST /me/beta/events':
+        final events = ((jsonDecode(r.body) as Map)['events'] as List).cast<Map<String, dynamic>>();
+        betaEvents.addAll(events);
+        body = {'kept': events.length};
       case 'PUT /me/preferences':
         dailyNotifications = (jsonDecode(r.body) as Map)['daily_coupons_notifications'] as bool;
         return http.Response('', 204);
@@ -1689,6 +1702,45 @@ void main() {
     await tester.tap(toggle);
     await tester.pumpAndSettle();
     expect(server.dailyNotifications, isTrue);
+  });
+
+  testWidgets('profil : mode bêta proposé seulement pendant le test, accord demandé avant de partager', (
+    tester,
+  ) async {
+    final (state, server) = await startApp(tester, loggedIn: true);
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+    expect(find.text('Aider à améliorer FootProba'), findsNothing); // période de test fermée
+
+    server.betaAvailable = true;
+    await state.refreshMe();
+    await tester.pumpAndSettle();
+    final row = find.text('Aider à améliorer FootProba');
+    await tester.ensureVisible(row);
+    expect(find.text('TEST'), findsOneWidget);
+    expect(state.beta.enabled, isFalse);
+
+    // « Pas maintenant » : rien n'est partagé.
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Jamais partagé'), findsOneWidget);
+    await tester.tap(find.text('Pas maintenant'));
+    await tester.pumpAndSettle();
+    expect(server.betaSharing, isFalse);
+
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('J\'accepte de partager'));
+    await tester.pumpAndSettle();
+    expect(server.betaSharing, isTrue);
+    expect(state.beta.enabled, isTrue);
+    expect(find.textContaining('Testeur n° 3'), findsOneWidget);
+
+    // Arrêter : immédiat, sans question.
+    await tester.tap(find.text('Aider à améliorer FootProba'));
+    await tester.pumpAndSettle();
+    expect(server.betaSharing, isFalse);
+    expect(state.beta.enabled, isFalse);
   });
 
   testWidgets('administrateur : aucun outil d\'administration dans l\'application', (tester) async {

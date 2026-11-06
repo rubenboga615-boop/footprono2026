@@ -37,7 +37,10 @@ class Me {
       plan = Plan(j['plan'] as Json? ?? const {}),
       balance = (j['wallet'] as Json?)?['balance'] as int? ?? 0,
       lastRefill = parseDate((j['wallet'] as Json?)?['last_refill_at']),
-      dailyCouponsNotifications = j['daily_coupons_notifications'] as bool? ?? true;
+      dailyCouponsNotifications = j['daily_coupons_notifications'] as bool? ?? true,
+      betaAvailable = j['beta_available'] as bool? ?? false,
+      betaSharing = j['beta_sharing'] as bool? ?? false,
+      betaTester = j['beta_tester'] as int?;
   final int id;
 
   /// Vide pour un compte créé avec Google.
@@ -57,6 +60,12 @@ class Me {
 
   /// Notification quotidienne « coupons du jour disponibles ».
   final bool dailyCouponsNotifications;
+
+  /// Mode bêta : proposé pendant la période de test ; partage choisi par le joueur
+  /// (« Testeur n° [betaTester] », sans nom ni numéro).
+  final bool betaAvailable;
+  final bool betaSharing;
+  final int? betaTester;
   bool get isAdmin => role == 'admin';
 }
 

@@ -67,6 +67,10 @@ class MeOut(BaseModel):
     wallet: WalletOut
     daily_coupons_notifications: bool = True
     virtual_money: bool = True  # argent fictif : rappel pour l'application
+    # Mode bêta : proposé pendant la période de test seulement ; partage choisi par le joueur.
+    beta_available: bool = False
+    beta_sharing: bool = False
+    beta_tester: int | None = None
 
 
 class PreferencesIn(BaseModel):

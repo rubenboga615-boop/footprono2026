@@ -156,14 +156,14 @@ async def link_google(
     identity = await google.verify(settings, body.id_token)
     await service.link_google(session, user, identity)
     await session.commit()
-    return await me(user, session)
+    return await me(user, session, settings)
 
 
 @router.delete("/me/google", response_model=MeOut)
-async def unlink_google(user: CurrentUserDep, session: SessionDep) -> MeOut:
+async def unlink_google(user: CurrentUserDep, session: SessionDep, settings: SettingsDep) -> MeOut:
     await service.unlink_google(session, user)
     await session.commit()
-    return await me(user, session)
+    return await me(user, session, settings)
 
 
 @router.get("/app/support")
@@ -182,7 +182,7 @@ async def web_push(settings: SettingsDep) -> dict[str, str | None]:
 
 
 @router.get("/me", response_model=MeOut)
-async def me(user: CurrentUserDep, session: SessionDep) -> MeOut:
+async def me(user: CurrentUserDep, session: SessionDep, settings: SettingsDep) -> MeOut:
     wallet = await session.get(Wallet, user.id)
     return MeOut(
         id=user.id,
@@ -198,6 +198,9 @@ async def me(user: CurrentUserDep, session: SessionDep) -> MeOut:
         plan=PlanOut(**plan_info(user)),
         wallet=WalletOut.model_validate(wallet),
         daily_coupons_notifications=user.daily_coupons_notifications,
+        beta_available=settings.beta_sharing,
+        beta_sharing=settings.beta_sharing and user.beta_sharing,
+        beta_tester=user.beta_number if settings.beta_sharing and user.beta_sharing else None,
     )
 
 

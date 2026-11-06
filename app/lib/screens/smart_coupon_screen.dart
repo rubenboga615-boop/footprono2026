@@ -123,6 +123,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
         if (SmartCouponScreen.hours[hour].$1 != null) 'after_hour': '${SmartCouponScreen.hours[hour].$1}',
       };
       final r = await state.api.get(_withLists(query), null, ApiClient.slowTimeout) as Json;
+      state.beta.action('coupon_compose');
       if (mounted) setState(() => result = r);
     } on ApiException catch (e) {
       // Premium terminé ou retiré depuis la dernière mise à jour : le profil est relu,
@@ -241,14 +242,16 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
 
   Future<void> _addToCoupon(List<Json> selections) async {
     setState(() => adding = 'Ajout…');
+    final state = context.read<AppState>();
     try {
       await addSelectionsToCoupon(
-        context.read<AppState>(),
+        state,
         selections,
         onProgress: (done, total) {
           if (mounted) setState(() => adding = 'Ajout $done / $total…');
         },
       );
+      state.beta.action('coupon_add');
     } finally {
       if (mounted) setState(() => adding = null);
     }
