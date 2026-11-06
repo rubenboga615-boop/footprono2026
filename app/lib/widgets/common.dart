@@ -19,6 +19,10 @@ class Loader<T> extends StatefulWidget {
 
 class _LoaderState<T> extends State<Loader<T>> {
   late Future<T> _future = widget.load();
+  // Dernières données reçues : gardées à l'écran pendant un rechargement (actualisation
+  // automatique des paris en cours, tirer pour actualiser), au lieu d'une roue.
+  T? _last;
+  bool _hasLast = false;
 
   Future<void> _reload() async {
     final f = widget.load();
@@ -36,7 +40,12 @@ class _LoaderState<T> extends State<Loader<T>> {
     return FutureBuilder<T>(
       future: _future,
       builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.done && !snap.hasError) {
+          _last = snap.data;
+          _hasLast = true;
+        }
         if (snap.connectionState != ConnectionState.done) {
+          if (_hasLast) return widget.builder(context, _last as T, _reload);
           return const Center(
             child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()),
           );

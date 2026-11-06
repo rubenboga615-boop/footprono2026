@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,6 +23,23 @@ class BookmakerScreen extends StatefulWidget {
 class _BookmakerScreenState extends State<BookmakerScreen> {
   int tab = 0; // 0 en cours, 1 réglés, 2 mouvements
   Key _key = UniqueKey();
+  Timer? _timer;
+  Future<void> Function()? _reload;
+
+  @override
+  void initState() {
+    super.initState();
+    // Paris en cours : résultats et scores des matchs mis à jour tout seuls, chaque minute.
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted && tab == 0) _reload?.call();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   Future<void> _refill() async {
     final state = context.read<AppState>();
@@ -69,6 +88,7 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
           key: _key,
           load: () => _load(state.api),
           builder: (context, data, reload) {
+            _reload = reload;
             final (bets, entries, summary) = data;
             final open = bets.where((b) => b.status == 'open').toList();
             final settled = bets.where((b) => b.status != 'open').toList();
@@ -337,12 +357,62 @@ class _BetRow extends StatelessWidget {
                   : ''}',
               style: Fp.body(13, color: Fp.text2),
             ),
+            if (b.status == 'open' && b.selections.length > 1) ...[
+              const SizedBox(height: 2),
+              Text(
+                betProgress(b),
+                style: Fp.body(12, color: Fp.accentLight, weight: FontWeight.w600),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 }
+
+/// Avancement d'un combiné en cours, comme chez un bookmaker :
+/// « 3 sur 11 validées · 1 en cours · 7 à venir ».
+String betProgress(Bet b) {
+  final n = b.selections.length;
+  final won = b.selections.where((s) => s.result == 'win' || s.result == 'half_win').length;
+  final lost = b.selections.where((s) => s.result == 'loss' || s.result == 'half_loss').length;
+  final refunded = b.selections.where((s) => s.result == 'push').length;
+  final pending = b.selections.where((s) => s.result == 'pending');
+  final live = pending.where((s) => s.state == 'live' || s.state == 'finished').length;
+  final upcoming = pending.length - live;
+  return [
+    '$won sur $n ${won > 1 ? 'validées' : 'validée'}',
+    if (lost > 0) '$lost ${lost > 1 ? 'perdues' : 'perdue'}',
+    if (refunded > 0) '$refunded ${refunded > 1 ? 'remboursées' : 'remboursée'}',
+    if (live > 0) '$live en cours',
+    if (upcoming > 0) '$upcoming à venir',
+  ].join(' · ');
+}
+
+/// Date et état du match d'une sélection : « Sam. 7 nov. 15:00 · en cours 67' · 1-1 ».
+String selectionState(BetSel s) {
+  final k = s.kickoffAt?.toLocal();
+  final when = k == null ? '' : '${shortDate(k)} ${hourMinute(k)}';
+  final sc = s.score;
+  final score = sc == null || sc[0] == null ? '' : ' · ${sc[0]}-${sc[1]}';
+  final state = switch (s.result) {
+    'pending' => switch (s.state) {
+      'live' => 'en cours${s.minute == null ? '' : ' ${s.minute}\''}$score',
+      'finished' => 'terminé$score · résultat dans quelques minutes',
+      _ => 'à venir',
+    },
+    final r => '${resultLabel(r).toLowerCase()}$score',
+  };
+  return when.isEmpty ? state : '$when · $state';
+}
+
+Color selectionColor(BetSel s) => switch (s.result) {
+  'win' || 'half_win' => Fp.win,
+  'loss' || 'half_loss' => Fp.loss,
+  'pending' when s.state == 'live' => Fp.warning,
+  _ => Fp.text3,
+};
 
 const _entryKinds = {
   'opening': 'Solde de départ',
@@ -436,14 +506,12 @@ class BetCard extends StatelessWidget {
                       'win' || 'half_win' => Icons.check_circle_rounded,
                       'loss' || 'half_loss' => Icons.cancel_rounded,
                       'push' => Icons.replay_circle_filled_rounded,
+                      _ when s.state == 'live' => Icons.play_circle_fill_rounded,
+                      _ when s.state == 'finished' => Icons.hourglass_bottom_rounded,
                       _ => Icons.schedule_rounded,
                     },
                     size: 18,
-                    color: switch (s.result) {
-                      'win' || 'half_win' => Fp.win,
-                      'loss' || 'half_loss' => Fp.loss,
-                      _ => Fp.text3,
-                    },
+                    color: selectionColor(s),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -455,6 +523,7 @@ class BetCard extends StatelessWidget {
                           fullLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam),
                           style: Fp.body(13, weight: FontWeight.w600),
                         ),
+                        Text(selectionState(s), style: Fp.body(11, color: selectionColor(s))),
                       ],
                     ),
                   ),
@@ -462,6 +531,13 @@ class BetCard extends StatelessWidget {
                 ],
               ),
             ),
+          if (b.status == 'open' && b.selections.length > 1) ...[
+            const SizedBox(height: 6),
+            Text(
+              betProgress(b),
+              style: Fp.body(12, color: Fp.text2, weight: FontWeight.w600),
+            ),
+          ],
           const Divider(height: 18),
           KeyValue('Mise · cote ${odds(b.totalOdds)}', money(b.stake, b.currency)),
           if (b.status == 'open')

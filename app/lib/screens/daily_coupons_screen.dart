@@ -121,9 +121,13 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
                   const SizedBox(height: 12),
                   if (coupons.isEmpty)
                     EmptyState(
-                      offset == 0
+                      // Publication à 8 h 05 (heure d'Abidjan) ; vide après : aucun profil n'a trouvé
+                      // ses matchs ce jour-là.
+                      offset == 0 && DateTime.now().toUtc().hour < 9
                           ? 'Les coupons du jour sont publiés chaque matin vers 8 h.'
-                          : 'Aucun coupon ce jour-là.',
+                          : 'Aucun coupon ${offset == 0 ? 'aujourd\'hui' : 'ce jour-là'} : aucun match ne '
+                                'respectait les règles des profils (sélections dans leur tranche de '
+                                'probabilité, vraie cote, cote totale minimale).',
                       icon: Icons.confirmation_number_outlined,
                     ),
                   ...deskColumns(context, [
@@ -137,6 +141,21 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
                                       .push(MaterialPageRoute(builder: (_) => DailyCouponDetail(coupon: c))),
                       ),
                   ]),
+                  if (coupons.isNotEmpty)
+                    for (final (key, label) in const [
+                      ('sur', 'Sûr'),
+                      ('equilibre', 'Équilibré'),
+                      ('audacieux', 'Audacieux'),
+                    ])
+                      if (!coupons.any((c) => c['profile'] == key))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Text(
+                            'Pas de coupon $label ${offset == 0 ? 'aujourd\'hui' : 'ce jour-là'} : '
+                            '${_missingReason[key]}',
+                            style: Fp.body(12, color: Fp.text2, height: 1.4),
+                          ),
+                        ),
                   if (coupons.any((c) => c['locked'] == true)) ...[
                     const _UnlockCard(),
                     const SizedBox(height: 8),
@@ -170,6 +189,18 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
   static String _record(Map<String, dynamic> r) =>
       r['settled'] == 0 ? 'aucun coupon réglé' : '${r['won']} gagné(s) sur ${r['settled']}';
 }
+
+/// Pourquoi un profil n'a pas de coupon ce jour-là (règles des coupons du jour, serveur :
+/// ``DAILY_RULES`` ; un match ne sert qu'à un seul profil par jour).
+const _missingReason = {
+  'sur': 'pas assez de matchs avec une sélection jugée entre 75 et 92 % et une vraie cote.',
+  'equilibre':
+      'aucune combinaison de 3 sélections au plus, chacune entre 60 et 75 %, n\'atteignait une '
+      'cote de 2,00.',
+  'audacieux':
+      'aucune combinaison de 3 sélections au plus, chacune entre 45 et 60 %, n\'atteignait une '
+      'cote de 2,00.',
+};
 
 class _DailyCouponCard extends StatelessWidget {
   const _DailyCouponCard(this.c, {required this.onTap});
@@ -461,7 +492,9 @@ class _LiveSelection extends StatelessWidget {
               children: [
                 Text('$home – $away', style: Fp.body(14, weight: FontWeight.w600)),
                 Text(
-                  selectionLabel(
+                  // Marché toujours nommé : « Buts de Lyngby · Moins de 1,5 but », jamais
+                  // « Moins de 1,5 but » seul (on croyait au total du match).
+                  fullLabel(
                     s['market'] as String,
                     (s['line'] ?? '') as String,
                     s['selection'] as String,

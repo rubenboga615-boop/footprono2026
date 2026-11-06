@@ -33,7 +33,7 @@ Future<void> showOddsHistory(BuildContext context, MatchInfo m, Offer o) {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  '${selectionLabel(o.market, o.line, o.selection, home: m.home.name, away: m.away.name)} '
+                  '${fullLabel(o.market, o.line, o.selection, home: m.home.name, away: m.away.name)} '
                   '· ${data['bookmaker']}',
                   style: Fp.title(17),
                 ),

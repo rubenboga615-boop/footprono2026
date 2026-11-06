@@ -246,8 +246,16 @@ class BetSel {
       result = j['result'] as String? ?? 'pending',
       homeTeam = j['home_team'] as String? ?? 'Domicile',
       awayTeam = j['away_team'] as String? ?? 'Extérieur',
-      kickoffAt = parseDate(j['kickoff_at']);
+      kickoffAt = parseDate(j['kickoff_at']),
+      state = j['state'] as String? ?? 'upcoming',
+      minute = j['minute'] as int?,
+      score = (j['score'] as List?)?.cast<int?>();
   final String homeTeam;
+
+  /// Suivi du match : upcoming, live (minute, score), finished (résultat bientôt noté), settled.
+  final String state;
+  final int? minute;
+  final List<int?>? score;
   final String awayTeam;
   final DateTime? kickoffAt;
   final int matchId;
