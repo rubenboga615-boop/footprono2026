@@ -122,6 +122,8 @@ if [ -n "$ip" ] && [ "$dns" != "$ip" ]; then
 fi
 
 log "Construction et démarrage (première fois : quelques minutes)"
+# Version en service, visible dans /api/v1/health (commit installé).
+export FP_COMMIT="$(git -C "$DIR" rev-parse --short HEAD)"
 docker compose -f docker-compose.yml --env-file .env up -d --build --remove-orphans </dev/null
 # Volumes créés avant que l'image ne prépare leurs dossiers : rendus à l'application.
 docker compose -f docker-compose.yml --env-file .env exec -T -u root api \

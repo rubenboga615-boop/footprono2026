@@ -19,6 +19,9 @@ x-backend: &backend
   logging: *logging
   build:
     context: ../backend
+    args:
+      # Commit installé (install-server.sh), affiché par /api/v1/health.
+      FP_COMMIT: ${FP_COMMIT:-inconnu}
   image: footprono-backend:${FP_IMAGE_TAG:-latest}
   restart: unless-stopped
   environment: &backend-env

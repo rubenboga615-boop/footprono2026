@@ -1,3 +1,4 @@
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
@@ -7,10 +8,15 @@ from footprono.main import create_app
 from .conftest import make_settings
 
 
-async def test_health_reports_version(client: AsyncClient) -> None:
+async def test_health_reports_version(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
     response = await client.get("/api/v1/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "version": __version__, "environment": "test"}
+    assert response.json() == {
+        "status": "ok", "version": __version__, "environment": "test", "commit": "inconnu",
+    }  # fmt: skip
+    # Commit installé (deploy/install-server.sh → image) : quel code est en service.
+    monkeypatch.setenv("FP_COMMIT", "0727f11")
+    assert (await client.get("/api/v1/health")).json()["commit"] == "0727f11"
 
 
 async def test_ready_when_dependencies_are_up(client: AsyncClient) -> None:

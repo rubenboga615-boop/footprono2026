@@ -22,10 +22,11 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+from redis.asyncio import Redis
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from footprono.bookmaker import service, smart_coupon
+from footprono.bookmaker import playable, service, smart_coupon
 from footprono.bookmaker.rules import automatic
 from footprono.football.models import Match, MatchStatus
 
@@ -42,7 +43,9 @@ class Candidate:
     probability: float
 
 
-async def _candidates(session: AsyncSession, high: Decimal, now: datetime) -> list[Candidate]:
+async def _candidates(
+    session: AsyncSession, high: Decimal, now: datetime, redis: Redis | None = None
+) -> list[Candidate]:
     start, end = now + CLOSE_BEFORE_KICKOFF, now + HORIZON
     first = await smart_coupon.next_kickoff(session, start)
     if first is not None and first >= end:
@@ -59,8 +62,7 @@ async def _candidates(session: AsyncSession, high: Decimal, now: datetime) -> li
         )
     ).all()
     out = []
-    ids = [m.id for m in matches]
-    all_offers, all_probs = await service.cached_offers_and_probabilities(session, ids, now)
+    all_offers, all_probs = await playable.load(session, [m.id for m in matches], now, redis)
     for match in matches:
         if match.kickoff_at is None:  # jamais : la période est choisie sur l'heure du match
             continue
@@ -110,9 +112,10 @@ async def suggest(
     *,
     now: datetime | None = None,
     limit: int = 3,
+    redis: Redis | None = None,
 ) -> list[dict[str, Any]]:
     now = now or datetime.now(UTC)
-    return rank(await _candidates(session, high, now), low, high, limit)
+    return rank(await _candidates(session, high, now, redis), low, high, limit)
 
 
 def rank(

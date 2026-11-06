@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from footprono.accounts.plans import require_premium
-from footprono.api.deps import CurrentUserDep, SessionDep
+from footprono.api.deps import CurrentUserDep, RedisDep, SessionDep
 from footprono.api.v1.bets import _bet_out
 from footprono.bookmaker import montante, service, suggestions
 from footprono.bookmaker.montante_models import Montante, MontanteStep
@@ -68,7 +68,9 @@ async def get_montante(montante_id: int, user: CurrentUserDep, session: SessionD
 
 
 @router.get("/montantes/{montante_id}/suggestions")
-async def step_suggestions(montante_id: int, user: CurrentUserDep, session: SessionDep) -> Any:
+async def step_suggestions(
+    montante_id: int, user: CurrentUserDep, session: SessionDep, redis: RedisDep
+) -> Any:
     require_premium(user, "suggestions de montante")
     m = await _own(session, user, montante_id)
     step = await session.scalar(
@@ -82,7 +84,9 @@ async def step_suggestions(montante_id: int, user: CurrentUserDep, session: Sess
         "odds_min": step.odds_min,
         "odds_max": step.odds_max,
         "stake": m.next_stake,
-        "suggestions": await suggestions.suggest(session, step.odds_min, step.odds_max),
+        "suggestions": await suggestions.suggest(
+            session, step.odds_min, step.odds_max, redis=redis
+        ),
     }
 
 

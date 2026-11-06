@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from footprono import __version__, alerts
 from footprono.accounts.reminders import send_premium_reminders
-from footprono.bookmaker import settlement, smart_coupon
+from footprono.bookmaker import playable, settlement, smart_coupon
 from footprono.cache.redis import create_redis
 from footprono.console import jobs as console_jobs
 from footprono.console.runs import tracked
@@ -141,6 +141,7 @@ async def _collect_odds() -> dict[str, Any]:
             report = await live.collect_odds(session, settings)
         async with create_session_factory(engine)() as session:
             injuries = await live.collect_injuries(session, settings)
+        report["playable"] = await _refresh_playable(engine, settings)
     finally:
         await engine.dispose()
     # Le calendrier vient d'être synchronisé : nouveaux matchs prédits sans attendre.
@@ -227,9 +228,24 @@ async def _predict_upcoming(only_if_needed: bool = False) -> dict[str, Any]:
                 except Exception as exc:  # jamais bloquante pour les championnats
                     logger.warning("nations_predict_failed", extra={"error": str(exc)})
                     report["nations"] = {"status": "failed", "error": str(exc)[:300]}
-            return {"run_id": run.id, "status": run.status, "reason": reason, "report": report}
+        report["playable"] = await _refresh_playable(engine, get_settings())
+        return {"run_id": run.id, "status": run.status, "reason": reason, "report": report}
     finally:
         await engine.dispose()
+
+
+async def _refresh_playable(engine: AsyncEngine, settings: Settings) -> dict[str, Any]:
+    """Sélections jouables préparées pour le Coupon intelligent et les suggestions
+    (bookmaker/playable.py). Un échec ne bloque rien : les demandes calculent alors elles-mêmes."""
+    redis = create_redis(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            return {"matches": await playable.refresh(session, redis)}
+    except Exception as exc:  # jamais bloquant : calcul direct à la demande
+        logger.warning("playable_refresh_failed", extra={"error": str(exc)})
+        return {"status": "failed", "error": str(exc)[:300]}
+    finally:
+        await redis.aclose()
 
 
 class _CupsDisabled(Exception):

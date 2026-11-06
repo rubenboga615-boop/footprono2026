@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query
 
 from footprono.accounts.plans import is_premium, require_premium
-from footprono.api.deps import CurrentUserDep, OptionalUserDep, SessionDep
+from footprono.api.deps import CurrentUserDep, OptionalUserDep, RedisDep, SessionDep
 from footprono.bookmaker import smart_coupon
 
 router = APIRouter(tags=["coupon intelligent"])
@@ -20,6 +20,7 @@ FREE_PICKS = frozenset({"sur"})
 async def generate(
     user: CurrentUserDep,
     session: SessionDep,
+    redis: RedisDep,
     profile: str = "equilibre",
     period: str = "3days",
     size: int = 3,
@@ -46,6 +47,7 @@ async def generate(
         after_hour=after_hour,
         exclude_matches=exclude_matches,
         exclude_teams=exclude_teams,
+        redis=redis,
     )
 
 

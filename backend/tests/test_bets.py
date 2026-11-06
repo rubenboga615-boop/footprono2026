@@ -262,3 +262,48 @@ async def test_window_cache_keeps_odds_a_few_minutes(
         clock[0] += 2  # expiré : relu
         offers, _ = await service.cached_offers_and_probabilities(session, [m1], NOW)
         assert offers[m1]["1X2||home"].odds == Decimal("2.10")
+
+
+async def test_playable_selections_prepared_in_advance(
+    world: dict[str, Any], db_factory: Factory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sélections jouables préparées après la collecte : mêmes offres que le calcul direct,
+    jamais de données périmées (empreinte, âge des cotes), Redis en panne sans erreur."""
+    from redis.asyncio import Redis
+
+    from footprono.bookmaker import playable, service
+    from footprono.cache.redis import create_redis
+
+    m1, m2 = world["m1"], world["m2"]
+    redis = create_redis(make_settings())
+    try:
+        async with db_factory() as session:
+            direct = await service.match_offers(session, [m1, m2], NOW)
+            assert await playable.refresh(session, redis, NOW) >= 2
+            offers, _ = await playable.load(session, [m1, m2], NOW, redis)
+            assert offers == direct
+
+            # Lu tout prêt : aucun calcul des cotes.
+            async def fail(*_: Any, **__: Any) -> Any:
+                raise AssertionError("cotes recalculées")
+
+            monkeypatch.setattr(service, "match_offers", fail)
+            assert (await playable.load(session, [m1, m2], NOW, redis))[0] == direct
+            # Cotes trop anciennes à la lecture : écartées.
+            later = NOW + service.ODDS_MAX_AGE + timedelta(hours=2)
+            assert (await playable.load(session, [m1, m2], later, redis))[0] == {}
+            monkeypatch.undo()
+
+            # Nouvelle cote enregistrée : données préparées périmées, calcul direct.
+            session.add(quote(m1, "1xBet", "Both Teams Score", "Yes", "1.66", NOW))
+            await session.commit()
+            fresh, _ = await playable.load(session, [m1], NOW, redis)
+            assert fresh[m1]["BTTS||yes"].odds == Decimal("1.66")
+
+            # Redis injoignable : calcul direct, pas d'erreur.
+            down = Redis.from_url("redis://127.0.0.1:1", socket_connect_timeout=0.2)
+            assert (await playable.load(session, [m1], NOW, down))[0] == fresh
+            await down.aclose()
+    finally:
+        await redis.delete(playable.KEY)
+        await redis.aclose()

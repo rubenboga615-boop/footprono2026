@@ -94,3 +94,27 @@ Argent **fictif**. Code : `backend/src/footprono/accounts/`, `bookmaker/`,
 | `GET /montantes/{id}/suggestions`, `POST /montantes/{id}/bet`, `POST /montantes/{id}/cash-out` | paliers |
 | `GET /me/notifications`, `POST /me/notifications/{id}/read`, `POST /me/notifications/read-all`, `WS /ws` | notifications |
 | `POST /me/devices`, `POST /me/devices/remove` | téléphone des notifications push (jeton Firebase) |
+
+
+## Sélections jouables préparées à l'avance (06/11/2026)
+
+Essai réel du 06/11/2026 (docs/AUDIT_UTILISATEUR_2026-11-06.md) : Coupon intelligent et
+suggestions de montante en 15 à 19 secondes sur « Prochaine journée », à la limite du
+délai de 20 secondes de l'application. Le temps venait de la lecture des cotes de tous
+les matchs de la période, à chaque demande.
+
+`bookmaker/playable.py` : juste après chaque collecte de cotes et chaque calcul de
+pronostics (worker et console), les cotes jouables et les probabilités du moteur de tous
+les matchs des 15 prochains jours sont préparées dans Redis. Les demandes les lisent
+toutes prêtes (volume simulé : 2,7 s → 0,16 s ; suggestions 0,07 s). Jamais de données
+fausses : empreinte des données vérifiée à chaque lecture (sinon calcul direct, comme
+avant), cotes trop anciennes écartées, Redis en panne sans erreur, cote revérifiée en
+direct au moment de miser.
+
+Trois étages, du plus rapide au plus sûr : données préparées dans Redis (à jour par
+empreinte) ; sinon cache de 10 minutes par processus (`service.cached_offers_and_probabilities`) ;
+sinon lecture en base, accélérée par l'index (match, bookmaker, pari, valeur) de la
+migration 0029 (12 bookmakers relevés, 2 jouables).
+
+Application : délai de 60 secondes pour ces calculs (20 ailleurs), attente expliquée
+(`SlowWait`), ajout au coupon des matchs en parallèle avec « Ajout 3 / 7… ».

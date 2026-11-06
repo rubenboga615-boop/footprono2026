@@ -32,12 +32,13 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+from redis.asyncio import Redis
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from footprono.accounts.models import User
-from footprono.bookmaker import service, settlement
+from footprono.bookmaker import playable, service, settlement
 from footprono.bookmaker.models import BetSelection
 from footprono.bookmaker.rules import automatic
 from footprono.bookmaker.smart_models import SmartCoupon
@@ -233,14 +234,19 @@ async def _candidates(
 
 
 async def window_candidates(
-    session: AsyncSession, start: datetime, end: datetime, now: datetime, filters: Filters
+    session: AsyncSession,
+    start: datetime,
+    end: datetime,
+    now: datetime,
+    filters: Filters,
+    redis: Redis | None = None,
 ) -> list[list[Pick]]:
-    """Sélections jouables de chaque match de la période (cache de quelques minutes)."""
+    """Sélections jouables de chaque match de la période (préparées à l'avance si possible,
+    bookmaker/playable.py)."""
     rows = [
         r for r in await _matches(session, start, end, filters.competitions) if filters.keeps(r[0])
     ]
-    ids = [m.id for m, *_ in rows]
-    offers, probs = await service.cached_offers_and_probabilities(session, ids, now)
+    offers, probs = await playable.load(session, [m.id for m, *_ in rows], now, redis)
     return [
         _picks(m, home, away, comp, offers.get(m.id, {}), probs.get(m.id, {}))
         for m, home, away, comp in rows
@@ -290,10 +296,11 @@ async def best_angles(
     now: datetime,
     competitions: list[str] | None = None,
     filters: Filters | None = None,
+    redis: Redis | None = None,
 ) -> list[Pick]:
     """L'angle de chaque match (voir ``choose``), du plus sûr au moins sûr."""
     filters = filters or Filters(competitions=competitions)
-    return ranked_angles(profile, await window_candidates(session, start, end, now, filters))
+    return ranked_angles(profile, await window_candidates(session, start, end, now, filters, redis))
 
 
 def target_coupon(ranked: list[Pick], target: Decimal, max_size: int) -> list[Pick]:
@@ -415,6 +422,7 @@ async def generate(
     exclude_matches: list[int] | None = None,
     exclude_teams: list[int] | None = None,
     now: datetime | None = None,
+    redis: Redis | None = None,
 ) -> dict[str, Any]:
     """Coupon d'un profil (``size`` sélections) ou Grosse cote (``target_odds``).
 
@@ -472,7 +480,7 @@ async def generate(
         # Un coupon par profil (ses angles, du plus probable au moins probable), puis le
         # plus probable des coupons qui atteignent la cote.
         # Cotes et pronostics chargés une seule fois pour tous les profils.
-        per_match = await window_candidates(session, start, end, now, filters)
+        per_match = await window_candidates(session, start, end, now, filters, redis)
         coupons = [
             target_coupon(ranked_angles(prof, per_match), target_odds, size)
             for prof in PROFILES.values()
@@ -491,7 +499,7 @@ async def generate(
             return out
     else:
         prof = PROFILES[profile]
-        picks = await best_angles(session, prof, start, end, now, filters=filters)
+        picks = await best_angles(session, prof, start, end, now, filters=filters, redis=redis)
         chosen, others = picks[:size], picks[size : size + ALTERNATIVES]
         if len(chosen) < size:
             out["message"] = (

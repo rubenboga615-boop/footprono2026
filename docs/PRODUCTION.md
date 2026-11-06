@@ -179,6 +179,10 @@ d'abord.
 
 ## Supervision
 
+- `https://<sous-domaine>.duckdns.org/api/v1/health` : `commit` = version du code en
+  service (commit installé par `install-server.sh`). À comparer au dernier commit de la
+  branche pour savoir si une mise à jour est bien en place.
+
 - `https://<sous-domaine>.duckdns.org/api/v1/ready` : base et Redis.
 - `https://<sous-domaine>.duckdns.org/api/v1/health/tasks` : 503 si les tâches
   planifiées (worker + beat) n'ont pas tourné depuis 10 minutes.

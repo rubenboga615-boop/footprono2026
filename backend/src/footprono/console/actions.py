@@ -303,6 +303,22 @@ register(
 )
 
 
+async def _refresh_playable(ctx: JobContext) -> None:
+    """Sélections jouables préparées (bookmaker/playable.py) ; un échec ne bloque rien."""
+    from footprono.bookmaker import playable
+    from footprono.cache.redis import create_redis
+
+    redis = create_redis(ctx.settings)
+    try:
+        async with ctx.factory() as session:
+            n = await playable.refresh(session, redis)
+        ctx.log(f"sélections jouables préparées : {n} matchs")
+    except Exception as exc:  # calcul direct à la demande en attendant
+        ctx.log(f"attention : sélections jouables non préparées ({exc})")
+    finally:
+        await redis.aclose()
+
+
 async def collect_odds(ctx: JobContext, params: dict[str, Any]) -> str:
     async with ctx.factory() as session:
         report = await live.collect_odds(session, ctx.settings, progress=ctx.log)
@@ -310,6 +326,7 @@ async def collect_odds(ctx: JobContext, params: dict[str, Any]) -> str:
         raise AppError(f"cotes indisponibles : {report['error']}")
     for issue in report["issues"]:
         ctx.log(f"attention : {issue}")
+    await _refresh_playable(ctx)
     ctx.result = {k: report[k] for k in ("status", "matches", "quotes", "changed", "requests")}
     return (
         f"{report['matches']} matchs, {report['quotes']} cotes relevées, {report['changed']} "
@@ -363,6 +380,7 @@ async def predict(ctx: JobContext, params: dict[str, Any]) -> str:
         nations_n = nation_run.report.get("matches", 0)
     else:
         ctx.log("sélections : pronostics désactivés (FP_NATIONS_PREDICTIONS)")
+    await _refresh_playable(ctx)
     ctx.result = {
         "run_id": run.id, "status": run.status, "matches": n, "cup_matches": cups_n,
         "nation_matches": nations_n,

@@ -29,6 +29,10 @@ COPY pyproject.toml alembic.ini ./
 COPY src ./src
 RUN pip install --no-deps .
 
+# Commit installé (deploy/install-server.sh) : /api/v1/health dit quel code est en service.
+ARG FP_COMMIT=inconnu
+ENV FP_COMMIT=${FP_COMMIT}
+
 USER app
 EXPOSE 8000
 
