@@ -1719,7 +1719,8 @@ void main() {
     await tester.tap(find.text('Composer le coupon'));
     await tester.pumpAndSettle();
     expect(server.smartQueries.single, {'profile': 'equilibre', 'period': 'weekend', 'size': '3'});
-    expect(find.textContaining('Victoire Lens · '), findsOneWidget);
+    expect(find.text('Victoire Lens'), findsOneWidget); // cote à droite (maquette C4)
+    expect(find.textContaining('Coupon proposé · Équilibré · 1 sélection'), findsOneWidget);
     expect(find.text('• Forme (5 derniers) : Lens VNDVV, Lyon DNVVN'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Ajouter au coupon'));

@@ -512,6 +512,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                       big: _big,
                       rule: _rule(result!),
                       onChange: busy ? null : _change,
+                      label: '${result?['profile_label'] ?? ''}',
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -609,7 +610,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
 }
 
 class _CouponCard extends StatelessWidget {
-  const _CouponCard({required this.coupon, this.big = false, this.rule, this.onChange});
+  const _CouponCard({required this.coupon, this.big = false, this.rule, this.onChange, this.label = ''});
 
   /// Comment le moteur a composé ce coupon, en une phrase (essai réel du 06/11/2026 : le
   /// joueur ne comprenait ni les « 60 % » partout ni la cote au-dessus de la cible).
@@ -618,72 +619,126 @@ class _CouponCard extends StatelessWidget {
   final bool big;
   final void Function(Json)? onChange;
 
+  /// Profil (« Grosse cote », « Équilibré »…).
+  final String label;
+
   @override
   Widget build(BuildContext context) {
     final sels = (coupon['selections'] as List).cast<Json>();
     final p = (coupon['probability'] as num).toDouble();
     final implied = (coupon['implied_probability'] as num).toDouble();
-    return GlassCard.section(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const Expanded(child: TwoToneTitle('Coupon', 'proposé', size: 17)),
-              Text(odds(coupon['total_odds']), style: Fp.title(19)),
-            ],
+    // Maquette C4 du 07/11/2026 : en haut, la cote et, à côté, la chance du coupon (revue :
+    // « 31,32 » sans sa chance laissait croire à un bon coup) ; dessous, les sélections.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Fp.cardHigh,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Fp.accent2, width: 1.5),
           ),
-          const Divider(height: 18),
-          for (final (i, s) in sels.indexed) ...[
-            if (i > 0) const Divider(height: 18),
-            _SelectionRow(
-              s,
-              trailing: onChange == null
-                  ? null
-                  : TextButton(
-                      onPressed: () => onChange!(s),
-                      style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        textStyle: Fp.body(13.5, weight: FontWeight.w600),
-                      ),
-                      child: const Text('Changer'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          [
+                            'Coupon proposé',
+                            if (label.isNotEmpty) label,
+                            '${sels.length} sélection${sels.length > 1 ? 's' : ''}',
+                          ].join(' · '),
+                          style: Fp.body(12, color: Fp.muted),
+                        ),
+                        Text(odds(coupon['total_odds']), style: Fp.body(30, weight: FontWeight.w800)),
+                      ],
                     ),
-            ),
-          ],
-          if (rule != null) ...[
-            const Divider(height: 18),
-            Text(rule!, style: Fp.body(12.5, color: Fp.text2, height: 1.45)),
-          ],
-          const Divider(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: Text('Chance selon le moteur', style: Fp.body(14, color: Fp.text2)),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Chance selon le moteur',
+                          textAlign: TextAlign.right,
+                          style: Fp.body(12, color: Fp.muted),
+                        ),
+                        Text(
+                          percent(p, decimals: p < 0.1 ? 1 : 0),
+                          style: Fp.body(22, weight: FontWeight.w700, color: Fp.warning),
+                        ),
+                        if (p > 0)
+                          Text(
+                            chanceInWords(p),
+                            textAlign: TextAlign.right,
+                            style: Fp.body(12, color: Fp.muted),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 8),
               Text(
-                percent(p, decimals: p < 0.1 ? 1 : 0),
-                style: Fp.body(15, weight: FontWeight.w800),
+                'Selon la cote (marge comprise) : ${percent(implied, decimals: 1)}.',
+                style: Fp.body(12, color: Fp.muted),
               ),
+              if (rule != null) ...[
+                const SizedBox(height: 6),
+                Text(rule!, style: Fp.body(12, color: Fp.muted, height: 1.4)),
+              ],
+              if (big || sels.length >= 6) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Coupon à gros risque : le bookmaker prend une marge d\'environ 5 à 8 % sur chaque cote, '
+                  'et ces marges se multiplient avec le nombre de sélections. Argent fictif.',
+                  style: Fp.body(12, color: Fp.warning, height: 1.4),
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            [
-              if (p > 0) chanceInWords(p),
-              'selon la cote (marge comprise) : ${percent(implied, decimals: 1)}',
-            ].join(' · '),
-            style: Fp.body(12, color: Fp.text3),
+        ),
+        const SizedBox(height: 12),
+        GlassCard.section(
+          padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final (i, s) in sels.indexed) ...[
+                if (i > 0) const Divider(height: 1, color: Fp.divider),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  child: _SelectionRow(
+                    s,
+                    oddsRight: true,
+                    trailing: onChange == null
+                        ? null
+                        : InkWell(
+                            onTap: () => onChange!(s),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 6, left: 6, bottom: 2),
+                              child: Text(
+                                'Changer',
+                                style: Fp.body(13, color: Fp.lilac, weight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ],
           ),
-          if (big || sels.length >= 6) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Coupon à gros risque : le bookmaker prend une marge d\'environ 5 à 8 % sur chaque cote, '
-              'et ces marges se multiplient avec le nombre de sélections. Argent fictif.',
-              style: Fp.body(12, color: Fp.warning, height: 1.4),
-            ),
-          ],
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -763,24 +818,17 @@ class _PremiumPill extends StatelessWidget {
   const _PremiumPill();
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(99),
-      border: Border.all(color: const Color(0x99A78BFA)),
-      color: Fp.accentAlpha(0.18),
-    ),
-    child: Text(
-      'PREMIUM',
-      style: Fp.body(11, weight: FontWeight.w800, color: const Color(0xFFE4D8FD)),
-    ),
-  );
+  // Maquette C4 : étiquette pleine #2B2060, texte violet clair.
+  Widget build(BuildContext context) => const Tag('PREMIUM', color: Fp.lilac, background: Fp.cardHigh);
 }
 
 class _SelectionRow extends StatelessWidget {
-  const _SelectionRow(this.s, {this.trailing});
+  const _SelectionRow(this.s, {this.trailing, this.oddsRight = false});
   final Json s;
   final Widget? trailing;
+
+  /// Maquette C4 : la cote à droite, « Changer » dessous (sinon après le libellé).
+  final bool oddsRight;
 
   @override
   Widget build(BuildContext context) {
@@ -807,14 +855,14 @@ class _SelectionRow extends StatelessWidget {
                         away: away,
                       ),
                     ),
-                    TextSpan(text: ' · ${odds(s['odds'])}'),
+                    if (!oddsRight) TextSpan(text: ' · ${odds(s['odds'])}'),
                   ],
                 ),
-                style: Fp.body(14.5, weight: FontWeight.w800),
+                style: Fp.body(14, weight: FontWeight.w700),
               ),
               const SizedBox(height: 2),
               Text(
-                'Moteur ${percent((s['model_probability'] as num).toDouble())} · '
+                'moteur ${percent((s['model_probability'] as num).toDouble())} · '
                 '${competitionName(s['competition'] as String)} · $home – $away'
                 '${kickoff != null ? ' · ${shortDate(kickoff)} ${hourMinute(kickoff)}' : ''}',
                 style: Fp.body(12, color: Fp.text2),
@@ -847,7 +895,19 @@ class _SelectionRow extends StatelessWidget {
               ? Tag.loss(resultLabel(result))
               : Tag(resultLabel(result)),
         ],
-        ?trailing,
+        if (oddsRight)
+          Padding(
+            padding: const EdgeInsets.only(left: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(odds(s['odds']), style: Fp.body(16, weight: FontWeight.w700)),
+                ?trailing,
+              ],
+            ),
+          )
+        else
+          ?trailing,
       ],
     );
   }
