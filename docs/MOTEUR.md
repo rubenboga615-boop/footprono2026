@@ -1092,3 +1092,43 @@ En service : `history.fill_api_xg` ; nombre de matchs complétés dans le rappor
 chaque calcul (`xg_api_filled`). Au retour d'Understat, ses xG reprennent la main
 d'eux-mêmes (le remplacement ne touche que les matchs sans xG Understat). Le classement
 « mérité » (football/team_stats.py) lit Understat seul et garde son avertissement.
+
+## Favoris sous-estimés en conditions réelles : saison 2026-27 avec peu de nuls (07/11/2026)
+
+Constat (page Fiabilité, tous championnats, 395 matchs depuis le lancement) : annoncé 40 à
+50 %, arrivé 58 % (138 cas) ; annoncé 60 à 70 %, arrivé 73 % (51 cas).
+
+**Pas d'erreur de calcul en service.** Le moteur de production rejoué semaine par semaine
+(`predict_match`, mêmes réglages, coefficients appris au 15/07) sur les 22 championnats
+redonne le même écart sur la même période : 40 à 50 % annoncé, 58,1 % arrivé (167 cas,
++13,8 points) depuis le 15/10. Le backtest donne les mêmes probabilités que ce rejeu (écart
+moyen 0,2 point sur 1 882 matchs).
+
+**Écart inédit.** Saisons 2023 à 2025, 302 fenêtres de 480 matchs consécutifs : tranche 40 à
+50 % entre −6,7 et +4,1 points (5 % et 95 %), maximum +9,1 ; favori gagnant au plus 5,4
+points au-dessus de l'annoncé (+5,9 depuis le 15/10). Aucune fenêtre n'a atteint +13,8.
+
+**Cause : bien moins de nuls que d'habitude.** 2026-27 au 07/11 (2 076 matchs) : 22,2 % de
+nuls arrivés pour 24,1 % annoncés, contre 25,5 % en 2023-25 (le moteur les sous-estimait
+alors légèrement). 17 championnats sur 22 sous leur moyenne 2023-25 (Serie A 16 % contre
+28 %, Belgique 18 % contre 27 %, Turquie, Suisse, Israël, Grèce…). Les nuls manquants sont
+des victoires de favoris : favori à domicile 53,6 % annoncé, 57,1 % arrivé. Les pistes « niveau
+2 » et « xG API-Football » ne l'expliquent pas (même écart au niveau 1 et au niveau 2 ; le
+remplacement des xG a été validé à part).
+
+**Correction essayée : recalibration glissante** apprise chaque semaine sur les 60 ou 120
+derniers jours, tous championnats (nul seul : p' ∝ (p1, pN·eᵃ, p2) ; ou nul + écart). Log loss :
+
+| | 2023 | 2024 | 2025 | 2026 (au 07/11) | depuis le 15/10 |
+|---|---|---|---|---|---|
+| Nul seul, 60 jours | +0,03 % | −0,01 % | +0,01 % | +0,09 % | +0,27 % |
+| Nul + écart, 60 jours | +0,03 % | −0,05 % | −0,05 % | −0,03 % | +0,24 % |
+
+Gain négligeable et irrégulier hors de cette saison, pire tranche dégradée en 2025 (2,8 →
+4,0 points), et l'écart récent n'est que réduit (+14,6 → +10 points).
+
+**Décision : moteur inchangé pour l'instant** (probabilités calibrées sur l'historique, aucune
+correction prouvée). Nouveau point le 01/12/2026 avec ce critère fixé d'avance : la
+correction « nul seul, 60 jours » passe en service si, sur 2026-27, elle gagne au moins
+0,1 % de log loss **et** ramène toutes les tranches de plus de 100 cas à moins de 3 points ;
+sinon on attend la fin de la phase aller.
