@@ -50,7 +50,8 @@ def _transport(calls: list[str]) -> httpx.MockTransport:
             body: Any = {"response": {"requests": {"current": 1, "limit_day": 7500}}}
         elif request.url.path == "/fixtures":
             assert request.url.params["ids"] == "7000-7001"
-            playing = _item(7000, "2H", 67, (1, 0), (1, 0))
+            playing = _item(7000, "2H", 90, (1, 0), (1, 0))
+            playing["fixture"]["status"]["extra"] = 4  # 90+4
             playing["lineups"] = [{"team": {"id": 1}, "formation": "4-3-3", "startXI": []}]
             body = {"response": [playing, _item(7001, "FT", 90, (9, 9), (4, 4))]}
         elif request.url.path == "/injuries":
@@ -140,8 +141,8 @@ async def test_follow_live_updates_score_then_finishes(
         )
     assert playing is not None
     assert done is not None
-    assert (playing.status, playing.api_status, playing.live_minute) == (
-        MatchStatus.SCHEDULED, "2H", 67,
+    assert (playing.status, playing.api_status, playing.live_minute, playing.live_extra) == (
+        MatchStatus.SCHEDULED, "2H", 90, 4,
     )  # fmt: skip
     assert (playing.live_home_goals, playing.live_away_goals) == (1, 0)
     # Coup d'envoi d'API-Football repris à chaque passage (15 h 00, pas 15 h 10 en base).
@@ -152,7 +153,7 @@ async def test_follow_live_updates_score_then_finishes(
 
     live = await client.get("/api/v1/live")
     assert [m["id"] for m in live.json()] == [ids[0]]
-    assert live.json()[0]["live_minute"] == 67
+    assert (live.json()[0]["live_minute"], live.json()[0]["live_extra"]) == (90, 4)
 
     # Compositions : incluses dans la réponse du direct, aucune requête de plus.
     assert report["lineups"] == 1

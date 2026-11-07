@@ -64,6 +64,7 @@ class MatchOut(_Out):
         description="api_football : provisoire dès la fin ; football_data : confirmé",
     )
     live_minute: int | None = None
+    live_extra: int | None = Field(default=None, description="temps additionnel : 90+4 → 4")
     live_home_goals: int | None = None
     live_away_goals: int | None = None
 

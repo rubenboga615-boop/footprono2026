@@ -185,6 +185,8 @@ class Match(Base):
     neutral: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Suivi en direct (API-Football) : minute et score pendant le match.
     live_minute: Mapped[int | None] = mapped_column(SmallInteger)
+    # Temps additionnel en cours (« 90+4 » : live_minute 90, live_extra 4).
+    live_extra: Mapped[int | None] = mapped_column(SmallInteger)
     live_home_goals: Mapped[int | None] = mapped_column(SmallInteger)
     live_away_goals: Mapped[int | None] = mapped_column(SmallInteger)
     live_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

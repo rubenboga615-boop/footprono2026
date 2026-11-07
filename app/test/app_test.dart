@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footprono/api/client.dart';
+import 'package:footprono/api/models.dart';
 import 'package:footprono/format.dart';
 import 'package:footprono/desktop/desktop_shell.dart';
 import 'package:footprono/main.dart';
@@ -39,6 +40,7 @@ class FakeServer {
   bool dailyNotifications = true;
   bool betaAvailable = false;
   final extraUpcoming = <Map<String, dynamic>>[];
+  final live = <Map<String, dynamic>>[];
   bool paymentsConfigured = true;
   bool betaSharing = false;
   final betaEvents = <Map<String, dynamic>>[];
@@ -236,7 +238,7 @@ class FakeServer {
         devices.remove((jsonDecode(r.body) as Map)['token']);
         return http.Response('', 204);
       case 'GET /live':
-        body = [];
+        body = live;
       case 'GET /montantes':
         body = [];
       case 'GET /predictions/upcoming':
@@ -989,6 +991,9 @@ Future<(AppState, FakeServer)> startApp(
 }
 
 void main() {
+  // Matchs du faux serveur le 10/10/2026 à 19:00 : le matin même, aucun n'a commencé.
+  setUp(() => MatchInfo.now = () => DateTime.utc(2026, 10, 10, 8));
+
   testWidgets('connexion : erreur du serveur affichée, puis accès aux matchs', (tester) async {
     final (state, _) = await startApp(tester);
     // Accueil de la maquette du 07/11/2026, puis « J'ai déjà un compte » (sans Google : formulaire).
@@ -1919,6 +1924,43 @@ void main() {
     double y(String team) => tester.getTopLeft(find.textContaining(team).first).dy;
     expect(y('Arsenal'), lessThan(y('Fulham')));
     expect(y('Fulham'), lessThan(y('Lens')));
+  });
+
+  testWidgets('en direct : une seule fois dans la liste, minute du temps additionnel, paris fermés', (
+    tester,
+  ) async {
+    final (state, server) = await startApp(tester, loggedIn: true);
+    // Essai du 07/11/2026 : le match en cours apparaissait aussi dans la journée, avec ses
+    // chances d'avant le match, et sa cote s'ajoutait au coupon.
+    final playing = {
+      ...FakeServer.match,
+      'api_status': '2H',
+      'live_minute': 90,
+      'live_extra': 4,
+      'live_home_goals': 1,
+      'live_away_goals': 0,
+    };
+    server.live.add(playing);
+    MatchInfo.now = () => DateTime.utc(2026, 10, 10, 20, 40);
+    await tester.fling(find.text('Lens – Lyon').first, const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('Lens 1 - 0 Lyon'), findsOneWidget);
+    expect(find.text('90+4\''), findsOneWidget);
+    expect(find.text('Lens – Lyon'), findsNothing); // plus dans la journée
+    final m = MatchInfo(playing);
+    expect(m.when, 'En direct 90+4\'');
+    expect(
+      MatchInfo({...playing, 'api_status': 'ET', 'live_minute': 105, 'live_extra': null}).clock,
+      'Prol. 105\'',
+    );
+    expect(MatchInfo({...playing, 'api_status': 'P'}).clock, 'Tirs au but');
+    final offer = Offer({'market': '1X2', 'selection': 'home', 'odds': 1.2, 'bookmaker': '1xBet'});
+    expect(state.toggleCoupon(m, offer), 'Lens – Lyon a commencé : paris fermés');
+    expect(state.coupon, isEmpty);
+    // L'heure de coup d'envoi suffit, même avant le relevé du direct (toutes les 2 minutes).
+    expect(MatchInfo(FakeServer.match).started, isTrue);
+    MatchInfo.now = () => DateTime.utc(2026, 10, 10, 18);
+    expect(MatchInfo(FakeServer.match).started, isFalse);
   });
 
   testWidgets('mode bêta proposé une seule fois à l\'ouverture, jamais imposé', (tester) async {

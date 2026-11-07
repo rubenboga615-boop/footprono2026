@@ -267,7 +267,12 @@ class _MatchViewState extends State<_MatchView> {
     }
 
     return [
-      if (d.picks != null) ...[
+      // Match commencé (essai du 07/11/2026 : « score le plus probable 0-2 » à 1-0, 78e) :
+      // les chances sont celles d'avant le match, et le choix du moteur n'est plus jouable.
+      if (m.started) ...[
+        _BeforeKickoff(m),
+        const SizedBox(height: 12),
+      ] else if (d.picks != null) ...[
         _EnginePicks(picks: d.picks!, offers: offers, match: m),
         const SizedBox(height: 12),
       ],
@@ -415,6 +420,7 @@ class _MatchViewState extends State<_MatchView> {
     final checked = latest(d.offers.map((o) => o.checkedAt ?? o.fetchedAt));
     final stale = updated != null && DateTime.now().difference(updated) > staleOdds;
     return [
+      if (m.started) ...[_BeforeKickoff(m), const SizedBox(height: 12)],
       Text(
         'Cotes réelles de 1xBet (Bet365 en secours)'
         '${updated != null ? ', mises à jour le ${dateTime(updated.toLocal())} selon API-Football' : ''}'
@@ -1086,6 +1092,25 @@ class OddsButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final on = state.inCoupon(match.id, offer.key);
+    if (match.started) {
+      // Cote d'avant le match : plus jouable une fois le match commencé.
+      return Container(
+        width: expand ? double.infinity : null,
+        constraints: const BoxConstraints(minWidth: 58),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: Fp.fill.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Fp.line),
+        ),
+        child: Column(
+          children: [
+            Text(odds(offer.odds), style: Fp.title(15, color: Fp.text3)),
+            Text('fermé', style: Fp.body(10, color: Fp.text3)),
+          ],
+        ),
+      );
+    }
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(12),
       side: BorderSide(color: on ? Fp.accentLine : Fp.line),
@@ -1107,6 +1132,38 @@ class OddsButton extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Match commencé : les chances et les cotes affichées sont celles d'avant le coup d'envoi.
+class _BeforeKickoff extends StatelessWidget {
+  const _BeforeKickoff(this.m);
+  final MatchInfo m;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = m.isLive
+        ? ' Score actuel : ${m.score ?? '—'} (${m.clock}).'
+        : m.isFinished
+        ? ' Score final : ${m.score ?? '—'}.'
+        : '';
+    return GlassCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.history_rounded, color: Fp.warning, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Chances calculées avant le coup d\'envoi : elles ne tiennent pas compte du score.$now '
+              'Paris fermés sur ce match.',
+              style: Fp.body(13, color: Fp.text2, height: 1.4),
+            ),
+          ),
+        ],
       ),
     );
   }

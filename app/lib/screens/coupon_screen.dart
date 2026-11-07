@@ -98,6 +98,29 @@ class _CouponScreenState extends State<CouponScreen> {
     final state = context.read<AppState>();
     final items = [...state.coupon];
     final amount = int.tryParse(stake.text.replaceAll(RegExp(r'\D'), '')) ?? 0;
+    // Match commencé : le serveur refuserait tout le coupon (essai du 07/11/2026 : message
+    // « match 106064 déjà commencé »). Le dire avec le nom du match, et proposer de le retirer.
+    final started = [
+      for (final c in items)
+        if (c.match.started) c,
+    ];
+    if (started.isNotEmpty) {
+      final names = [for (final c in started) '${c.match.home.name} – ${c.match.away.name}'].join(', ');
+      showMessage(
+        '$names ${started.length > 1 ? 'ont' : 'a'} commencé : paris fermés. Retire-${started.length > 1 ? 'les' : 'le'} '
+        'du coupon.',
+        error: true,
+        action: SnackBarAction(
+          label: 'Retirer',
+          onPressed: () {
+            for (final c in started) {
+              state.removeFromCoupon(c);
+            }
+          },
+        ),
+      );
+      return;
+    }
     setState(() => busy = true);
     try {
       final selections = [for (final c in items) c.toJson()];
@@ -111,7 +134,7 @@ class _CouponScreenState extends State<CouponScreen> {
       }
       state.clearCoupon();
       useStep = null;
-      showMessage('Pari placé. Suivi dans l\'onglet Bookmaker.');
+      showMessage('Pari placé. Suivi dans l\'onglet Mes paris.');
       await state.refreshMe();
       await _loadSteps();
     } on ApiException catch (e) {
@@ -545,6 +568,14 @@ class _SelectionRow extends StatelessWidget {
                   ].join(' · '),
                   style: Fp.body(12, color: Fp.text2),
                 ),
+                if (c.match.started)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      'Match commencé : paris fermés, retire-le du coupon',
+                      style: Fp.body(11.5, color: Fp.warning, weight: FontWeight.w700),
+                    ),
+                  ),
                 if (explainSelection(
                       c.offer.market,
                       c.offer.line,

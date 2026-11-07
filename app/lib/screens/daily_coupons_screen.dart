@@ -481,7 +481,10 @@ class _LiveSelection extends StatelessWidget {
     );
     final kickoff = s['kickoff_at'] as String?;
     final (Color dot, String state) = switch (s['state']) {
-      'live' => (Fp.warning, 'en cours${s['minute'] == null ? '' : ' ${s['minute']}\''}$scoreText'),
+      'live' => (
+        Fp.warning,
+        'en cours${s['minute'] == null ? '' : ' ${s['minute']}${s['extra'] == null ? '' : '+${s['extra']}'}\''}$scoreText',
+      ),
       'finished' => (Fp.text2, 'terminé$scoreText'),
       'settled' => (
         result == 'win' || result == 'half_win' ? Fp.win : (result == 'loss' ? Fp.loss : Fp.text2),

@@ -89,6 +89,7 @@ class MatchInfo {
       homeGoals = j['home_goals'] as int?,
       awayGoals = j['away_goals'] as int?,
       liveMinute = j['live_minute'] as int?,
+      liveExtra = j['live_extra'] as int?,
       liveHome = j['live_home_goals'] as int?,
       liveAway = j['live_away_goals'] as int?,
       referee = (j['api_referee'] ?? j['referee']) as String?;
@@ -103,6 +104,9 @@ class MatchInfo {
   final int? homeGoals;
   final int? awayGoals;
   final int? liveMinute;
+
+  /// Temps additionnel en cours : 90+4 → 4.
+  final int? liveExtra;
   final int? liveHome;
   final int? liveAway;
 
@@ -115,9 +119,36 @@ class MatchInfo {
   bool get isFinished => status == 'finished';
   bool get isPostponed => _postponed.contains(apiStatus) || status == 'cancelled';
 
+  /// Commencé (en cours ou fini) : plus de pari possible. L'heure suffit, le relevé du
+  /// direct passant toutes les 2 minutes (essai du 07/11/2026 : cote ajoutée à la 78e).
+  bool get started =>
+      isLive || isFinished || (kickoffAt != null && !isPostponed && !now().isBefore(kickoffAt!));
+
+  /// Heure utilisée pour savoir si un match a commencé (fixée dans les tests).
+  static DateTime Function() now = DateTime.now;
+
+  /// Minute du direct : « 63' », « 45+2' », « MT », « Prol. 105' », « Tirs au but ».
+  String get clock {
+    final m = liveMinute == null ? '' : '$liveMinute${(liveExtra ?? 0) > 0 ? '+$liveExtra' : ''}\'';
+    return switch (apiStatus) {
+      'HT' => 'MT',
+      'ET' => 'Prol. $m',
+      'BT' => 'Pause prol.',
+      'P' => 'Tirs au but',
+      'INT' => 'Interrompu',
+      _ => m,
+    };
+  }
+
   /// « 21:00 », « En direct 63' », « Terminé », « Reporté ».
   String get when {
-    if (isLive) return apiStatus == 'HT' ? 'Mi-temps' : 'En direct ${liveMinute ?? ''}\'';
+    if (isLive) {
+      return switch (apiStatus) {
+        'HT' => 'Mi-temps',
+        'ET' || 'BT' || 'P' || 'INT' => clock,
+        _ => 'En direct $clock',
+      };
+    }
     if (isFinished) return 'Terminé';
     if (isPostponed) return 'Reporté';
     return kickoffAt != null ? hourMinute(kickoffAt!.toLocal()) : 'Heure à confirmer';

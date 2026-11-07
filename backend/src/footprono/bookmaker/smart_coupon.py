@@ -837,6 +837,8 @@ def live_state(
     elif match.api_status in LIVE_STATUSES:
         out["state"] = "live"
         out["minute"] = match.live_minute
+        if match.live_extra:
+            out["extra"] = match.live_extra
         if match.live_home_goals is not None:
             out["score"] = [match.live_home_goals, match.live_away_goals]
     return out

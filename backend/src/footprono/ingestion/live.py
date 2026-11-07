@@ -414,6 +414,8 @@ async def follow_live(
             if fixture.status in LIVE_STATUSES or fixture.finished:
                 values.update(
                     live_minute=item["fixture"]["status"].get("elapsed"),
+                    # Temps additionnel (« 90+4 ») : absent ou nul le reste du match.
+                    live_extra=item["fixture"]["status"].get("extra") or None,
                     live_home_goals=fixture.home_goals,
                     live_away_goals=fixture.away_goals,
                 )

@@ -250,7 +250,9 @@ String fullLabel(
   String away = 'Extérieur',
 }) {
   final s = selectionLabel(market, line, sel, home: home, away: away);
-  if (market == '1X2' || market == 'DC') return s;
+  // Sélection déjà en phrase complète : le titre du marché la contredirait (« Sans encaisser
+  // de but · Zemun encaisse au moins un but », essai du 07/11/2026).
+  if (const {'1X2', 'DC', 'CLEAN_SHEET', 'WIN_TO_NIL'}.contains(market)) return s;
   return '${marketTitle(market, home: home, away: away)} · $s';
 }
 

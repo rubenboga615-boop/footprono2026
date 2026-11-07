@@ -609,6 +609,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       notifyListeners();
       return 'Retiré du coupon';
     }
+    // Match commencé : paris fermés (le serveur refuserait le coupon entier).
+    if (match.started) return '${match.home.name} – ${match.away.name} a commencé : paris fermés';
     if (existing >= 0) {
       coupon[existing] = CouponItem(match: match, offer: offer);
       notifyListeners();

@@ -45,7 +45,14 @@ class _MatchesScreenState extends State<MatchesScreen> {
         child: Loader<(List<Upcoming>, List<MatchInfo>)>(
           load: _load,
           builder: (context, data, reload) {
-            final (upcoming, live) = data;
+            final (all, live) = data;
+            // Un match en cours n'est que dans « En direct » (essai du 07/11/2026 : il apparaissait
+            // aussi dans la journée, avec ses chances d'avant le match).
+            final liveIds = {for (final m in live) m.id};
+            final upcoming = [
+              for (final u in all)
+                if (!liveIds.contains(u.match.id) && !u.match.isLive) u,
+            ];
             final days = <DateTime>{for (final u in upcoming) _day(u.match.date)}.toList()..sort();
             final selectedDay = day != null && days.contains(day) ? day : (days.isEmpty ? null : days.first);
             // Filtres par importance (5 grands d'abord), matchs par heure de coup d'envoi : le
@@ -135,18 +142,19 @@ class _MatchesScreenState extends State<MatchesScreen> {
                       _MatchTable([for (final m in live) Upcoming.of(m)]),
                       const SectionTitle('À venir'),
                     ] else
-                      _CompactList([for (final m in live) Upcoming.of(m)], title: 'En direct', note: false),
+                      _CompactList(
+                        [for (final m in live) Upcoming.of(m)],
+                        title: 'En direct',
+                        header: false,
+                        note: false,
+                      ),
                   ],
                   if (shown.isEmpty)
                     const EmptyState('Aucun match à venir pour ce filtre.', icon: Icons.event_busy_rounded)
                   else if (desk)
                     _MatchTable(shown)
                   else
-                    _CompactList(
-                      shown,
-                      title: selectedDay == null ? null : longDate(selectedDay),
-                      header: live.isEmpty,
-                    ),
+                    _CompactList(shown, title: selectedDay == null ? null : longDate(selectedDay)),
                 ],
               ),
             );
@@ -230,7 +238,11 @@ class _CompactListState extends State<_CompactList> {
 
   /// Cotes des matchs affichés, en un seul appel ; sans cotes, seules les chances s'affichent.
   Future<void> _load() async {
-    final ids = [for (final u in widget.rows.take(80)) u.match.id];
+    // Match commencé : les cotes d'avant le match ne sont plus jouables, pas affichées.
+    final ids = [
+      for (final u in widget.rows.take(80))
+        if (!u.match.started) u.match.id,
+    ];
     final sig = ids.join(',');
     if (sig == _loaded || ids.isEmpty) return;
     _loaded = sig;
@@ -354,7 +366,7 @@ class _CompactRow extends StatelessWidget {
               width: _CompactListState.timeWidth,
               child: Text(
                 // En direct : la minute seule (« En direct 45' » ne tient pas dans la colonne).
-                m.isLive ? (m.apiStatus == 'HT' ? 'MT' : '${m.liveMinute ?? ''}\'') : m.when,
+                m.isLive ? m.clock : m.when,
                 style: Fp.body(12.5, color: m.isLive ? M.green : const Color(0xB0F4F2F8)),
               ),
             ),
@@ -380,12 +392,20 @@ class _CompactRow extends StatelessWidget {
                 ],
               ),
             ),
-            gap,
-            box(0),
-            gap,
-            box(1),
-            gap,
-            box(2),
+            // En direct : le score et la minute ; les chances d'avant le match n'y ont plus de sens.
+            if (m.isLive)
+              const Padding(
+                padding: EdgeInsets.only(left: 6),
+                child: Icon(Icons.chevron_right_rounded, color: Color(0x90F4F2F8), size: 20),
+              )
+            else ...[
+              gap,
+              box(0),
+              gap,
+              box(1),
+              gap,
+              box(2),
+            ],
           ],
         ),
       ),
@@ -425,7 +445,11 @@ class _MatchTableState extends State<_MatchTable> {
 
   /// Cotes des matchs affichés (un seul appel ; sans cotes, le tableau garde les probabilités).
   Future<void> _load() async {
-    final ids = [for (final u in widget.rows.take(80)) u.match.id];
+    // Match commencé : les cotes d'avant le match ne sont plus jouables, pas affichées.
+    final ids = [
+      for (final u in widget.rows.take(80))
+        if (!u.match.started) u.match.id,
+    ];
     final sig = ids.join(',');
     if (sig == _loaded || ids.isEmpty) return;
     _loaded = sig;
