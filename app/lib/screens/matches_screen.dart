@@ -9,9 +9,8 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/install_tip.dart';
+import '../widgets/maquette.dart';
 import 'match_screen.dart';
-import 'merited_screen.dart';
-import 'notifications_screen.dart';
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({super.key});
@@ -39,7 +38,6 @@ class _MatchesScreenState extends State<MatchesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
@@ -76,64 +74,79 @@ class _MatchesScreenState extends State<MatchesScreen> {
             return RefreshIndicator(
               onRefresh: reload,
               child: ListView(
-                padding: pagePadding(context, 26, 120, maxWidth: 1040),
+                padding: pagePadding(context, 18, 120, maxWidth: 1040),
                 children: [
                   // Ordinateur : logo, classements et notifications sont dans le menu de gauche.
-                  if (!desk)
+                  // Téléphone (maquette validée le 07/11/2026) : le titre seul, puis une rangée de
+                  // petites pastilles (jours, puis « Tous championnats ▾ »).
+                  const InstallTip(margin: EdgeInsets.only(bottom: 14)),
+                  if (desk) ...[
+                    TwoToneTitle('Matchs', selectedDay == today ? 'du jour' : 'à venir'),
+                    const SizedBox(height: 16),
+                    if (days.isNotEmpty) ...[
+                      ChipRow(
+                        labels: [for (final d in days) shortDate(d)],
+                        selected: days.indexOf(selectedDay!),
+                        onSelected: (i) => setState(() => day = days[i]),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    ChipRow(
+                      labels: ['Toutes', for (final c in comps) competitionName(c)],
+                      selected: competition.isEmpty ? 0 : comps.indexOf(competition) + 1,
+                      onSelected: (i) => setState(() => competition = i == 0 ? '' : comps[i - 1]),
+                    ),
+                    const SizedBox(height: 16),
+                  ] else ...[
+                    MTitle('Matchs', selectedDay == today ? 'du jour' : 'à venir'),
+                    const SizedBox(height: 10),
+                    // Jours qui défilent ; « Tous championnats ▾ » toujours visible à droite.
                     Row(
                       children: [
-                        const FpLogo(),
-                        const Spacer(),
-                        SquareButton(
-                          icon: Icons.leaderboard_rounded,
-                          tooltip: 'Classement mérité',
-                          onTap: () =>
-                              Navigator.of(context)
-                                  .push(MaterialPageRoute(builder: (_) => const MeritedScreen())),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                for (final d in days) ...[
+                                  MChip(
+                                    dayChip(d),
+                                    selected: d == selectedDay,
+                                    onTap: () => setState(() => day = d),
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
+                              ],
+                            ),
+                          ),
                         ),
-                        const SizedBox(width: 10),
-                        SquareButton(
-                          icon: Icons.notifications_none_rounded,
-                          tooltip: 'Notifications',
-                          dot: state.unread > 0,
-                          onTap: () =>
-                              Navigator.of(context)
-                                  .push(MaterialPageRoute(builder: (_) => const NotificationsScreen())),
+                        const SizedBox(width: 6),
+                        MChip(
+                          '${competition.isEmpty ? 'Tous championnats' : competitionName(competition)} ▾',
+                          selected: competition.isNotEmpty,
+                          onTap: () => _pickCompetition(context, comps),
                         ),
                       ],
                     ),
-                  if (!desk) const SizedBox(height: 16),
-                  const InstallTip(margin: EdgeInsets.only(bottom: 14)),
-                  TwoToneTitle('Matchs', selectedDay == today ? 'du jour' : 'à venir'),
-                  const SizedBox(height: 16),
-                  if (days.isNotEmpty) ...[
-                    ChipRow(
-                      labels: [for (final d in days) shortDate(d)],
-                      selected: days.indexOf(selectedDay!),
-                      onSelected: (i) => setState(() => day = days[i]),
-                    ),
-                    const SizedBox(height: 8),
                   ],
-                  ChipRow(
-                    labels: ['Toutes', for (final c in comps) competitionName(c)],
-                    selected: competition.isEmpty ? 0 : comps.indexOf(competition) + 1,
-                    onSelected: (i) => setState(() => competition = i == 0 ? '' : comps[i - 1]),
-                  ),
-                  const SizedBox(height: 16),
                   if (live.isNotEmpty) ...[
-                    const SectionTitle('En direct'),
-                    if (desk)
-                      _MatchTable([for (final m in live) Upcoming.of(m)])
-                    else
-                      _CompactList([for (final m in live) Upcoming.of(m)]),
-                    const SectionTitle('À venir'),
+                    if (desk) ...[
+                      const SectionTitle('En direct'),
+                      _MatchTable([for (final m in live) Upcoming.of(m)]),
+                      const SectionTitle('À venir'),
+                    ] else
+                      _CompactList([for (final m in live) Upcoming.of(m)], title: 'En direct', note: false),
                   ],
                   if (shown.isEmpty)
                     const EmptyState('Aucun match à venir pour ce filtre.', icon: Icons.event_busy_rounded)
                   else if (desk)
                     _MatchTable(shown)
                   else
-                    _CompactList(shown),
+                    _CompactList(
+                      shown,
+                      title: selectedDay == null ? null : longDate(selectedDay),
+                      header: live.isEmpty,
+                    ),
                 ],
               ),
             );
@@ -144,14 +157,56 @@ class _MatchesScreenState extends State<MatchesScreen> {
   }
 
   static DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  /// « Tous championnats ▾ » : liste des championnats du jour choisi.
+  Future<void> _pickCompetition(BuildContext context, List<String> comps) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Fp.background,
+      builder: (context) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.7),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+            children: [
+              Text('Championnat', style: Fp.title(17)),
+              const SizedBox(height: 6),
+              for (final c in ['', ...comps])
+                InkWell(
+                  onTap: () => Navigator.pop(context, c),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    child: Text(
+                      c.isEmpty ? 'Tous championnats' : competitionName(c),
+                      style: Fp.body(
+                        14,
+                        weight: c == competition ? FontWeight.w800 : FontWeight.w500,
+                        color: c == competition ? Fp.text : Fp.textSoft,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice != null) setState(() => competition = choice);
+  }
 }
 
-/// Téléphone (maquette validée le 07/11/2026) : une ligne par match, rangés par heure, avec la
-/// chance selon le moteur et, dessous, la cote du bookmaker ; l'issue la plus probable selon le
-/// moteur est encadrée (pas un conseil de pari). Un appui ouvre le match.
+/// Téléphone (maquette validée le 07/11/2026, valeurs reprises une à une) : en-tête 1 / N / 2,
+/// intertitre du jour, puis une ligne par match, rangés par heure, sans carte autour ; chance
+/// selon le moteur et, dessous, la cote du bookmaker ; l'issue la plus probable encadrée (pas
+/// un conseil de pari). Un appui ouvre le match.
 class _CompactList extends StatefulWidget {
-  const _CompactList(this.rows);
+  const _CompactList(this.rows, {this.title, this.header = true, this.note = true});
   final List<Upcoming> rows;
+  final String? title;
+  final bool header;
+  final bool note;
 
   @override
   State<_CompactList> createState() => _CompactListState();
@@ -193,59 +248,60 @@ class _CompactListState extends State<_CompactList> {
     }
   }
 
-  static const _box = 54.0;
+  static const box = 52.0;
+  static const gap = 6.0;
+  static const timeWidth = 44.0;
 
   @override
   Widget build(BuildContext context) {
-    Widget head(String t) => SizedBox(
-      width: _box,
+    const head = Color(0x90F4F2F8);
+    Widget col(String t) => SizedBox(
+      width: box,
       child: Text(
         t,
         textAlign: TextAlign.center,
-        style: Fp.body(11.5, color: Fp.text3, weight: FontWeight.w700),
+        style: Fp.body(11.5, color: head),
       ),
     );
-    final hasOdds = offers.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        GlassCard.section(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.fromLTRB(12, 8, 10, 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  const SizedBox(width: 46),
-                  Expanded(
-                    child: Text(
-                      'Match',
-                      style: Fp.body(11.5, color: Fp.text3, weight: FontWeight.w700),
-                    ),
-                  ),
-                  head('1'),
-                  const SizedBox(width: 5),
-                  head('N'),
-                  const SizedBox(width: 5),
-                  head('2'),
-                ],
-              ),
-              for (final (i, u) in widget.rows.indexed) ...[
-                if (i > 0) const Divider(height: 1),
-                _CompactRow(u, offers[u.match.id] ?? const {}),
+        if (widget.header)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 2),
+            child: Row(
+              children: [
+                const SizedBox(width: timeWidth + gap),
+                Expanded(
+                  child: Text('Match', style: Fp.body(11.5, color: head)),
+                ),
+                const SizedBox(width: gap),
+                col('1'),
+                const SizedBox(width: gap),
+                col('N'),
+                const SizedBox(width: gap),
+                col('2'),
               ],
-            ],
+            ),
           ),
-        ),
-        Text(
-          hasOdds
-              ? 'En haut : la chance selon le moteur ; en bas : la cote du bookmaker. Encadré : l\'issue la '
-                    'plus probable selon le moteur (pas un conseil de pari). Un appui ouvre le match.'
-              : 'La chance selon le moteur ; encadré : l\'issue la plus probable (pas un conseil de pari). '
-                    'Un appui ouvre le match.',
-          style: Fp.body(12, color: Fp.text3, height: 1.4),
-        ),
+        if (widget.title != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 14, bottom: 2),
+            child: Text(widget.title!, style: Fp.title(13, color: M.lock)),
+          ),
+        for (final (i, u) in widget.rows.indexed)
+          _CompactRow(u, offers[u.match.id] ?? const {}, last: i == widget.rows.length - 1),
+        if (widget.note) ...[
+          const SizedBox(height: 12),
+          Text(
+            offers.isNotEmpty
+                ? 'En haut : la chance selon le moteur ; en bas : la cote 1xBet. Encadré : l\'issue la plus '
+                      'probable selon le moteur (pas un conseil de pari). Un appui ouvre le match.'
+                : 'La chance selon le moteur ; encadré : l\'issue la plus probable (pas un conseil de pari). '
+                      'Un appui ouvre le match.',
+            style: Fp.body(12.5, color: M.small, height: 1.4),
+          ),
+        ],
         const SizedBox(height: 8),
       ],
     );
@@ -253,9 +309,10 @@ class _CompactListState extends State<_CompactList> {
 }
 
 class _CompactRow extends StatelessWidget {
-  const _CompactRow(this.u, this.offers);
+  const _CompactRow(this.u, this.offers, {this.last = false});
   final Upcoming u;
   final Map<String, Offer> offers;
+  final bool last;
 
   @override
   Widget build(BuildContext context) {
@@ -267,78 +324,67 @@ class _CompactRow extends StatelessWidget {
       final o = offers[keys[i]];
       final on = i == best;
       return Container(
-        width: _CompactListState._box,
+        width: _CompactListState.box,
         padding: const EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(
-          color: on ? Fp.accentAlpha(0.22) : Fp.fill,
+          color: on ? const Color(0x337C3AED) : const Color(0x0DFFFFFF),
           borderRadius: BorderRadius.circular(9),
-          border: Border.all(color: on ? Fp.accentAlpha(0.6) : Colors.transparent),
+          border: Border.all(color: on ? const Color(0x887C3AED) : Colors.transparent),
         ),
         child: Column(
           children: [
-            Text(probs == null ? '—' : percent(probs[i]), style: Fp.body(13.5, weight: FontWeight.w800)),
-            if (o != null)
-              Text(
-                odds(o.odds),
-                style: Fp.body(11, color: Fp.text2, weight: FontWeight.w600),
-              ),
+            Text(probs == null ? '—' : percent(probs[i]), style: Fp.body(13.5, weight: FontWeight.w700)),
+            if (o != null) Text(odds(o.odds), style: Fp.body(11, color: const Color(0xA8F4F2F8))),
           ],
         ),
       );
     }
 
+    const gap = SizedBox(width: _CompactListState.gap);
     return InkWell(
       onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MatchScreen(matchId: m.id))),
-      child: Padding(
+      child: Container(
         padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          border: last ? null : const Border(bottom: BorderSide(color: M.line10)),
+        ),
         child: Row(
           children: [
             SizedBox(
-              width: 46,
+              width: _CompactListState.timeWidth,
               child: Text(
                 // En direct : la minute seule (« En direct 45' » ne tient pas dans la colonne).
                 m.isLive ? (m.apiStatus == 'HT' ? 'MT' : '${m.liveMinute ?? ''}\'') : m.when,
-                style: Fp.body(12.5, color: m.isLive ? Fp.win : Fp.text2, weight: FontWeight.w700),
+                style: Fp.body(12.5, color: m.isLive ? M.green : const Color(0xB0F4F2F8)),
               ),
             ),
+            gap,
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Deux lignes : les noms longs (Eyüpspor, Kocaelispor) ne sont jamais coupés au
-                  // point de cacher l'équipe à l'extérieur.
-                  for (final (i, name) in [m.home.name, m.away.name].indexed)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Fp.body(13.5, weight: FontWeight.w700),
-                          ),
-                        ),
-                        if (m.score case final sc?)
-                          Text(
-                            sc.split(' - ')[i],
-                            style: Fp.body(13.5, weight: FontWeight.w800, color: m.isLive ? Fp.win : Fp.text),
-                          ),
-                      ],
-                    ),
+                  Text(
+                    m.score == null
+                        ? '${m.home.name} – ${m.away.name}'
+                        : '${m.home.name} ${m.score} ${m.away.name}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Fp.body(13.5, weight: FontWeight.w600),
+                  ),
                   Text(
                     competitionName(m.competition),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Fp.body(11.5, color: Fp.text3),
+                    style: Fp.body(11, color: const Color(0x90F4F2F8)),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 6),
+            gap,
             box(0),
-            const SizedBox(width: 5),
+            gap,
             box(1),
-            const SizedBox(width: 5),
+            gap,
             box(2),
           ],
         ),

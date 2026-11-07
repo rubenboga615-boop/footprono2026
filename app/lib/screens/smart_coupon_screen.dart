@@ -11,6 +11,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/maquette.dart';
 import 'daily_coupons_screen.dart';
 import 'share_coupon.dart';
 
@@ -273,8 +274,10 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
         child: ListView(
           padding: pagePadding(context, 16, 40, maxWidth: 1120),
           children: [
-            BackHeader('Coupon', 'intelligent', trailing: premium ? const _PremiumPill() : null),
-            const SizedBox(height: 14),
+            if (premium) ...[
+              const BackHeader('Coupon', 'intelligent', trailing: _PremiumPill()),
+              const SizedBox(height: 14),
+            ],
             if (!premium) ...[
               const _LockedPreview(),
             ] else ...[
@@ -968,23 +971,38 @@ Future<void> addSelectionsToCoupon(
   }
 }
 
-/// Version gratuite (maquette validée le 07/11/2026) : le dernier coupon du jour réglé, gagné ou
-/// perdu, jamais choisi (les coupons réglés sont publics), dont les dernières sélections sont
-/// floutées, puis le bouton d'abonnement.
+/// Version gratuite (maquette validée le 07/11/2026, valeurs reprises une à une) : le dernier
+/// coupon du jour réglé, gagné ou perdu, jamais choisi (les coupons réglés sont publics), ses
+/// sélections au-delà de la 2e floutées, puis le bouton d'abonnement.
 class _LockedPreview extends StatelessWidget {
   const _LockedPreview();
 
   @override
   Widget build(BuildContext context) {
     final api = context.read<AppState>().api;
+    final canPop = Navigator.of(context).canPop();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Row(
+          children: [
+            // Retour discret (absent de la maquette, mais nécessaire sur la version web).
+            if (canPop) ...[
+              InkResponse(
+                onTap: () => Navigator.of(context).maybePop(),
+                radius: 20,
+                child: const Icon(Icons.chevron_left_rounded, size: 26, color: Fp.text2),
+              ),
+              const SizedBox(width: 4),
+            ],
+            const Expanded(child: MTitle('Coupon', 'intelligent')),
+          ],
+        ),
+        const SizedBox(height: 8),
         Text(
           'Tu choisis ton profil et la cote visée ; le moteur compose le coupon avec ses raisons.',
-          style: Fp.body(13.5, color: Fp.text2, height: 1.45),
+          style: Fp.body(13.5, color: M.muted, height: 1.45),
         ),
-        const SizedBox(height: 12),
         Loader<Json>(
           load: () async => await api.get('/smart-coupons/history') as Json,
           builder: (context, h, _) {
@@ -992,34 +1010,32 @@ class _LockedPreview extends StatelessWidget {
             return c == null ? const SizedBox.shrink() : _Example(c);
           },
         ),
-        const SizedBox(height: 12),
-        GlassCard(
+        MCard(
           highlight: true,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 children: [
-                  const Icon(Icons.lock_rounded, size: 18, color: Fp.accentLight),
-                  const SizedBox(width: 8),
+                  const Icon(Icons.lock_rounded, size: 17, color: Color(0xFFF5B83D)),
+                  const SizedBox(width: 6),
                   Text('Inclus dans Premium', style: Fp.title(17)),
                 ],
               ),
               const SizedBox(height: 6),
               Text(
-                'Le coupon selon ton profil, la cote que tu vises, et pourquoi chaque match a été choisi.',
-                style: Fp.body(13.5, color: Fp.text2, height: 1.45),
+                'Le coupon du jour selon ton profil, la cote que tu vises, et pourquoi chaque match a été '
+                'choisi.',
+                style: Fp.body(13.5, color: M.muted, height: 1.45),
               ),
               const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () => openPremium(context),
-                child: const Text('Débloquer · 2 000 F / mois'),
-              ),
+              MButton('Débloquer · 2 000 F / mois', onPressed: () => openPremium(context)),
               const SizedBox(height: 8),
-              OutlinedButton(
+              MButton(
+                'Voir le bilan de tous les coupons',
+                secondary: true,
                 onPressed: () =>
                     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SmartHistoryScreen())),
-                child: const Text('Voir le bilan de tous les coupons'),
               ),
             ],
           ),
@@ -1039,20 +1055,23 @@ class _Example extends StatelessWidget {
     final total = double.parse('${c['total_odds']}');
     final won = c['status'] == 'won';
     final day = DateTime.tryParse('${c['day']}');
-    return GlassCard.section(
+    final now = DateTime.now();
+    final yesterday = DateTime(now.year, now.month, now.day - 1);
+    final when = day == null
+        ? 'dernier coupon réglé'
+        : DateUtils.isSameDay(day, yesterday)
+        ? 'coupon d\'hier'
+        : 'coupon du ${shortDate(day)}';
+    return MCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
               Expanded(
-                child: Text(
-                  'Exemple : dernier coupon réglé · ${c['profile_label']}'
-                  '${day != null ? ' · ${shortDate(day)}' : ''}',
-                  style: Fp.body(12.5, color: Fp.text2),
-                ),
+                child: Text('Exemple : $when · ${c['profile_label']}', style: Fp.body(12.5, color: M.small)),
               ),
-              won ? const Tag.win('Gagné') : const Tag.loss('Perdu'),
+              won ? const MPill.win('Gagné') : const MPill.loss('Perdu'),
             ],
           ),
           const SizedBox(height: 6),
@@ -1064,52 +1083,56 @@ class _Example extends StatelessWidget {
                   const TextSpan(text: ' · '),
                   TextSpan(
                     text: '+${thousands(((total - 1) * 1000).round())} F',
-                    style: const TextStyle(color: Fp.win),
+                    style: const TextStyle(color: M.green),
                   ),
                   TextSpan(
                     text: ' pour 1 000 F',
-                    style: Fp.body(12.5, color: Fp.text2),
+                    style: Fp.body(12.5, color: M.small),
                   ),
                 ],
               ],
             ),
-            style: Fp.title(19),
+            style: Fp.title(20),
           ),
-          for (final (i, s) in sels.indexed) ...[
-            const Divider(height: 14),
-            _blurIf(
-              i >= 2,
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('${s['home']} – ${s['away']}', style: Fp.body(13.5, weight: FontWeight.w600)),
-                        Text(
-                          selectionLabel(
-                            '${s['market']}',
-                            '${s['line'] ?? ''}',
-                            '${s['selection']}',
-                            home: '${s['home']}',
-                            away: '${s['away']}',
+          for (final (i, s) in sels.indexed)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              decoration: BoxDecoration(
+                border: i < sels.length - 1 ? const Border(bottom: BorderSide(color: M.line10)) : null,
+              ),
+              child: _blurIf(
+                i >= 2,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('${s['home']} – ${s['away']}', style: Fp.body(13.5)),
+                          Text(
+                            selectionLabel(
+                              '${s['market']}',
+                              '${s['line'] ?? ''}',
+                              '${s['selection']}',
+                              home: '${s['home']}',
+                              away: '${s['away']}',
+                            ),
+                            style: Fp.body(12, color: const Color(0xA8F4F2F8)),
                           ),
-                          style: Fp.body(12, color: Fp.text2),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  Text(odds(double.parse('${s['odds']}')), style: Fp.body(14, weight: FontWeight.w700)),
-                  const SizedBox(width: 6),
-                  switch (s['result']) {
-                    'win' || 'half_win' => const Icon(Icons.check_rounded, size: 16, color: Fp.win),
-                    'loss' || 'half_loss' => const Icon(Icons.close_rounded, size: 16, color: Fp.lossText),
-                    _ => const SizedBox(width: 16),
-                  },
-                ],
+                    Text(odds(double.parse('${s['odds']}')), style: Fp.body(13.5, weight: FontWeight.w700)),
+                    const SizedBox(width: 4),
+                    switch (s['result']) {
+                      'win' || 'half_win' => const Icon(Icons.check_rounded, size: 15, color: M.green),
+                      'loss' || 'half_loss' => const Icon(Icons.close_rounded, size: 15, color: M.pink),
+                      _ => const SizedBox(width: 15),
+                    },
+                  ],
+                ),
               ),
             ),
-          ],
         ],
       ),
     );
@@ -1117,7 +1140,10 @@ class _Example extends StatelessWidget {
 
   static Widget _blurIf(bool blur, Widget child) => blur
       ? ExcludeSemantics(
-          child: ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 4, sigmaY: 4), child: child),
+          child: Opacity(
+            opacity: 0.75,
+            child: ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 3.5, sigmaY: 3.5), child: child),
+          ),
         )
       : child;
 }

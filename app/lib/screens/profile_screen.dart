@@ -12,6 +12,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/maquette.dart';
 import 'auth_screen.dart' show countries;
+import 'merited_screen.dart';
 import 'notifications_screen.dart';
 import 'reliability_screen.dart';
 import 'server_dialog.dart';
@@ -315,6 +316,12 @@ class ProfileScreen extends StatelessWidget {
                           icon: Icons.verified_user_outlined,
                           title: 'Fiabilité du moteur',
                           onTap: () => open(const ReliabilityScreen()),
+                        ),
+                        // Ancien bouton de l'écran Matchs (retiré : maquette du 07/11/2026).
+                        _Item(
+                          icon: Icons.leaderboard_outlined,
+                          title: 'Classement mérité',
+                          onTap: () => open(const MeritedScreen()),
                         ),
                         if (me?.googleLinked ?? false) ...[
                           _Item(

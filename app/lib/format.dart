@@ -92,6 +92,9 @@ const _monthsLong = [
 /// « Sam. 10 oct. »
 String shortDate(DateTime d) => '${_days[d.weekday - 1]} ${d.day} ${_months[d.month - 1]}';
 
+/// « Sam. 7 » (pastilles de jours de la maquette du 07/11/2026).
+String dayChip(DateTime d) => '${_days[d.weekday - 1]} ${d.day}';
+
 /// « Samedi 10 octobre »
 String longDate(DateTime d) => '${_daysLong[d.weekday - 1]} ${d.day} ${_monthsLong[d.month - 1]}';
 
