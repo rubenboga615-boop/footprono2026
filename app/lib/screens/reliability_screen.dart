@@ -29,8 +29,11 @@ const _liveNames = {
 };
 
 class _ReliabilityScreenState extends State<ReliabilityScreen> {
+  // « Tous » d'abord (essai réel du 08/11/2026 : seule la vue « 5 grands » était proposée,
+  // alors que les coupons prennent surtout des matchs des autres championnats).
   static const _comps = [
     '',
+    'BIG5',
     'EPL',
     'LA_LIGA',
     'SERIE_A',
@@ -73,7 +76,14 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
   String competition = '';
   bool live = false;
 
-  static String _compLabel(String c) => c.isEmpty ? '5 grands championnats' : competitionName(c);
+  static String _compLabel(String c) => switch (c) {
+    '' => 'Tous les championnats',
+    'BIG5' => '5 grands championnats',
+    _ => competitionName(c),
+  };
+
+  /// Simulation de tous les marchés (audit) : faite sur les 5 grands championnats.
+  static bool _audited(String c) => c.isEmpty || c == 'BIG5';
 
   @override
   Widget build(BuildContext context) {
@@ -84,12 +94,11 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
         child: Loader<Json>(
           key: ValueKey(competition),
           load: () async => await api.get('/reliability', {
-            // « 5 grands » : les mêmes championnats pour la simulation et les pronostics publiés.
-            'competition': competition.isEmpty ? 'BIG5' : competition,
+            if (competition.isNotEmpty) 'competition': competition,
             'recent': 20,
           }) as Json,
           builder: (context, r, reload) {
-            final view = _View.of(r, market, live);
+            final view = _View.of(r, market, live, _compLabel(competition));
             return RefreshIndicator(
               onRefresh: reload,
               child: ListView(
@@ -113,11 +122,11 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         flex: 4,
-                        child: _Drop(
-                          'Championnat',
-                          competition.isEmpty ? '5 grands' : _compLabel(competition),
-                          onTap: () => _pickCompetition(context),
-                        ),
+                        child: _Drop('Championnat', switch (competition) {
+                          '' => 'Tous',
+                          'BIG5' => '5 grands',
+                          _ => _compLabel(competition),
+                        }, onTap: () => _pickCompetition(context)),
                       ),
                     ],
                   ),
@@ -328,8 +337,8 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
     if (choice == null || choice == competition) return;
     setState(() {
       // Hors des 5 grands : seulement les marchés suivis (pas d'audit par championnat).
-      if (choice.isNotEmpty && !_liveKeys.values.contains(market)) market = _liveKeys[market] ?? '1X2';
-      if (choice.isEmpty) {
+      if (!_audited(choice) && !_liveKeys.values.contains(market)) market = _liveKeys[market] ?? '1X2';
+      if (_audited(choice)) {
         market = _liveKeys.entries.where((e) => e.value == market).firstOrNull?.key ?? market;
       }
       competition = choice;
@@ -479,7 +488,14 @@ class _View {
 
   /// Règle de justesse (la même partout) : dans chaque tranche d'au moins [minBin] cas, écart
   /// entre annoncé et arrivé de 3 points au plus, ou dans la marge du hasard (2 erreurs types).
-  static (String, bool) _ruleStatus(List<Json> bins, int minBin) {
+  /// Résultats réels : pas de verdict avant [minMatches] matchs (essai du 08/11/2026 : « ✓ »
+  /// affiché sur 110 matchs, juste au-dessus de « échantillon trop petit pour conclure »).
+  static const minMatches = 200;
+
+  static (String, bool) _ruleStatus(List<Json> bins, int minBin, [int? matches]) {
+    if (matches != null && matches < minMatches) {
+      return ('pas encore assez de matchs pour conclure ($matches sur $minMatches)', true);
+    }
     Json? worst;
     var worstGap = 0.0;
     var judged = 0;
@@ -507,9 +523,16 @@ class _View {
   /// Erreur relative du moteur face à une référence (log loss) : « 8 % » et le sens.
   static (String, bool) _relative(num model, num reference) {
     final d = (reference - model) / reference;
-    final txt = '${decimal(d.abs() * 100, max: 1)} %';
+    if (d.abs() < 0.0005) return (same, false);
+    final txt = '${decimal(d.abs() * 100, max: 1)}$nbsp%';
     return (txt, d > 0);
   }
+
+  /// Égalité (« 0,0 % d'erreur en moins » se lisait mal) : « autant d'erreur que … ».
+  static const same = '=';
+  static String _versus(String txt, bool better, String reference) => txt == same
+      ? 'autant d\'erreur que $reference'
+      : 'd\'erreur ${better ? 'en moins' : 'en plus'} que $reference';
 
   static const _howTo =
       'Chaque ligne regroupe les pronostics d\'une même tranche (par exemple ceux annoncés entre 70 et '
@@ -519,7 +542,7 @@ class _View {
       'avant lui, comme en vrai. Depuis le lancement : les pronostics publiés avant les matchs, tous '
       'comptés, jamais modifiés.\n\nTranches grisées : moins de 50 cas, l\'écart y vient surtout du hasard.';
 
-  factory _View.of(Json r, String market, bool wantLive) {
+  factory _View.of(Json r, String market, bool wantLive, String scope) {
     final audit = r['markets_audit'] as Json?;
     final bt = r['backtest'] as Json? ?? const {};
     final btLoss = (bt['log_loss'] as Json?) ?? const {};
@@ -545,8 +568,8 @@ class _View {
       final removed = families.where((x) => x['withdrawn'] != null).map((x) => '« ${x['label']} »').toList();
       final allGood = good.length == published.length;
       final verdict =
-          '${allGood ? 'Les ${published.length} marchés publiés respectent' : '${good.length} marchés sur ${published.length} respectent'} '
-          'la règle de justesse sur ${thousands(audit['matches'] as int)} matchs passés : écart de 3 points '
+          'Simulation : ${allGood ? 'les ${published.length} marchés publiés respectent' : '${good.length} marchés sur ${published.length} respectent'} '
+          'la règle de justesse sur ${thousands(audit['matches'] as int)} matchs passés des 5 grands championnats : écart de 3 points '
           'au plus entre annoncé et arrivé, ou dans la marge du hasard (au plus ${worst.ceil()} points).'
           '${removed.isEmpty ? '' : ' Retiré : ${removed.join(', ')}.'}';
       final liveKey = _liveKeys[id];
@@ -560,7 +583,7 @@ class _View {
           ? '✓ règle respectée · écart max $gapPts pt${gapPts > 1 ? 's' : ''}'
           : 'à corriger';
       final liveCalib = liveM == null ? const <Json>[] : (liveM['calibration'] as List).cast<Json>();
-      final (liveStatus, liveOk) = _ruleStatus(liveCalib, minBin);
+      final (liveStatus, liveOk) = _ruleStatus(liveCalib, minBin, liveN);
       // Pronostics publiés : chiffres clés tirés des résultats réels, pas de la simulation.
       final liveVersus = liveKey == null
           ? null
@@ -597,8 +620,11 @@ class _View {
             );
       }
       return _View(
-        verdict: verdict,
-        verdictOk: allGood,
+        verdict: liveN > 0
+            ? '$verdict\n\nRésultats réels depuis le lancement ($scope, ${thousands(liveN)} matchs) : '
+                  '${f['label']} — $liveStatus.'
+            : verdict,
+        verdictOk: allGood && liveOk && liveN >= minMatches,
         marketId: id,
         marketLabel: f['label'] as String,
         choices: [for (final e in groups.entries) _Group(e.key, e.value)],
@@ -612,7 +638,7 @@ class _View {
         minBin: minBin,
         source: showLive
             ? (liveM!['warning'] as String? ??
-                  'Pronostics publiés avant les matchs, 5 grands championnats (${thousands(liveN)} matchs).')
+                  'Pronostics publiés avant les matchs, $scope (${thousands(liveN)} matchs).')
             : 'Simulation : ${thousands(audit['matches'] as int)} matchs passés des ${audit['competitions']} '
                   '(saisons ${audit['seasons']}).${f['withdrawn'] != null ? ' ${f['withdrawn']}' : ''}',
         emptyText: 'Pas encore de pronostic réglé sur ce marché.',
@@ -622,14 +648,15 @@ class _View {
         liveMatches: liveN,
         vsAverage: showLive ? liveAvg : '${decimal(((f['skill'] as num) * 100).abs(), max: 1)} %',
         vsAverageText: showLive
-            ? 'd\'erreur ${liveAvgGood ? 'en moins' : 'en plus'} que la fréquence observée (connue après coup)'
-            : (f['skill'] as num) >= 0
-            ? 'd\'erreur en moins que la moyenne du championnat'
-            : 'd\'erreur en plus que la moyenne du championnat',
+            ? _versus(liveAvg, liveAvgGood, 'la fréquence observée (connue après coup)')
+            : _versus(
+                (f['skill'] as num).abs() < 0.0005 ? same : '',
+                (f['skill'] as num) >= 0,
+                'la moyenne du championnat',
+              ),
         vsBookmakers: bmTxt,
         vsBookmakersText: hasClosing
-            ? 'd\'erreur ${beats ? 'en moins' : 'en plus'} que les bookmakers avant le match'
-                  '${id == 'OU' ? ' (plus/moins 2,5)' : ''}'
+            ? '${_versus(bmTxt, beats, 'les bookmakers avant le match')}${id == 'OU' ? ' (plus/moins 2,5)' : ''}'
             : 'pas de cotes passées pour comparer aux bookmakers',
         beatsBookmakers: beats,
         averageHelp:
@@ -658,11 +685,20 @@ class _View {
         ? _relative(loss['model'] as num, loss['closing_odds'] as num)
         : ('—', false);
     final warning = liveM?['warning'] as String?;
+    final (liveStatus, liveOk) = _ruleStatus(
+      liveM == null ? const <Json>[] : (liveM['calibration'] as List).cast<Json>(),
+      minBin,
+      liveN,
+    );
+    final simulation = bt['matches'] != null
+        ? 'Simulation sur ${thousands(bt['matches'] as int)} matchs passés (saisons ${bt['seasons']}).'
+        : 'Pas encore de simulation pour ce championnat.';
     return _View(
-      verdict: bt['matches'] != null
-          ? 'Simulation sur ${thousands(bt['matches'] as int)} matchs passés (saisons ${bt['seasons']}).'
-          : 'Pas encore de simulation pour ce championnat.',
-      verdictOk: true,
+      verdict: liveN > 0
+          ? '$simulation\n\nRésultats réels depuis le lancement (${thousands(liveN)} matchs) : '
+                '${_liveNames[key]} — $liveStatus.'
+          : simulation,
+      verdictOk: liveOk && liveN >= minMatches,
       marketId: key,
       marketLabel: _liveNames[key]!,
       choices: [
@@ -677,17 +713,17 @@ class _View {
           ? 'Simulation : ${thousands(bt['matches'] as int)} matchs passés (saisons ${bt['seasons']}).'
           : '',
       emptyText: warning ?? 'Pas de détail par tranche pour ce marché dans la simulation.',
-      status: null,
-      statusOk: true,
+      status: showLive ? liveStatus : null,
+      statusOk: showLive ? liveOk : true,
       canLive: liveN > 0 && btCalib.isNotEmpty,
       liveMatches: liveN,
       vsAverage: avgTxt,
       vsAverageText: loss == null
           ? 'pas de simulation pour ce marché'
-          : 'd\'erreur ${avgGood ? 'en moins' : 'en plus'} que la moyenne du championnat',
+          : _versus(avgTxt, avgGood, 'la moyenne du championnat'),
       vsBookmakers: bmTxt,
       vsBookmakersText: hasClosing
-          ? 'd\'erreur ${beats ? 'en moins' : 'en plus'} que les bookmakers avant le match'
+          ? _versus(bmTxt, beats, 'les bookmakers avant le match')
           : 'pas de cotes passées pour comparer aux bookmakers',
       beatsBookmakers: beats,
       averageHelp:

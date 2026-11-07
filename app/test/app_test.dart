@@ -1712,8 +1712,17 @@ void main() {
       rootNavigator: true,
     ).push(MaterialPageRoute(builder: (_) => const ReliabilityScreen()));
     await tester.pumpAndSettle();
-    // Verdict d'abord : marchés publiés justes, marché retiré nommé.
-    expect(find.textContaining('Les 2 marchés publiés respectent la règle de justesse'), findsOneWidget);
+    // Verdict d'abord : simulation (5 grands), marché retiré nommé, puis résultats réels de
+    // tous les championnats (vue par défaut, essai du 08/11/2026).
+    expect(find.text('Tous'), findsOneWidget);
+    expect(
+      find.textContaining('Simulation : les 2 marchés publiés respectent la règle de justesse'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Résultats réels depuis le lancement (Tous les championnats, 550 matchs)'),
+      findsOneWidget,
+    );
     expect(find.textContaining('Retiré : « Tirs cadrés : le plus de »'), findsOneWidget);
     // Simulation du résultat du match : annoncé → arrivé, avantage sur la moyenne, bookmakers.
     expect(find.text('✓ règle respectée · écart max 3 pts'), findsOneWidget);
@@ -1726,7 +1735,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('✓ règle respectée'), findsOneWidget);
     expect(find.text('7,5\u00A0%'), findsOneWidget); // 0,99 contre 1,07 (fréquence observée)
-    expect(find.textContaining('5 grands championnats'), findsOneWidget);
+    expect(find.textContaining('Pronostics publiés avant les matchs, Tous les championnats'), findsOneWidget);
 
     // Liste des marchés : un autre marché s'affiche à la place.
     await tester.tap(find.text('Résultat du match'));
@@ -1738,8 +1747,9 @@ void main() {
     expect(find.text('pas de cotes passées pour comparer aux bookmakers'), findsOneWidget);
 
     // Autre championnat : marchés suivis, pronostics publiés et avertissement du petit échantillon.
-    await tester.tap(find.text('5 grands'));
+    await tester.tap(find.text('Tous'));
     await tester.pumpAndSettle();
+    expect(find.text('5 grands championnats'), findsOneWidget);
     await tester.tap(find.text('Premier League'));
     await tester.pumpAndSettle();
     expect(find.text('Résultat du match'), findsOneWidget);
@@ -1748,6 +1758,9 @@ void main() {
     await tester.tap(find.text('Les deux marquent'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Seulement 170 matchs sur ce marché'), findsOneWidget);
+    // Moins de 200 matchs : jamais de « ✓ », pas encore de verdict.
+    expect(find.textContaining('pas encore assez de matchs pour conclure (170 sur 200)'), findsWidgets);
+    expect(find.textContaining('✓'), findsNothing);
   });
 
   testWidgets('profil : notification des coupons du jour désactivée puis réactivée', (tester) async {
