@@ -7,7 +7,7 @@ envoyée en JSON dès que le règlement est validé.
 
 import asyncio
 import contextlib
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
@@ -25,6 +25,9 @@ from footprono.notifications.models import Notification, PushDevice
 from footprono.notifications.service import channel
 
 router = APIRouter(tags=["notifications"])
+
+# Notification lue : gardée 30 jours.
+READ_KEPT = timedelta(days=30)
 
 
 class NotificationOut(BaseModel):
@@ -46,6 +49,14 @@ async def list_notifications(
     unread: bool = False,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> list[Notification]:
+    # Lues depuis plus de 30 jours : effacées (elles s'accumulaient, revue du 07/11/2026).
+    await session.execute(
+        delete(Notification).where(
+            Notification.user_id == user.id,
+            Notification.read_at < datetime.now(UTC) - READ_KEPT,
+        )
+    )
+    await session.commit()
     stmt = select(Notification).where(Notification.user_id == user.id)
     if unread:
         stmt = stmt.where(Notification.read_at.is_(None))
@@ -72,6 +83,25 @@ async def mark_all_read(user: CurrentUserDep, session: SessionDep) -> None:
         .where(Notification.user_id == user.id, Notification.read_at.is_(None))
         .values(read_at=datetime.now(UTC))
     )
+    await session.commit()
+
+
+@router.delete("/me/notifications/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_notification(
+    notification_id: int, user: CurrentUserDep, session: SessionDep
+) -> None:
+    """Efface une notification (glisser vers la gauche dans l'application)."""
+    note = await session.get(Notification, notification_id)
+    if note is None or note.user_id != user.id:
+        raise NotFoundError(f"notification {notification_id} introuvable")
+    await session.delete(note)
+    await session.commit()
+
+
+@router.delete("/me/notifications", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_all_notifications(user: CurrentUserDep, session: SessionDep) -> None:
+    """« Tout effacer » : toutes les notifications du joueur."""
+    await session.execute(delete(Notification).where(Notification.user_id == user.id))
     await session.commit()
 
 

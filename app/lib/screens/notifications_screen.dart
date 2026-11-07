@@ -26,6 +26,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     setState(() => _key = UniqueKey());
   }
 
+  /// « Tout effacer », après confirmation (revue du 07/11/2026 : rien ne s'effaçait).
+  Future<void> _deleteAll() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Effacer toutes les notifications ?'),
+        content: const Text('Elles disparaissent de ce téléphone et de ton compte.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Tout effacer')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final state = context.read<AppState>();
+    await guard(context, () => state.api.delete('/me/notifications'));
+    state.setUnread(0);
+    setState(() => _key = UniqueKey());
+  }
+
   static IconData _icon(String kind) {
     if (kind == 'daily_coupons') return Icons.today_rounded;
     if (kind.startsWith('montante')) return Icons.stairs_rounded;
@@ -80,54 +100,74 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               }
               final unread = n['read_at'] == null;
               children.add(
-                GlassCard(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  onTap: !unread && n['kind'] != 'daily_coupons'
-                      ? null
-                      : () async {
-                          if (unread) {
-                            await guard(context, () => state.api.post('/me/notifications/${n['id']}/read'));
-                            await state.refreshUnread();
-                            setState(() => _key = UniqueKey());
-                          }
-                          // Coupons du jour : ouvrir l'écran où copier les codes.
-                          if (n['kind'] == 'daily_coupons' && context.mounted) {
-                            await Navigator.of(context)
-                                .push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen()));
-                          }
-                        },
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      IconSquare(_icon('${n['kind']}'), size: 40, iconSize: 20, radius: 12),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Text('${n['title']}', style: Fp.body(16, weight: FontWeight.w700)),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(_ago(when), style: Fp.body(12, color: Fp.text2)),
-                                if (unread) ...[
-                                  const SizedBox(width: 8),
-                                  const Padding(
-                                    padding: EdgeInsets.only(top: 4),
-                                    child: CircleAvatar(radius: 4, backgroundColor: Fp.accent),
+                // Glisser vers la gauche : effacée.
+                Dismissible(
+                  key: ValueKey('notification-${n['id']}'),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.only(right: 20),
+                    alignment: Alignment.centerRight,
+                    decoration: BoxDecoration(
+                      color: Fp.loss.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Text('Effacer', style: Fp.body(14, weight: FontWeight.w700)),
+                  ),
+                  onDismissed: (_) async {
+                    setState(() => list.remove(n));
+                    await guard(context, () => state.api.delete('/me/notifications/${n['id']}'));
+                    await state.refreshUnread();
+                  },
+                  child: GlassCard(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    onTap: !unread && n['kind'] != 'daily_coupons'
+                        ? null
+                        : () async {
+                            if (unread) {
+                              await guard(context, () => state.api.post('/me/notifications/${n['id']}/read'));
+                              await state.refreshUnread();
+                              setState(() => _key = UniqueKey());
+                            }
+                            // Coupons du jour : ouvrir l'écran où copier les codes.
+                            if (n['kind'] == 'daily_coupons' && context.mounted) {
+                              await Navigator.of(context)
+                                  .push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen()));
+                            }
+                          },
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        IconSquare(_icon('${n['kind']}'), size: 40, iconSize: 20, radius: 12),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Text('${n['title']}', style: Fp.body(16, weight: FontWeight.w700)),
                                   ),
+                                  const SizedBox(width: 8),
+                                  Text(_ago(when), style: Fp.body(12, color: Fp.text2)),
+                                  if (unread) ...[
+                                    const SizedBox(width: 8),
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 4),
+                                      child: CircleAvatar(radius: 4, backgroundColor: Fp.accent),
+                                    ),
+                                  ],
                                 ],
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text('${n['body']}', style: Fp.body(14, color: Fp.textStrong, height: 1.4)),
-                          ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text('${n['body']}', style: Fp.body(14, color: Fp.textStrong, height: 1.4)),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -141,11 +181,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     'Notifi',
                     'cations',
                     joined: true,
-                    trailing: TextButton(onPressed: _readAll, child: const Text('Tout lire')),
+                    trailing: list.isEmpty
+                        ? null
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TextButton(onPressed: _readAll, child: const Text('Tout lire')),
+                              TextButton(onPressed: _deleteAll, child: const Text('Tout effacer')),
+                            ],
+                          ),
                   ),
                   const SizedBox(height: 8),
                   if (list.isEmpty)
-                    const EmptyState('Aucune notification.', icon: Icons.notifications_none_rounded),
+                    const EmptyState('Aucune notification.', icon: Icons.notifications_none_rounded)
+                  else
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text(
+                        'Glisse une notification vers la gauche pour l\'effacer.',
+                        style: Fp.body(12, color: Fp.text3),
+                      ),
+                    ),
                   ...children,
                 ],
               ),

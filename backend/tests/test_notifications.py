@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 from redis.asyncio import Redis
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
@@ -122,3 +122,53 @@ def test_uvicorn_has_a_websocket_implementation() -> None:
     import importlib.util
 
     assert importlib.util.find_spec("wsproto") or importlib.util.find_spec("websockets")
+
+
+async def test_notifications_can_be_deleted(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    """Revue du 07/11/2026 : « Pari perdu… » s'accumulaient, rien ne s'effaçait. Une à une,
+    toutes d'un coup ; lues depuis plus de 30 jours : effacées d'elles-mêmes."""
+    from datetime import UTC, datetime, timedelta
+
+    from footprono.accounts import service as accounts
+    from footprono.notifications.models import Notification
+
+    headers = await _login(client)
+    old = datetime.now(UTC) - timedelta(days=31)
+    async with db_factory() as session:
+        other_user = await accounts.register(
+            session, make_settings(), phone="+22997222222", password="12345678",
+            display_name="Ama", country="TG", adult=True,
+        )  # fmt: skip
+        world = {**world, "other_id": other_user.id}
+        for n, read_at in enumerate((None, None, old, datetime.now(UTC))):
+            session.add(
+                Notification(
+                    user_id=world["user_id"], kind="bet_settled", title=f"n{n}", body="b",
+                    data={}, read_at=read_at,
+                )
+            )  # fmt: skip
+        session.add(Notification(user_id=world["other_id"], kind="x", title="autre", body="b"))
+        await session.commit()
+
+    listed = (await client.get("/api/v1/me/notifications", headers=headers)).json()
+    assert sorted(n["title"] for n in listed) == ["n0", "n1", "n3"]  # n2 : lue il y a 31 jours
+    gone = await client.delete(f"/api/v1/me/notifications/{listed[0]['id']}", headers=headers)
+    assert gone.status_code == 204
+    assert len((await client.get("/api/v1/me/notifications", headers=headers)).json()) == 2
+    async with db_factory() as session:
+        other = (
+            await session.scalars(
+                select(Notification).where(Notification.user_id == world["other_id"])
+            )
+        ).one()
+    # Celle d'un autre joueur : introuvable pour moi, jamais effacée par « Tout effacer ».
+    r = await client.delete(f"/api/v1/me/notifications/{other.id}", headers=headers)
+    assert r.status_code == 404
+    assert (await client.delete("/api/v1/me/notifications", headers=headers)).status_code == 204
+    assert (await client.get("/api/v1/me/notifications", headers=headers)).json() == []
+    async with db_factory() as session:
+        assert await session.get(Notification, other.id) is not None

@@ -41,6 +41,7 @@ class FakeServer {
   bool betaAvailable = false;
   final extraUpcoming = <Map<String, dynamic>>[];
   final live = <Map<String, dynamic>>[];
+  final notifications = <Map<String, dynamic>>[];
   bool paymentsConfigured = true;
   bool betaSharing = false;
   final betaEvents = <Map<String, dynamic>>[];
@@ -183,7 +184,13 @@ class FakeServer {
         }
         body = me;
       case 'GET /me/notifications':
-        body = [];
+        body = notifications;
+      case 'DELETE /me/notifications':
+        notifications.clear();
+        return http.Response('', 204);
+      case final d when d.startsWith('DELETE /me/notifications/'):
+        notifications.removeWhere((n) => '${n['id']}' == d.split('/').last);
+        return http.Response('', 204);
       case 'GET /app/status':
         body = {'odds_available': oddsAvailable};
       case 'GET /payments/methods' when oldServer:
@@ -1974,6 +1981,34 @@ void main() {
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
     expect(find.text('Notifications'), findsWidgets);
+  });
+
+  testWidgets('notifications : glisser pour en effacer une, « Tout effacer » après confirmation', (
+    tester,
+  ) async {
+    final (_, server) = await startApp(tester, loggedIn: true);
+    Map<String, dynamic> note(int id, String title) => {
+      'id': id,
+      'kind': 'bet_settled',
+      'title': title,
+      'body': 'Lens - Lyon',
+      'data': <String, dynamic>{},
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+      'read_at': '2026-11-07T10:00:00Z',
+    };
+    server.notifications.addAll([note(1, 'Pari perdu'), note(2, 'Pari gagné'), note(3, 'Palier validé')]);
+    await tester.tap(find.byTooltip('Notifications'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.text('Pari perdu'), const Offset(-500, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Pari perdu'), findsNothing);
+    expect(server.notifications.map((n) => n['id']), [2, 3]);
+    await tester.tap(find.text('Tout effacer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Tout effacer'));
+    await tester.pumpAndSettle();
+    expect(server.notifications, isEmpty);
+    expect(find.text('Aucune notification.'), findsOneWidget);
   });
 
   testWidgets('mode bêta proposé une seule fois à l\'ouverture, jamais imposé', (tester) async {
