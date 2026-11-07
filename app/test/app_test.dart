@@ -963,12 +963,13 @@ Future<(AppState, FakeServer)> startApp(
   ApkInstaller? installer,
   GoogleAuthBridge? google,
   bool googleRedirectPending = false,
+  bool betaAvailable = false,
 }) async {
   SharedPreferences.setMockInitialValues({
     if (loggedIn) 'token': 'jeton',
     if (googleRedirectPending) 'google_redirect_pending': true,
   });
-  final server = FakeServer(premium: premium);
+  final server = FakeServer(premium: premium)..betaAvailable = betaAvailable;
   final state = AppState(
     api: ApiClient(baseUrl: 'http://serveur', httpClient: MockClient(server.handle)),
     socketFactory: (_) => null,
@@ -1918,6 +1919,15 @@ void main() {
     double y(String team) => tester.getTopLeft(find.textContaining(team).first).dy;
     expect(y('Arsenal'), lessThan(y('Fulham')));
     expect(y('Fulham'), lessThan(y('Lens')));
+  });
+
+  testWidgets('mode bêta proposé une seule fois à l\'ouverture, jamais imposé', (tester) async {
+    final (state, server) = await startApp(tester, loggedIn: true, betaAvailable: true);
+    expect(find.text('J\'accepte de partager'), findsOneWidget);
+    await tester.tap(find.text('Pas maintenant'));
+    await tester.pumpAndSettle();
+    expect(server.betaSharing, isFalse);
+    expect(state.shouldOfferBeta, isFalse); // plus jamais redemandé sur ce téléphone
   });
 
   testWidgets('administrateur : aucun outil d\'administration dans l\'application', (tester) async {

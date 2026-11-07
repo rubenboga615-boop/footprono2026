@@ -829,6 +829,9 @@ class _SwitchItem extends StatelessWidget {
   }
 }
 
+/// Explication du mode bêta, puis l'accord (« J'accepte de partager » / « Pas maintenant »).
+Future<bool> explainBeta(BuildContext context, {required bool ask}) => _BetaItem._explain(context, ask: ask);
+
 /// Mode bêta (maquette validée le 06/11/2026) : éteint au départ ; l'allumer montre
 /// d'abord ce qui est partagé et ce qui ne l'est jamais, puis demande l'accord.
 class _BetaItem extends StatelessWidget {
@@ -836,7 +839,9 @@ class _BetaItem extends StatelessWidget {
   final Me me;
 
   /// Vrai : le joueur accepte de partager.
-  static Future<bool> explain(BuildContext context, {required bool ask}) async {
+  static Future<bool> explain(BuildContext context, {required bool ask}) => explainBeta(context, ask: ask);
+
+  static Future<bool> _explain(BuildContext context, {required bool ask}) async {
     Widget point(String label, String text, Color color) => Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Text.rich(

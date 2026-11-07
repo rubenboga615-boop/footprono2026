@@ -21,6 +21,7 @@ import 'screens/matches_screen.dart';
 import 'screens/montante_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/profile_screen.dart';
+import 'widgets/common.dart' show guard;
 import 'state/app_state.dart';
 import 'theme.dart';
 import 'widgets/nav_icons.dart';
@@ -113,6 +114,7 @@ class HomeShellState extends State<HomeShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _openNotifications();
       _offerUpdate();
+      _offerBeta();
     });
   }
 
@@ -122,6 +124,16 @@ class HomeShellState extends State<HomeShell> {
     _state.tabRequest.removeListener(_openTab);
     _state.update.removeListener(_offerUpdate);
     super.dispose();
+  }
+
+  /// Période de test : le partage anonyme est proposé une fois (jamais imposé).
+  Future<void> _offerBeta() async {
+    if (!mounted || !_state.shouldOfferBeta) return;
+    await _state.markBetaOffered();
+    if (!mounted) return;
+    if (await explainBeta(context, ask: true) && mounted) {
+      await guard(context, () => _state.setBetaSharing(true));
+    }
   }
 
   int _updateShown = 0;

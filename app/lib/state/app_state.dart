@@ -223,6 +223,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   static const _kToken = 'token';
   static const _kExcludedTeams = 'excluded_teams';
   static const _kWavePending = 'wave_pending_since';
+  static const _kBetaOffered = 'beta_offered';
   // Connexion Google commencée (version web sur téléphone : la page part chez Google et
   // revient) : la suite n'est cherchée au démarrage que dans ce cas.
   static const _kGoogleRedirect = 'google_redirect_pending';
@@ -510,6 +511,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await api.put('/me/preferences', {'daily_coupons_notifications': on});
     await refreshMe();
   }
+
+  /// Mode bêta proposé une seule fois sur ce téléphone, pendant la période de test (rapport
+  /// du 07/11/2026 : sans cela, l'Observatoire n'a de données que si l'on va dans le profil).
+  bool get shouldOfferBeta =>
+      (me?.betaAvailable ?? false) && !(me?.betaSharing ?? true) && _prefs?.getBool(_kBetaOffered) != true;
+
+  Future<void> markBetaOffered() async => _prefs?.setBool(_kBetaOffered, true);
 
   /// Paiement Wave « à la main » envoyé (capture partagée) : rappelé sur la carte Premium
   /// jusqu'à l'activation, 3 jours au plus (rapport UX du 07/11/2026 : après « Fermer », rien
