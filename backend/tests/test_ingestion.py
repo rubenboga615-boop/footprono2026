@@ -576,6 +576,39 @@ async def test_api_football_archive_is_the_results_source(
     assert not hist.excluded[i]
 
 
+async def test_api_football_cancelled_duplicate_on_same_day(
+    db_factory: Factory, tmp_path: Path
+) -> None:
+    """Norvège 2021 : API-Football liste chaque match reporté deux fois (le match joué et
+    un doublon « CANC »), parfois à la même date. Au second import, le doublon prenait la
+    place du match déjà en base et le vrai match était recréé : clé en double, fichier en
+    échec. Saison sans statistiques chez API-Football (league.json) : rien ne « manque »."""
+    import json
+
+    yb, basel = (565, "BSC Young Boys"), (551, "FC Basel 1893")
+    folder = tmp_path / "archive" / "SWZ"
+    (folder / "2024").mkdir(parents=True)
+    coverage = {"fixtures": {"statistics_fixtures": False}}
+    (folder / "league.json").write_text(
+        json.dumps([{"league": {"id": 207}, "seasons": [{"year": 2024, "coverage": coverage}]}])
+    )
+    played = _af_item(1, "2024-08-10", yb, basel, (2, 1))
+    fixtures = folder / "2024" / "fixtures.json"
+    request = IngestionRequest(DataSource.API_FOOTBALL, ["SUI"], [2024], tmp_path / "archive")
+
+    fixtures.write_text(json.dumps([played]))
+    first = (await ingest(db_factory, tmp_path, request))["files"][0]
+    assert (first["status"], first["matches_inserted"]) == ("ok", 1), first
+
+    cancelled = _af_item(9, "2024-08-10", yb, basel, (None, None), status="CANC")
+    fixtures.write_text(json.dumps([cancelled, played]))
+    second = (await ingest(db_factory, tmp_path, request))["files"][0]
+    assert (second["status"], second["matches_inserted"]) == ("ok", 0), second
+    async with db_factory() as session:
+        rows = (await session.scalars(select(Match))).all()
+    assert [(m.api_football_id, m.home_goals, m.away_goals) for m in rows] == [(1, 2, 1)]
+
+
 def test_current_season_calendar_year() -> None:
     from datetime import date
 

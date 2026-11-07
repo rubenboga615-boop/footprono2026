@@ -648,8 +648,17 @@ async def load_api_football(
         known_matches = existing.get((home, away), [])
         partner: dict[int, Match] = {}
         taken: set[int] = set()
-        for _, i, j in sorted(
-            (abs((m.match_date - f.match_date).days), i, j)
+        # À distance égale, le match déjà rattaché (même identifiant API-Football), puis un
+        # match joué plutôt qu'un doublon annulé de la source (Norvège 2021 : chaque match
+        # reporté y figure deux fois, parfois à la même date).
+        for *_, i, j in sorted(
+            (
+                m.api_football_id != f.fixture_id,
+                abs((m.match_date - f.match_date).days),
+                not f.finished,
+                i,
+                j,
+            )
             for i, f in enumerate(group)
             for j, m in enumerate(known_matches)
         ):

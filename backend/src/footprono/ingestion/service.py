@@ -271,6 +271,23 @@ def _history_folder(root: Path, comp: CompetitionRef) -> Path | None:
     return None
 
 
+def _stats_covered(folder: Path, year: int) -> bool:
+    """Statistiques fournies par API-Football pour cette saison (vrai si inconnu)."""
+    path = folder / "league.json"
+    if not path.exists():
+        return True
+    try:
+        seasons = json.loads(path.read_text(encoding="utf-8"))[0]["seasons"]
+    except (ValueError, LookupError, TypeError):
+        return True
+    for s in seasons:
+        if s.get("year") == year:
+            return bool(
+                ((s.get("coverage") or {}).get("fixtures") or {}).get("statistics_fixtures")
+            )
+    return True
+
+
 def _read_history(
     folder: Path, comp: CompetitionRef, year: int
 ) -> tuple[str, bytes, list[api_football.ApiFixture], list[str], int]:
@@ -299,7 +316,12 @@ def _read_history(
                 statistics[fixture.fixture_id], item["teams"]["home"]["id"], issues
             )
         fixtures.append(fixture)
-    missing = sum(1 for f in fixtures if f.finished and f.fixture_id not in statistics)
+    # Saison où API-Football ne fournit pas de statistiques (league.json) : rien ne manque.
+    missing = (
+        sum(1 for f in fixtures if f.finished and f.fixture_id not in statistics)
+        if _stats_covered(folder, year)
+        else 0
+    )
     content = json.dumps({"fixtures": items, "statistics": statistics}).encode()
     return str(path), content, fixtures, issues.items, missing
 
