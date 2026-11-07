@@ -139,3 +139,15 @@ String chanceInWords(double p) {
   if (p < 0.5) return '1 chance sur ${(1 / p).round()}';
   return 'environ ${(p * 10).round()} fois sur 10';
 }
+
+/// Numéro lisible pour le recopier : « +225 05 00 64 99 04 » (indicatif, puis deux par deux).
+String groupedPhone(String number) {
+  final digits = number.replaceAll(RegExp(r'[^0-9+]'), '');
+  final m = RegExp(r'^(\+\d{3})(\d+)$').firstMatch(digits);
+  if (m == null) return number;
+  final rest = m.group(2)!;
+  final pairs = [
+    for (var i = 0; i < rest.length; i += 2) rest.substring(i, i + 2 > rest.length ? rest.length : i + 2),
+  ];
+  return '${m.group(1)} ${pairs.join(' ')}';
+}

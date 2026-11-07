@@ -222,6 +222,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   static const _kServer = 'server_url';
   static const _kToken = 'token';
   static const _kExcludedTeams = 'excluded_teams';
+  static const _kWavePending = 'wave_pending_since';
   // Connexion Google commencée (version web sur téléphone : la page part chez Google et
   // revient) : la suite n'est cherchée au démarrage que dans ce cas.
   static const _kGoogleRedirect = 'google_redirect_pending';
@@ -508,6 +509,21 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> setDailyCouponsNotifications(bool on) async {
     await api.put('/me/preferences', {'daily_coupons_notifications': on});
     await refreshMe();
+  }
+
+  /// Paiement Wave « à la main » envoyé (capture partagée) : rappelé sur la carte Premium
+  /// jusqu'à l'activation, 3 jours au plus (rapport UX du 07/11/2026 : après « Fermer », rien
+  /// ne disait que le paiement était en attente).
+  DateTime? get wavePendingSince {
+    final v = _prefs?.getString(_kWavePending);
+    final d = v == null ? null : DateTime.tryParse(v);
+    if (d == null || premium || DateTime.now().difference(d) > const Duration(days: 3)) return null;
+    return d;
+  }
+
+  Future<void> markWavePending() async {
+    await _prefs?.setString(_kWavePending, DateTime.now().toIso8601String());
+    notifyListeners();
   }
 
   /// Mode bêta : le joueur accepte (ou arrête) de partager son activité, sans nom ni numéro.

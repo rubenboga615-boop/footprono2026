@@ -78,4 +78,9 @@ void main() {
     expect(chanceInWords(1 / 60), '1 chance sur 60');
     expect(chanceInWords(0.3), '1 chance sur 3');
   });
+
+  test('numéro Wave groupé deux par deux', () {
+    expect(groupedPhone('+2250500649904'), '+225 05 00 64 99 04');
+    expect(groupedPhone('inconnu'), 'inconnu');
+  });
 }

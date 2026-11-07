@@ -1614,7 +1614,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Wave (envoi au numéro FootProba)'));
     await tester.pumpAndSettle();
-    expect(find.text('+2250700000000'), findsOneWidget);
+    expect(find.text('+225 07 00 00 00 00'), findsOneWidget); // groupé pour le recopier
     expect(server.boughtWith, isNull);
     await tester.tap(find.text('Envoyer la capture'));
     await tester.pumpAndSettle();
@@ -1622,6 +1622,8 @@ void main() {
     expect(opened.single.host, 'wa.me');
     expect(text, contains('par Wave au +2250700000000'));
     expect(text, contains('compte n° '));
+    // Paiement en attente rappelé sur la carte Premium.
+    expect(find.textContaining('en attente de vérification'), findsOneWidget);
   });
 
   testWidgets('version web : notifications activées depuis le profil, jeton « web » envoyé', (tester) async {

@@ -555,12 +555,17 @@ class _PlanCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('1. Dans Wave, envoie exactement $amount au numéro :', style: Fp.body(13, height: 1.4)),
+            Text(
+              '1. Dans Wave, envoie exactement $amount au numéro officiel de FootProba (le même que '
+              'l\'aide WhatsApp) :',
+              style: Fp.body(13, height: 1.4),
+            ),
             const SizedBox(height: 6),
             Row(
               children: [
                 Expanded(
-                  child: Text(number, style: Fp.body(18, weight: FontWeight.w800)),
+                  // Groupé deux par deux : plus facile à recopier dans Wave.
+                  child: Text(groupedPhone(number), style: Fp.body(18, weight: FontWeight.w800)),
                 ),
                 IconButton(
                   tooltip: 'Copier le numéro',
@@ -586,6 +591,7 @@ class _PlanCard extends StatelessWidget {
           FilledButton.icon(
             onPressed: () {
               Navigator.pop(context);
+              state.markWavePending();
               state.openSupport(
                 'Bonjour FootProba, j\'ai payé Premium ($amount) par Wave au $number. '
                 'Mon $account. Voici la capture du reçu :',
@@ -688,6 +694,15 @@ class _PlanCard extends StatelessWidget {
             plan.premium ? 'Prolonger · $short / mois' : 'Passer Premium · $short / mois',
             onPressed: () => _buy(context, plan),
           ),
+          if (context.watch<AppState>().wavePendingSince case final since?) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Paiement Wave envoyé le ${numericDate(since)} : en attente de vérification. Premium est '
+              'activé dès la réception confirmée, en général dans la journée.',
+              textAlign: TextAlign.center,
+              style: Fp.body(12.5, color: Fp.warning, height: 1.4),
+            ),
+          ],
           if (!plan.premium) ...[
             const SizedBox(height: 8),
             Text(
