@@ -183,6 +183,13 @@ def test_suggestions_never_ranked_on_disagreement_with_the_odds() -> None:
     ranked = suggestions.rank(pool, Decimal("1.55"), Decimal("1.65"))
     assert [[s["match_id"] for s in r["selections"]] for r in ranked] == [[3], [2], [4, 5]]
 
+    # Désaccord avec la cote : dit, et montré en dernier ; les paris proposés ne changent pas.
+    assert all(r["engine_below_odds"] for r in ranked)  # 58 %, 60 %, 49 % contre 65 % et 64 %
+    pool[1] = cand(2, "1.55", 0.70, hours=5)  # 70 % selon le moteur, 65 % selon la cote
+    shown = suggestions.rank(pool, Decimal("1.55"), Decimal("1.65"))
+    assert [[s["match_id"] for s in r["selections"]] for r in shown] == [[2], [3], [4, 5]]
+    assert [r["engine_below_odds"] for r in shown] == [False, True, True]
+
 
 async def test_each_montante_gets_its_own_matches(
     world: dict[str, Any],  # noqa: F811

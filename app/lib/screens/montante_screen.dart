@@ -1411,6 +1411,16 @@ class _SuggestionCard extends StatelessWidget {
               ),
             ],
           ),
+          // Décision du 07/11/2026 : gardée mais expliquée (et montrée après les autres).
+          if (s['engine_below_odds'] == true) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Le moteur est moins confiant que le bookmaker sur ce pari '
+              '(${percent((s['model_probability'] as num).toDouble())} contre '
+              '${percent((s['implied_probability'] as num).toDouble())} selon la cote).',
+              style: Fp.body(12.5, color: Fp.warning, height: 1.4),
+            ),
+          ],
           const SizedBox(height: 14),
           primary
               ? FilledButton(onPressed: onPlay, child: const Text('Choisir ce pari'))

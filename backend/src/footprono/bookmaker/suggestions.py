@@ -102,6 +102,9 @@ def _describe(combo: tuple[Candidate, ...]) -> dict[str, Any]:
         # Affichée à côté, sans « bon plan » : face au marché, le moteur ne
         # gagne pas (log loss et rendement aux vraies cotes, docs/MOTEUR.md).
         "implied_probability": round(implied, 4),
+        # Le moteur juge ce pari moins probable que la cote (marge comprise) : dit au joueur
+        # (essai du 07/11/2026 : 57 % selon le moteur, 65 % selon la cote, sans explication).
+        "engine_below_odds": probability < implied,
     }
 
 
@@ -154,4 +157,8 @@ def rank(
     for triple in itertools.combinations(legs(3)[:POOL_TRIPLES], 3):
         consider(triple)
     found.sort(key=lambda t: t[0])
-    return [_describe(combo) for _, combo in found[:limit]]
+    # Le choix des suggestions ne regarde jamais l'avis du moteur face à la cote (préférer
+    # les paris où il est plus confiant que le bookmaker, c'est choisir là où il se trompe le
+    # plus, 03/10/2026). Seul l'affichage change : un désaccord est montré en dernier.
+    out = [_describe(combo) for _, combo in found[:limit]]
+    return sorted(out, key=lambda d: bool(d["engine_below_odds"]))
