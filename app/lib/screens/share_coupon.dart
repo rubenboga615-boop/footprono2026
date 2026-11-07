@@ -7,7 +7,10 @@ import '../api/models.dart';
 import '../format.dart';
 import '../labels.dart';
 import '../share/share_bridge.dart';
-import '../state/app_state.dart' show showMessage;
+
+import 'package:provider/provider.dart';
+
+import '../state/app_state.dart' show AppState, showMessage;
 import '../theme.dart';
 
 /// Aperçu du coupon en image (sélections, cotes, chances du moteur, « argent fictif »),
@@ -119,7 +122,13 @@ class CouponImage extends StatelessWidget {
                           style: Fp.body(13, weight: FontWeight.w700),
                         ),
                         Text(
-                          '${s['home']} – ${s['away']} · ${percent((s['model_probability'] as num).toDouble())}',
+                          [
+                            '${s['home']} – ${s['away']}',
+                            // Date et heure du match (rapport du 07/11/2026).
+                            if (DateTime.tryParse('${s['kickoff_at']}') case final k?)
+                              '${shortDate(k.toLocal())} ${hourMinute(k.toLocal())}',
+                            percent((s['model_probability'] as num).toDouble()),
+                          ].join(' · '),
                           style: Fp.body(11, color: Fp.text2),
                         ),
                       ],
@@ -144,10 +153,21 @@ class CouponImage extends StatelessWidget {
               ),
             ],
           ),
+          // Code 1xBet (coupons du jour) et adresse de FootProba : l'image partagée sur WhatsApp
+          // sert à jouer le coupon et à faire venir de nouveaux joueurs (rapport du 07/11/2026).
+          for (final b in ((coupon['booking_codes'] as List?) ?? const []).cast<Json>()) ...[
+            const SizedBox(height: 8),
+            Text('Code ${b['label'] ?? b['bookmaker']} : ${b['code']}', style: Fp.title(15)),
+          ],
           const SizedBox(height: 8),
           Text(
             'Probabilités calculées par FootProba. Argent fictif : aucun gain réel.',
             style: Fp.body(11, color: Fp.text3),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            Uri.tryParse(context.read<AppState>().api.baseUrl)?.host ?? '',
+            style: Fp.body(12, color: Fp.accentLight, weight: FontWeight.w700),
           ),
         ],
       ),
