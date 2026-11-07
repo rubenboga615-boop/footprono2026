@@ -27,6 +27,7 @@ from footprono.predictions import cups as cup_predictions
 from footprono.predictions import nations as nation_predictions
 from footprono.predictions import reliability
 from footprono.predictions import service as prediction_service
+from footprono.predictions.publication import publication
 from footprono.worker.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -208,9 +209,11 @@ async def _predict_upcoming(only_if_needed: bool = False) -> dict[str, Any]:
                 return {"status": "skipped", "reason": "prédictions à jour"}
             run = await prediction_service.predict_upcoming(session)
             report = {k: v for k, v in run.report.items() if k != "window"}
+            # Interrupteurs de la console (départ : FP_CUPS_PREDICTIONS, FP_NATIONS_PREDICTIONS).
+            published = await publication(session, get_settings())
             # Coupes d'Europe : moteur à part ; une erreur n'annule pas les championnats.
             try:
-                if not get_settings().cups_predictions:
+                if not published.cups:
                     raise _CupsDisabled
                 cup_run = await cup_predictions.predict_cups(session)
                 report["cups"] = {"run_id": cup_run.id, **cup_run.report}
@@ -219,8 +222,8 @@ async def _predict_upcoming(only_if_needed: bool = False) -> dict[str, Any]:
             except Exception as exc:  # source extérieure : consignée, jamais bloquante
                 logger.warning("cups_predict_failed", extra={"error": str(exc)})
                 report["cups"] = {"status": "failed", "error": str(exc)[:300]}
-            # Sélections nationales : même principe (FP_NATIONS_PREDICTIONS).
-            if not get_settings().nations_predictions:
+            # Sélections nationales : même principe.
+            if not published.nations:
                 report["nations"] = {"status": "disabled"}
             else:
                 try:
@@ -250,7 +253,7 @@ async def _refresh_playable(engine: AsyncEngine, settings: Settings) -> dict[str
 
 
 class _CupsDisabled(Exception):
-    """Pronostics des coupes désactivés (FP_CUPS_PREDICTIONS)."""
+    """Pronostics des coupes désactivés (interrupteur de la console)."""
 
 
 @celery_app.task(name="footprono.predict_if_needed")

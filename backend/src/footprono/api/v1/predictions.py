@@ -23,6 +23,7 @@ from footprono.football.models import Competition, Match, MatchStatus
 from footprono.football.schemas import MatchOut
 from footprono.ingestion.reference import CUPS_BY_CODE, NATIONS_BY_CODE
 from footprono.predictions.models import MatchPrediction, PredictionRun
+from footprono.predictions.publication import publication
 from footprono.predictions.reliability import cache_key, reliability_report
 from footprono.predictions.schemas import (
     ExpectedGoals,
@@ -132,20 +133,21 @@ async def list_upcoming(
 ) -> list[UpcomingMatchOut]:
     start = date_from or datetime.now(UTC).date()
     end = date_to or start + timedelta(days=10)
+    published = await publication(session, settings)
     stmt = _match_select().where(
         Match.status == MatchStatus.SCHEDULED, Match.match_date >= start, Match.match_date <= end
     )
     if competition:
         stmt = stmt.where(Competition.code == competition.upper())
-    elif not cups or not settings.cups_predictions:
+    elif not cups or not published.cups:
         # Les applications d'avant les coupes attendent toujours « plus/moins 2,5 » et les
         # buts attendus : elles ne reçoivent pas les matchs de coupe. Pronostics des coupes
-        # désactivés (FP_CUPS_PREDICTIONS) : pas de matchs de coupe sans pronostic.
+        # désactivés (console, Moteur) : pas de matchs de coupe sans pronostic.
         stmt = stmt.where(Competition.code.not_in(list(CUPS_BY_CODE)))
-    show_nations = bool(competition) or (nations and settings.nations_predictions)
+    show_nations = bool(competition) or (nations and published.nations)
     if not show_nations:
         # Sélections : demandées par l'application qui les affiche, pronostics activés
-        # (FP_NATIONS_PREDICTIONS).
+        # (interrupteur de la console).
         stmt = stmt.where(Competition.code.not_in(list(NATIONS_BY_CODE)))
     rows = (
         (

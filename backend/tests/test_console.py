@@ -116,7 +116,7 @@ async def test_catalog_describes_actions(
     }
     for expected in (
         "ingest_current", "import_archive", "collect_history", "collect_odds", "predict",
-        "daily_coupons", "coverage", "quality", "api_quota", "push_test",
+        "daily_coupons", "coverage", "quality", "api_quota", "push_test", "publish_switch",
     ):  # fmt: skip
         assert expected in actions
     assert all(a["family"] in FAMILIES for a in actions.values())
@@ -169,6 +169,46 @@ async def test_job_runs_with_journal_and_notification(
         # Le suivi reste dans la console : jamais dans les notifications de l'application.
         note = await session.scalar(select(Notification).where(Notification.kind == "admin_job"))
     assert note is None
+
+
+async def test_publish_switch_turns_nations_on_from_the_console(
+    app: FastAPI, client: AsyncClient, admin_headers: dict[str, str], db_factory: Factory
+) -> None:
+    """Sélections et coupes publiées depuis la console, sans toucher au serveur ; « Ne rien
+    changer » garde l'autre interrupteur ; le journal montre l'état avant et après."""
+    from footprono.predictions.publication import publication
+
+    _inline(app)
+
+    async def run(cups: str, nations: str) -> dict[str, Any]:
+        r = await client.post(
+            f"{API}/jobs",
+            json={"action": "publish_switch", "params": {"cups": cups, "nations": nations}},
+            headers=admin_headers,
+        )
+        assert r.status_code == 201, r.text
+        return (await client.get(f"{API}/jobs/{r.json()['id']}", headers=admin_headers)).json()
+
+    detail = await run("keep", "on")
+    assert detail["status"] == "succeeded", detail
+    texts = [line["text"] for line in detail["lines"]]
+    assert "sélections nationales : non publiés → publiés" in texts
+    assert "coupes d'Europe : non publiés → non publiés" in texts
+    assert any(t.startswith("sélections : 0 matchs pronostiqués") for t in texts)
+    async with db_factory() as session:
+        state = await publication(session, make_settings())
+    assert (state.cups, state.nations) == (False, True)
+
+    detail = await run("on", "keep")
+    async with db_factory() as session:
+        state = await publication(session, make_settings())
+    assert (state.cups, state.nations) == (True, True)
+    assert detail["summary"].startswith("coupes d'Europe publiés, sélections nationales publiés")
+
+    await run("keep", "off")
+    async with db_factory() as session:
+        state = await publication(session, make_settings())
+    assert (state.cups, state.nations) == (True, False)
 
 
 async def test_failed_action_is_reported(
@@ -445,6 +485,38 @@ def test_history_collection_stops_at_reserve_and_on_request(
     )
     assert report.stopped == "admin"
     assert report.missing == 3
+
+
+def test_history_collects_started_season_named_after_the_final(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Éliminatoires de la CAN 2027 : saison « 2027 » chez API-Football, ouverte le
+    25/03/2026. La collecte s'arrêtait à l'année en cours et ne les prenait pas."""
+    monkeypatch.setattr(history, "PAUSE_SECONDS", 0)
+
+    class Api(FakeApi):
+        def __call__(self, request: httpx.Request) -> httpx.Response:
+            if request.url.path != "/leagues":
+                return super().__call__(request)
+            self.calls.append("/leagues")
+            league = _league(36, "World", "Africa Cup of Nations - Qualification", [2025])
+            league["seasons"] += [
+                {"year": 2027, "start": "2026-03-25", "coverage": {}},
+                {"year": 2029, "start": "2028-03-20", "coverage": {}},  # pas encore commencée
+            ]
+            return httpx.Response(200, json={"errors": [], "response": [league]})
+
+    api = Api()
+    monkeypatch.setattr(history, "transport", httpx.MockTransport(api))
+    out = tmp_path / "h"
+    lines: list[str] = []
+    history.collect(
+        "cle-test", ["CANQ"], out, first=2025, reserve=100, log=lines.append,
+        today=date(2026, 11, 7),
+    )  # fmt: skip
+    assert (out / "CANQ" / "2027" / "fixtures.json").exists()
+    assert not (out / "CANQ" / "2029").exists()
+    assert any(line.startswith("  2027 : 3 matchs, 2 terminés") for line in lines)
 
 
 async def test_console_pages_are_served_with_strict_headers(client: AsyncClient) -> None:

@@ -34,6 +34,7 @@ from footprono.ingestion.sources import api_football
 from footprono.predictions import cups as cup_predictions
 from footprono.predictions import nations as nation_predictions
 from footprono.predictions import service as prediction_service
+from footprono.predictions.publication import CUPS_KEY, NATIONS_KEY, publication, set_flag
 from footprono.predictions.service import DEFAULT_DAYS_AHEAD
 
 _STEP = re.compile(r"^\[(\d+)/(\d+)\]")
@@ -360,17 +361,19 @@ async def predict(ctx: JobContext, params: dict[str, Any]) -> str:
     for error in report.get("errors", []):
         ctx.log(f"erreur : {error}")
     n = sum(c.get("matches", 0) for c in report.get("competitions", {}).values())
+    async with ctx.factory() as session:
+        published = await publication(session, ctx.settings)
     cups_n = 0
-    if ctx.settings.cups_predictions:
+    if published.cups:
         async with ctx.factory() as session:
             cup_run = await cup_predictions.predict_cups(session, days_ahead=params["days_ahead"])
         for error in cup_run.report.get("errors", []):
             ctx.log(f"coupes d'Europe, erreur : {error}")
         cups_n = cup_run.report.get("matches", 0)
     else:
-        ctx.log("coupes d'Europe : pronostics désactivés (FP_CUPS_PREDICTIONS)")
+        ctx.log(f"coupes d'Europe : pronostics désactivés ({SWITCH_HINT})")
     nations_n = 0
-    if ctx.settings.nations_predictions:
+    if published.nations:
         async with ctx.factory() as session:
             nation_run = await nation_predictions.predict_nations(
                 session, days_ahead=params["days_ahead"]
@@ -379,7 +382,7 @@ async def predict(ctx: JobContext, params: dict[str, Any]) -> str:
             ctx.log(f"sélections, erreur : {error}")
         nations_n = nation_run.report.get("matches", 0)
     else:
-        ctx.log("sélections : pronostics désactivés (FP_NATIONS_PREDICTIONS)")
+        ctx.log(f"sélections : pronostics désactivés ({SWITCH_HINT})")
     await _refresh_playable(ctx)
     ctx.result = {
         "run_id": run.id, "status": run.status, "matches": n, "cup_matches": cups_n,
@@ -489,6 +492,71 @@ register(
                 minimum=1,
                 maximum=14,
             ),
+        ),
+    )
+)
+
+
+SWITCH_HINT = "console : Moteur → Pronostics publiés : coupes et sélections"
+_SWITCH = (("keep", "Ne rien changer"), ("on", "Publier"), ("off", "Ne plus publier"))
+
+
+async def publish_switch(ctx: JobContext, params: dict[str, Any]) -> str:
+    """Interrupteurs des pronostics des coupes d'Europe et des sélections."""
+    async with ctx.factory() as session:
+        before = await publication(session, ctx.settings)
+        for key, choice in ((CUPS_KEY, params["cups"]), (NATIONS_KEY, params["nations"])):
+            if choice != "keep":
+                await set_flag(session, key, choice == "on")
+        after = await publication(session, ctx.settings)
+
+    def state(on: bool) -> str:
+        return "publiés" if on else "non publiés"
+
+    ctx.log(f"coupes d'Europe : {state(before.cups)} → {state(after.cups)}")
+    ctx.log(f"sélections nationales : {state(before.nations)} → {state(after.nations)}")
+    # Mis en service : pronostics calculés tout de suite (sinon au prochain calcul, 07:45).
+    done = []
+    if after.cups and not before.cups:
+        async with ctx.factory() as session:
+            run = await cup_predictions.predict_cups(session, days_ahead=DEFAULT_DAYS_AHEAD)
+        for error in run.report.get("errors", []):
+            ctx.log(f"coupes d'Europe, erreur : {error}")
+        done.append(f"coupes d'Europe : {run.report.get('matches', 0)} matchs pronostiqués")
+    if after.nations and not before.nations:
+        async with ctx.factory() as session:
+            run = await nation_predictions.predict_nations(session, days_ahead=DEFAULT_DAYS_AHEAD)
+        for error in run.report.get("errors", []):
+            ctx.log(f"sélections, erreur : {error}")
+        done.append(f"sélections : {run.report.get('matches', 0)} matchs pronostiqués")
+    for line in done:
+        ctx.log(line)
+    if done:
+        await _refresh_playable(ctx)
+    ctx.result = {"cups": after.cups, "nations": after.nations}
+    return f"coupes d'Europe {state(after.cups)}, sélections nationales {state(after.nations)}" + (
+        f" ; {' ; '.join(done)}" if done else ""
+    )
+
+
+register(
+    Action(
+        id="publish_switch",
+        title="Pronostics publiés : coupes et sélections",
+        family="Moteur",
+        description=(
+            "Montre ou cache dans l'application les pronostics des coupes d'Europe et des "
+            "sélections nationales (matchs officiels). En les publiant, leurs pronostics "
+            "sont calculés tout de suite. Le journal indique l'état avant et après."
+        ),
+        risk="modifie",
+        run=publish_switch,
+        exclusive=True,
+        cost="aucune requête",
+        duration="moins d'une minute",
+        params=(
+            Param("cups", "Coupes d'Europe", "choice", default="keep", options=_SWITCH),
+            Param("nations", "Sélections nationales", "choice", default="keep", options=_SWITCH),
         ),
     )
 )

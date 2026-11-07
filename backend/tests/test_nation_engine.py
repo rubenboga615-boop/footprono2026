@@ -19,6 +19,7 @@ from footprono.ingestion import nations
 from footprono.ingestion.loader import sync_reference
 from footprono.predictions import nations as nation_predictions
 from footprono.predictions.models import MatchPrediction
+from footprono.predictions.publication import NATIONS_KEY, set_flag
 
 from .conftest import make_settings
 
@@ -154,7 +155,18 @@ async def test_backtest_predictions_api_and_reliability(
     app.state.settings = make_settings(nations_predictions=False)
     hidden = (await client.get("/api/v1/predictions/upcoming", params=params)).json()
     assert all(u["match"]["id"] != match_id for u in hidden)
+    # Interrupteur de la console : l'emporte sur la valeur de départ du serveur.
+    async with db_factory() as session:
+        await set_flag(session, NATIONS_KEY, True)
+    shown_again = (await client.get("/api/v1/predictions/upcoming", params=params)).json()
+    assert any(u["match"]["id"] == match_id for u in shown_again)
     app.state.settings = make_settings(nations_predictions=True)
+    async with db_factory() as session:
+        await set_flag(session, NATIONS_KEY, False)
+    switched_off = (await client.get("/api/v1/predictions/upcoming", params=params)).json()
+    assert all(u["match"]["id"] != match_id for u in switched_off)
+    async with db_factory() as session:
+        await set_flag(session, NATIONS_KEY, True)
 
     rel = (await client.get("/api/v1/reliability", params={"competition": "wcq_afr"})).json()
     assert rel["backtest"]["engine_version"] == engine.ENGINE_VERSION

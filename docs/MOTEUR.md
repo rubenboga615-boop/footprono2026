@@ -426,12 +426,13 @@ marge du hasard, Hosmer-Lemeshow p = 0,55 et 0,14).
 les matchs de coupe. Les pronostics de coupe sont enregistrés avant les matchs et comptent
 sur la page Fiabilité ; leur backtest est montré au filtre de la coupe. Les applications
 d'avant les coupes ne reçoivent pas les matchs de coupe (`/predictions/upcoming?cups=true`
-pour celles qui les affichent). Publication : `FP_CUPS_PREDICTIONS` (désactivé par défaut).
+pour celles qui les affichent). Publication : console, Moteur → « Pronostics publiés : coupes et sélections » (au départ :
+`FP_CUPS_PREDICTIONS`, désactivé par défaut).
 
 ## Sélections nationales : moteur (sélections 1.0, étude du 06/11/2026)
 
-`engine/nations.py`, `predictions/nations.py`. Publication : `FP_NATIONS_PREDICTIONS`
-(désactivé par défaut) ; pronostics des matchs officiels seulement.
+`engine/nations.py`, `predictions/nations.py`. Publication : console, Moteur → « Pronostics
+publiés : coupes et sélections » (au départ : `FP_NATIONS_PREDICTIONS`, désactivé par défaut) ; pronostics des matchs officiels seulement.
 
 **Le modèle** : note Elo (K = 40 officiel, 20 amical ; avantage du terrain 60, aucun sur
 terrain neutre ; départ 1 500), niveaux de buts (poids 0,08), régression de Poisson des

@@ -290,7 +290,14 @@ def _list_fixtures(
             continue
         log(f"\n== {code} · {got} · {name}")
         seasons = {s["year"]: s for s in info[0]["seasons"]}
-        for year in range(first, last + 1):
+        # Saison déjà commencée mais rangée sous l'année de la phase finale (éliminatoires
+        # de la CAN 2027, ouverts le 25/03/2026) : collectée aussi.
+        started = {
+            y
+            for y, s in seasons.items()
+            if y > last and str(s.get("start") or "9999") <= str(today)
+        }
+        for year in [*range(first, last + 1), *sorted(started)]:
             s = seasons.get(year)
             if s is None:
                 if year <= current:  # pas d'édition cette année-là (Euro, CAN, Coupe du Monde…)
