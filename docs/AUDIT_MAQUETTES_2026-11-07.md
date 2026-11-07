@@ -45,3 +45,14 @@ validée · 1 en cours · 2 à venir », coches ✓/✗ par sélection, « Retir
 Plusieurs textes gris très petits (sous-titres, « moteur 60 % », dates) sur fond violet
 foncé : à vérifier sur un vrai téléphone en plein soleil (contraste et taille d'au moins
 12 points).
+
+## Suite : maquettes corrigées (envoyées au fondateur, 16 h 57)
+
+À la demande du fondateur, les corrections ci-dessus ont été dessinées dans le même style
+(fichier `FootProba-maquettes-corrigees.zip`, transmis hors du dépôt) : **C1 à C9**
+remplacent les maquettes corrigées (liste des matchs, montante, coupon, résultat du Coupon
+intelligent, fiabilité, profil, pari en cours, Wave, Passer Premium) ; **N1 à N16** sont les
+écrans qui manquaient (écrans verrouillés du compte gratuit, confirmation du pari, match
+commencé, création et suggestions de montante, mouvements, historique de cote, arbitre,
+mot de passe oublié, « Presque prêt », chargement, aucun match, erreur réseau).
+Les chiffres de ces maquettes sont des exemples.
