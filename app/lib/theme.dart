@@ -523,12 +523,22 @@ class BackChevron extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-    message: 'Retour',
-    child: InkResponse(
-      onTap: onTap,
-      radius: 20,
-      child: const Icon(Icons.chevron_left_rounded, size: 26, color: Fp.text2),
+  Widget build(BuildContext context) => Semantics(
+    // Annoncé « Retour, bouton » par le lecteur d'écran.
+    button: true,
+    label: 'Retour',
+    onTap: onTap,
+    excludeSemantics: true,
+    child: Tooltip(
+      message: 'Retour',
+      child: InkResponse(
+        onTap: onTap,
+        radius: 20,
+        child: const Padding(
+          padding: EdgeInsets.all(4),
+          child: Icon(Icons.chevron_left_rounded, size: 26, color: Fp.text2),
+        ),
+      ),
     ),
   );
 }

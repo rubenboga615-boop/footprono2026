@@ -407,7 +407,7 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
 
   /// Écart moyen (en points) entre annoncé et arrivé, pondéré par tranche.
   static double _gap(Json m) {
-    final bins = (m['calibration'] as List).cast<Json>();
+    final bins = ((m['calibration'] as List?) ?? const []).cast<Json>();
     var total = 0;
     var sum = 0.0;
     for (final b in bins) {
@@ -582,7 +582,9 @@ class _View {
           : f['passes_rule'] == true
           ? '✓ règle respectée · écart max $gapPts pt${gapPts > 1 ? 's' : ''}'
           : 'à corriger';
-      final liveCalib = liveM == null ? const <Json>[] : (liveM['calibration'] as List).cast<Json>();
+      final liveCalib = liveM == null
+          ? const <Json>[]
+          : ((liveM['calibration'] as List?) ?? const []).cast<Json>();
       final (liveStatus, liveOk) = _ruleStatus(liveCalib, minBin, liveN);
       // Pronostics publiés : chiffres clés tirés des résultats réels, pas de la simulation.
       final liveVersus = liveKey == null
@@ -633,8 +635,8 @@ class _View {
             '✓ = règle de justesse respectée (3 points au plus, ou dans la marge du hasard) ; '
             'à côté, le plus grand écart entre annoncé et arrivé.',
         calibration: showLive
-            ? (liveM!['calibration'] as List).cast<Json>()
-            : (f['calibration'] as List).cast<Json>(),
+            ? ((liveM!['calibration'] as List?) ?? const []).cast<Json>()
+            : ((f['calibration'] as List?) ?? const []).cast<Json>(),
         minBin: minBin,
         source: showLive
             ? (liveM!['warning'] as String? ??
@@ -686,7 +688,7 @@ class _View {
         : ('—', false);
     final warning = liveM?['warning'] as String?;
     final (liveStatus, liveOk) = _ruleStatus(
-      liveM == null ? const <Json>[] : (liveM['calibration'] as List).cast<Json>(),
+      liveM == null ? const <Json>[] : ((liveM['calibration'] as List?) ?? const []).cast<Json>(),
       minBin,
       liveN,
     );
@@ -705,7 +707,7 @@ class _View {
         _Group(null, [for (final e in _liveNames.entries) _Choice(e.key, e.value)]),
       ],
       pickerSubtitle: 'Marchés suivis pour ce championnat.',
-      calibration: showLive ? (liveM!['calibration'] as List).cast<Json>() : btCalib,
+      calibration: showLive ? ((liveM!['calibration'] as List?) ?? const []).cast<Json>() : btCalib,
       minBin: minBin,
       source: showLive
           ? (liveM!['warning'] as String? ?? 'Pronostics publiés avant les matchs.')

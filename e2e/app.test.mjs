@@ -58,11 +58,12 @@ const phone = `+2250${String(Date.now()).slice(-9)}`;
 
 await check('inscription', async () => {
   await page.goto(URL);
-  // Avec Google (version web), l'accueil propose d'abord Google, puis le numéro.
-  await visible(text('Numéro de téléphone'), 30000);
-  if (!(await text('Bon retour').isVisible())) await button('Numéro de téléphone').click();
-  await visible(text('Bon retour'));
-  await text('Créer un compte').click();
+  // Accueil de la maquette du 07/11/2026 : « Créer mon compte gratuit », puis Google ou le
+  // numéro sur l'écran suivant (sans Google : directement le formulaire).
+  await button('Créer mon compte gratuit').click();
+  if (!(await text('Nom affiché').isVisible().catch(() => false))) {
+    await button('Numéro de téléphone').click();
+  }
   await visible(text('Nom affiché'));
   await type('Nom affiché', 'Testeur E2E');
   await type('Numéro de téléphone', phone);
@@ -73,13 +74,13 @@ await check('inscription', async () => {
 
 await check('matchs à venir avec probabilités du moteur', async () => {
   await visible(text(/^Matchs (à venir|du jour)/));
-  // Chaque carte de match est un bouton : son nom contient les cases 1, N, 2 et les buts.
-  await visible(button(/ vs .*\d+\s?%.*\d+\s?%.*\d+\s?%/s));
-  await visible(button(/Les 2 marquent \d+/));
+  // Une ligne par match (maquette du 07/11/2026) : un bouton dont le nom contient les
+  // équipes et les chances 1, N, 2.
+  await visible(button(/ – .*\d+\s?%.*\d+\s?%.*\d+\s?%/s));
 });
 
 await check('match : probabilités et cote réelle ajoutée au coupon', async () => {
-  await button(/ vs /).click();
+  await button(/ – .*\d+\s?%/s).click();
   await visible(text('Résultat du match'));
   await button(/1xBet/).click();
   await visible(text('Ajouté au coupon'));
@@ -89,13 +90,15 @@ await check('match : probabilités et cote réelle ajoutée au coupon', async ()
 await check('coupon : pari placé, gain calculé', async () => {
   await nav('Coupon');
   await visible(text('Cote totale (1xBet)'));
-  await visible(text('Gain possible'));
+  // Mise comprise, puis le bénéfice net (rapport du 07/11/2026).
+  await visible(text('Tu récupères'));
+  await visible(text('Bénéfice'));
   await button(/Placer le pari/).click();
   await visible(text(/Pari placé/));
 });
 
-await check('bookmaker : pari en cours, solde débité', async () => {
-  await nav('Bookmaker');
+await check('mes paris : pari en cours, solde débité', async () => {
+  await nav('Mes paris');
   await visible(text('En cours (1)'));
   await visible(text('99 000'));
 });
@@ -103,27 +106,27 @@ await check('bookmaker : pari en cours, solde débité', async () => {
 await check('profil : version gratuite, pas d\'essai automatique', async () => {
   await nav('Profil');
   await visible(text('Version gratuite'));
-  await visible(text('GRATUIT'));
+  await visible(text(/Passer Premium/));
 });
 
 await check('fiabilité : page publique', async () => {
   await text('Fiabilité du moteur').click();
-  await visible(text('Réalisé'));
-  await visible(text('Backtest'));
+  await visible(text(/Simulation/));
+  await visible(text(/Depuis le lancement/));
   await button('Retour').click();
 });
 
 await check('montante : lancement, suggestions réservées à Premium', async () => {
   await nav('Montante');
   await button('Lancer la montante').click();
-  await visible(text(/Montante lancée/));
-  // Bouton sous le tableau : faire défiler l'écran (Flutter ne suit pas le DOM).
+  // Montante lancée : le plan s'affiche (plus de message, lot du 06/11/2026).
+  await visible(text(/Palier 1 sur/));
+  // Suggestions du moteur : réservées à Premium, avec le bouton d'abonnement.
   await page.mouse.move(195, 400);
-  await page.mouse.wheel(0, 1200);
+  await page.mouse.wheel(0, 600);
   await page.waitForTimeout(800);
   await button('Choisir le pari').click();
-  await visible(text(/Pari du/));
-  await visible(text(/suggestions de pari pour la montante sont incluses dans Premium/));
+  await visible(text(/Premium/));
 });
 
 assert.deepEqual(errors, [], `erreurs JavaScript : ${errors.join(' | ')}`);
