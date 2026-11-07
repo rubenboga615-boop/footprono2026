@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -274,12 +276,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
             BackHeader('Coupon', 'intelligent', trailing: premium ? const _PremiumPill() : null),
             const SizedBox(height: 14),
             if (!premium) ...[
-              const PremiumLock(
-                text:
-                    'Le Coupon intelligent compose un coupon selon ton profil et la cote que tu vises, '
-                    'avec ses raisons. Les coupons du jour et leur bilan restent visibles par tous '
-                    '(Coupon → Coupons du jour).',
-              ),
+              const _LockedPreview(),
             ] else ...[
               ...deskSplit(
                 context,
@@ -469,18 +466,20 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                 ],
               ),
             ],
-            const SizedBox(height: 8),
-            Center(
-              child: Tooltip(
-                message: 'Coupons du jour',
-                child: TextButton(
-                  onPressed: () =>
-                      Navigator.of(context)
-                          .push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen())),
-                  child: const Text('Voir les coupons du jour et leur bilan'),
+            // Version gratuite : déjà dans la carte « Inclus dans Premium » (bilan des coupons).
+            if (premium) const SizedBox(height: 8),
+            if (premium)
+              Center(
+                child: Tooltip(
+                  message: 'Coupons du jour',
+                  child: TextButton(
+                    onPressed: () =>
+                        Navigator.of(context)
+                            .push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen())),
+                    child: const Text('Voir les coupons du jour et leur bilan'),
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -967,4 +966,158 @@ Future<void> addSelectionsToCoupon(
   } on ApiException catch (e) {
     showMessage(e.message, error: true);
   }
+}
+
+/// Version gratuite (maquette validée le 07/11/2026) : le dernier coupon du jour réglé, gagné ou
+/// perdu, jamais choisi (les coupons réglés sont publics), dont les dernières sélections sont
+/// floutées, puis le bouton d'abonnement.
+class _LockedPreview extends StatelessWidget {
+  const _LockedPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    final api = context.read<AppState>().api;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Tu choisis ton profil et la cote visée ; le moteur compose le coupon avec ses raisons.',
+          style: Fp.body(13.5, color: Fp.text2, height: 1.45),
+        ),
+        const SizedBox(height: 12),
+        Loader<Json>(
+          load: () async => await api.get('/smart-coupons/history') as Json,
+          builder: (context, h, _) {
+            final c = (h['coupons'] as List).cast<Json>().where((c) => c['status'] != 'pending').firstOrNull;
+            return c == null ? const SizedBox.shrink() : _Example(c);
+          },
+        ),
+        const SizedBox(height: 12),
+        GlassCard(
+          highlight: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.lock_rounded, size: 18, color: Fp.accentLight),
+                  const SizedBox(width: 8),
+                  Text('Inclus dans Premium', style: Fp.title(17)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Le coupon selon ton profil, la cote que tu vises, et pourquoi chaque match a été choisi.',
+                style: Fp.body(13.5, color: Fp.text2, height: 1.45),
+              ),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () => openPremium(context),
+                child: const Text('Débloquer · 2 000 F / mois'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SmartHistoryScreen())),
+                child: const Text('Voir le bilan de tous les coupons'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Example extends StatelessWidget {
+  const _Example(this.c);
+  final Json c;
+
+  @override
+  Widget build(BuildContext context) {
+    final sels = (c['selections'] as List).cast<Json>();
+    final total = double.parse('${c['total_odds']}');
+    final won = c['status'] == 'won';
+    final day = DateTime.tryParse('${c['day']}');
+    return GlassCard.section(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Exemple : dernier coupon réglé · ${c['profile_label']}'
+                  '${day != null ? ' · ${shortDate(day)}' : ''}',
+                  style: Fp.body(12.5, color: Fp.text2),
+                ),
+              ),
+              won ? const Tag.win('Gagné') : const Tag.loss('Perdu'),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: 'Cote ${odds(total)}'),
+                if (won) ...[
+                  const TextSpan(text: ' · '),
+                  TextSpan(
+                    text: '+${thousands(((total - 1) * 1000).round())} F',
+                    style: const TextStyle(color: Fp.win),
+                  ),
+                  TextSpan(
+                    text: ' pour 1 000 F',
+                    style: Fp.body(12.5, color: Fp.text2),
+                  ),
+                ],
+              ],
+            ),
+            style: Fp.title(19),
+          ),
+          for (final (i, s) in sels.indexed) ...[
+            const Divider(height: 14),
+            _blurIf(
+              i >= 2,
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${s['home']} – ${s['away']}', style: Fp.body(13.5, weight: FontWeight.w600)),
+                        Text(
+                          selectionLabel(
+                            '${s['market']}',
+                            '${s['line'] ?? ''}',
+                            '${s['selection']}',
+                            home: '${s['home']}',
+                            away: '${s['away']}',
+                          ),
+                          style: Fp.body(12, color: Fp.text2),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(odds(double.parse('${s['odds']}')), style: Fp.body(14, weight: FontWeight.w700)),
+                  const SizedBox(width: 6),
+                  switch (s['result']) {
+                    'win' || 'half_win' => const Icon(Icons.check_rounded, size: 16, color: Fp.win),
+                    'loss' || 'half_loss' => const Icon(Icons.close_rounded, size: 16, color: Fp.lossText),
+                    _ => const SizedBox(width: 16),
+                  },
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static Widget _blurIf(bool blur, Widget child) => blur
+      ? ExcludeSemantics(
+          child: ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 4, sigmaY: 4), child: child),
+        )
+      : child;
 }

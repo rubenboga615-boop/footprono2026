@@ -10,7 +10,7 @@ import '../format.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
-import 'auth_screen.dart' show GlowButton, GoogleMark, countries;
+import 'auth_screen.dart' show countries;
 import 'notifications_screen.dart';
 import 'reliability_screen.dart';
 import 'server_dialog.dart';
@@ -294,10 +294,6 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 18),
                     const _PlanCard(),
-                    if (!me.googleLinked && state.google != null) ...[
-                      const SizedBox(height: 12),
-                      const _GoogleCard(),
-                    ],
                     const SizedBox(height: 12),
                   ],
                 ],
@@ -366,6 +362,17 @@ class ProfileScreen extends StatelessWidget {
                             title: 'Google lié',
                             trailing: me!.email,
                             onTap: () => _googleLinked(context, state),
+                          ),
+                        ] else if (me != null && state.google != null) ...[
+                          // Maquette validée le 07/11/2026 : une simple ligne (la grande carte
+                          // prenait plus de place que l'abonnement).
+                          const Divider(),
+                          _Item(
+                            icon: Icons.g_mobiledata_rounded,
+                            title: 'Lier mon compte Google',
+                            onTap: () => guard(context, () async {
+                              if (await state.linkGoogle()) showMessage('Compte Google lié.');
+                            }),
                           ),
                         ],
                         const Divider(),
@@ -631,11 +638,25 @@ class _PlanCard extends StatelessWidget {
     final me = context.watch<AppState>().me!;
     final plan = me.plan;
     final price = money(plan.price, plan.priceCurrency);
-    const lines = [
-      'Tous les marchés : buts, mi-temps, handicaps, corners, cartons, tirs',
-      'Analyses détaillées et choix du moteur de chaque match',
-      'Suggestions de pari pour la montante',
+    // Maquette validée le 07/11/2026 : ce que Premium ajoute, sans ambiguïté (les ✓ seuls
+    // laissaient croire que la version gratuite avait déjà tout).
+    const rows = [
+      ('Chances 1-N-2, buts, les 2 marquent', true),
+      ('Coupons du jour : profil, cote, bilan', true),
+      ('Coupons du jour : sélections et code 1xBet', false),
+      ('Coupon intelligent (ta cote, ton profil)', false),
+      ('Corners, cartons, tirs, handicaps', false),
+      ('Analyse du match (forme, face-à-face)', false),
+      ('Suggestions de montante', false),
     ];
+    Widget cell(bool ok) => SizedBox(
+      width: 64,
+      child: Center(
+        child: ok
+            ? const Icon(Icons.check_rounded, size: 17, color: Fp.win)
+            : const Icon(Icons.lock_rounded, size: 15, color: Color(0xFFC9B2F8)),
+      ),
+    );
     return GradientCard(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
       child: Column(
@@ -651,7 +672,7 @@ class _PlanCard extends StatelessWidget {
               if (plan.premium)
                 const Tag('ACTIF', color: Color(0xFF6EE7B7), background: Color(0x2E34D399))
               else
-                const Tag('GRATUIT', color: Fp.textSoft),
+                Tag('$price / mois', color: const Color(0xFFC9B2F8), background: Fp.accentAlpha(0.2)),
             ],
           ),
           const SizedBox(height: 6),
@@ -662,30 +683,45 @@ class _PlanCard extends StatelessWidget {
               style: Fp.body(13, color: Fp.text2),
             )
           else ...[
-            for (final line in lines)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.check_rounded, size: 16, color: Fp.accentLight),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(line, style: Fp.body(13, color: Fp.textStrong, height: 1.35)),
+            Row(
+              children: [
+                const Spacer(),
+                for (final t in const ['Gratuit', 'Premium'])
+                  SizedBox(
+                    width: 64,
+                    child: Text(
+                      t,
+                      textAlign: TextAlign.center,
+                      style: Fp.body(11.5, color: Fp.text2, weight: FontWeight.w700),
                     ),
+                  ),
+              ],
+            ),
+            for (final (i, (label, free)) in rows.indexed) ...[
+              if (i > 0) const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 7),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(label, style: Fp.body(13, color: Fp.textStrong, height: 1.3)),
+                    ),
+                    cell(free),
+                    cell(true),
                   ],
                 ),
               ),
+            ],
           ],
           const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerLeft,
+          SizedBox(
+            width: double.infinity,
             child: FilledButton(
               onPressed: () => _buy(context, plan),
               style: FilledButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF2E1065),
-                minimumSize: const Size(0, 42),
+                backgroundColor: plan.premium ? Colors.white : Fp.accent,
+                foregroundColor: plan.premium ? const Color(0xFF2E1065) : Colors.white,
+                minimumSize: const Size(0, 46),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 textStyle: Fp.body(13, weight: FontWeight.w800),
@@ -693,6 +729,14 @@ class _PlanCard extends StatelessWidget {
               child: Text(plan.premium ? 'Prolonger · $price / mois' : 'Passer Premium · $price / mois'),
             ),
           ),
+          if (!plan.premium) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Payé une fois, 30 jours, sans renouvellement automatique.',
+              textAlign: TextAlign.center,
+              style: Fp.body(12, color: Fp.text2),
+            ),
+          ],
         ],
       ),
     );
@@ -972,91 +1016,6 @@ class _BetaItem extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Compte Google : lier (connexion sans mot de passe) ou délier.
-class _GoogleCard extends StatefulWidget {
-  const _GoogleCard();
-
-  @override
-  State<_GoogleCard> createState() => _GoogleCardState();
-}
-
-class _GoogleCardState extends State<_GoogleCard> {
-  bool busy = false;
-
-  Future<void> _do(Future<void> Function() action) async {
-    setState(() => busy = true);
-    try {
-      await action();
-    } on ApiException catch (e) {
-      showMessage(e.message, error: true);
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final me = state.me!;
-    if (me.googleLinked) {
-      final canUnlink = me.hasPassword && me.phone != null;
-      return GlassCard.section(
-        child: Row(
-          children: [
-            const Icon(Icons.verified_user_outlined, color: Fp.win, size: 22),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Google lié', style: Fp.body(15, weight: FontWeight.w700)),
-                  Text(me.email ?? '', style: Fp.body(13, color: Fp.text2)),
-                ],
-              ),
-            ),
-            if (canUnlink)
-              TextButton(
-                onPressed: busy ? null : () => _do(state.unlinkGoogle),
-                style: TextButton.styleFrom(foregroundColor: Fp.lossText),
-                child: const Text('Délier'),
-              ),
-          ],
-        ),
-      );
-    }
-    return GlassCard.main(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(left: 20),
-            child: TwoToneTitle('Lier mon compte', 'Google', size: 20),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Ensuite tu te connectes d\'un seul appui, sans mot de passe. Ton Premium, ton solde '
-            'et tes paris restent sur ce compte.',
-            style: Fp.body(13, color: Fp.textSoft, height: 1.5),
-          ),
-          const SizedBox(height: 14),
-          GlowButton(
-            busy: busy,
-            onPressed: busy
-                ? null
-                : () => _do(() async {
-                    if (await state.linkGoogle()) showMessage('Compte Google lié.');
-                  }),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [GoogleMark(size: 26), SizedBox(width: 10), Text('Lier avec Google')],
-            ),
-          ),
-        ],
       ),
     );
   }

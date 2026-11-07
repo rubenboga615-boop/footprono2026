@@ -165,7 +165,8 @@ class _AuthScreenState extends State<AuthScreen> {
                   card,
                   const SizedBox(height: 22),
                   Text(
-                    '18 ans et plus · argent fictif, aucun pari réel',
+                    'On ne promet pas de gains : personne ne bat le bookmaker à coup sûr.\n'
+                    'Paris de l\'application en argent fictif · 18 ans et plus.',
                     textAlign: TextAlign.center,
                     style: Fp.body(12, color: Fp.text3, height: 1.5),
                   ),
@@ -196,59 +197,128 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
+  /// Ce que FootProba apporte vraiment (maquette validée le 07/11/2026), sans promettre de gain.
+  static const _benefits = [
+    (
+      'Les vraies chances de chaque pari',
+      'Un combiné de 8 matchs passe environ 1 fois sur 60. Tu le sais avant de miser.',
+    ),
+    ('3 coupons prêts chaque matin', 'Sûr, Équilibré, Audacieux, avec le code 1xBet à coller.'),
+    ('Un bilan public, sans tri', 'Tous les coupons publiés, gagnés et perdus.'),
+    ('Des outils pour garder le contrôle', 'Montante planifiée, bilan de tes paris, alertes.'),
+  ];
+
   Widget _welcome() {
-    return GlassCard.hero(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Center(child: IconSquare(Icons.verified_user_outlined, size: 46, iconSize: 22, radius: 14)),
-          const SizedBox(height: 16),
-          const Center(child: TwoToneTitle('Bienvenue', '!', size: 28)),
-          const SizedBox(height: 6),
-          Text(
-            'Les probabilités des matchs, calculées sans regarder les cotes.',
-            textAlign: TextAlign.center,
-            style: Fp.body(14, color: Fp.text2, height: 1.45),
+    final head = Fp.title(30).copyWith(height: 1.15);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text.rich(
+          TextSpan(
+            children: [
+              const TextSpan(text: 'Parie mieux informé.\n'),
+              TextSpan(
+                text: 'Perds moins bêtement.',
+                style: head.copyWith(color: Fp.accentLight),
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
-          GlowButton(
-            onPressed: busy ? null : _google,
-            busy: busy,
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                GoogleMark(size: 28),
-                SizedBox(width: 12),
-                Flexible(child: Text('Continuer avec Google', overflow: TextOverflow.ellipsis)),
-                SizedBox(width: 10),
-                Icon(Icons.arrow_forward_rounded, size: 20),
+          style: head,
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Avant de miser, sache quelles sont les vraies chances de ton pari.',
+          style: Fp.body(14, color: Fp.text2, height: 1.45),
+        ),
+        const SizedBox(height: 14),
+        GlassCard.section(
+          child: Column(
+            children: [
+              for (final (i, (title, text)) in _benefits.indexed) ...[
+                if (i > 0) const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 26,
+                        height: 26,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: Fp.accentAlpha(0.27),
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: Text(
+                          '${i + 1}',
+                          style: Fp.body(13, weight: FontWeight.w700, color: const Color(0xFFE4D8FD)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(title, style: Fp.body(14.5, weight: FontWeight.w700)),
+                            const SizedBox(height: 2),
+                            Text(text, style: Fp.body(12.8, color: Fp.text2, height: 1.4)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
-            ),
+            ],
           ),
-          const SizedBox(height: 10),
+        ),
+        const SizedBox(height: 16),
+        _welcomeButtons(),
+      ],
+    );
+  }
+
+  Widget _welcomeButtons() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GlowButton(
+          onPressed: busy ? null : _google,
+          busy: busy,
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GoogleMark(size: 28),
+              SizedBox(width: 12),
+              Flexible(child: Text('Continuer avec Google', overflow: TextOverflow.ellipsis)),
+              SizedBox(width: 10),
+              Icon(Icons.arrow_forward_rounded, size: 20),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Un appui, aucun mot de passe à retenir.',
+          textAlign: TextAlign.center,
+          style: Fp.body(12, color: Fp.text3),
+        ),
+        if (error != null) ...[
+          const SizedBox(height: 12),
           Text(
-            'Un appui, aucun mot de passe à retenir.',
+            error!,
             textAlign: TextAlign.center,
-            style: Fp.body(12, color: Fp.text3),
-          ),
-          if (error != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              error!,
-              textAlign: TextAlign.center,
-              style: Fp.body(13, color: Fp.lossText, height: 1.4),
-            ),
-          ],
-          const SizedBox(height: 18),
-          const OrDivider('OU AVEC TON NUMÉRO'),
-          const SizedBox(height: 14),
-          OutlinedButton.icon(
-            onPressed: busy ? null : () => _go(_Mode.login),
-            icon: const Icon(Icons.phone_iphone_rounded, size: 18),
-            label: const Text('Numéro de téléphone'),
+            style: Fp.body(13, color: Fp.lossText, height: 1.4),
           ),
         ],
-      ),
+        const SizedBox(height: 18),
+        const OrDivider('OU AVEC TON NUMÉRO'),
+        const SizedBox(height: 14),
+        OutlinedButton.icon(
+          onPressed: busy ? null : () => _go(_Mode.login),
+          icon: const Icon(Icons.phone_iphone_rounded, size: 18),
+          label: const Text('Numéro de téléphone'),
+        ),
+      ],
     );
   }
 

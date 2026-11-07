@@ -1859,10 +1859,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coupon intelligent'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('compose un coupon selon ton profil'), findsOneWidget);
+    expect(find.textContaining('le moteur compose le coupon'), findsOneWidget);
     expect(find.text('Composer le coupon'), findsNothing);
-    // Jamais d'impasse : le bouton mène à l'abonnement (onglet Profil).
-    await tester.tap(find.text('Passer Premium').first);
+    // Exemple : le dernier coupon réglé (public), pas choisi ; puis le bouton d'abonnement.
+    expect(find.textContaining('Exemple : dernier coupon réglé · Équilibré'), findsOneWidget);
+    expect(find.text('Gagné'), findsOneWidget);
+    expect(find.text('Lens – Lyon'), findsOneWidget);
+    await tester.ensureVisible(find.text('Débloquer · 2 000 F / mois'));
+    await tester.tap(find.text('Débloquer · 2 000 F / mois'));
     await tester.pumpAndSettle();
     expect(find.text('Version gratuite'), findsOneWidget);
   });
@@ -2072,7 +2076,8 @@ void main() {
     );
     await tester.tap(find.text('Profil'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Lier avec Google'));
+    await tester.ensureVisible(find.text('Lier mon compte Google'));
+    await tester.tap(find.text('Lier mon compte Google'));
     await tester.pumpAndSettle();
     expect(server.googleLinked, isTrue);
     await tester.ensureVisible(find.text('Google lié'));
