@@ -754,12 +754,8 @@ class _MontanteViewState extends State<MontanteView> {
         Row(
           children: [
             if (widget.back) ...[
-              SquareButton(
-                icon: Icons.chevron_left_rounded,
-                tooltip: 'Retour',
-                onTap: () => Navigator.of(context).maybePop(),
-              ),
-              const SizedBox(width: 14),
+              BackChevron(onTap: () => Navigator.of(context).maybePop()),
+              const SizedBox(width: 4),
             ],
             const Expanded(child: TwoToneTitle('Ma', 'montante')),
             if (!active) montanteTag(m['status'] as String),

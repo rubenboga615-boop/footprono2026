@@ -121,12 +121,8 @@ class _MatchViewState extends State<_MatchView> {
         children: [
           Row(
             children: [
-              SquareButton(
-                icon: Icons.chevron_left_rounded,
-                tooltip: 'Retour',
-                onTap: () => Navigator.of(context).maybePop(),
-              ),
-              const SizedBox(width: 12),
+              BackChevron(onTap: () => Navigator.of(context).maybePop()),
+              const SizedBox(width: 4),
               Expanded(
                 child: Text(
                   '${competitionName(m.competition)} · ${longDate(m.date)}',

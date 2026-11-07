@@ -163,11 +163,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   Row(
                     children: [
                       if (showBack)
-                        IconButton.outlined(
-                          tooltip: 'Retour',
-                          onPressed: busy ? null : _back,
-                          icon: const Icon(Icons.chevron_left_rounded),
-                        )
+                        BackChevron(onTap: busy ? null : _back)
                       else if (welcome)
                         // Maquette : « FootProba » écrit seul, sans le carré du logo.
                         Text.rich(

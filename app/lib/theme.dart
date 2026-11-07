@@ -1,7 +1,6 @@
 // Direction « Verre violet » validée le 30/09/2026 (docs/DESIGN.md). Valeurs
 // reprises des maquettes (A-*.dc.html) : fond, halos, rubans, cartes, boutons.
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
@@ -118,20 +117,21 @@ class Fp {
           foregroundColor: Colors.white,
           disabledBackgroundColor: accentAlpha(0.35),
           disabledForegroundColor: Colors.white70,
-          minimumSize: const Size(0, 52),
-          elevation: 10,
-          shadowColor: accentAlpha(0.7),
+          minimumSize: const Size(0, 46),
+          elevation: 0,
+          visualDensity: VisualDensity.standard,
           textStyle: body(15, weight: FontWeight.w700),
           shape: RoundedRectangleBorder(borderRadius: radius14),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: text,
-          backgroundColor: fill,
-          minimumSize: const Size(0, 48),
-          side: const BorderSide(color: line),
-          textStyle: body(14, weight: FontWeight.w600),
+          foregroundColor: const Color(0xD0F4F2F8),
+          backgroundColor: Colors.transparent,
+          minimumSize: const Size(0, 42),
+          visualDensity: VisualDensity.standard,
+          side: const BorderSide(color: Color(0x33FFFFFF)),
+          textStyle: body(14, weight: FontWeight.w700),
           shape: RoundedRectangleBorder(borderRadius: radius14),
         ),
       ),
@@ -150,7 +150,7 @@ class Fp {
           side: const BorderSide(color: line),
         ),
       ),
-      dividerTheme: const DividerThemeData(color: divider, space: 1, thickness: 1),
+      dividerTheme: const DividerThemeData(color: Color(0x12FFFFFF), space: 1, thickness: 1),
       checkboxTheme: CheckboxThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? accent : fill),
@@ -288,44 +288,6 @@ Path cutCornerPath(Size s, double cut) {
     ..close();
 }
 
-class _CutClipper extends CustomClipper<Path> {
-  const _CutClipper(this.cut);
-  final double cut;
-  @override
-  Path getClip(Size size) => cutCornerPath(size, cut);
-  @override
-  bool shouldReclip(_CutClipper old) => old.cut != cut;
-}
-
-class _BorderPainter extends CustomPainter {
-  _BorderPainter(this.cut, this.highlight);
-  final double cut;
-  final bool highlight;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    // Bordure de 1 px en dégradé (160°) : 28 % → 6 % → 16 % de blanc.
-    canvas.drawPath(
-      cutCornerPath(size, cut),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..shader = LinearGradient(
-          begin: const Alignment(-0.35, -1),
-          end: const Alignment(0.35, 1),
-          colors: highlight
-              ? [Fp.accentLight, Fp.accentAlpha(0.3), Fp.accentLine]
-              : const [Color(0x47FFFFFF), Color(0x0FFFFFFF), Color(0x29FFFFFF)],
-          stops: const [0, 0.45, 1],
-        ).createShader(rect),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_BorderPainter old) => old.cut != cut || old.highlight != highlight;
-}
-
 /// Carte pleine en dégradé violet (carte Premium de la maquette v2) : coins coupés et
 /// bordure lumineuse comme les cartes en verre.
 class GradientCard extends StatelessWidget {
@@ -341,18 +303,10 @@ class GradientCard extends StatelessWidget {
   );
 
   @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      foregroundPainter: _BorderPainter(cut, true),
-      child: ClipPath(
-        clipper: _CutClipper(cut),
-        child: DecoratedBox(
-          decoration: const BoxDecoration(gradient: gradient),
-          child: Padding(padding: padding, child: child),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: GlassCard.decoration(true),
+    child: Padding(padding: padding, child: child),
+  );
 }
 
 /// Carte en verre : fond translucide, flou d'arrière-plan, bordure en dégradé.
@@ -409,74 +363,38 @@ class GlassCard extends StatelessWidget {
   final bool highlight;
   final bool ornaments;
 
+  /// Maquette validée le 07/11/2026, appliquée à toute l'application : coins arrondis (18),
+  /// bordure fine, fond uni ; mise en avant : bordure violette et dégradé. Plus de coins coupés,
+  /// de flou ni de triangles décoratifs.
+  static BoxDecoration decoration(bool highlight) => BoxDecoration(
+    color: highlight ? null : const Color(0xCC12101A),
+    gradient: highlight
+        ? const LinearGradient(
+            begin: Alignment(-0.4, -1),
+            end: Alignment(0.4, 1),
+            colors: [Color(0xCC2A1655), Color(0xCC12101A)],
+          )
+        : null,
+    borderRadius: BorderRadius.circular(18),
+    border: Border.all(color: highlight ? const Color(0x997C3AED) : const Color(0x1FFFFFFF)),
+  );
+
   @override
   Widget build(BuildContext context) {
     Widget content = Padding(padding: padding, child: child);
     if (onTap != null) {
       content = InkWell(onTap: onTap, splashColor: Fp.accentAlpha(0.18), child: content);
     }
-    Widget card = CustomPaint(
-      foregroundPainter: _BorderPainter(cut, highlight),
-      child: ClipPath(
-        clipper: _CutClipper(cut),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          // Material (et non un simple fond) : les ListTile et InkWell de la
-          // carte y dessinent leurs effets de toucher.
-          child: Material(
-            color: highlight ? Color.alphaBlend(Fp.accentFaint, Fp.glass) : Fp.glass,
-            child: content,
-          ),
-        ),
+    final card = DecoratedBox(
+      decoration: decoration(highlight),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        // Material transparent : les ListTile et InkWell de la carte y dessinent leurs effets.
+        child: Material(type: MaterialType.transparency, child: content),
       ),
     );
-    if (ornaments) {
-      card = Stack(
-        clipBehavior: Clip.none,
-        children: [
-          const Positioned(left: -10, top: -10, child: _Ornament(topLeft: true)),
-          const Positioned(right: -10, bottom: -10, child: _Ornament(topLeft: false)),
-          card,
-        ],
-      );
-    }
     return Padding(padding: margin, child: card);
   }
-}
-
-class _Ornament extends StatelessWidget {
-  const _Ornament({required this.topLeft});
-  final bool topLeft;
-
-  @override
-  Widget build(BuildContext context) =>
-      CustomPaint(size: const Size(46, 46), painter: _OrnamentPainter(topLeft));
-}
-
-class _OrnamentPainter extends CustomPainter {
-  _OrnamentPainter(this.topLeft);
-  final bool topLeft;
-
-  @override
-  void paint(Canvas canvas, Size s) {
-    final path = topLeft
-        ? (Path()
-            ..moveTo(6, 0)
-            ..lineTo(s.width, 0)
-            ..lineTo(0, s.height)
-            ..lineTo(0, 6)
-            ..quadraticBezierTo(0, 0, 6, 0))
-        : (Path()
-            ..moveTo(s.width, 0)
-            ..lineTo(s.width, s.height - 6)
-            ..quadraticBezierTo(s.width, s.height, s.width - 6, s.height)
-            ..lineTo(0, s.height)
-            ..close());
-    canvas.drawPath(path, Paint()..color = const Color(0x1AFFFFFF));
-  }
-
-  @override
-  bool shouldRepaint(_OrnamentPainter old) => false;
 }
 
 // --- Petits éléments ---------------------------------------------------------------
@@ -599,6 +517,22 @@ class SquareButton extends StatelessWidget {
   }
 }
 
+/// Retour discret de la maquette validée le 07/11/2026 (chevron seul, sans bouton carré).
+class BackChevron extends StatelessWidget {
+  const BackChevron({super.key, required this.onTap});
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: 'Retour',
+    child: InkResponse(
+      onTap: onTap,
+      radius: 20,
+      child: const Icon(Icons.chevron_left_rounded, size: 26, color: Fp.text2),
+    ),
+  );
+}
+
 /// En-tête d'écran secondaire : bouton retour carré et titre en deux tons.
 class BackHeader extends StatelessWidget {
   const BackHeader(this.first, this.second, {super.key, this.trailing, this.subtitle, this.joined = false});
@@ -616,20 +550,17 @@ class BackHeader extends StatelessWidget {
         Row(
           children: [
             // Version ordinateur : un écran du menu est la racine de sa zone, sans retour.
+            // Retour discret (maquette validée le 07/11/2026), plus de gros bouton carré.
             if (Navigator.of(context).canPop()) ...[
-              SquareButton(
-                icon: Icons.chevron_left_rounded,
-                tooltip: 'Retour',
-                onTap: () => Navigator.of(context).maybePop(),
-              ),
-              const SizedBox(width: 14),
+              BackChevron(onTap: () => Navigator.of(context).maybePop()),
+              const SizedBox(width: 4),
             ],
             // Titre sur une ligne (maquette v2) : il rétrécit plutôt que de passer à la ligne.
             Expanded(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
-                child: TwoToneTitle(first, second, size: 24, joined: joined),
+                child: TwoToneTitle(first, second, size: 23, joined: joined),
               ),
             ),
             if (trailing != null) const SizedBox(width: 10),
@@ -685,15 +616,18 @@ class Tag extends StatelessWidget {
   final IconData? icon;
 
   /// Gagné : fond vert, texte sombre.
-  const Tag.win(this.text, {super.key}) : color = const Color(0xFF052E1C), background = Fp.win, icon = null;
+  const Tag.win(this.text, {super.key}) : color = Fp.win, background = const Color(0x2234D399), icon = null;
 
   /// Perdu : fond rose, texte sombre.
-  const Tag.loss(this.text, {super.key}) : color = const Color(0xFF3B0A24), background = Fp.loss, icon = null;
+  const Tag.loss(this.text, {super.key})
+    : color = Fp.lossText,
+      background = const Color(0x22F472B6),
+      icon = null;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
       decoration: BoxDecoration(
         color: background ?? color.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(99),
@@ -736,25 +670,23 @@ class FpChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Petite pastille de la maquette du 07/11/2026 : 12,5, plein violet une fois choisie.
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(99),
-      side: BorderSide(color: selected ? Fp.accentLine : Fp.line12),
+      side: BorderSide(color: selected ? Fp.accent : const Color(0x22FFFFFF)),
     );
     return Material(
-      color: selected ? Fp.accentSoft : Fp.fill,
+      color: selected ? Fp.accent : Colors.transparent,
       shape: shape,
       child: InkWell(
         customBorder: shape,
         onTap: onTap,
         child: Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Center(
             widthFactor: 1,
-            child: Text(
-              label,
-              style: Fp.body(13, weight: FontWeight.w600, color: selected ? Colors.white : Fp.textSoft),
-            ),
+            child: Text(label, style: Fp.body(12.5, color: Fp.text)),
           ),
         ),
       ),
@@ -772,11 +704,11 @@ class ChipRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 36,
+      height: 30,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: labels.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 6),
         itemBuilder: (context, i) => FpChip(labels[i], selected: i == selected, onTap: () => onSelected(i)),
       ),
     );

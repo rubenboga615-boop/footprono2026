@@ -988,11 +988,7 @@ class _LockedPreview extends StatelessWidget {
           children: [
             // Retour discret (absent de la maquette, mais nécessaire sur la version web).
             if (canPop) ...[
-              InkResponse(
-                onTap: () => Navigator.of(context).maybePop(),
-                radius: 20,
-                child: const Icon(Icons.chevron_left_rounded, size: 26, color: Fp.text2),
-              ),
+              BackChevron(onTap: () => Navigator.of(context).maybePop()),
               const SizedBox(width: 4),
             ],
             const Expanded(child: MTitle('Coupon', 'intelligent')),
