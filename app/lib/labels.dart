@@ -458,3 +458,8 @@ String? marketHelp(String market) => switch (market) {
   'DNB' => 'Remboursé si nul : tu gagnes si l\'équipe gagne, ta mise est rendue en cas de match nul.',
   _ => null,
 };
+
+/// Paris sur le nombre de buts : en conditions réelles, à peine mieux qu'une prévision naïve
+/// (rapport du 06/11/2026) ; signalés « en observation » (décision du 07/11/2026). Même liste
+/// que le serveur (smart_coupon.GOAL_MARKETS).
+const goalMarkets = {'OU', 'TEAM_OU_HOME', 'TEAM_OU_AWAY', 'HT_OU', 'BTTS', 'HT_BTTS', 'ODD_EVEN'};

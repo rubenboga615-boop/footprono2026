@@ -591,6 +591,44 @@ DAILY_RULES: dict[str, tuple[int, Decimal | None]] = {
 }
 HISTORY_LIMIT = 60
 
+# Paris sur le nombre de buts (totaux, buts d'une équipe, mi-temps, les deux marquent) : en
+# conditions réelles, à peine mieux qu'une prévision naïve (379 matchs, rapport du
+# 06/11/2026), alors qu'ils remplissaient les coupons du jour (14 sélections sur 21) : avec
+# une vingtaine de lignes par match, il y en a presque toujours une tout près de la cible du
+# profil. Décision du 07/11/2026 : au plus un pari de buts par coupon du jour.
+GOAL_MARKETS = frozenset(
+    {"OU", "TEAM_OU_HOME", "TEAM_OU_AWAY", "HT_OU", "BTTS", "HT_BTTS", "ODD_EVEN"}
+)
+DAILY_GOAL_QUOTA = 1
+
+
+def is_goal_market(market: str) -> bool:
+    return market in GOAL_MARKETS
+
+
+def balanced_angles(profile: Profile, per_match: list[list[Pick]], quota: int) -> list[Pick]:
+    """Les angles du profil, du plus sûr au moins sûr (``ranked_angles``), avec au plus
+    ``quota`` paris de buts : au-delà, le match garde son meilleur angle hors buts (même
+    règle ``choose``), ou est laissé de côté s'il n'en a pas."""
+    others = {
+        a.match.id: a
+        for c in per_match
+        if (a := angle(profile, [pk for pk in c if not is_goal_market(pk.offer.market)]))
+    }
+    out: list[Pick] = []
+    goals = 0
+    for pk in ranked_angles(profile, per_match):
+        if is_goal_market(pk.offer.market):
+            if goals >= quota:
+                alt = others.get(pk.match.id)
+                if alt is None:
+                    continue
+                pk = alt
+            else:
+                goals += 1
+        out.append(pk)
+    return out
+
 
 async def create_daily(session: AsyncSession, now: datetime | None = None) -> dict[str, Any]:
     """Enregistre le coupon du jour de chaque profil, **avant** les matchs (une fois par jour)."""
@@ -605,16 +643,14 @@ async def create_daily(session: AsyncSession, now: datetime | None = None) -> di
     # Les profils qui doivent atteindre une cote minimale choisissent d'abord ; « Sûr »
     # (3 matchs, sans cote minimale) trouve presque toujours ses matchs parmi les autres.
     order = sorted(DAILY_RULES.items(), key=lambda item: item[1][1] is None)
+    start, end = period_window("today", now)
+    per_match = await window_candidates(session, start, end, now, Filters())
     for profile, (size, min_odds) in order:
         if profile in done:
             out[profile] = "déjà créé"
             continue
-        start, end = period_window("today", now)
-        ranked = [
-            pk
-            for pk in await best_angles(session, PROFILES[profile], start, end, now)
-            if pk.match.id not in used
-        ]
+        free = [c for c in per_match if c and c[0].match.id not in used]
+        ranked = balanced_angles(PROFILES[profile], free, DAILY_GOAL_QUOTA)
         # Sélections les plus probables, ajoutées jusqu'à la cote minimale (sinon pas de coupon).
         picks = ranked[:size] if min_odds is None else target_coupon(ranked, min_odds, size)
         if not picks:

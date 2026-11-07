@@ -523,6 +523,16 @@ class _LiveSelection extends StatelessWidget {
                   style: Fp.body(12, color: Fp.text2),
                 ),
                 Text(state, style: Fp.body(12, color: dot)),
+                if (goalMarkets.contains(s['market']))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Tooltip(
+                      message:
+                          'En conditions réelles, le moteur fait à peine mieux qu\'une prévision naïve '
+                          'sur les paris de buts : marché suivi de près (page Fiabilité).',
+                      child: Text('◔ marché en observation', style: Fp.body(11.5, color: Fp.warning)),
+                    ),
+                  ),
               ],
             ),
           ),

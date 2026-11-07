@@ -573,3 +573,26 @@ def test_count_bet_shows_its_corners_not_the_score() -> None:
     goals = smart_coupon.live_state({"result": "win", "market": "OU"}, match, {})
     assert goals["score"] == [0, 0]
     assert "count" not in goals
+
+
+def test_daily_coupons_hold_at_most_one_goal_bet() -> None:
+    """Décision du 07/11/2026 : au plus un pari de buts par coupon du jour (ils en
+    remplissaient 14 sur 21 alors qu'en réel ils font à peine mieux qu'une prévision
+    naïve) ; au-delà, le match garde son meilleur angle hors buts."""
+    from types import SimpleNamespace
+
+    def pk(mid: int, market: str, p: float) -> smart_coupon.Pick:
+        offer = SimpleNamespace(odds=Decimal("1.30"), quote_id=mid, market=market)
+        match = SimpleNamespace(id=mid, kickoff_at=None)
+        return smart_coupon.Pick(match, "A", "B", "EPL", offer, p)  # type: ignore[arg-type]
+
+    sur = smart_coupon.PROFILES["sur"]
+    per_match = [
+        [pk(1, "OU", 0.86), pk(1, "1X2", 0.80)],
+        [pk(2, "BTTS", 0.84), pk(2, "DC", 0.78)],
+        [pk(3, "TEAM_OU_HOME", 0.83)],  # pas d'autre angle : laissé de côté
+        [pk(4, "DC", 0.81)],
+    ]
+    out = smart_coupon.balanced_angles(sur, per_match, quota=1)
+    assert [(p.match.id, p.offer.market) for p in out] == [(1, "OU"), (2, "DC"), (4, "DC")]
+    assert sum(smart_coupon.is_goal_market(p.offer.market) for p in out) == 1

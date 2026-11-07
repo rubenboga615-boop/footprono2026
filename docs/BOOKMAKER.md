@@ -131,3 +131,21 @@ dit plutôt que de reproposer les mêmes paris.
 Combinés : déjà permis (2 ou 3 matchs), mais à cote égale un combiné est un peu moins sûr
 qu'un pari simple (marge du bookmaker payée sur chaque match) ; le classement neutre
 propose d'abord le moins de sélections.
+
+## Décisions du 07/11/2026
+
+- **Coupons du jour : au plus un pari de buts par coupon** (totaux, buts d'une équipe,
+  mi-temps, les deux marquent, pair/impair : `smart_coupon.GOAL_MARKETS`). Ils remplissaient
+  14 sélections sur 21, alors qu'en conditions réelles le moteur y fait à peine mieux qu'une
+  prévision naïve (379 matchs). Cause : une vingtaine de lignes de buts par match, il y en a
+  presque toujours une tout près de la cible du profil. Au-delà du quota, le match garde son
+  meilleur angle hors buts (même règle de choix). Dans l'application, un pari de buts est
+  marqué « marché en observation ». Rien n'est écrit « fiable » : en réel, le résultat 1-N-2
+  n'est pas encore juste non plus (annoncé 44 %, arrivé 58 %, page Fiabilité).
+- **Montante : suggestion où le moteur est moins confiant que la cote**, gardée et
+  expliquée (« le moteur est moins confiant que le bookmaker sur ce pari »), montrée après
+  les autres. Le choix des suggestions ne regarde jamais l'avis du moteur face à la cote :
+  préférer les paris où il y croit plus que le bookmaker, c'est choisir là où il se trompe
+  le plus (03/10/2026).
+- **Grosse cote** : la sélection qui fait passer la cible est la plus petite cote suffisante
+  parmi les 5 suivantes les plus probables (25 visé donnait 37,31).
