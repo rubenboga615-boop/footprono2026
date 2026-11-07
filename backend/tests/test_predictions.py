@@ -374,3 +374,31 @@ async def test_reliability_page_kept_a_few_minutes(
     monkeypatch.setattr(route, "reliability_report", fail)
     assert (await client.get("/api/v1/reliability", params=params)).json() == first
     await app.state.redis.delete("reliability:v1:ZZZ_CACHE_TEST::3")
+
+
+async def test_reliability_default_views_prepared_in_advance(
+    client: AsyncClient, app: Any, db_factory: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Vues par défaut (tous les championnats, 5 grands) préparées par le worker : le premier
+    visiteur après une mise à jour n'attend plus le calcul (6,7 s, essai du 07/11/2026)."""
+    from footprono.api.v1 import predictions as route
+    from footprono.predictions import reliability
+
+    from .conftest import make_settings
+
+    keys = [reliability.cache_key(c, None, 20) for c in reliability.WARM_VIEWS]
+    app.state.settings = make_settings(reliability_cache_seconds=60)
+    async with db_factory() as session:
+        assert await reliability.warm_cache(session, app.state.redis, 0) == 0  # cache coupé
+        assert await reliability.warm_cache(session, app.state.redis, 60) == 2
+
+    async def fail(*_: Any, **__: Any) -> Any:
+        raise AssertionError("calculé pendant la visite")
+
+    monkeypatch.setattr(route, "reliability_report", fail)
+    try:
+        assert (await client.get("/api/v1/reliability")).status_code == 200
+        r = await client.get("/api/v1/reliability", params={"competition": "BIG5"})
+        assert r.status_code == 200
+    finally:
+        await app.state.redis.delete(*keys)

@@ -23,6 +23,10 @@ from footprono.bookmaker.montante_models import Montante
 from footprono.engine.audit import family_of
 
 KINDS = ("error", "slow", "timing", "action")
+# Marchés hors de l'audit, nommés en clair (« DNB » apparaissait tel quel, 07/11/2026).
+OTHER_MARKETS = {"DNB": "Remboursé si nul"}
+# Événement daté par le téléphone (heure de l'action) : accepté jusqu'à 2 jours en arrière.
+MAX_EVENT_AGE = timedelta(days=2)
 MAX_EVENTS = 50  # par envoi de l'application
 MAX_PER_DAY = 2000  # par testeur : une application qui boucle ne remplit pas la base
 SLOW_MS = 20_000  # au-delà : « attente dépassée » (délai normal de l'application)
@@ -81,12 +85,20 @@ async def record(session: AsyncSession, user: User, events: list[dict[str, Any]]
     if (today or 0) >= MAX_PER_DAY:
         return 0
     kept = 0
+    now = datetime.now(UTC)
     for e in events[:MAX_EVENTS]:
         if e.get("kind") not in KINDS:
             continue
         duration = e.get("duration_ms")
+        # Heure de l'action sur le téléphone (avant : heure de l'envoi groupé, l'ordre des
+        # actions était perdu) ; jamais dans le futur, ni plus vieille que 2 jours.
+        at = e.get("at")
+        if isinstance(at, datetime) and at.tzinfo is None:
+            at = at.replace(tzinfo=UTC)
+        when = at if isinstance(at, datetime) and now - MAX_EVENT_AGE <= at <= now else now
         session.add(
             BetaEvent(
+                created_at=when,
                 beta_number=user.beta_number,
                 kind=e["kind"],
                 path=clean_path(str(e.get("path") or "")),
@@ -181,7 +193,8 @@ async def observatory(session: AsyncSession, now: datetime | None = None) -> dic
         for sel in sels:
             if sel.result not in ("win", "half_win", "loss", "half_loss"):
                 continue
-            m = markets[family_of(f"{sel.market}|{sel.line}|{sel.selection}")]
+            family = family_of(f"{sel.market}|{sel.line}|{sel.selection}")
+            m = markets[OTHER_MARKETS.get(family, family)]
             m[0] += 1
             if sel.model_probability is not None:
                 m[1] += float(sel.model_probability)

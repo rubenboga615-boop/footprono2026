@@ -89,6 +89,13 @@ def create_celery(settings: Settings | None = None) -> Celery:
                 "task": "footprono.premium_reminders",
                 "schedule": crontab(hour=10, minute=5),
             },
+            # Page Fiabilité gardée prête (cache de 10 min) : jamais de calcul de 6 à 7 s
+            # pour un visiteur.
+            "warm-reliability": {
+                "task": "footprono.warm_reliability",
+                "schedule": crontab(minute="*/5"),
+                "options": {"expires": 280},
+            },
             # Paiements dont la notification CinetPay n'est pas arrivée.
             "check-payments": {
                 "task": "footprono.check_payments",

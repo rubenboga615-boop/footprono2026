@@ -23,7 +23,7 @@ from footprono.football.models import Competition, Match, MatchStatus
 from footprono.football.schemas import MatchOut
 from footprono.ingestion.reference import CUPS_BY_CODE, NATIONS_BY_CODE
 from footprono.predictions.models import MatchPrediction, PredictionRun
-from footprono.predictions.reliability import reliability_report
+from footprono.predictions.reliability import cache_key, reliability_report
 from footprono.predictions.schemas import (
     ExpectedGoals,
     PredictionOut,
@@ -209,7 +209,7 @@ async def reliability(
     06/11/2026) : les chiffres ne changent qu'au règlement des matchs."""
     code = competition.upper() if competition else None
     ttl = settings.reliability_cache_seconds
-    key = f"reliability:v1:{code or ''}:{since or ''}:{recent}"
+    key = cache_key(code, since, recent)  # vues par défaut préparées par le worker
     cached = None
     if ttl > 0:
         with contextlib.suppress(RedisError):  # Redis indisponible : calcul direct

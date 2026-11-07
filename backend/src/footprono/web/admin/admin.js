@@ -1007,6 +1007,7 @@ function percent(x, signed) {
   return (signed && v > 0 ? "+" : "") + String(v).replace("-", "−") + " %";
 }
 function seconds(ms) { return ms === null || ms === undefined ? "—" : (ms / 1000).toFixed(1).replace(".", ",") + " s"; }
+const BETA_MIN_BETS = 200;
 const BETA_KIND = { slow: "attente", error: "erreur" };
 
 async function betaPage() {
@@ -1022,7 +1023,10 @@ async function betaPage() {
   const kpis = strip([
     ["Testeurs volontaires", number(s.testers)],
     ["Paris réglés", number(s.bets)],
-    ["Rendement global", percent(s.return, true), s.return < 0 ? "badt" : s.return > 0 ? "okt" : ""],
+    // Sous 200 paris réglés, le rendement n'est pas significatif (rapport du 07/11/2026) : dit.
+    s.bets < BETA_MIN_BETS
+      ? ["Rendement global", percent(s.return, true), "", `trop peu de paris pour conclure (${s.bets} sur ${BETA_MIN_BETS})`]
+      : ["Rendement global", percent(s.return, true), s.return < 0 ? "badt" : s.return > 0 ? "okt" : ""],
     ["Problèmes (7 jours)", `${s.over_20s_7_days} · ${s.errors_7_days}`, s.over_20s_7_days + s.errors_7_days ? "badt" : "okt", "attentes > 20 s · erreurs"],
   ]);
   const table = (cols, rows, empty) => rows.length
@@ -1062,15 +1066,38 @@ async function betaPage() {
     card("Coupons intelligents et montantes", coupons),
     h("p", { class: "note", style: "margin-top:12px", text: "« Annoncé » : probabilité moyenne du moteur au moment du pari ; « Arrivé » : part des sélections gagnées. Peu de paris : écarts encore peu significatifs." }));
 }
+// Export de l'Observatoire (essai du 07/11/2026 : depuis l'icône de l'écran d'accueil, le lien
+// « blob: » ne s'enregistrait pas — « Aucune application pour ouvrir ce lien » — et la console
+// annonçait quand même « Export téléchargé »). Téléphone : partage d'Android (Fichiers,
+// WhatsApp, Gmail…) ; sinon copie ; ordinateur : téléchargement. Le message dit ce qui a
+// réellement eu lieu.
 async function exportBeta() {
-  try {
-    const data = await api("GET", CONSOLE + "/beta/export");
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const a = h("a", { href: URL.createObjectURL(blob), download: `footproba-observatoire-${new Date().toISOString().slice(0, 10)}.json` });
-    document.body.append(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    toast("Export téléchargé : numéros de testeur seulement, ni nom ni téléphone.");
-  } catch (e) { toast(e.message); }
+  let data;
+  try { data = await api("GET", CONSOLE + "/beta/export"); } catch (e) { toast(e.message); return; }
+  const name = `footproba-observatoire-${new Date().toISOString().slice(0, 10)}.json`;
+  const text = JSON.stringify(data, null, 2);
+  const file = new File([text], name, { type: "application/json" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: name });
+      toast("Fichier partagé : numéros de testeur seulement, ni nom ni téléphone.");
+    } catch (e) {
+      if (e.name !== "AbortError") toast("Partage impossible : " + e.message);
+    }
+    return;
+  }
+  const installed = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+  if (installed) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("Copié dans le presse-papiers. Pour un fichier, ouvre la console dans Chrome.");
+    } catch { toast("Enregistrement impossible ici : ouvre la console dans Chrome, puis Exporter."); }
+    return;
+  }
+  const a = h("a", { href: URL.createObjectURL(new Blob([text], { type: "application/json" })), download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast(`Téléchargement lancé : ${name} (numéros de testeur seulement).`);
 }
 async function eraseBeta() {
   const ok = await confirmBox("Tout effacer ?", "Fin de la période de test : tous les événements partagés sont supprimés et les numéros de testeur retirés. Les paris des joueurs ne sont pas touchés. Irréversible.", "Tout effacer", true);

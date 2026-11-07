@@ -24,6 +24,8 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
+from fastapi.encoders import jsonable_encoder
+from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -459,3 +461,28 @@ async def reliability_report(
             else backtest_for(competition)
         ),
     }
+
+
+# --- Cache de la page Fiabilité -----------------------------------------------------------
+
+# Vues ouvertes par défaut dans l'application (tous les championnats, puis les 5 grands) :
+# préparées par le worker au démarrage et toutes les 5 minutes, pour que personne n'attende
+# le calcul (6,7 s au premier appel après une mise à jour, essai réel du 07/11/2026).
+WARM_VIEWS: tuple[str | None, ...] = (None, "BIG5")
+WARM_RECENT = 20
+
+
+def cache_key(code: str | None, since: date | None, recent: int) -> str:
+    return f"reliability:v1:{code or ''}:{since or ''}:{recent}"
+
+
+async def warm_cache(session: AsyncSession, redis: Redis, ttl: int) -> int:
+    """Calcule et garde les vues par défaut ; renvoie leur nombre (0 si le cache est coupé)."""
+    if ttl <= 0:
+        return 0
+    for code in WARM_VIEWS:
+        report = jsonable_encoder(
+            await reliability_report(session, competition=code, recent=WARM_RECENT)
+        )
+        await redis.set(cache_key(code, None, WARM_RECENT), json.dumps(report), ex=ttl)
+    return len(WARM_VIEWS)

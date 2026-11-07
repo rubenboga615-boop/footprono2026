@@ -76,7 +76,7 @@ async def test_sharing_is_off_by_default_and_anonymous(
             {"kind": "timing", "path": "/api/v1/smart-coupon", "duration_ms": 900},
             {"kind": "slow", "path": "/api/v1/smart-coupon", "duration_ms": 21000},
             {"kind": "error", "path": "/api/v1/matches/77/offer", "detail": "500"},
-            {"kind": "action", "path": "coupon_compose"},
+            {"kind": "action", "path": "coupon_compose", "at": "2026-01-01T10:00:00Z"},
             {"kind": "inconnu", "path": "/x"},
         ]
     }
@@ -125,6 +125,8 @@ async def test_sharing_is_off_by_default_and_anonymous(
     assert "Kofi" not in text
     assert "+229" not in text
     assert len(exported.json()["events"]) == 4
+    # Heure du téléphone gardée si plausible ; trop vieille (2026-01-01) : heure d'arrivée.
+    assert not any(str(e["at"]).startswith("2026-01-01") for e in exported.json()["events"])
 
     # Le joueur éteint : ses événements sont effacés.
     off = await client.put("/api/v1/me/beta", json={"enabled": False}, headers=player)
@@ -183,3 +185,21 @@ async def test_account_deletion_erases_the_tester_events(db_factory: Factory) ->
         await delete_account(session, user, "12345678")
         await session.commit()
         assert await session.scalar(select(func.count()).select_from(BetaEvent)) == 0
+
+
+async def test_event_keeps_the_phone_time(db_factory: Factory) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    async with db_factory() as session:
+        user = await accounts.register(
+            session, make_settings(), phone=PLAYER, password="12345678",
+            display_name="J", country="TG", adult=True,
+        )  # fmt: skip
+        await service.set_sharing(session, user, True)
+        tapped = datetime.now(UTC) - timedelta(minutes=3)
+        await service.record(
+            session, user, [{"kind": "action", "path": "coupon_add", "at": tapped}]
+        )
+        event = await session.scalar(select(BetaEvent))
+        assert event is not None
+        assert abs((event.created_at - tapped).total_seconds()) < 1

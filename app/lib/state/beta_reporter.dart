@@ -69,7 +69,8 @@ class BetaReporter {
   }
 
   void _add(Map<String, Object?> e) {
-    _buffer.add(e);
+    // Heure de l'action (l'envoi est groupé : sans elle, l'ordre des actions était perdu).
+    _buffer.add({...e, 'at': _clock().toUtc().toIso8601String()});
     if (_buffer.length > maxBuffer) _buffer.removeAt(0);
     final last = _lastSent;
     if (_buffer.length >= batch || last == null || _clock().difference(last) >= every) {

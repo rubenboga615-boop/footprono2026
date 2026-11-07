@@ -25,6 +25,7 @@ from footprono.notifications.push import sender_or_none as push_sender_or_none
 from footprono.payments import service as payment_service
 from footprono.predictions import cups as cup_predictions
 from footprono.predictions import nations as nation_predictions
+from footprono.predictions import reliability
 from footprono.predictions import service as prediction_service
 from footprono.worker.celery_app import celery_app
 
@@ -329,6 +330,30 @@ def _catch_up_on_start(sender: Any = None, **_: Any) -> None:
     # Après une mise à jour du serveur, les sélections jouables sont préparées tout de
     # suite (sinon le Coupon intelligent attendait la collecte des cotes suivante, 3 h).
     refresh_playable.apply_async(countdown=20)
+    # Page Fiabilité calculée d'avance : le premier visiteur n'attend plus 6 à 7 s.
+    warm_reliability.apply_async(countdown=25)
+
+
+@celery_app.task(name="footprono.warm_reliability")
+def warm_reliability() -> dict[str, Any]:
+    """Vues par défaut de la page Fiabilité préparées (au démarrage, puis toutes les 5 min)."""
+    return asyncio.run(_warm_reliability())
+
+
+async def _warm_reliability() -> dict[str, Any]:
+    settings = get_settings()
+    engine = create_engine(settings)
+    redis = create_redis(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            views = await reliability.warm_cache(session, redis, settings.reliability_cache_seconds)
+        return {"views": views}
+    except Exception as exc:  # jamais bloquant : la page calcule alors à la demande
+        logger.warning("reliability_warm_failed", extra={"error": str(exc)})
+        return {"status": "failed", "error": str(exc)[:300]}
+    finally:
+        await redis.aclose()
+        await engine.dispose()
 
 
 @celery_app.task(name="footprono.refresh_playable")

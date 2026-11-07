@@ -3,6 +3,7 @@
 Partage volontaire, anonyme et temporaire (``FP_BETA_SHARING``) ; voir ``footprono.beta``.
 """
 
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, status
@@ -30,6 +31,8 @@ class EventIn(BaseModel):
     path: str = Field(default="", max_length=512)
     duration_ms: int | None = Field(default=None, ge=0, le=600_000)
     detail: str | None = Field(default=None, max_length=500)
+    # Heure de l'action sur le téléphone (UTC).
+    at: datetime | None = None
 
 
 class EventsIn(BaseModel):
