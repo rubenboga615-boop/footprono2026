@@ -38,9 +38,15 @@ informations mal placées.
    Beo… », « Hapoel Petah Tikva – H… », « Csíkszereda – Universi… » : l'équipe à
    l'extérieur disparaît. **Piste** : les deux équipes sur deux lignes (domicile au-dessus,
    extérieur en dessous), le championnat en petit à côté de l'heure.
-2. **Matchs : aucune cote dans la liste.** Le commit annonce « chance et cote », l'écran ne
-   montre que les %. Un parieur choisit d'abord sur la cote. **Piste** : la cote en petit
-   sous chaque %.
+2. **Matchs : les cotes arrivent 10 secondes après la liste** (correction : elles sont bien
+   affichées, mes premières captures ont été prises avant leur arrivée ; capture du
+   fondateur à 10 h 05 conforme). Mesure à 10 h 15, deux comptes : liste
+   (`/predictions/upcoming`) en 1,8 à 2,5 s, puis **`/offers/main` en 9,8 à 11,1 s**
+   (128 Ko, tous les matchs du jour). Pendant ce temps, seules les % sont visibles, sans
+   signe de chargement. **Pistes** : préparer ces cotes à l'avance comme les sélections
+   jouables (Redis), ne demander d'abord que les matchs visibles, et afficher « … » à la
+   place des cotes en attente. Avec la cote, les noms sont encore plus coupés (« Leeds –
+   Tottenha… », « Malaga – Racing … ») : voir le point 1.
 3. **Matchs : plus de cloche ni de classement en haut.** Les notifications ne sont plus
    accessibles que par Profil → Notifications ; le badge « 2 » est sur Profil. **Piste** :
    remettre une petite cloche à côté de « Tous championnats ».
@@ -83,3 +89,44 @@ informations mal placées.
 3. Notifications aussi pour les bonnes nouvelles (pari gagné, coupon du jour publié).
 4. Espace sous la barre de navigation.
 5. Vitrine du Coupon intelligent : bilan de la semaine plutôt qu'un seul coupon perdu.
+
+## 5. Idées de notifications (point de vue d'un joueur)
+
+Aujourd'hui, les seules notifications vues sur le compte de test sont « Pari perdu… ».
+Ce qu'un joueur aimerait recevoir, du plus utile au moins utile, sans jamais le pousser
+à parier davantage :
+
+**Mes paris**
+1. **Coup d'envoi** : « Ton coupon commence dans 30 min : Leeds – Tottenham à 12:30 ».
+2. **Avancement d'un combiné**, groupé (pas une notification par match) : « 3 sur 7
+   validées, encore 4 matchs ce soir ».
+3. **Pari gagné** avec la somme : « Pari gagné : +18 500 F (argent fictif) ».
+4. **Match reporté ou annulé** : « Leeds – Tottenham reporté : sélection remboursée,
+   ton coupon passe à la cote 12,40 ».
+5. **Cote qui baisse sur un coupon pas encore placé** : « La cote de Leeds est passée de
+   2,78 à 2,55 dans ton coupon » (information, pas incitation).
+
+**Coupons du jour**
+6. **Publication** (existe déjà, seulement une fois les codes saisis) : y mettre l'essentiel,
+   « Sûr 1,77 (64 %) · Équilibré 2,15 · Audacieux 2,17 · codes prêts ».
+7. **Bilan d'hier, le matin** : « Hier : Audacieux gagné, Sûr et Équilibré perdus ».
+
+**Montante**
+8. **Palier validé et suivant à choisir** : « Palier 2 validé : 8 000 F. Choisis le pari du
+   palier 3 (cote 1,65 à 1,75) ».
+9. **Montante terminée** (au bout, perdue ou encaissée), avec le résultat net.
+
+**Compte**
+10. **Premium activé** après vérification du paiement Wave, et rappel de fin (existe).
+11. **Bilan de la semaine**, honnête : « Cette semaine : 5 paris, −1 200 F ; le moteur
+    annonçait 40 %, 33 % sont passés ».
+
+**Jeu responsable**
+12. **Mises en hausse** : « Tes mises de la semaine ont doublé » (aujourd'hui seulement
+    dans Mon bilan) ; avec un lien vers Jeu responsable.
+
+**À éviter** : « Grosse cote du jour à ne pas rater », « Rattrape ta perte », toute
+notification après une perte qui propose un nouveau pari.
+
+**Réglages proposés** (Profil → Notifications) : un interrupteur par famille (Mes paris,
+Coupons du jour, Montante, Bilan), et une plage de silence la nuit (23 h – 8 h) par défaut.
