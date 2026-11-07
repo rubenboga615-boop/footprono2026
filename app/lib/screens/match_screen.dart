@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -11,6 +13,8 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/maquette.dart';
+import 'daily_coupons_screen.dart' show openPremium;
 import 'odds_history.dart';
 import 'referee_screen.dart';
 import 'team_screen.dart';
@@ -512,11 +516,66 @@ class _MatchViewState extends State<_MatchView> {
     final p = d.prediction;
     final m = d.match;
     if (d.locked || !context.read<AppState>().premium) {
-      return const [
-        PremiumLock(
-          text:
-              'L\'analyse détaillée (forme, confrontations, moyennes de la saison, classement, enjeu, '
-              'corners, cartons et tirs attendus) est incluse dans Premium.',
+      // Maquette validée le 07/11/2026 : aperçu flouté, puis le bouton d'abonnement. L'aperçu ne
+      // montre que la structure (titres et barres grises) : aucun chiffre inventé.
+      Widget bar(double w) => Container(
+        width: w,
+        height: 10,
+        margin: const EdgeInsets.only(top: 6),
+        decoration: BoxDecoration(color: const Color(0x22FFFFFF), borderRadius: BorderRadius.circular(5)),
+      );
+      return [
+        ExcludeSemantics(
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 3.5, sigmaY: 3.5),
+            child: MCard(
+              margin: EdgeInsets.zero,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final t in const [
+                    'Forme des 5 derniers matchs',
+                    'Face-à-face',
+                    'Moyennes de la saison',
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(t, style: Fp.body(13.5, weight: FontWeight.w600)),
+                          bar(220),
+                          bar(160),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        MCard(
+          highlight: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.lock_rounded, size: 17, color: Color(0xFFF5B83D)),
+                  const SizedBox(width: 6),
+                  Text('Inclus dans Premium', style: Fp.title(17)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Forme, face-à-face, moyennes de la saison, classement, enjeu, corners, cartons et tirs '
+                'attendus.',
+                style: Fp.body(13.5, color: M.muted, height: 1.45),
+              ),
+              const SizedBox(height: 12),
+              MButton('Débloquer · 2 000 F / mois', onPressed: () => openPremium(context)),
+            ],
+          ),
         ),
       ];
     }

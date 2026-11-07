@@ -1078,7 +1078,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Analyse'));
     await tester.pumpAndSettle();
-    expect(find.text('Premium'), findsOneWidget);
+    // Aperçu flouté (structure seulement, aucun chiffre) puis le bouton d'abonnement.
+    expect(find.text('Inclus dans Premium'), findsOneWidget);
+    expect(find.text('Débloquer · 2 000 F / mois'), findsOneWidget);
     expect(find.text('Forme · 5 derniers matchs'), findsNothing);
   });
 
@@ -1276,7 +1278,7 @@ void main() {
     await tester.tap(find.text('Analyse'));
     await tester.pumpAndSettle();
     expect(find.text("Pas encore d'analyse pour ce match."), findsNothing);
-    expect(find.textContaining("L'analyse détaillée"), findsOneWidget);
+    expect(find.text('Inclus dans Premium'), findsOneWidget);
     expect(state.premium, isFalse); // profil relu
   });
 
