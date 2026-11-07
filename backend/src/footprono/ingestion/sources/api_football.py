@@ -110,6 +110,9 @@ class ApiFixture:
     status: str = "FT"
     # Journée (« Regular Season - 12 », « Championship Round - 3 »…), vide si inconnue.
     round: str = ""
+    # Numéros des équipes chez API-Football (logos, football/logos.py).
+    home_id: int | None = None
+    away_id: int | None = None
 
     @property
     def finished(self) -> bool:
@@ -212,6 +215,8 @@ def parse_fixture(item: dict[str, Any]) -> ApiFixture:
         match_date=kickoff.date(),
         home_team=item["teams"]["home"]["name"],
         away_team=item["teams"]["away"]["name"],
+        home_id=item["teams"]["home"].get("id"),
+        away_id=item["teams"]["away"].get("id"),
         home_goals=item["goals"]["home"],
         away_goals=item["goals"]["away"],
         home_goals_ht=halftime.get("home"),

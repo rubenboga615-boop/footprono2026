@@ -6,18 +6,18 @@ import '../theme.dart';
 
 /// Couleurs de la maquette (rgba écrits comme dans la maquette).
 abstract final class M {
-  static const card = Color(0xCC12101A);
-  static const border = Color(0x1FFFFFFF);
-  static const hlBorder = Color(0x997C3AED);
-  static const hlTop = Color(0xCC2A1655);
-  static const muted = Color(0xC7F4F2F8); // 78 %
-  static const small = Color(0xB8F4F2F8); // 72 %
-  static const line = Color(0x12FFFFFF);
-  static const line10 = Color(0x10FFFFFF);
-  static const head = Color(0xA0F4F2F8);
-  static const lock = Color(0xFFC9B2F8);
-  static const green = Color(0xFF34D399);
-  static const pink = Color(0xFFF9A8D4);
+  static const card = Fp.card;
+  static const border = Color(0xFF2A2347);
+  static const hlBorder = Fp.accent2;
+  static const hlTop = Fp.cardHigh;
+  static const muted = Fp.muted;
+  static const small = Fp.muted;
+  static const line = Color(0xFF241E3D);
+  static const line10 = Color(0xFF241E3D);
+  static const head = Fp.muted;
+  static const lock = Fp.lilac;
+  static const green = Fp.win;
+  static const pink = Fp.loss;
 }
 
 /// Titre de la maquette : Sora 23, second mot violet clair.
@@ -62,16 +62,9 @@ class MCard extends StatelessWidget {
     margin: margin,
     padding: padding,
     decoration: BoxDecoration(
-      color: highlight ? null : M.card,
-      gradient: highlight
-          ? const LinearGradient(
-              begin: Alignment(-0.4, -1),
-              end: Alignment(0.4, 1),
-              colors: [M.hlTop, M.card],
-            )
-          : null,
+      color: M.card,
       borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: highlight ? M.hlBorder : M.border),
+      border: highlight ? Border.all(color: M.hlBorder, width: 1.5) : null,
     ),
     child: child,
   );
@@ -154,15 +147,21 @@ class MChip extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  // Maquette C1 : 38 de haut, bordure #3A3260, choisie en violet plein.
   Widget build(BuildContext context) => Material(
     color: selected ? Fp.accent : Colors.transparent,
-    shape: StadiumBorder(side: BorderSide(color: selected ? Fp.accent : const Color(0x22FFFFFF))),
+    shape: StadiumBorder(side: BorderSide(color: selected ? Fp.accent : Fp.line)),
     child: InkWell(
       customBorder: const StadiumBorder(),
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Text(label, style: Fp.body(12.5, color: Fp.text)),
+      child: Container(
+        height: 38,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Text(
+          label,
+          style: Fp.body(13, color: Fp.text, weight: FontWeight.w600),
+        ),
       ),
     ),
   );

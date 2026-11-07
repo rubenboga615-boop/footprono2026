@@ -13,6 +13,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/team_logo.dart';
 import '../widgets/maquette.dart';
 import 'daily_coupons_screen.dart' show openPremium;
 import 'odds_history.dart';
@@ -141,11 +142,14 @@ class _MatchViewState extends State<_MatchView> {
                 Expanded(child: _bigTeam(m.home, Fp.accentLight)),
                 Column(
                   children: [
-                    Text(m.score ?? m.when, style: Fp.title(m.score != null ? 26 : 22)),
+                    Text(
+                      m.score?.replaceAll(' - ', ' – ') ?? m.when,
+                      style: Fp.body(30, weight: FontWeight.w800),
+                    ),
                     if (m.score != null)
                       Text(
-                        m.when,
-                        style: Fp.body(12, color: m.isLive ? Fp.win : Fp.text2, weight: FontWeight.w600),
+                        m.isLive ? '● ${m.when}' : m.when,
+                        style: Fp.body(12.5, color: m.isLive ? Fp.win : Fp.muted, weight: FontWeight.w700),
                       ),
                     if (m.referee != null)
                       InkWell(
@@ -191,27 +195,17 @@ class _MatchViewState extends State<_MatchView> {
           builder: (_) => TeamScreen(teamId: t.id, name: t.name),
         ),
       ),
+      // Maquettes F et N : logo rond, nom dessous ; un appui ouvre la fiche équipe.
       child: Column(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: tint.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: tint.withValues(alpha: 0.55)),
-            ),
-            child: Text(t.code, style: Fp.title(14, color: tint)),
-          ),
+          TeamLogo(t, size: 52),
           const SizedBox(height: 8),
           Text(
             t.name,
             textAlign: TextAlign.center,
             maxLines: 2,
-            style: Fp.body(14, weight: FontWeight.w700),
+            style: Fp.body(15, weight: FontWeight.w700),
           ),
-          Text('Fiche équipe ›', style: Fp.body(11, color: Fp.text2)),
         ],
       ),
     ),
@@ -244,24 +238,40 @@ class _MatchViewState extends State<_MatchView> {
     ].whereType<Prob>().fold<double>(0, (a, b) => b.probability > a ? b.probability : a);
     final scores = [...?byMarket['CS']]..sort((a, b) => b.probability.compareTo(a.probability));
 
+    // Maquettes F et N du 07/11/2026 : case sombre, nom, chance, puis la cote dans une
+    // petite case (« fermé » une fois le match commencé) ; l'issue la plus probable encadrée.
     Widget outcomeTile(String label, Prob? x) {
       final offer = x == null ? null : offers[x.key];
+      final on = x != null && x.probability == best;
       return Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            StatTile(
-              label,
-              x == null ? '—' : percent(x.probability),
-              center: true,
-              valueSize: 20,
-              valueColor: x != null && x.probability == best ? Fp.accentLight : Fp.text,
-            ),
-            if (offer != null) ...[
-              const SizedBox(height: 6),
-              OddsButton(match: m, offer: offer, expand: true),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
+          decoration: BoxDecoration(
+            color: Fp.fill,
+            borderRadius: BorderRadius.circular(14),
+            border: on ? Border.all(color: Fp.accent2, width: 1.5) : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Fp.body(13, color: Fp.muted),
+              ),
+              Text(
+                x == null ? '—' : percent(x.probability),
+                textAlign: TextAlign.center,
+                style: Fp.body(20, weight: FontWeight.w800),
+              ),
+              if (offer != null) ...[
+                const SizedBox(height: 6),
+                OddsButton(match: m, offer: offer, expand: true),
+              ],
             ],
-          ],
+          ),
         ),
       );
     }
@@ -280,7 +290,7 @@ class _MatchViewState extends State<_MatchView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Résultat du match', style: Fp.title(15, weight: FontWeight.w600)),
+            Text('Résultat du match', style: Fp.body(17, weight: FontWeight.w700)),
             const SizedBox(height: 12),
             if (home != null && draw != null && away != null)
               OutcomeBar(home.probability, draw.probability, away.probability),
@@ -300,7 +310,7 @@ class _MatchViewState extends State<_MatchView> {
               KeyValue('Buts attendus', '${decimal(h)} - ${decimal(a)}'),
             if (scores.isNotEmpty) ...[
               const SizedBox(height: 14),
-              Text('Scores les plus probables', style: Fp.title(15, weight: FontWeight.w600)),
+              Text('Scores les plus probables', style: Fp.body(17, weight: FontWeight.w700)),
               const SizedBox(height: 12),
               GridView.count(
                 crossAxisCount: 3,
@@ -314,15 +324,15 @@ class _MatchViewState extends State<_MatchView> {
                     Container(
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: i == 0 ? Fp.accentSoft : Fp.fill,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: i == 0 ? Fp.accentLine : Colors.transparent),
+                        color: i == 0 ? Fp.cardHigh : Colors.transparent,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: i == 0 ? Fp.accent2 : Fp.line, width: i == 0 ? 1.5 : 1),
                       ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(sc.selection, style: Fp.title(17)),
-                          Text(percent(sc.probability), style: Fp.body(12, color: Fp.text2)),
+                          Text(sc.selection, style: Fp.body(18, weight: FontWeight.w800)),
+                          Text(percent(sc.probability), style: Fp.body(12, color: Fp.muted)),
                         ],
                       ),
                     ),
@@ -1098,25 +1108,25 @@ class OddsButton extends StatelessWidget {
         width: expand ? double.infinity : null,
         constraints: const BoxConstraints(minWidth: 58),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: Fp.fill.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Fp.line),
-        ),
+        decoration: BoxDecoration(color: Fp.line12, borderRadius: BorderRadius.circular(12)),
         child: Column(
           children: [
-            Text(odds(offer.odds), style: Fp.title(15, color: Fp.text3)),
-            Text('fermé', style: Fp.body(10, color: Fp.text3)),
+            Text(
+              odds(offer.odds),
+              style: Fp.body(15, weight: FontWeight.w700, color: Fp.textSoft),
+            ),
+            Text('fermé', style: Fp.body(10.5, color: Fp.muted)),
           ],
         ),
       );
     }
+    // Maquettes F et N : petite case #2A2347, violette quand la sélection est dans le coupon.
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(12),
-      side: BorderSide(color: on ? Fp.accentLine : Fp.line),
+      side: BorderSide(color: on ? Fp.accent2 : Colors.transparent),
     );
     return Material(
-      color: on ? Fp.accent : Fp.fill,
+      color: on ? Fp.accent : Fp.line12,
       shape: shape,
       child: InkWell(
         customBorder: shape,
@@ -1127,8 +1137,10 @@ class OddsButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           child: Column(
             children: [
-              Text(odds(offer.odds), style: Fp.title(15, color: Colors.white)),
-              Text(offer.bookmaker, style: Fp.body(10, color: on ? Colors.white70 : Fp.text3)),
+              Text(odds(offer.odds), style: Fp.body(15, weight: FontWeight.w700)),
+              // 1xBet : dit en haut de l'écran ; le bookmaker de secours est nommé.
+              if (offer.bookmaker != '1xBet')
+                Text(offer.bookmaker, style: Fp.body(10, color: on ? Colors.white70 : Fp.muted)),
             ],
           ),
         ),
@@ -1154,13 +1166,16 @@ class _BeforeKickoff extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.history_rounded, color: Fp.warning, size: 20),
-          const SizedBox(width: 10),
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(Icons.schedule_rounded, color: Fp.muted, size: 15),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Chances calculées avant le coup d\'envoi : elles ne tiennent pas compte du score.$now '
               'Paris fermés sur ce match.',
-              style: Fp.body(13, color: Fp.text2, height: 1.4),
+              style: Fp.body(13, color: Fp.muted, height: 1.4),
             ),
           ),
         ],
@@ -1177,7 +1192,12 @@ class _EnginePicks extends StatelessWidget {
   final Map<String, Offer> offers;
   final MatchInfo match;
 
-  static const _colors = {'sur': Fp.win, 'equilibre': Fp.accentLight, 'audacieux': Fp.loss};
+  static const _colors = {'sur': Fp.win, 'equilibre': Fp.lilac, 'audacieux': Fp.loss};
+  static const _backgrounds = {
+    'sur': Color(0xFF12301F),
+    'equilibre': Fp.cardHigh,
+    'audacieux': Color(0xFF3A1620),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -1207,7 +1227,7 @@ class _EnginePicks extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Tag(p['label'] as String, color: _colors[key]!),
+              Tag(p['label'] as String, color: _colors[key]!, background: _backgrounds[key]),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(

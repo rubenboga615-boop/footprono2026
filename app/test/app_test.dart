@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footprono/api/client.dart';
 import 'package:footprono/api/models.dart';
+import 'package:footprono/widgets/team_logo.dart';
 import 'package:footprono/format.dart';
 import 'package:footprono/desktop/desktop_shell.dart';
 import 'package:footprono/main.dart';
@@ -1000,7 +1001,10 @@ Future<(AppState, FakeServer)> startApp(
 
 void main() {
   // Matchs du faux serveur le 10/10/2026 à 19:00 : le matin même, aucun n'a commencé.
-  setUp(() => MatchInfo.now = () => DateTime.utc(2026, 10, 10, 8));
+  setUp(() {
+    MatchInfo.now = () => DateTime.utc(2026, 10, 10, 8);
+    TeamLogo.enabled = false; // pas d'image à télécharger dans les tests
+  });
 
   testWidgets('connexion : erreur du serveur affichée, puis accès aux matchs', (tester) async {
     final (state, _) = await startApp(tester);
@@ -1020,7 +1024,7 @@ void main() {
     await tester.tap(find.text('Se connecter'));
     await tester.pumpAndSettle();
     expect(state.me?.displayName, 'Kossi');
-    expect(find.text('Lens – Lyon'), findsOneWidget);
+    expect(find.text('Lyon'), findsOneWidget); // carte du match (nouvelle interface)
     expect(find.text('41$nbsp%'), findsOneWidget);
     expect(find.text('1,85'), findsOneWidget); // cote du bookmaker sous la chance
   });
@@ -1039,7 +1043,7 @@ void main() {
 
   testWidgets('match : marchés Premium signalés, cote ajoutée au coupon, pari placé', (tester) async {
     final (state, server) = await startApp(tester, loggedIn: true);
-    await tester.tap(find.text('Lens – Lyon').first);
+    await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
     expect(find.text('Résultat du match'), findsOneWidget);
     expect(find.text('41$nbsp%'), findsOneWidget); // tuile Lens
@@ -1054,12 +1058,18 @@ void main() {
     await tester.tap(find.text('Coupon'));
     await tester.pumpAndSettle();
     expect(find.text('Victoire Lens'), findsOneWidget);
-    expect(find.text(money(1850)), findsOneWidget); // 1 000 × 1,85, mise comprise
-    expect(find.text('+${money(850)}'), findsOneWidget); // bénéfice net
+    // Maquette C3 : « 1 850 F (+850) », mise comprise puis bénéfice net en vert.
+    expect(find.textContaining('Tu récupères si tout passe'), findsOneWidget);
+    expect(find.text('1${nbsp}850 F (+850)'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Placer le pari'));
+    await tester.ensureVisible(find.text('Placer le pari · 1${nbsp}000 F'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Placer le pari'));
+    await tester.tap(find.text('Placer le pari · 1${nbsp}000 F'));
+    await tester.pumpAndSettle();
+    // Maquette N5 : récapitulatif, puis « Confirmer ».
+    expect(find.text('Placer ce pari ?'), findsOneWidget);
+    expect(server.placedBets, isEmpty);
+    await tester.tap(find.text('Confirmer · 1${nbsp}000 F'));
     await tester.pumpAndSettle();
     expect(server.placedBets, hasLength(1));
     expect(server.placedBets.single['stake'], 1000);
@@ -1069,7 +1079,7 @@ void main() {
 
   testWidgets('coupon : « Vider » demande confirmation', (tester) async {
     final (state, _) = await startApp(tester, loggedIn: true);
-    await tester.tap(find.text('Lens – Lyon').first);
+    await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('1,85').first);
     await tester.pumpAndSettle();
@@ -1126,7 +1136,7 @@ void main() {
 
   testWidgets('Premium : handicap asiatique visible, pas de verrou', (tester) async {
     await startApp(tester, loggedIn: true, premium: true);
-    await tester.tap(find.text('Lens – Lyon').first);
+    await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
     // Groupes repliés : seul le premier est ouvert ; « Handicaps » s'ouvre d'un toucher.
     expect(find.text('Handicap asiatique'), findsNothing);
@@ -1146,7 +1156,7 @@ void main() {
 
   testWidgets('version gratuite : analyse verrouillée', (tester) async {
     await startApp(tester, loggedIn: true);
-    await tester.tap(find.text('Lens – Lyon').first);
+    await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Analyse'));
     await tester.pumpAndSettle();
@@ -1158,7 +1168,7 @@ void main() {
 
   testWidgets('fiche équipe gratuite : forme et buts, statistiques avancées verrouillées', (tester) async {
     await startApp(tester, loggedIn: true);
-    await tester.tap(find.text('Lens – Lyon').first);
+    await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Fiche équipe').first);
     await tester.pumpAndSettle();
@@ -1176,7 +1186,7 @@ void main() {
   testWidgets('fiche équipe Premium, classement mérité, retour sur une fiche', (tester) async {
     final (_, server) = await startApp(tester, loggedIn: true, premium: true);
     await tester.binding.setSurfaceSize(const Size(430, 2400)); // fiche entière à l'écran
-    await tester.tap(find.text('Lens – Lyon').first);
+    await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Fiche équipe').first);
     await tester.pumpAndSettle();
@@ -1213,7 +1223,7 @@ void main() {
   testWidgets('fiche arbitre : sévérité jugée seulement avec assez de matchs, classement', (tester) async {
     await startApp(tester, loggedIn: true);
     await tester.binding.setSurfaceSize(const Size(430, 2400));
-    await tester.tap(find.text('Lens – Lyon').first);
+    await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Arbitre : Stuart Attwell'));
     await tester.pumpAndSettle();
@@ -1252,7 +1262,7 @@ void main() {
 
   testWidgets('mouvement des cotes : ouverture affichée, historique des relevés', (tester) async {
     await startApp(tester, loggedIn: true);
-    await tester.tap(find.text('Lens – Lyon').first);
+    await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cotes'));
     await tester.pumpAndSettle();
@@ -1335,7 +1345,7 @@ void main() {
   testWidgets('match : choix du moteur, deux sélections du même match à départager', (tester) async {
     final (state, _) = await startApp(tester, loggedIn: true);
     await tester.binding.setSurfaceSize(const Size(430, 2400));
-    await tester.tap(find.text('Lens – Lyon').first);
+    await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
     expect(find.text('Les choix du moteur'), findsOneWidget);
     expect(find.text('Aucune sélection dans cette tranche'), findsOneWidget); // Sûr
@@ -1362,7 +1372,7 @@ void main() {
   testWidgets('Premium retiré : cadenas affiché, jamais « pas encore d\'analyse »', (tester) async {
     final (state, server) = await startApp(tester, loggedIn: true, premium: true);
     server.premium = false; // retiré côté serveur, l'application ne le sait pas encore
-    await tester.tap(find.text('Lens – Lyon').first);
+    await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Analyse'));
     await tester.pumpAndSettle();
@@ -1376,7 +1386,7 @@ void main() {
     expect(tester.getSize(find.byType(Navigator).first).width, 430);
     await tester.binding.setSurfaceSize(const Size(1000, 900));
     await tester.pumpAndSettle();
-    expect(find.text('Lens – Lyon'), findsOneWidget);
+    expect(find.text('Lyon'), findsOneWidget);
     expect(tester.getSize(find.byType(Navigator).first).width, WideFrame.maxWidth - 2); // bordures
   });
 
@@ -1939,7 +1949,7 @@ void main() {
       ..add(epl(8, 'Fulham', 'Newcastle', '2026-10-10T15:00:00Z'))
       ..add(epl(9, 'Arsenal', 'Hull', '2026-10-10T12:30:00Z'));
     // Liste rechargée (tirer vers le bas).
-    await tester.fling(find.text('Lens – Lyon').first, const Offset(0, 400), 1000);
+    await tester.fling(find.text('Lens').first, const Offset(0, 400), 1000);
     await tester.pumpAndSettle();
     double y(String team) => tester.getTopLeft(find.textContaining(team).first).dy;
     expect(y('Arsenal'), lessThan(y('Fulham')));
@@ -1962,11 +1972,11 @@ void main() {
     };
     server.live.add(playing);
     MatchInfo.now = () => DateTime.utc(2026, 10, 10, 20, 40);
-    await tester.fling(find.text('Lens – Lyon').first, const Offset(0, 400), 1000);
+    await tester.fling(find.text('Lens').first, const Offset(0, 400), 1000);
     await tester.pumpAndSettle();
-    expect(find.text('Lens 1 - 0 Lyon'), findsOneWidget);
+    expect(find.text('1 – 0'), findsOneWidget);
     expect(find.text('90+4\''), findsOneWidget);
-    expect(find.text('Lens – Lyon'), findsNothing); // plus dans la journée
+    expect(find.text('Lyon'), findsOneWidget); // une seule carte : plus dans la journée
     final m = MatchInfo(playing);
     expect(m.when, 'En direct 90+4\'');
     expect(
@@ -2188,7 +2198,7 @@ void main() {
     await tester.tap(find.text('Voir les matchs du jour'));
     await tester.pumpAndSettle();
     expect(state.welcome, isFalse);
-    expect(find.text('Lens – Lyon'), findsOneWidget); // matchs du jour
+    expect(find.text('Lyon'), findsOneWidget); // matchs du jour
   });
 
   testWidgets('connexion Google : compte connu, directement connecté', (tester) async {

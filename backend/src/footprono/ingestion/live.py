@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.core.config import Settings
+from footprono.football import logos
 from footprono.football.models import (
     BookmakerOdds,
     Competition,
@@ -399,6 +400,10 @@ async def follow_live(
         match = by_fixture.get(fixture.fixture_id)
         if match is None:
             continue
+        # Numéros des équipes chez API-Football : logos (football/logos.py).
+        await logos.remember_api_ids(
+            session, [(match.home_team_id, fixture.home_id), (match.away_team_id, fixture.away_id)]
+        )
         label = f"{fixture.home_team}-{fixture.away_team}"
         lineups = item.get("lineups")
         if isinstance(lineups, list) and lineups:

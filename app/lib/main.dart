@@ -316,18 +316,20 @@ class _FloatingNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
+      // Barre des maquettes du 07/11/2026 : #15112A, coins 28, liseré #2A2347, 72 de haut.
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(28),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              height: 72,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
               decoration: BoxDecoration(
-                color: const Color(0xDB0E0C16),
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: Fp.line12),
+                color: const Color(0xF215112A),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: const Color(0xFF2A2347)),
               ),
               child: Row(
                 children: [
@@ -372,18 +374,9 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Maquette v2 : onglet actif en violet clair avec une lueur, sans case autour.
-    final color = selected ? const Color(0xFFC9B2F8) : const Color(0x99F4F2F8);
-    Widget glyph = NavIcon(icon, color: color);
-    if (selected) {
-      glyph = DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [BoxShadow(color: Fp.accentAlpha(0.55), blurRadius: 14)],
-        ),
-        child: glyph,
-      );
-    }
+    // Maquettes du 07/11/2026 : onglet actif en violet clair, les autres en gris violacé.
+    final color = selected ? Fp.lilac : Fp.muted;
+    final Widget glyph = NavIcon(icon, color: color);
     return Semantics(
       button: true,
       selected: selected,
@@ -400,6 +393,8 @@ class _NavItem extends StatelessWidget {
                 isLabelVisible: badge > 0,
                 label: Text('$badge'),
                 backgroundColor: badgeColor,
+                // Lisible sur le violet comme sur le rose (maquettes : chiffre sombre sur rose).
+                textColor: badgeColor == Fp.loss ? Fp.background : Colors.white,
                 child: glyph,
               ),
               const SizedBox(height: 4),
@@ -409,7 +404,7 @@ class _NavItem extends StatelessWidget {
                   child: Text(
                     label,
                     maxLines: 1,
-                    style: Fp.body(10.5, weight: FontWeight.w600, color: color),
+                    style: Fp.body(11, weight: FontWeight.w500, color: color),
                   ),
                 ),
               ),

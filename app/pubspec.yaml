@@ -66,6 +66,18 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   fonts:
+    # Inter (licence OFL, assets/fonts/LICENSE-Inter.txt), réduite aux caractères latins.
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.otf
+        - asset: assets/fonts/Inter-Medium.otf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.otf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.otf
+          weight: 700
+        - asset: assets/fonts/Inter-ExtraBold.otf
+          weight: 800
     - family: Sora
       fonts:
         - asset: assets/fonts/Sora-SemiBold.ttf

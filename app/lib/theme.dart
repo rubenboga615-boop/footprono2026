@@ -4,29 +4,37 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+// Nouvelle interface validée le 07/11/2026 (docs/maquettes/LISEZ-MOI.md) : fond #0E0B1A,
+// cartes #1A1530, violet #6D4AFF / #7C5CFF, texte secondaire #A9A3C2, vert #4ADE80,
+// rose #FF8A9B, ambre #E7C98A, police Inter.
 class Fp {
-  static const background = Color(0xFF060509);
-  static const accent = Color(0xFF7C3AED);
-  // Accent mélangé à 45 % de blanc : texte sur fond sombre.
-  static const accentLight = Color(0xFFB793F5);
-  static const text = Color(0xFFF4F2F8);
-  static const text2 = Color(0xADF4F2F8); // 68 %
-  static const text3 = Color(0x9EF4F2F8); // 62 %
-  static const text4 = Color(0x8CF4F2F8); // 55 %
-  static const textSoft = Color(0xC7F4F2F8); // 78 %
-  static const textStrong = Color(0xD1F4F2F8); // 82 %
-  static const win = Color(0xFF34D399);
-  static const loss = Color(0xFFF472B6);
-  static const lossText = Color(0xFFF9A8D4);
-  static const warning = Color(0xFFFBBF24);
-  static const glass = Color(0xCC12101A); // rgba(18,16,26,0.8), maquette v2
-  static const fill = Color(0x0DFFFFFF); // blanc 5 %
-  static const fill6 = Color(0x0FFFFFFF); // blanc 6 %
-  static const fill7 = Color(0x12FFFFFF); // blanc 7 %
-  static const line = Color(0x24FFFFFF); // blanc 14 %
-  static const line12 = Color(0x1FFFFFFF);
-  static const line10 = Color(0x1AFFFFFF);
-  static const divider = Color(0x12FFFFFF); // blanc 7 %
+  static const background = Color(0xFF0E0B1A);
+  static const accent = Color(0xFF6D4AFF);
+  static const accent2 = Color(0xFF7C5CFF); // contour de l'issue encadrée
+  // Texte violet sur fond sombre (« du jour »).
+  static const accentLight = Color(0xFFA78BFA);
+  static const lilac = Color(0xFFB9B2FF); // liens, pastilles
+  static const card = Color(0xFF1A1530);
+  static const cardHigh = Color(0xFF2B2060); // case choisie, rond des initiales
+  static const text = Color(0xFFFFFFFF);
+  static const muted = Color(0xFFA9A3C2);
+  static const text2 = muted;
+  static const text3 = muted;
+  static const text4 = Color(0xFF8C86A6);
+  static const textSoft = Color(0xFFC9C3F0);
+  static const textStrong = Color(0xFFE4E0F7);
+  static const win = Color(0xFF4ADE80);
+  static const loss = Color(0xFFFF8A9B);
+  static const lossText = Color(0xFFFF8A9B);
+  static const warning = Color(0xFFE7C98A);
+  static const glass = card;
+  static const fill = Color(0xFF0E0B1A); // case sombre sur une carte
+  static const fill6 = Color(0xFF15112A);
+  static const fill7 = Color(0xFF15112A);
+  static const line = Color(0xFF3A3260);
+  static const line12 = Color(0xFF2A2347);
+  static const line10 = Color(0xFF241E3D);
+  static const divider = Color(0xFF241E3D);
 
   static Color accentAlpha(double a) => accent.withValues(alpha: a);
   static final accentSoft = accentAlpha(0.16);
@@ -34,15 +42,15 @@ class Fp {
   static final accentLine = accentAlpha(0.5);
   static const accentBar = LinearGradient(colors: [accent, accentLight]);
 
-  static const titleFont = 'Sora';
-  static const bodyFont = 'PlusJakartaSans';
+  static const titleFont = 'Inter';
+  static const bodyFont = 'Inter';
 
   static TextStyle title(double size, {Color color = text, FontWeight weight = FontWeight.w700}) => TextStyle(
     fontFamily: titleFont,
     fontSize: size,
     fontWeight: weight,
     color: color,
-    letterSpacing: size >= 20 ? -0.02 * size : -0.01 * size,
+    letterSpacing: size >= 20 ? -0.01 * size : 0,
     height: 1.15,
   );
 
@@ -243,25 +251,10 @@ class FpBackground extends StatelessWidget {
 class _BackgroundPainter extends CustomPainter {
   const _BackgroundPainter();
 
-  /// Fond de la maquette validée le 07/11/2026 : noir violacé et un seul halo en haut à
-  /// droite (`radial-gradient(500px 300px at 80% 5%, #2a1655 0, transparent 70%)`), sans les
-  /// traits en diagonale de l'ancien fond.
+  /// Nouvelle interface (maquettes du 07/11/2026) : fond uni #0E0B1A, sans halo.
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Offset.zero & size, Paint()..color = Fp.background);
-    final rect = Rect.fromCenter(
-      center: Offset(size.width * 0.8, size.height * 0.05),
-      width: 1000,
-      height: 600,
-    );
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()
-        ..shader = const RadialGradient(
-          colors: [Color(0xFF2A1655), Color(0x002A1655)],
-          stops: [0, 0.7],
-        ).createShader(rect),
-    );
   }
 
   @override
@@ -367,16 +360,9 @@ class GlassCard extends StatelessWidget {
   /// bordure fine, fond uni ; mise en avant : bordure violette et dégradé. Plus de coins coupés,
   /// de flou ni de triangles décoratifs.
   static BoxDecoration decoration(bool highlight) => BoxDecoration(
-    color: highlight ? null : const Color(0xCC12101A),
-    gradient: highlight
-        ? const LinearGradient(
-            begin: Alignment(-0.4, -1),
-            end: Alignment(0.4, 1),
-            colors: [Color(0xCC2A1655), Color(0xCC12101A)],
-          )
-        : null,
+    color: Fp.card,
     borderRadius: BorderRadius.circular(18),
-    border: Border.all(color: highlight ? const Color(0x997C3AED) : const Color(0x1FFFFFFF)),
+    border: highlight ? Border.all(color: Fp.accent2, width: 1.5) : null,
   );
 
   @override
@@ -626,21 +612,22 @@ class Tag extends StatelessWidget {
   final IconData? icon;
 
   /// Gagné : fond vert, texte sombre.
-  const Tag.win(this.text, {super.key}) : color = Fp.win, background = const Color(0x2234D399), icon = null;
+  const Tag.win(this.text, {super.key}) : color = Fp.win, background = const Color(0xFF12301F), icon = null;
 
   /// Perdu : fond rose, texte sombre.
   const Tag.loss(this.text, {super.key})
     : color = Fp.lossText,
-      background = const Color(0x22F472B6),
+      background = const Color(0xFF3A1620),
       icon = null;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+      // Maquettes (.tag) : coins 8, fond sombre teinté, texte 11 gras.
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: background ?? color.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(99),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -734,33 +721,29 @@ class SegmentTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Maquettes du 07/11/2026 (.seg) : bande #1A1530, coins 16, onglet choisi #2B2060.
     return Container(
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Fp.fill,
-        borderRadius: Fp.radius14,
-        border: Border.all(color: Fp.line10),
-      ),
+      decoration: BoxDecoration(color: Fp.card, borderRadius: BorderRadius.circular(16)),
       child: Row(
         children: [
           for (var i = 0; i < labels.length; i++) ...[
-            if (i > 0) const SizedBox(width: 6),
             Expanded(
               child: Material(
-                color: i == selected ? Fp.accentSoft : Colors.transparent,
-                borderRadius: BorderRadius.circular(10),
+                color: i == selected ? Fp.cardHigh : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                   onTap: () => onSelected(i),
                   child: SizedBox(
-                    height: 38,
+                    height: 42,
                     child: Center(
                       child: Text(
                         labels[i],
                         style: Fp.body(
-                          13,
+                          14,
                           weight: FontWeight.w600,
-                          color: i == selected ? Colors.white : const Color(0xB8F4F2F8),
+                          color: i == selected ? Colors.white : Fp.muted,
                         ),
                       ),
                     ),

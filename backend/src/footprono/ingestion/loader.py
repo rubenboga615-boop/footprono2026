@@ -18,6 +18,7 @@ from sqlalchemy import Result, literal_column, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from footprono.football import logos
 from footprono.football.models import (
     Competition,
     DataSource,
@@ -718,6 +719,12 @@ async def load_api_football(
                     f"du {f.match_date} introuvable en base"
                 )
 
+    # Numéros des équipes chez API-Football : logos (football/logos.py).
+    await logos.remember_api_ids(
+        session,
+        [(home, f.home_id) for f, _, home, _ in pairs]
+        + [(away, f.away_id) for f, _, _, away in pairs],
+    )
     rows: list[dict[str, Any]] = []
     for f, match, home, away in pairs:
         played = f.finished or f.status == "AWD"

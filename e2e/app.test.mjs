@@ -74,26 +74,32 @@ await check('inscription', async () => {
 
 await check('matchs à venir avec probabilités du moteur', async () => {
   await visible(text(/^Matchs (à venir|du jour)/));
-  // Une ligne par match (maquette du 07/11/2026) : un bouton dont le nom contient les
-  // équipes et les chances 1, N, 2.
-  await visible(button(/ – .*\d+\s?%.*\d+\s?%.*\d+\s?%/s));
+  // Une carte par match (maquette C1 du 07/11/2026) : un bouton dont le nom contient les
+  // chances 1, N, 2.
+  await visible(button(/\d+\s?%.*\d+\s?%.*\d+\s?%/s));
 });
 
 await check('match : probabilités et cote réelle ajoutée au coupon', async () => {
-  await button(/ – .*\d+\s?%/s).click();
+  await button(/\d+\s?%.*\d+\s?%.*\d+\s?%/s).first().click();
   await visible(text('Résultat du match'));
-  await button(/1xBet/).click();
+  // Cote 1xBet sous chaque issue (maquette F) : le bouton porte la cote seule.
+  await page.getByRole('button', { name: /^\d+,\d+$/ }).first().click();
   await visible(text('Ajouté au coupon'));
   await button('Retour').click();
 });
 
 await check('coupon : pari placé, gain calculé', async () => {
   await nav('Coupon');
-  await visible(text('Cote totale (1xBet)'));
-  // Mise comprise, puis le bénéfice net (rapport du 07/11/2026).
-  await visible(text('Tu récupères'));
-  await visible(text('Bénéfice'));
+  await visible(text(/Cote totale/));
+  // Le bas du coupon peut être sous l'écran (la liste ne construit que ce qui est proche).
+  await page.mouse.move(200, 400);
+  await page.mouse.wheel(0, 800);
+  await page.waitForTimeout(800);
+  // Mise comprise, puis le bénéfice net (maquette C3).
+  await visible(text('Tu récupères si tout passe'));
   await button(/Placer le pari/).click();
+  // Récapitulatif avant le pari (maquette N5).
+  await button(/Confirmer/).click();
   await visible(text(/Pari placé/));
 });
 

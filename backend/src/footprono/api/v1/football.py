@@ -4,12 +4,14 @@ from datetime import date
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
+from fastapi.responses import FileResponse
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import aliased
 
 from footprono.accounts.plans import PremiumRequiredError, is_premium
-from footprono.api.deps import OptionalUserDep, SessionDep
+from footprono.api.deps import OptionalUserDep, SessionDep, SettingsDep
 from footprono.core.errors import NotFoundError
+from footprono.football import logos
 from footprono.football.analysis import match_analysis
 from footprono.football.models import (
     BookmakerOdds,
@@ -148,6 +150,22 @@ async def get_team(team_id: int, session: SessionDep) -> Team:
     if team is None:
         raise NotFoundError(f"équipe {team_id} introuvable")
     return team
+
+
+@router.get("/teams/{team_id}/logo", response_class=FileResponse)
+async def team_logo(team_id: int, session: SessionDep, settings: SettingsDep) -> FileResponse:
+    """Logo de l'équipe (image d'API-Football gardée par le serveur) ; 404 sans logo :
+    l'application affiche alors les initiales."""
+    number = await logos.api_id(session, team_id)
+    path = (
+        None if number is None else await logos.logo_file(settings.raw_data_dir / "logos", number)
+    )
+    if path is None:
+        raise NotFoundError(f"pas de logo pour l'équipe {team_id}")
+    # Un logo change rarement : gardé une semaine par le téléphone.
+    return FileResponse(
+        path, media_type="image/png", headers={"Cache-Control": "public, max-age=604800"}
+    )
 
 
 @router.get("/teams/{team_id}/profile")
