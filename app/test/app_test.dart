@@ -1838,18 +1838,20 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('Retiré : « Tirs cadrés : le plus de »'), findsOneWidget);
+    // Maquette C5 : la page s'ouvre sur les pronostics publiés (résultats réels).
+    expect(find.text('✓ règle respectée'), findsOneWidget);
+    expect(find.text('7,5\u00A0%'), findsOneWidget); // 0,99 contre 1,07 (fréquence observée)
+    expect(find.textContaining('Pronostics publiés avant les matchs, Tous les championnats'), findsOneWidget);
+
     // Simulation du résultat du match : annoncé → arrivé, avantage sur la moyenne, bookmakers.
+    await tester.tap(find.text('Simulation'));
+    await tester.pumpAndSettle();
     expect(find.text('✓ règle respectée · écart max 3 pts'), findsOneWidget);
     expect(find.textContaining('74 → '), findsOneWidget);
     expect(find.text('7,9\u00A0%'), findsOneWidget);
     expect(find.textContaining('en plus que les bookmakers'), findsOneWidget);
-
-    // Pronostics publiés : verdict et chiffres clés tirés des résultats réels.
     await tester.tap(find.text('Depuis le lancement (550)'));
     await tester.pumpAndSettle();
-    expect(find.text('✓ règle respectée'), findsOneWidget);
-    expect(find.text('7,5\u00A0%'), findsOneWidget); // 0,99 contre 1,07 (fréquence observée)
-    expect(find.textContaining('Pronostics publiés avant les matchs, Tous les championnats'), findsOneWidget);
 
     // Liste des marchés : un autre marché s'affiche à la place.
     await tester.tap(find.text('Résultat du match'));

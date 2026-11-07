@@ -74,7 +74,8 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
   /// Famille de l'audit (5 grands championnats) ou marché suivi (autres championnats).
   String market = '1X2';
   String competition = '';
-  bool live = false;
+  // Maquette C5 du 07/11/2026 : la page s'ouvre sur les résultats réels.
+  bool live = true;
 
   static String _compLabel(String c) => switch (c) {
     '' => 'Tous les championnats',
@@ -98,14 +99,25 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
             'recent': 20,
           }) as Json,
           builder: (context, r, reload) {
-            final view = _View.of(r, market, live, _compLabel(competition));
+            var view = _View.of(r, market, live, _compLabel(competition));
+            // Pas encore de résultats réels pour ce choix : la simulation seule.
+            if (live && !view.canLive) view = _View.of(r, market, false, _compLabel(competition));
+            final showLive = live && view.canLive;
             return RefreshIndicator(
               onRefresh: reload,
               child: ListView(
                 padding: pagePadding(context, 16, 32, maxWidth: 640),
                 children: [
                   const BackHeader('Fiabilité', 'du moteur'),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
+                  if (view.canLive) ...[
+                    SegmentTabs(
+                      labels: ['Depuis le lancement (${thousands(view.liveMatches)})', 'Simulation'],
+                      selected: showLive ? 0 : 1,
+                      onSelected: (i) => setState(() => live = i == 0),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   _Verdict(view.verdict, ok: view.verdictOk),
                   const SizedBox(height: 12),
                   Row(
@@ -136,19 +148,11 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (view.canLive) ...[
-                          SegmentTabs(
-                            labels: ['Simulation', 'Depuis le lancement (${thousands(view.liveMatches)})'],
-                            selected: live ? 1 : 0,
-                            onSelected: (i) => setState(() => live = i == 1),
-                          ),
-                          const SizedBox(height: 10),
-                        ],
                         Row(
                           children: [
-                            _legend(const Color(0x66F4F2F8), 'annoncé'),
+                            _legend(_announced, 'annoncé'),
                             const SizedBox(width: 12),
-                            _legend(const Color(0xFF8B5CF6), 'arrivé'),
+                            _legend(Fp.accent2, 'arrivé'),
                             const Spacer(),
                             if (view.status != null)
                               Flexible(
@@ -176,11 +180,11 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                           )
                         else
                           _CalibrationChart(view.calibration, view.minBin),
-                        const SizedBox(height: 6),
-                        Text(view.source, style: Fp.body(11.5, color: Fp.text3, height: 1.4)),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  Text(view.source, style: Fp.body(12, color: Fp.muted, height: 1.4)),
                   const SizedBox(height: 10),
                   IntrinsicHeight(
                     child: Row(
@@ -746,24 +750,18 @@ class _Verdict extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = ok ? Fp.win : Fp.warning;
+    // Maquette C5 : encadré ambre (pas encore juste) ou vert (règle respectée).
+    final (bg, border, color) = ok
+        ? (const Color(0xFF12301F), const Color(0xFF1F5B3A), const Color(0xFFC9F5D9))
+        : (const Color(0xFF1F1709), const Color(0xFF6B4F1D), Fp.warning);
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
+        color: bg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: border),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(ok ? Icons.check_circle_rounded : Icons.info_outline_rounded, size: 20, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(text, style: Fp.body(14, color: Fp.text, height: 1.45)),
-          ),
-        ],
-      ),
+      child: Text(text, style: Fp.body(13.5, color: color, height: 1.45)),
     );
   }
 }
@@ -777,34 +775,32 @@ class _Drop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Maquette C5 : carte, petit libellé gris, choix en gras.
     return Material(
-      color: accent ? Fp.accent.withValues(alpha: 0.15) : Fp.fill,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: accent ? Fp.accent : Fp.line),
-      ),
+      color: Fp.card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 10, 9),
+          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
           child: Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label, style: Fp.body(11.5, color: Fp.text2)),
+                    Text(label, style: Fp.body(12, color: Fp.muted)),
                     Text(
                       value,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Fp.body(14.5, weight: FontWeight.w800),
+                      style: Fp.body(15, weight: FontWeight.w700),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.expand_more_rounded, size: 20, color: Fp.text2),
+              const Icon(Icons.expand_more_rounded, size: 18, color: Fp.muted),
             ],
           ),
         ),
@@ -906,15 +902,15 @@ class _CalibrationChart extends StatelessWidget {
                 children: [
                   SizedBox(
                     width: 74,
-                    child: Text(_label(b['range']), style: Fp.body(12.5, color: Fp.text2)),
+                    child: Text(_label(b['range']), style: Fp.body(12, color: Fp.muted)),
                   ),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _bar((b['announced'] as num).toDouble(), const Color(0x66F4F2F8)),
+                        _bar((b['announced'] as num).toDouble(), _announced),
                         const SizedBox(height: 3),
-                        _bar((b['observed'] as num).toDouble(), const Color(0xFF8B5CF6)),
+                        _bar((b['observed'] as num).toDouble(), Fp.accent2),
                       ],
                     ),
                   ),
@@ -925,11 +921,11 @@ class _CalibrationChart extends StatelessWidget {
                         children: [
                           TextSpan(
                             text: '${((b['announced'] as num) * 100).round()} → ',
-                            style: Fp.body(12.5, color: Fp.text2),
+                            style: Fp.body(12.5, weight: FontWeight.w700),
                           ),
                           TextSpan(
                             text: percent((b['observed'] as num).toDouble()),
-                            style: Fp.body(13, weight: FontWeight.w800),
+                            style: Fp.body(12.5, weight: FontWeight.w700),
                           ),
                         ],
                       ),
@@ -944,13 +940,13 @@ class _CalibrationChart extends StatelessWidget {
     );
   }
 
+  // Maquette C5 : barres fines de 5, sans fond.
   Widget _bar(double value, Color color) => ClipRRect(
-    borderRadius: BorderRadius.circular(99),
+    borderRadius: BorderRadius.circular(3),
     child: SizedBox(
-      height: 7,
+      height: 5,
       child: Stack(
         children: [
-          const Positioned.fill(child: ColoredBox(color: Fp.fill6)),
           FractionallySizedBox(
             alignment: Alignment.centerLeft,
             heightFactor: 1,
@@ -999,3 +995,6 @@ class _RecentRow extends StatelessWidget {
     );
   }
 }
+
+/// Barre « annoncé » des maquettes (#6B6490).
+const _announced = Color(0xFF6B6490);
