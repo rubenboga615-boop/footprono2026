@@ -116,8 +116,23 @@ String teamCode(String name) {
   final words = name.replaceAll(RegExp(r"[^A-Za-zÀ-ÿ ]"), ' ').split(' ').where((w) => w.length > 1).toList();
   if (words.isEmpty) return name.substring(0, name.length.clamp(0, 3)).toUpperCase();
   final main = words.first;
+  // « Newcastle United » → NEW, pas NUN (essai du 07/11/2026) : le 2e mot n'est qu'un
+  // suffixe de club. Manchester garde MUN et MCI (deux clubs dans la même ville).
+  const suffixes = {'United', 'City', 'Town', 'FC', 'CF', 'SC', 'AC', 'Club', 'Athletic', 'County', 'Rovers'};
+  if (words.length == 2 && suffixes.contains(words[1]) && main != 'Manchester') {
+    return main.substring(0, main.length.clamp(0, 3)).toUpperCase();
+  }
   final code = words.length == 1
       ? main.substring(0, main.length.clamp(0, 3))
       : main.substring(0, 1) + words[1].substring(0, words[1].length.clamp(0, 2));
   return code.toUpperCase();
+}
+
+/// Chance d'un pari en mots : « 1 chance sur 60 » pour un pari improbable, « environ 7 fois
+/// sur 10 » au-delà de 50 % (« 1 chance sur 1 » laissait croire qu'un pari à 72 % était
+/// certain, essai du 07/11/2026).
+String chanceInWords(double p) {
+  if (p <= 0) return '';
+  if (p < 0.5) return '1 chance sur ${(1 / p).round()}';
+  return 'environ ${(p * 10).round()} fois sur 10';
 }

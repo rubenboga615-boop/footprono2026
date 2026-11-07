@@ -30,6 +30,9 @@ Future<void> copyBookingCode(Json booking) async {
   showMessage('Code ${booking['code']} copié : colle-le dans ${booking['label']}.');
 }
 
+/// Coupon terminé (gagné, perdu, réglé) : plus de code à attendre ni de sélection à jouer.
+bool _over(Json c) => !const {'upcoming', 'live'}.contains(c['display_status']);
+
 Widget _statusTag(Json c) => switch (c['display_status']) {
   'won' => const Tag.win('Gagné'),
   'lost' => const Tag.loss('Perdu'),
@@ -187,8 +190,9 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
     );
   }
 
-  static String _record(Map<String, dynamic> r) =>
-      r['settled'] == 0 ? 'aucun coupon réglé' : '${r['won']} gagné(s) sur ${r['settled']}';
+  static String _record(Map<String, dynamic> r) => r['settled'] == 0
+      ? 'aucun coupon réglé'
+      : '${r['won']} gagné${(r['won'] as int) > 1 ? 's' : ''} sur ${r['settled']}';
 }
 
 /// Pourquoi un profil n'a pas de coupon ce jour-là (règles des coupons du jour, serveur :
@@ -278,7 +282,7 @@ class _DailyCouponCard extends StatelessWidget {
                 ),
               ],
             )
-          else if (codes.isEmpty)
+          else if (codes.isEmpty && !_over(c))
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -407,7 +411,7 @@ class DailyCouponDetail extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (codes.isEmpty)
+                  if (codes.isEmpty && !_over(coupon))
                     Text('Code bientôt disponible.', style: Fp.body(13, color: Fp.text3))
                   else
                     for (final b in codes) BookingCodeRow(b),
@@ -421,11 +425,13 @@ class DailyCouponDetail extends StatelessWidget {
                         icon: const Icon(Icons.ios_share_rounded, size: 18),
                         label: const Text('Partager en image'),
                       ),
-                      OutlinedButton.icon(
-                        onPressed: () => addSelectionsToCoupon(context.read<AppState>(), sels),
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: const Text('Ajouter à mon coupon'),
-                      ),
+                      // Seulement avant le premier match : ensuite, les cotes ne sont plus jouables.
+                      if (coupon['display_status'] == 'upcoming')
+                        OutlinedButton.icon(
+                          onPressed: () => addSelectionsToCoupon(context.read<AppState>(), sels),
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: const Text('Ajouter à mon coupon'),
+                        ),
                     ],
                   ),
                 ],

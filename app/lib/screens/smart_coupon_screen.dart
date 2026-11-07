@@ -82,7 +82,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
   int period = 5; // Prochaine journée : jamais vide pendant une trêve
   int size = 3;
   int maxBig = AppState.maxCoupon; // Grosse cote : plafond de sélections
-  num target = 50;
+  num target = 25; // le choix le plus courant (essai du 07/11/2026 : 50 coché d'office)
   DateTime day = _today().add(const Duration(days: 1));
   DateTime? rangeTo;
   int hour = 0;
@@ -276,8 +276,9 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
             if (!premium) ...[
               const PremiumLock(
                 text:
-                    'Le Coupon intelligent est inclus dans Premium. Les coupons du jour et leur bilan '
-                    '(bouton historique en haut) restent publics.',
+                    'Le Coupon intelligent compose un coupon selon ton profil et la cote que tu vises, '
+                    'avec ses raisons. Les coupons du jour et leur bilan restent visibles par tous '
+                    '(Coupon → Coupons du jour).',
               ),
             ] else ...[
               ...deskSplit(
@@ -505,7 +506,6 @@ class _CouponCard extends StatelessWidget {
     final sels = (coupon['selections'] as List).cast<Json>();
     final p = (coupon['probability'] as num).toDouble();
     final implied = (coupon['implied_probability'] as num).toDouble();
-    final oneIn = (coupon['one_in'] as num?)?.toInt() ?? (p > 0 ? (1 / p).round() : null);
     return GlassCard.section(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -560,7 +560,7 @@ class _CouponCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             [
-              if (oneIn != null) '1 chance sur $oneIn',
+              if (p > 0) chanceInWords(p),
               'selon la cote (marge comprise) : ${percent(implied, decimals: 1)}',
             ].join(' · '),
             style: Fp.body(12, color: Fp.text3),
@@ -773,7 +773,7 @@ class ProfileRecordCard extends StatelessWidget {
                       Text(
                         st['settled'] == 0
                             ? 'aucun coupon réglé'
-                            : '${st['won']} gagné(s) sur ${st['settled']}',
+                            : '${st['won']} gagné${(st['won'] as int) > 1 ? 's' : ''} sur ${st['settled']}',
                         style: Fp.body(14, weight: FontWeight.w700),
                       ),
                     ],

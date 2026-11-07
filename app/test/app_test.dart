@@ -39,6 +39,7 @@ class FakeServer {
   bool dailyNotifications = true;
   bool betaAvailable = false;
   final extraUpcoming = <Map<String, dynamic>>[];
+  bool paymentsConfigured = true;
   bool betaSharing = false;
   final betaEvents = <Map<String, dynamic>>[];
   int latestBuild = 50;
@@ -192,10 +193,14 @@ class FakeServer {
           'currency': 'XOF',
           'days': 30,
           'methods': [
-            {'id': 'wave', 'label': 'Wave'},
-            {'id': 'paystack', 'label': 'Orange Money, MTN, Wave ou carte'},
+            if (paymentsConfigured) ...[
+              {'id': 'wave', 'label': 'Wave'},
+              {'id': 'paystack', 'label': 'Orange Money, MTN, Wave ou carte'},
+            ],
           ],
-          'manual': {'wave_number': '+2250700000000', 'whatsapp': '+2250500649904'},
+          'manual': paymentsConfigured
+              ? {'wave_number': '+2250700000000', 'whatsapp': '+2250500649904'}
+              : null,
         };
       case 'POST /payments/premium':
         boughtWith = (jsonDecode(r.body) as Map)['method'] as String?;
@@ -469,6 +474,28 @@ class FakeServer {
                 {'bookmaker': '1xbet', 'label': '1xBet', 'code': '7HQ2K'},
               ],
               'settled_at': null,
+            },
+            {
+              'id': 3,
+              'day': '2026-10-10',
+              'profile': 'audacieux',
+              'profile_label': 'Audacieux',
+              'selections': [
+                {
+                  ...smartSel,
+                  'result': 'loss',
+                  'state': 'settled',
+                  'score': [0, 2],
+                },
+              ],
+              'total_odds': '3.10',
+              'probability': 0.3,
+              'status': 'lost',
+              'display_status': 'lost',
+              'validated': 0,
+              'first_kickoff': '2026-10-10T13:00:00Z',
+              'booking_codes': [],
+              'settled_at': '2026-10-10T15:00:00Z',
             },
           ],
           'summary': {
@@ -1184,7 +1211,7 @@ void main() {
       'target_odds': '25',
       'after_hour': '18',
     });
-    expect(find.textContaining('1 chance sur 2'), findsOneWidget); // probabilité 0,62
+    expect(find.textContaining('environ 6 fois sur 10'), findsOneWidget); // probabilité 0,62
     expect(find.textContaining('Coupon à gros risque'), findsOneWidget);
     // Règle du coupon expliquée (cotes reçues en texte, comme du serveur).
     expect(find.textContaining('jusqu\'à dépasser la cote visée'), findsOneWidget);
@@ -1342,6 +1369,35 @@ void main() {
     final push = FakePush()..current = null;
     final (_, server) = await startApp(tester, loggedIn: true, push: push);
     expect(server.devices, isEmpty);
+  });
+
+  testWidgets('Premium sans paiement en ligne : WhatsApp proposé, jamais d\'impasse', (tester) async {
+    SharedPreferences.setMockInitialValues({'token': 'jeton'});
+    final server = FakeServer()..paymentsConfigured = false;
+    final opened = <Uri>[];
+    final state = AppState(
+      api: ApiClient(baseUrl: 'http://serveur', httpClient: MockClient(server.handle)),
+      socketFactory: (_) => null,
+      openUrl: (url) async {
+        opened.add(url);
+        return true;
+      },
+    );
+    await tester.binding.setSurfaceSize(const Size(430, 1400));
+    await tester.pumpWidget(FootProbaApp(state: state));
+    await state.init();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.textContaining('Passer Premium'), 200);
+    await tester.tap(find.textContaining('Passer Premium'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Paiement indisponible'), findsNothing);
+    await tester.tap(find.text('Écrire sur WhatsApp'));
+    await tester.pumpAndSettle();
+    expect(opened.single.host, 'wa.me');
+    expect(opened.single.queryParameters['text'], contains('je veux passer Premium'));
+    expect(opened.single.queryParameters['text'], contains('n° 1'));
   });
 
   testWidgets('Premium : paiement ouvert dans le navigateur, vérifié au retour', (tester) async {
@@ -1573,7 +1629,7 @@ void main() {
     await tester.tap(find.byTooltip('Historique complet'));
     await tester.pumpAndSettle();
     expect(find.text('Gagné'), findsWidgets);
-    expect(find.textContaining('1 gagné(s) sur 1'), findsOneWidget);
+    expect(find.textContaining('1 gagné sur 1'), findsOneWidget);
   });
 
   testWidgets('coupons du jour gratuits : profil, cote et chance, sélections et code dans Premium', (
@@ -1586,7 +1642,7 @@ void main() {
     await tester.tap(find.text('Coupons du jour'));
     await tester.pumpAndSettle();
     expect(find.text('62$nbsp%'), findsOneWidget); // la chance reste visible
-    expect(find.text('Sélections et code dans Premium'), findsNWidgets(2));
+    expect(find.text('Sélections et code dans Premium'), findsNWidgets(3));
     expect(find.text('Copier'), findsNothing);
     expect(find.text('Débloquer les coupons du jour'), findsOneWidget);
     await tester.tap(find.text('Passer Premium'));
@@ -1605,12 +1661,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coupons du jour'));
     await tester.pumpAndSettle();
-    expect(find.text('2 gagné(s) sur 3'), findsOneWidget);
+    expect(find.text('2 gagnés sur 3'), findsOneWidget);
     // 30 derniers jours : un profil par ligne, jamais additionnés.
-    expect(find.text('49 gagné(s) sur 90'), findsNothing);
-    expect(find.text('17 gagné(s) sur 30'), findsOneWidget);
+    expect(find.text('49 gagnés sur 90'), findsNothing);
+    expect(find.text('17 gagnés sur 30'), findsOneWidget);
     expect(find.text('Chance annoncée 27$nbsp% · réalisé 27$nbsp%'), findsOneWidget);
+    // Coupon perdu sans code : plus de « bientôt disponible » (essai du 07/11/2026).
     expect(find.text('Code bientôt disponible'), findsOneWidget);
+    expect(find.text('Perdu'), findsOneWidget);
     expect(find.text('En cours'), findsOneWidget);
     expect(find.text('62$nbsp%'), findsOneWidget);
 
@@ -1624,6 +1682,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('en cours 58\' · 1-0'), findsOneWidget);
     expect(find.textContaining('Sur 100 coupons comme celui-ci, environ 62 passent.'), findsOneWidget);
+    // Matchs commencés : plus d'ajout au coupon.
+    expect(find.text('Ajouter à mon coupon'), findsNothing);
   });
 
   testWidgets('historique des coupons : les plus anciens chargés à la demande', (tester) async {
@@ -1786,8 +1846,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coupon intelligent'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('inclus dans Premium'), findsOneWidget);
+    expect(find.textContaining('compose un coupon selon ton profil'), findsOneWidget);
     expect(find.text('Composer le coupon'), findsNothing);
+    // Jamais d'impasse : le bouton mène à l'abonnement (onglet Profil).
+    await tester.tap(find.text('Passer Premium').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Version gratuite'), findsOneWidget);
   });
 
   testWidgets('nouvelle version : téléchargée dans l\'application, installateur ouvert', (tester) async {

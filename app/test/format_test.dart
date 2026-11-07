@@ -32,6 +32,9 @@ void main() {
   test('codes d\'équipe', () {
     expect(teamCode('Manchester United'), 'MUN');
     expect(teamCode('Lens'), 'LEN');
+    expect(teamCode('Newcastle United'), 'NEW');
+    expect(teamCode('Manchester City'), 'MCI');
+    expect(teamCode('Leicester City'), 'LEI');
   });
 
   test('libellés des marchés', () {
@@ -67,5 +70,12 @@ void main() {
     final lines = [('10.5', 'over'), ('9.5', 'under'), ('9.5', 'over')];
     lines.sort((a, b) => compareSelections(a.$1, a.$2, b.$1, b.$2));
     expect(lines, [('9.5', 'over'), ('9.5', 'under'), ('10.5', 'over')]);
+  });
+
+  test('chance en mots : jamais « 1 chance sur 1 »', () {
+    expect(chanceInWords(0.717), 'environ 7 fois sur 10');
+    expect(chanceInWords(0.5), 'environ 5 fois sur 10');
+    expect(chanceInWords(1 / 60), '1 chance sur 60');
+    expect(chanceInWords(0.3), '1 chance sur 3');
   });
 }

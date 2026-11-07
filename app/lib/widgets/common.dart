@@ -280,6 +280,15 @@ class PremiumLock extends StatelessWidget {
                 Text('Premium', style: Fp.title(15, color: Fp.accentLight)),
                 const SizedBox(height: 4),
                 Text(text, style: Fp.body(13, color: Fp.text2, height: 1.4)),
+                // Jamais d'impasse : le bouton mène à l'abonnement (essai du 07/11/2026).
+                const SizedBox(height: 10),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(context).popUntil((r) => r.isFirst);
+                    context.read<AppState>().openTab(4);
+                  },
+                  child: const Text('Passer Premium'),
+                ),
               ],
             ),
           ),

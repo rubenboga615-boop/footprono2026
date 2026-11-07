@@ -108,7 +108,10 @@ class RecordScreen extends StatelessWidget {
                 valueColor: yield_ >= 0 ? Fp.win : Fp.loss,
               ),
             if ((bets['open'] as int) > 0)
-              Text('${bets['open']} pari(s) en cours non comptés.', style: Fp.body(12, color: Fp.text3)),
+              Text(
+                '${bets['open']} pari${(bets['open'] as int) > 1 ? 's' : ''} en cours non compté${(bets['open'] as int) > 1 ? 's' : ''}.',
+                style: Fp.body(12, color: Fp.text3),
+              ),
           ],
         ),
       ),

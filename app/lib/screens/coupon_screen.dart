@@ -272,8 +272,7 @@ class _CouponScreenState extends State<CouponScreen> {
                           ),
                           Text(
                             [
-                              if (modelProb != null && modelProb > 0)
-                                '1 chance sur ${(1 / modelProb).round()}',
+                              if (modelProb != null && modelProb > 0) chanceInWords(modelProb),
                               'selon la cote : ${pct(1 / total)} (marge du bookmaker comprise)',
                             ].join(' · '),
                             style: Fp.body(11.5, color: Fp.text2),

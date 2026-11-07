@@ -497,7 +497,34 @@ class _PlanCard extends StatelessWidget {
     final methods = [for (final m in offer['methods'] as List) m as Json];
     final manual = offer['manual'] as Json?;
     if (methods.isEmpty && manual == null) {
-      showMessage('Paiement indisponible pour le moment. Réessaie plus tard.', error: true);
+      // Aucun paiement en ligne réglé sur le serveur : jamais d'impasse (essai du 07/11/2026),
+      // l'abonnement passe par WhatsApp et Premium est activé depuis la console.
+      final me = state.me!;
+      final ask = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Premium · 30 jours'),
+          content: Text(
+            '$amount, payés une fois (pas de renouvellement automatique). Le paiement dans '
+            'l\'application arrive bientôt : écris-nous sur WhatsApp, on t\'indique comment payer '
+            'par Mobile Money et on active Premium dès la réception.',
+            style: Fp.body(13, color: Fp.text2, height: 1.4),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Écrire sur WhatsApp'),
+            ),
+          ],
+        ),
+      );
+      if (ask == true) {
+        await state.openSupport(
+          'Bonjour FootProba, je veux passer Premium ($amount). '
+          'Mon compte : n° ${me.id}${me.phone != null ? ' (${me.phone})' : ''}.',
+        );
+      }
       return;
     }
     final choice = await showDialog<String>(
