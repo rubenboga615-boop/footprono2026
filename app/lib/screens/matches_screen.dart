@@ -61,7 +61,11 @@ class _MatchesScreenState extends State<MatchesScreen> {
                     .where((u) => selectedDay == null || _day(u.match.date) == selectedDay)
                     .toList()
                   ..sort((a, b) {
-                    final t = a.match.date.compareTo(b.match.date);
+                    // Heure du coup d'envoi (``date`` n'est que le jour : avec elle, les matchs
+                    // d'un même jour restaient rangés par championnat, essai du 08/11/2026).
+                    final t = (a.match.kickoffAt ?? a.match.date).compareTo(
+                      b.match.kickoffAt ?? b.match.date,
+                    );
                     return t != 0
                         ? t
                         : competitionRank(a.match.competition)

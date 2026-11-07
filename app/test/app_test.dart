@@ -38,6 +38,7 @@ class FakeServer {
   bool admin = false;
   bool dailyNotifications = true;
   bool betaAvailable = false;
+  final extraUpcoming = <Map<String, dynamic>>[];
   bool betaSharing = false;
   final betaEvents = <Map<String, dynamic>>[];
   int latestBuild = 50;
@@ -249,6 +250,7 @@ class FakeServer {
               'both_score': sel('BTTS', null, 'yes', 0.57),
             },
           },
+          ...extraUpcoming,
         ];
       case 'GET /matches/7':
         body = match;
@@ -1741,6 +1743,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(server.betaSharing, isFalse);
     expect(state.beta.enabled, isFalse);
+  });
+
+  testWidgets('matchs du jour rangés par heure de coup d\'envoi, pas par championnat', (tester) async {
+    final (_, server) = await startApp(tester, loggedIn: true);
+    Map<String, dynamic> epl(int id, String home, String away, String at) => {
+      'match': {
+        ...FakeServer.match,
+        'id': id,
+        'competition': 'EPL',
+        'kickoff_at': at,
+        'home_team': {'id': id * 10, 'name': home, 'country': 'England'},
+        'away_team': {'id': id * 10 + 1, 'name': away, 'country': 'England'},
+      },
+      'prediction': null,
+    };
+    // Ordre de l'API (essai du 08/11) : Premier League 15:00 puis 12:30, puis Ligue 1 19:00.
+    server.extraUpcoming
+      ..add(epl(8, 'Fulham', 'Newcastle', '2026-10-10T15:00:00Z'))
+      ..add(epl(9, 'Arsenal', 'Hull', '2026-10-10T12:30:00Z'));
+    // Liste rechargée (tirer vers le bas).
+    await tester.fling(find.text('Lens').first, const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+    double y(String team) => tester.getTopLeft(find.text(team).first).dy;
+    expect(y('Arsenal'), lessThan(y('Fulham')));
+    expect(y('Fulham'), lessThan(y('Lens')));
   });
 
   testWidgets('administrateur : aucun outil d\'administration dans l\'application', (tester) async {
