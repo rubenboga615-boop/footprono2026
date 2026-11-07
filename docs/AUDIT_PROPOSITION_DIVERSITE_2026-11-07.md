@@ -49,8 +49,25 @@ ressembleront davantage, et c'est normal.
    au lieu de 63 % »), pour que le joueur choisisse en connaissance de cause.
 5. **Le dire simplement** : « Ton coupon est composé pour toi parmi les meilleurs du jour.
    Les autres joueurs reçoivent des coupons proches, pas forcément les mêmes. »
-6. **Coupons du jour** (publiés avec un code 1xBet) : ils restent les mêmes pour tous, c'est
-   leur principe. On peut publier 2 versions par profil si le fondateur le souhaite.
+
+## 3 bis. Quelle partie de l'application est concernée
+
+| | Coupon intelligent | Coupons du jour |
+|---|---|---|
+| Qui le compose | chaque joueur (profil, cote visée, jours, exclusions) | le moteur, une fois par jour, 3 coupons publiés avec un code 1xBet saisi par le fondateur |
+| Aujourd'hui | le même pour tous à la même minute (comparaison du 7/11 : 8 coupons sur 8 identiques) | le même pour tous, par principe |
+| Proposition | **oui, varier d'un joueur à l'autre** (points 1 à 5 ci-dessus) | **les garder uniques pour l'instant** |
+| Travail en plus pour le fondateur | aucun | aucun ; avec 2 versions par profil, il faudrait saisir 6 codes par jour au lieu de 3 |
+
+**Coupons du jour** : le risque y est encore plus fort (tous ceux qui les suivent gagnent ou
+perdent ensemble), mais c'est leur principe et le bilan affiché (« 4 gagnés sur 9 ») le
+montre honnêtement. Deux choix :
+1. **les garder uniques** et l'assumer (conseillé pour l'instant) ;
+2. **publier 2 versions par profil** (« Sûr A » et « Sûr B », sans match en commun), à
+   envisager seulement quand beaucoup de joueurs les suivront.
+
+**Ordre conseillé** : d'abord le Coupon intelligent ; les Coupons du jour plus tard, selon
+le nombre de joueurs qui les suivent.
 
 ## 4. À vérifier avant de lancer
 
