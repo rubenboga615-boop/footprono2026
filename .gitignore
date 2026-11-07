@@ -26,3 +26,6 @@ artifacts/
 # Flutter
 mobile/.dart_tool/
 mobile/build/
+
+# Fichier créé par « uv run » en local : les dépendances sont figées dans requirements*.lock.
+backend/uv.lock
