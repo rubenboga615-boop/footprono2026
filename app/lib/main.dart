@@ -55,6 +55,7 @@ class FootProbaApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: Fp.theme(),
         scaffoldMessengerKey: messengerKey,
+        navigatorKey: navigatorKey,
         builder: (context, child) => FpBackground(child: WideFrame(child: child ?? const SizedBox())),
         home: const _Root(),
       ),
@@ -288,7 +289,8 @@ class _FloatingNav extends StatelessWidget {
     (NavGlyph.matchs, 'Matchs'),
     (NavGlyph.coupon, 'Coupon'),
     (NavGlyph.montante, 'Montante'),
-    (NavGlyph.bookmaker, 'Bookmaker'),
+    // « Mes paris » : le nom dit ce qu'on y trouve (rapport UX du 07/11/2026).
+    (NavGlyph.bookmaker, 'Mes paris'),
     (NavGlyph.profil, 'Profil'),
   ];
 

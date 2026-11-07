@@ -106,19 +106,20 @@ class _MeritedScreenState extends State<MeritedScreen> {
       ),
     );
     final missing = data['matches_without_xpts'] as int?;
+    final complete = data['complete'] == true;
     final played = data['matches_played'] as int?;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Au-dessus du tableau : sans xPts pour une partie des matchs, « Mérité » est
         // incomplet ; l'écart ne compare que les matchs qui en ont.
-        if (data['complete'] != true) ...[
+        // Incomplet : colonnes « Mérité » et « Écart » masquées (rapport UX du 07/11/2026 :
+        // « Arsenal 24 · 9,8 · +2,2 » avait l'air faux et décrédibilisait le reste).
+        if (!complete) ...[
           Text(
-            missing != null && played != null
-                ? 'xPts d\'Understat manquants pour $missing matchs sur $played : « Mérité » est '
-                      'incomplet, l\'écart ne compare que les matchs qui en ont.'
-                : 'Understat n\'a pas encore les xPts de quelques matchs : les points mérités de certaines '
-                      'équipes sont incomplets.',
+            '${missing != null && played != null ? 'Understat n\'a pas encore les xPts de $missing matchs sur $played' : 'Understat n\'a pas encore les xPts de quelques matchs'} : '
+            'les points mérités s\'afficheront quand ils seront complets. Les saisons terminées sont '
+            'complètes (choisis-en une plus haut).',
             style: Fp.body(12, color: Fp.warning, height: 1.4),
           ),
           const SizedBox(height: 8),
@@ -132,28 +133,29 @@ class _MeritedScreenState extends State<MeritedScreen> {
                   header('#', width: 24, align: TextAlign.left),
                   Expanded(child: header('Équipe', align: TextAlign.left)),
                   header('Pts', width: 36),
-                  header('Mérité', width: 56),
-                  header('Écart', width: 56),
+                  if (complete) ...[header('Mérité', width: 56), header('Écart', width: 56)],
                 ],
               ),
               const SizedBox(height: 4),
-              for (final t in table) _row(t, data['competition'] as String, data['season'] as int),
+              for (final t in table) _row(t, data['competition'] as String, data['season'] as int, complete),
             ],
           ),
         ),
-        const SizedBox(height: 12),
-        _Legend(
-          color: Fp.win,
-          text: 'Vert : plus de points que mérité (chance, gardien en feu, finition rare).',
-        ),
-        _Legend(
-          color: Fp.loss,
-          text: 'Rose : moins de points que mérité (malchance) ; souvent, ça se rééquilibre.',
-        ),
-        _Legend(
-          color: Fp.text4,
-          text: 'Gris : écart de moins de ${decimal(threshold, max: 0)} points, du hasard ordinaire.',
-        ),
+        if (complete) ...[
+          const SizedBox(height: 12),
+          _Legend(
+            color: Fp.win,
+            text: 'Vert : plus de points que mérité (chance, gardien en feu, finition rare).',
+          ),
+          _Legend(
+            color: Fp.loss,
+            text: 'Rose : moins de points que mérité (malchance) ; souvent, ça se rééquilibre.',
+          ),
+          _Legend(
+            color: Fp.text4,
+            text: 'Gris : écart de moins de ${decimal(threshold, max: 0)} points, du hasard ordinaire.',
+          ),
+        ],
         const SizedBox(height: 8),
         Text(
           '${table.first['played']} matchs joués par le leader. Entre parenthèses : le rang au classement mérité. '
@@ -164,7 +166,7 @@ class _MeritedScreenState extends State<MeritedScreen> {
     );
   }
 
-  Widget _row(Json t, String comp, int year) {
+  Widget _row(Json t, String comp, int year, bool complete) {
     final team = t['team'] as Json;
     final luck = (t['luck'] as num?)?.toDouble();
     final color = switch (t['verdict']) {
@@ -200,7 +202,7 @@ class _MeritedScreenState extends State<MeritedScreen> {
                       text: team['name'] as String,
                       style: Fp.body(14, weight: FontWeight.w600),
                     ),
-                    if (merited != null)
+                    if (complete && merited != null)
                       TextSpan(
                         text: '  ($merited)',
                         style: Fp.body(12, color: Fp.text3),
@@ -218,28 +220,30 @@ class _MeritedScreenState extends State<MeritedScreen> {
                 style: Fp.body(14, weight: FontWeight.w700),
               ),
             ),
-            SizedBox(
-              width: 56,
-              child: Text(
-                t['xpts'] == null ? '—' : decimal(t['xpts'], max: 1),
-                textAlign: TextAlign.right,
-                style: Fp.body(14, color: Fp.text2),
+            if (complete) ...[
+              SizedBox(
+                width: 56,
+                child: Text(
+                  t['xpts'] == null ? '—' : decimal(t['xpts'], max: 1),
+                  textAlign: TextAlign.right,
+                  style: Fp.body(14, color: Fp.text2),
+                ),
               ),
-            ),
-            SizedBox(
-              width: 56,
-              child: Text(
-                luck == null
-                    ? '—'
-                    : '${luck > 0
-                          ? '+'
-                          : luck < 0
-                          ? '−'
-                          : ''}${decimal(luck.abs(), max: 1)}',
-                textAlign: TextAlign.right,
-                style: Fp.body(14, color: color, weight: FontWeight.w700),
+              SizedBox(
+                width: 56,
+                child: Text(
+                  luck == null
+                      ? '—'
+                      : '${luck > 0
+                            ? '+'
+                            : luck < 0
+                            ? '−'
+                            : ''}${decimal(luck.abs(), max: 1)}',
+                  textAlign: TextAlign.right,
+                  style: Fp.body(14, color: color, weight: FontWeight.w700),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),

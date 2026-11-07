@@ -17,10 +17,22 @@ import 'beta_reporter.dart';
 /// Messages éphémères (erreurs, confirmations, notifications reçues).
 final messengerKey = GlobalKey<ScaffoldMessengerState>();
 
-void showMessage(String text, {bool error = false}) {
+/// Navigation principale (« Voir mon coupon » depuis un message : retour aux onglets).
+final navigatorKey = GlobalKey<NavigatorState>();
+
+void showMessage(String text, {bool error = false, SnackBarAction? action}) {
   messengerKey.currentState
     ?..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(text), backgroundColor: error ? const Color(0xFF3A1430) : null));
+    ..showSnackBar(
+      SnackBar(
+        content: Text(text),
+        action: action,
+        // Avec un bouton, le message resterait affiché indéfiniment : il disparaît quand même.
+        persist: false,
+        duration: Duration(seconds: action == null ? 4 : 6),
+        backgroundColor: error ? const Color(0xFF3A1430) : null,
+      ),
+    );
 }
 
 /// Serveur intégré à l'APK (--dart-define=FP_SERVER=https://…) : le serveur

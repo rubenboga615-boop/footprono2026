@@ -1218,7 +1218,7 @@ void main() {
   testWidgets('Mon bilan : rendement, annoncé contre réalisé, rappel de jeu responsable', (tester) async {
     await startApp(tester, loggedIn: true);
     await tester.binding.setSurfaceSize(const Size(430, 2400));
-    await tester.tap(find.text('Bookmaker'));
+    await tester.tap(find.text('Mes paris'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Mon bilan'));
     await tester.pumpAndSettle();
@@ -1564,7 +1564,7 @@ void main() {
     await tester.pumpWidget(FootProbaApp(state: state));
     await state.init();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Bookmaker'));
+    await tester.tap(find.text('Mes paris'));
     await tester.pumpAndSettle();
     expect(find.textContaining('296'), findsOneWidget);
     expect(find.textContaining('-3,6'), findsOneWidget);
@@ -1581,7 +1581,7 @@ void main() {
     await tester.pumpWidget(FootProbaApp(state: state));
     await state.init();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Bookmaker'));
+    await tester.tap(find.text('Mes paris'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Cotes momentanément indisponibles'), findsOneWidget);
     // Retour des cotes : le bandeau disparaît.
@@ -1689,6 +1689,9 @@ void main() {
     await tester.tap(find.text('Ajouter au coupon'));
     await tester.pumpAndSettle();
     expect(state.coupon.single.offer.key, '1X2||home');
+    expect(find.text('Voir mon coupon'), findsOneWidget); // dans le message (rapport du 07/11)
+    messengerKey.currentState!.removeCurrentSnackBar();
+    await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
       find.byTooltip('Coupons du jour'),

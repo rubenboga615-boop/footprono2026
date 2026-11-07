@@ -122,7 +122,7 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
               child: ListView(
                 padding: pagePadding(context, 26, 120),
                 children: [
-                  const TwoToneTitle('Bookmaker', 'virtuel'),
+                  const TwoToneTitle('Mes', 'paris'),
                   const SizedBox(height: 16),
                   const OddsDownBanner(),
                   GlassCard(

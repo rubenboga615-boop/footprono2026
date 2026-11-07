@@ -33,7 +33,7 @@ enum DeskSection {
   jour('Coupons du jour', Icons.today_rounded, 'Jouer'),
   intelligent('Coupon intelligent', Icons.auto_awesome_rounded, 'Jouer'),
   montante('Montante', Icons.stairs_rounded, 'Jouer'),
-  bookmaker('Bookmaker fictif', Icons.account_balance_wallet_outlined, 'Jouer'),
+  bookmaker('Mes paris', Icons.account_balance_wallet_outlined, 'Jouer'),
   championnats('Championnats', Icons.leaderboard_rounded, 'Comprendre'),
   bilan('Mon bilan', Icons.insights_rounded, 'Comprendre'),
   fiabilite('Fiabilité du moteur', Icons.verified_outlined, 'Comprendre'),

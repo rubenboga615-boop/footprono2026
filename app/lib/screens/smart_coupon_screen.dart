@@ -22,8 +22,10 @@ class SmartCouponScreen extends StatefulWidget {
 
   static const profiles = [
     ('sur', 'Sûr', '75 à 92 % chacune'),
-    ('equilibre', 'Équilibré', '60 à 75 % chacune'),
-    ('audacieux', 'Audacieux', '45 à 60 % chacune'),
+    // Ce que le joueur reçoit vraiment (rapport du 07/11/2026 : « 60 à 75 % » affiché, toutes
+    // les sélections à 75 %) : la plus sûre de chaque match dans la tranche, donc le haut.
+    ('equilibre', 'Équilibré', 'près de 75 % chacune'),
+    ('audacieux', 'Audacieux', 'près de 60 % chacune'),
     ('grosse', 'Grosse cote', 'cote visée'),
   ];
   static const leagues = [
@@ -160,7 +162,9 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
     if (range == null || range.length < 2) return null;
     return 'Règle : les sélections les plus sûres de la période parmi celles que le moteur annonce '
         'entre ${percent(range[0])} et ${percent(range[1])} (profil '
-        '${r['profile_label']}), une par match. C\'est pourquoi leurs pourcentages se ressemblent.';
+        '${r['profile_label']}), une par match : souvent tout près de ${percent(range[1])}. À chance égale, '
+        'les matchs les plus proches passent d\'abord : « 3 jours », « Ce week-end » ou « 7 jours » '
+        'peuvent donner le même coupon que « Prochaine journée ».';
   }
 
   /// Paramètres répétés (championnats, exclusions) : ajoutés à la main dans l'adresse.
@@ -1038,10 +1042,19 @@ Future<void> addSelectionsToCoupon(
         added++;
       }
     }
+    // « Voir mon coupon » dans le message (rapport du 07/11/2026 : il fallait trouver
+    // l'onglet soi-même).
     showMessage(
       missing > 0
           ? '${_selections(added)} ; $missing sans cote disponible à présent.'
-          : '${_selections(added)} au coupon (onglet Coupon).',
+          : '${_selections(added)} au coupon.',
+      action: SnackBarAction(
+        label: 'Voir mon coupon',
+        onPressed: () {
+          navigatorKey.currentState?.popUntil((r) => r.isFirst);
+          state.openTab(1);
+        },
+      ),
     );
   } on ApiException catch (e) {
     showMessage(e.message, error: true);
