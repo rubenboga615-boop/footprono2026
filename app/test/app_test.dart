@@ -1311,7 +1311,10 @@ void main() {
 
     // Proposition du 07/11/2026 : coupon tiré pour ce joueur, dit, et « Un autre coupon ».
     expect(find.textContaining('Composé pour toi parmi les meilleurs'), findsOneWidget);
-    expect(find.textContaining(RegExp(r'Chance de ce coupon : 62,0\s%\s\(le meilleur : 63,5\s%\)')), findsOneWidget);
+    expect(
+      find.textContaining(RegExp(r'Chance de ce coupon : 62,0\s%\s\(le meilleur : 63,5\s%\)')),
+      findsOneWidget,
+    );
     await tester.ensureVisible(find.text('Un autre coupon'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Un autre coupon'));
