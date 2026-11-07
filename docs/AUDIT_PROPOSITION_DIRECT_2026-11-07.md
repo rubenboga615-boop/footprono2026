@@ -97,3 +97,19 @@ Si les chances en direct sont justes et les cotes disponibles :
    donne l'impression de suivre le match « comme chez un bookmaker ».
 3. Étapes 2 et 3 selon le quota API-Football et la couverture des cotes en direct.
 4. Étape 4 seulement si les études montrent des chances justes.
+
+## 6. Où chaque nouveauté se place dans l'application
+
+Aucun nouvel onglet (la barre du bas — Matchs, Coupon, Montante, Mes paris, Profil — est
+déjà pleine sur téléphone).
+
+| Nouveauté | Écran | Forme |
+|---|---|---|
+| Effacer les notifications | Notifications (Profil → Notifications ; cloche à remettre en haut de Matchs) | « Tout effacer » en haut, glisser vers la gauche pour une seule |
+| Réglages des notifications | Profil → Notifications | un interrupteur par famille, silence 23 h – 8 h |
+| Chances en direct | **Matchs** | matchs en cours : « 63' · 1-0 » à la place de l'heure, % mis à jour ; puce « En direct » à côté des jours |
+| Chances en direct | **Écran d'un match** | bandeau « En direct 63' · 1-0 » au-dessus des onglets, chances recalculées |
+| Chance du coupon en direct | **Mes paris** → fiche d'un pari en cours | « Chance de ton coupon : 12 % au départ → 31 % maintenant », sous « 3 sur 7 validées » |
+| Chance du coupon en direct | **Coupons du jour** | sur chaque carte en cours |
+| Statistiques en direct | **Écran d'un match** | onglet « En direct » (tirs cadrés, corners, possession, cartons, buts à la minute), seulement pendant le match |
+| Coupon en direct (étape 4) | **Coupon** | 3e carte « Coupon en direct » sous Coupon intelligent et Coupons du jour, visible seulement quand des matchs sont en cours ; Premium |
