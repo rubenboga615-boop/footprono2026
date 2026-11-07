@@ -1004,7 +1004,7 @@ void main() {
     expect(state.me?.displayName, 'Kossi');
     expect(find.text('Lens'), findsOneWidget);
     expect(find.text('41$nbsp%'), findsOneWidget);
-    expect(find.textContaining('Les 2 marquent 57$nbsp%'), findsOneWidget);
+    expect(find.text('1,85'), findsOneWidget); // cote du bookmaker sous la chance
   });
 
   testWidgets('inscription : case 18 ans obligatoire', (tester) async {
@@ -1838,7 +1838,7 @@ void main() {
     // Liste rechargée (tirer vers le bas).
     await tester.fling(find.text('Lens').first, const Offset(0, 400), 1000);
     await tester.pumpAndSettle();
-    double y(String team) => tester.getTopLeft(find.text(team).first).dy;
+    double y(String team) => tester.getTopLeft(find.textContaining(team).first).dy;
     expect(y('Arsenal'), lessThan(y('Fulham')));
     expect(y('Fulham'), lessThan(y('Lens')));
   });

@@ -125,7 +125,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
                     if (desk)
                       _MatchTable([for (final m in live) Upcoming.of(m)])
                     else
-                      for (final m in live) _MatchCard(match: m),
+                      _CompactList([for (final m in live) Upcoming.of(m)]),
                     const SectionTitle('À venir'),
                   ],
                   if (shown.isEmpty)
@@ -133,7 +133,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
                   else if (desk)
                     _MatchTable(shown)
                   else
-                    for (final u in shown) _MatchCard(match: u.match, summary: u.summary),
+                    _CompactList(shown),
                 ],
               ),
             );
@@ -146,101 +146,203 @@ class _MatchesScreenState extends State<MatchesScreen> {
   static DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
 }
 
-class _MatchCard extends StatelessWidget {
-  const _MatchCard({required this.match, this.summary});
-  final MatchInfo match;
-  final Summary? summary;
+/// Téléphone (maquette validée le 07/11/2026) : une ligne par match, rangés par heure, avec la
+/// chance selon le moteur et, dessous, la cote du bookmaker ; l'issue la plus probable selon le
+/// moteur est encadrée (pas un conseil de pari). Un appui ouvre le match.
+class _CompactList extends StatefulWidget {
+  const _CompactList(this.rows);
+  final List<Upcoming> rows;
+
+  @override
+  State<_CompactList> createState() => _CompactListState();
+}
+
+class _CompactListState extends State<_CompactList> {
+  Map<int, Map<String, Offer>> offers = {};
+  String _loaded = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_CompactList old) {
+    super.didUpdateWidget(old);
+    _load();
+  }
+
+  /// Cotes des matchs affichés, en un seul appel ; sans cotes, seules les chances s'affichent.
+  Future<void> _load() async {
+    final ids = [for (final u in widget.rows.take(80)) u.match.id];
+    final sig = ids.join(',');
+    if (sig == _loaded || ids.isEmpty) return;
+    _loaded = sig;
+    try {
+      final j = await context.read<AppState>().api.get('/offers/main', {'match_ids': ids}) as Json;
+      if (!mounted || sig != _loaded) return;
+      setState(
+        () => offers = {
+          for (final e in j.entries)
+            int.parse(e.key): {for (final o in (e.value as List).cast<Json>()) Offer(o).key: Offer(o)},
+        },
+      );
+    } on Object {
+      // Cotes indisponibles : seules les chances sont affichées.
+    }
+  }
+
+  static const _box = 54.0;
 
   @override
   Widget build(BuildContext context) {
-    final s = summary;
-    final m = match;
-    final team = Fp.title(16);
-    return GlassCard(
-      margin: const EdgeInsets.only(bottom: 12),
-      highlight: m.isLive,
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MatchScreen(matchId: m.id))),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '${competitionName(m.competition)} · ${m.isLive ? shortDate(m.date) : m.when}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Fp.body(12, color: Fp.text2, weight: FontWeight.w600),
-                ),
-              ),
-              if (m.isLive) Tag('EN DIRECT ${m.when}', color: const Color(0xFF052E1C), background: Fp.win),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: Text(m.home.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: team),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Text(
-                  m.score ?? 'vs',
-                  style: m.score != null
-                      ? Fp.title(20)
-                      : Fp.body(13, color: Fp.text2, weight: FontWeight.w600),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  m.away.name,
-                  maxLines: 2,
-                  textAlign: TextAlign.right,
-                  overflow: TextOverflow.ellipsis,
-                  style: team,
-                ),
-              ),
-            ],
-          ),
-          if (s != null) ...[
-            const SizedBox(height: 12),
-            OutcomeBar(s.home.probability, s.draw.probability, s.away.probability, height: 6),
-            const SizedBox(height: 10),
-            _OutcomeBoxes(s),
-            const SizedBox(height: 8),
-            Text(
-              [
-                if (s.over25 case final o?) '+2,5 buts ${percent(o.probability)}',
-                if (s.btts case final b?) 'Les 2 marquent ${percent(b.probability)}',
-              ].join('  ·  '),
-              style: Fp.body(12, color: Fp.text2),
-            ),
-          ] else if (!m.isLive) ...[
-            const SizedBox(height: 10),
-            Text('Pas encore de prédiction pour ce match.', style: Fp.body(12, color: Fp.text3)),
-          ],
-        ],
+    Widget head(String t) => SizedBox(
+      width: _box,
+      child: Text(
+        t,
+        textAlign: TextAlign.center,
+        style: Fp.body(11.5, color: Fp.text3, weight: FontWeight.w700),
       ),
+    );
+    final hasOdds = offers.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GlassCard.section(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.fromLTRB(12, 8, 10, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const SizedBox(width: 46),
+                  Expanded(
+                    child: Text(
+                      'Match',
+                      style: Fp.body(11.5, color: Fp.text3, weight: FontWeight.w700),
+                    ),
+                  ),
+                  head('1'),
+                  const SizedBox(width: 5),
+                  head('N'),
+                  const SizedBox(width: 5),
+                  head('2'),
+                ],
+              ),
+              for (final (i, u) in widget.rows.indexed) ...[
+                if (i > 0) const Divider(height: 1),
+                _CompactRow(u, offers[u.match.id] ?? const {}),
+              ],
+            ],
+          ),
+        ),
+        Text(
+          hasOdds
+              ? 'En haut : la chance selon le moteur ; en bas : la cote du bookmaker. Encadré : l\'issue la '
+                    'plus probable selon le moteur (pas un conseil de pari). Un appui ouvre le match.'
+              : 'La chance selon le moteur ; encadré : l\'issue la plus probable (pas un conseil de pari). '
+                    'Un appui ouvre le match.',
+          style: Fp.body(12, color: Fp.text3, height: 1.4),
+        ),
+        const SizedBox(height: 8),
+      ],
     );
   }
 }
 
-/// 1 / N / 2 : l'issue la plus probable selon le moteur est mise en avant.
-class _OutcomeBoxes extends StatelessWidget {
-  const _OutcomeBoxes(this.s);
-  final Summary s;
+class _CompactRow extends StatelessWidget {
+  const _CompactRow(this.u, this.offers);
+  final Upcoming u;
+  final Map<String, Offer> offers;
 
   @override
   Widget build(BuildContext context) {
-    final values = [s.home.probability, s.draw.probability, s.away.probability];
-    final best = values.indexOf(values.reduce((a, b) => a > b ? a : b));
-    return Row(
-      children: [
-        for (final (i, label) in const ['1', 'N', '2'].indexed) ...[
-          if (i > 0) const SizedBox(width: 6),
-          Expanded(child: ProbBox(label, percent(values[i]), best: i == best)),
-        ],
-      ],
+    final m = u.match, s = u.summary;
+    final probs = s == null ? null : [s.home.probability, s.draw.probability, s.away.probability];
+    final best = probs == null ? -1 : probs.indexOf(probs.reduce((a, b) => a > b ? a : b));
+    const keys = ['1X2||home', '1X2||draw', '1X2||away'];
+    Widget box(int i) {
+      final o = offers[keys[i]];
+      final on = i == best;
+      return Container(
+        width: _CompactListState._box,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(
+          color: on ? Fp.accentAlpha(0.22) : Fp.fill,
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: on ? Fp.accentAlpha(0.6) : Colors.transparent),
+        ),
+        child: Column(
+          children: [
+            Text(probs == null ? '—' : percent(probs[i]), style: Fp.body(13.5, weight: FontWeight.w800)),
+            if (o != null)
+              Text(
+                odds(o.odds),
+                style: Fp.body(11, color: Fp.text2, weight: FontWeight.w600),
+              ),
+          ],
+        ),
+      );
+    }
+
+    return InkWell(
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => MatchScreen(matchId: m.id))),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 46,
+              child: Text(
+                // En direct : la minute seule (« En direct 45' » ne tient pas dans la colonne).
+                m.isLive ? (m.apiStatus == 'HT' ? 'MT' : '${m.liveMinute ?? ''}\'') : m.when,
+                style: Fp.body(12.5, color: m.isLive ? Fp.win : Fp.text2, weight: FontWeight.w700),
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Deux lignes : les noms longs (Eyüpspor, Kocaelispor) ne sont jamais coupés au
+                  // point de cacher l'équipe à l'extérieur.
+                  for (final (i, name) in [m.home.name, m.away.name].indexed)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Fp.body(13.5, weight: FontWeight.w700),
+                          ),
+                        ),
+                        if (m.score case final sc?)
+                          Text(
+                            sc.split(' - ')[i],
+                            style: Fp.body(13.5, weight: FontWeight.w800, color: m.isLive ? Fp.win : Fp.text),
+                          ),
+                      ],
+                    ),
+                  Text(
+                    competitionName(m.competition),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Fp.body(11.5, color: Fp.text3),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            box(0),
+            const SizedBox(width: 5),
+            box(1),
+            const SizedBox(width: 5),
+            box(2),
+          ],
+        ),
+      ),
     );
   }
 }
