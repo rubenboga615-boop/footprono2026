@@ -1,0 +1,198 @@
+FootProba - captures de toute l'application (version web du 7 novembre 2026, 15 h 17, serveur 45039a7)
+Téléphone émulé Pixel 7 (412 x 915 points, écran x2,625). Compte gratuit et compte Premium de test.
+Prises le samedi 7 novembre entre 15 h 45 et 16 h 30 GMT, pendant des matchs en direct.
+Un écran trop long est découpé en plusieurs captures : nom-1, nom-2... dans l'ordre en descendant.
+
+00-MAQUETTE-VALIDEE-liste-des-matchs.jpg : la maquette validée par le fondateur (liste des matchs en cartes).
+But : redessiner tous les autres écrans dans le même style.
+
+
+01-Accueil-inscription-connexion (9 captures)
+  01-gratuit-accueil.jpg
+  02-gratuit-inscription-choix.jpg
+  03-gratuit-inscription-telephone.jpg
+  04-gratuit-inscription-telephone-1.jpg
+  05-gratuit-inscription-telephone-2.jpg
+  06-gratuit-connexion-choix.jpg
+  07-gratuit-connexion-telephone.jpg
+  08-gratuit-mot-de-passe-oublie.jpg
+  09-gratuit-premiere-ouverture-dialogue.jpg
+
+02-Liste-des-matchs (14 captures)
+  01-gratuit-matchs.jpg
+  02-gratuit-matchs-1.jpg
+  03-gratuit-matchs-2.jpg
+  04-gratuit-matchs-3.jpg
+  05-gratuit-matchs-4.jpg
+  06-premium-matchs-avec-direct.jpg
+  07-premium-matchs-avec-direct-1.jpg
+  08-premium-matchs-avec-direct-2.jpg
+  09-premium-matchs-avec-direct-3.jpg
+  10-premium-matchs-avec-direct-4.jpg
+  11-premium-matchs-dimanche.jpg
+  12-premium-choix-championnat-1.jpg
+  13-premium-choix-championnat-2.jpg
+  14-premium-choix-championnat-3.jpg
+
+03-Ecran-match-en-direct (11 captures)
+  01-premium-match-en-direct.jpg
+  02-premium-match-en-direct-1.jpg
+  03-premium-match-en-direct-2.jpg
+  04-premium-match-en-direct-3.jpg
+  05-premium-match-en-direct-4.jpg
+  06-premium-match-en-direct-Cotes.jpg
+  07-premium-match-en-direct-Cotes-1.jpg
+  08-premium-match-en-direct-Cotes-2.jpg
+  09-premium-match-en-direct-Analyse.jpg
+  10-premium-match-en-direct-Analyse-1.jpg
+  11-premium-match-en-direct-Analyse-2.jpg
+
+04-Ecran-match-avant-coup-envoi (40 captures)
+  01-gratuit-match-probabilites.jpg
+  02-gratuit-match-probabilites-1.jpg
+  03-gratuit-match-probabilites-2.jpg
+  04-gratuit-match-probabilites-3.jpg
+  05-gratuit-match-probabilites-4.jpg
+  06-gratuit-match-probabilites-5.jpg
+  07-gratuit-match-probabilites-6.jpg
+  08-gratuit-match-cotes.jpg
+  09-gratuit-match-cotes-1.jpg
+  10-gratuit-match-analyse.jpg
+  11-gratuit-match-analyse-1.jpg
+  12-gratuit-apres-ajout-cote.jpg
+  13-gratuit-fiche-equipe.jpg
+  14-gratuit-fiche-equipe-1.jpg
+  15-gratuit-fiche-equipe-2.jpg
+  16-premium-match-probabilites.jpg
+  17-premium-match-probabilites-1.jpg
+  18-premium-match-probabilites-2.jpg
+  19-premium-match-probabilites-3.jpg
+  20-premium-match-probabilites-4.jpg
+  21-premium-match-probabilites-5.jpg
+  22-premium-match-probabilites-6.jpg
+  23-premium-match-cotes.jpg
+  24-premium-match-cotes-1.jpg
+  25-premium-match-cotes-2.jpg
+  26-premium-match-cotes-3.jpg
+  27-premium-match-cotes-4.jpg
+  28-premium-match-analyse.jpg
+  29-premium-match-analyse-1.jpg
+  30-premium-match-analyse-2.jpg
+  31-premium-match-analyse-3.jpg
+  32-premium-match-analyse-4.jpg
+  33-premium-match-analyse-5.jpg
+  34-premium-match-analyse-6.jpg
+  35-premium-apres-ajout-cote.jpg
+  36-premium-fiche-equipe.jpg
+  37-premium-fiche-equipe-1.jpg
+  38-premium-fiche-equipe-2.jpg
+  39-premium-fiche-equipe-3.jpg
+  40-premium-fiche-equipe-4.jpg
+
+05-Mon-coupon (9 captures)
+  01-gratuit-coupon-vide.jpg
+  02-gratuit-coupon-vide-1.jpg
+  03-premium-coupon-1-selection.jpg
+  04-premium-coupon-1-selection-1.jpg
+  05-premium-coupon-plein.jpg
+  06-premium-coupon-plein-1.jpg
+  07-premium-coupon-plein-2.jpg
+  08-premium-coupon-plein-3.jpg
+  09-premium-coupon-vider-confirmation.jpg
+
+06-Coupon-intelligent (15 captures)
+  01-gratuit-coupon-intelligent-verrouille.jpg
+  02-premium-ci-reglages.jpg
+  03-premium-ci-reglages-1.jpg
+  04-premium-ci-grosse-cote.jpg
+  05-premium-ci-cote-visee-autre.jpg
+  06-premium-ci-resultat.jpg
+  07-premium-ci-resultat-1.jpg
+  08-premium-ci-resultat-2.jpg
+  09-premium-ci-resultat-3.jpg
+  10-premium-ci-resultat-4.jpg
+  11-premium-ci-resultat-5.jpg
+  12-premium-ci-changer.jpg
+  13-premium-ci-bas.jpg
+  14-premium-ci-partage-image.jpg
+  15-premium-ci-apres-ajout.jpg
+
+07-Coupons-du-jour (10 captures)
+  01-gratuit-coupons-du-jour.jpg
+  02-gratuit-coupons-du-jour-1.jpg
+  03-gratuit-coupons-du-jour-2.jpg
+  04-premium-cdj.jpg
+  05-premium-cdj-1.jpg
+  06-premium-cdj-2.jpg
+  07-premium-cdj-detail.jpg
+  08-premium-cdj-bilan.jpg
+  09-premium-cdj-bilan-1.jpg
+  10-premium-cdj-bilan-2.jpg
+
+08-Montante (9 captures)
+  01-gratuit-montante.jpg
+  02-gratuit-montante-1.jpg
+  03-gratuit-montante-2.jpg
+  04-gratuit-montante-3.jpg
+  05-premium-montante.jpg
+  06-premium-montante-1.jpg
+  07-premium-montante-2.jpg
+  08-premium-montante-3.jpg
+  09-premium-montante-4.jpg
+
+09-Mes-paris (12 captures)
+  01-gratuit-mes-paris.jpg
+  02-gratuit-mes-paris-1.jpg
+  03-premium-mes-paris-en-cours.jpg
+  04-premium-mes-paris-en-cours-1.jpg
+  05-premium-fiche-pari-en-cours.jpg
+  06-premium-mes-paris-regles.jpg
+  07-premium-mes-paris-regles-1.jpg
+  08-premium-fiche-pari-regle.jpg
+  09-premium-mon-bilan.jpg
+  10-premium-mon-bilan-1.jpg
+  11-premium-mon-bilan-2.jpg
+  12-premium-mon-bilan-3.jpg
+
+10-Profil-Premium-paiement-reglages (18 captures)
+  01-gratuit-profil.jpg
+  02-gratuit-profil-1.jpg
+  03-gratuit-profil-2.jpg
+  04-gratuit-profil-3.jpg
+  05-gratuit-profil-4.jpg
+  06-gratuit-passer-premium.jpg
+  07-gratuit-passer-premium-1.jpg
+  08-gratuit-paiement-wave.jpg
+  09-premium-profil-premium.jpg
+  10-premium-profil-premium-1.jpg
+  11-premium-profil-premium-2.jpg
+  12-premium-profil-premium-3.jpg
+  13-premium-jeu-responsable.jpg
+  14-premium-mot-de-passe.jpg
+  15-premium-mot-de-passe-1.jpg
+  16-premium-supprimer-compte.jpg
+  17-premium-supprimer-compte-1.jpg
+  18-premium-deconnecter-telephones.jpg
+
+11-Classement-merite (4 captures)
+  01-premium-classement-merite.jpg
+  02-premium-classement-merite-1.jpg
+  03-premium-classement-merite-2.jpg
+  04-premium-classement-merite-3.jpg
+
+12-Fiabilite (3 captures)
+  01-premium-fiabilite.jpg
+  02-premium-fiabilite-1.jpg
+  03-premium-fiabilite-2.jpg
+
+13-Notifications (2 captures)
+  01-premium-notifications.jpg
+  02-premium-notifications-1.jpg
+
+14-Conditions-et-confidentialite (6 captures)
+  01-premium-page-conditions.jpg
+  02-premium-page-conditions-1.jpg
+  03-premium-page-conditions-2.jpg
+  04-premium-page-confidentialite.jpg
+  05-premium-page-confidentialite-1.jpg
+  06-premium-page-confidentialite-2.jpg

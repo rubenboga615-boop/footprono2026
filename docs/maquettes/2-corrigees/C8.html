@@ -1,0 +1,47 @@
+<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>C8 · Paiement Wave (corrigé)</title><style>
+*{box-sizing:border-box}body{margin:0;background:#faf9f5;font-family:Inter,system-ui,sans-serif}
+.p{position:relative;width:390px;height:844px;background:#0E0B1A;color:#fff;overflow:hidden;font-size:14px;line-height:1.35}
+.sc{padding:52px 16px 110px}
+.hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hd h2{margin:0;font-size:26px}.hd h2 span,.ac2{color:#A78BFA}
+.bk{display:flex;align-items:center;gap:10px}.bk h2{font-size:24px}
+.c{background:#1A1530;border-radius:18px;padding:14px;margin-top:12px}
+.mu{color:#A9A3C2;font-size:12px}.mu2{color:#A9A3C2;font-size:13px}
+.row{display:flex;align-items:center;gap:10px}.sp{flex:1;min-width:0}.b{font-weight:700}
+.ac{box-shadow:inset 0 0 0 1.5px #7C5CFF;background:#2B2060}
+.pill{border:1px solid #3A3260;border-radius:18px;padding:8px 12px;font-size:12px;color:#B9B2FF;font-weight:600;white-space:nowrap}
+.chips{display:flex;gap:6px;overflow:hidden;margin-top:12px}
+.chips span{height:38px;border-radius:19px;border:1px solid #3A3260;padding:0 12px;font-size:13px;display:flex;align-items:center;font-weight:600;white-space:nowrap}
+.chips .on{background:#6D4AFF;border-color:#6D4AFF}
+.seg{display:flex;background:#1A1530;border-radius:16px;padding:4px;margin-top:12px}
+.seg span{flex:1;height:42px;border-radius:12px;color:#A9A3C2;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:14px}
+.seg .on{background:#2B2060;color:#fff}
+.tag{font-size:11px;font-weight:700;border-radius:8px;padding:4px 8px;background:#2B2060;color:#B9B2FF;white-space:nowrap}
+.gr{background:#12301F;color:#4ADE80}.rd{background:#3A1620;color:#FF8A9B}.yl{background:#1F1709;color:#E7C98A}
+.btn{height:52px;border-radius:26px;background:#6D4AFF;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;margin-top:14px}
+.btn2{height:48px;border-radius:24px;border:1px solid #3A3260;color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;margin-top:10px}
+.lnk{color:#B9B2FF;font-weight:600}
+.li{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #241E3D}.li:last-child{border-bottom:0}
+.kv{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0}
+.big{font-size:30px;font-weight:800}
+.warn{background:#1F1709;border:1px solid #6B4F1D;color:#E7C98A;border-radius:14px;padding:11px 12px;font-size:13px;margin-top:12px}
+.ok{background:#12301F;border:1px solid #1F5B3A;color:#C9F5D9;border-radius:14px;padding:11px 12px;font-size:13px;margin-top:12px}
+.err{background:#3A1620;border:1px solid #6B2333;color:#FFD0D7;border-radius:14px;padding:11px 12px;font-size:13px;margin-top:12px}
+.in{height:48px;border-radius:14px;background:#0E0B1A;border:1px solid #2A2347;display:flex;align-items:center;padding:0 14px;margin-top:6px;color:#C9C3F0}
+.lbl{font-size:12px;color:#A9A3C2;margin-top:12px;font-weight:600}
+.tg{width:44px;height:26px;border-radius:13px;background:#6D4AFF;position:relative;flex:none}.tg:after{content:'';position:absolute;right:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff}
+.tg.off{background:#3A3550}.tg.off:after{left:3px;right:auto}
+.nav{position:absolute;left:12px;right:12px;bottom:16px;height:72px;border-radius:28px;background:#15112A;box-shadow:inset 0 0 0 1px #2A2347;display:flex;justify-content:space-around;align-items:center;z-index:5}
+.nav span{color:#A9A3C2;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:500;min-width:56px;position:relative}
+.nav .on{color:#B9B2FF}.nav i{position:absolute;top:-6px;right:8px;background:#FF8A9B;color:#0E0B1A;border-radius:9px;font-size:10px;font-style:normal;font-weight:800;padding:1px 5px}
+.bd{width:30px;height:30px;border-radius:50%;background:#2B2060;display:flex;align-items:center;justify-content:center;font-size:12px;color:#B9B2FF;font-style:normal;font-weight:700;flex:none}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#1A1530;border-radius:24px 24px 0 0;padding:10px 18px 26px;z-index:9}
+.sheet:before{content:'';display:block;width:40px;height:4px;border-radius:2px;background:#3A3260;margin:0 auto 14px}
+.scrim{position:absolute;inset:0;background:rgba(5,3,12,.72);z-index:8}
+.blur{filter:blur(4px);opacity:.55}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl td,.tbl th{padding:9px 4px;border-bottom:1px solid #241E3D;text-align:left}.tbl th{color:#A9A3C2;font-weight:600;font-size:12px}.tbl td.c2,.tbl th.c2{text-align:center;width:62px}
+.ck{color:#4ADE80;font-weight:800}.lk{color:#A9A3C2}
+.note{position:absolute;left:0;right:0;top:0;background:#E7C98A;color:#1F1709;font-size:11px;font-weight:700;padding:4px 10px;z-index:20}
+.skel{background:#241E3D;border-radius:8px;height:12px}
+body{background:#0E0B1A}</style></head><body><div class="p"><div class="sc"><div class="hd"><div class="bk"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg><h2>Payer avec <span>Wave</span></h2></div></div><div class="c"><div class="row" style="align-items:flex-start"><span class="tag">1</span><div class="sp">Dans Wave, envoie exactement <b>2 000 F CFA</b> au numéro officiel de FootProba (le même que l'aide WhatsApp) :</div></div><div class="in ac" style="justify-content:space-between;margin-top:10px"><b style="color:#fff;font-size:17px">+225 05 00 64 99 04</b><span class="lnk" style="font-size:13px">Copier</span></div></div><div class="c"><div class="row" style="align-items:flex-start"><span class="tag">2</span><div class="sp">Envoie la capture du reçu Wave sur WhatsApp, avec le bouton ci-dessous.</div></div></div><div class="mu2" style="margin-top:12px">Premium est activé sur ton compte n° 12 dès que la réception est vérifiée, en général dans la journée. Tu reçois une notification.</div><div style="margin-top:220px"></div><div class="btn">Envoyer la capture</div><div class="btn2">Fermer</div></div></div></body></html>
