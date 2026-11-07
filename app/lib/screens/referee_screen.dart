@@ -324,12 +324,15 @@ class _RefereeTableScreenState extends State<RefereeTableScreen> {
             ),
             if (bar) ...[
               const SizedBox(height: 4),
-              LinearProgressIndicator(
-                value: (r['yellow'] as num).toDouble() / scale,
-                minHeight: 5,
-                color: (r['yellow'] as num) >= league ? Fp.loss : Fp.win,
-                backgroundColor: Fp.fill7,
-                borderRadius: BorderRadius.circular(4),
+              // Le chiffre est écrit à côté : la barre ne s'annonce pas (sinon elle absorbe la ligne).
+              ExcludeSemantics(
+                child: LinearProgressIndicator(
+                  value: (r['yellow'] as num).toDouble() / scale,
+                  minHeight: 5,
+                  color: (r['yellow'] as num) >= league ? Fp.loss : Fp.win,
+                  backgroundColor: Fp.fill7,
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
             ],
           ],

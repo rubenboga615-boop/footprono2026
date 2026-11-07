@@ -11,6 +11,7 @@ import '../main.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/maquette.dart';
 
 String montanteStatus(String s) => switch (s) {
   'active' => 'En cours',
@@ -757,11 +758,11 @@ class _MontanteViewState extends State<MontanteView> {
               BackChevron(onTap: () => Navigator.of(context).maybePop()),
               const SizedBox(width: 4),
             ],
-            const Expanded(child: TwoToneTitle('Ma', 'montante')),
+            const Expanded(child: MTitle('Ma', 'montante', 26)),
             if (!active) montanteTag(m['status'] as String),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         // Maquette v2 : où en est la montante, d'un coup d'œil.
         GlassCard.section(
           child: Column(
@@ -776,7 +777,7 @@ class _MontanteViewState extends State<MontanteView> {
                       children: [
                         Text(
                           active ? 'Mise actuelle' : (m['status'] == 'lost' ? 'Résultat' : 'Encaissé'),
-                          style: Fp.body(13, color: Fp.text2),
+                          style: Fp.body(12, color: Fp.muted),
                         ),
                         Text(
                           active
@@ -784,8 +785,9 @@ class _MontanteViewState extends State<MontanteView> {
                               : m['status'] == 'lost'
                               ? 'perdue'
                               : '${thousands(m['cashable'] as int)} F',
-                          style: Fp.title(
-                            28,
+                          style: Fp.body(
+                            30,
+                            weight: FontWeight.w800,
                             color: !active && m['status'] == 'lost' ? Fp.lossText : Fp.text,
                           ),
                         ),
@@ -796,10 +798,10 @@ class _MontanteViewState extends State<MontanteView> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text('Objectif', style: Fp.body(12, color: Fp.text2)),
+                        Text('Objectif', style: Fp.body(12, color: Fp.muted)),
                         Text(
                           goal[0] == goal[1] ? '${_range(goal)} F' : '${_about(goal)} F environ',
-                          style: Fp.body(14, weight: FontWeight.w800),
+                          style: Fp.body(18, weight: FontWeight.w700),
                         ),
                         if (goal[0] != goal[1])
                           Text(
@@ -811,32 +813,75 @@ class _MontanteViewState extends State<MontanteView> {
                 ],
               ),
               const SizedBox(height: 12),
-              ProbBar(steps.isEmpty ? 0 : won / steps.length, height: 8),
-              const SizedBox(height: 10),
+              // Maquette C2 : barre fine, violet sur #241E3D. Sans sa propre annonce : le texte
+              // « Palier 1 sur 6 » dessous la dit (sinon toute la page devenait une « barre de
+              // progression » pour le lecteur d'écran, et ses boutons disparaissaient).
+              ExcludeSemantics(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: LinearProgressIndicator(
+                    value: steps.isEmpty ? 0 : (active ? (m['current_step'] as int) : won) / steps.length,
+                    minHeight: 6,
+                    backgroundColor: Fp.line10,
+                    color: Fp.accent,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
               Text(
                 'Palier ${m['current_step']} sur ${steps.length} · départ '
                 '${money(m['start_stake'] as int, currency)} (argent fictif)',
-                style: Fp.body(13, color: Fp.text2),
+                style: Fp.body(12, color: Fp.muted),
               ),
-              // Le chiffre qui compte pour le joueur, en haut (revue du 07/11/2026 : il était en
-              // petit sous le tableau).
-              if ((m['chance_by_odds'] ?? m['chance_by_model']) case final num chance when active) ...[
-                const SizedBox(height: 8),
-                Text(
-                  '${_outOf100(chance.toDouble())} vont au bout'
-                  '${m['chance_by_odds'] != null ? ' (selon les cotes)' : ' (selon le moteur)'}',
-                  style: Fp.body(13.5, weight: FontWeight.w800),
+              // Le chiffre qui compte pour le joueur, en haut (maquette C2 : encadré ambre).
+              if ((m['chance_by_odds'] ?? m['chance_by_model']) case final num chance when active)
+                Container(
+                  margin: const EdgeInsets.only(top: 10),
+                  padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1F1709),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF6B4F1D)),
+                  ),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Chance d\'aller au bout : ${_outOf100(chance.toDouble()).toLowerCase()}',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        TextSpan(
+                          text:
+                              ' (${percent(chance.toDouble(), decimals: 1)} '
+                              '${m['chance_by_odds'] != null ? 'selon les cotes' : 'selon le moteur'}). La plupart '
+                              'des montantes s\'arrêtent avant le dernier palier.',
+                        ),
+                      ],
+                    ),
+                    style: Fp.body(13, color: Fp.warning, height: 1.4),
+                  ),
                 ),
-              ],
-              const SizedBox(height: 6),
-              Text(
-                'Une montante : le gain de chaque palier est remis en jeu au suivant. Un seul pari '
-                'perdu, et tout ce qui a été misé est perdu.',
-                style: Fp.body(12, color: Fp.text3, height: 1.35),
-              ),
             ],
           ),
         ),
+        if (active) ...[
+          const SizedBox(height: 12),
+          GlassCard.section(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('C\'est quoi, une montante ?', style: Fp.body(14, weight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                Text(
+                  'Tu mises ${money(m['start_stake'] as int, currency)}. Si tu gagnes, tu remises tout le gain '
+                  'au palier suivant. Un seul pari perdu et la montante s\'arrête : tout ce qui a été misé '
+                  'est perdu. Tu peux encaisser à tout moment.',
+                  style: Fp.body(13, color: Fp.muted, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         GlassCard.section(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
@@ -890,7 +935,8 @@ class _MontanteViewState extends State<MontanteView> {
           'Tout pari dont la cote est dans la plage du palier convient.',
           style: Fp.body(12, color: Fp.text2),
         ),
-        if (m['chance_by_model'] != null || m['chance_by_odds'] != null)
+        // Montante terminée : la chance annoncée au départ (en cours : dans l'encadré du haut).
+        if (!active && (m['chance_by_model'] != null || m['chance_by_odds'] != null))
           Text(
             [
               if (m['chance_by_model'] != null) '${pct(m['chance_by_model'])} selon le moteur',
@@ -1003,38 +1049,39 @@ class _StepLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (box, border, digit, status, statusColor) = switch (state) {
-      _StepState.won => (const Color(0x2934D399), const Color(0x8034D399), Fp.win, 'Gagné', Fp.win),
-      _StepState.lost => (
-        const Color(0x29F472B6),
-        const Color(0x80F472B6),
-        Fp.lossText,
-        'Perdu',
-        Fp.lossText,
-      ),
-      _StepState.current => (Fp.accent, Fp.accent, Colors.white, 'En cours', Fp.warning),
-      _StepState.future => (Fp.fill, Fp.line, Fp.text2, '', Fp.text2),
+    // Maquette C2 : numéro dans une étiquette (encadré violet pour le palier en cours),
+    // étiquette d'état à droite (verte, rose ou violette).
+    const green = (Color(0xFF12301F), Fp.win), pink = (Color(0xFF3A1620), Fp.loss);
+    final (status, tag) = switch (state) {
+      _StepState.won => ('Gagné', green),
+      _StepState.lost => ('Perdu', pink),
+      _StepState.current => ('En cours', (Fp.cardHigh, Fp.lilac)),
+      _StepState.future => ('', (Fp.cardHigh, Fp.lilac)),
     };
-    final future = state == _StepState.future;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 9),
+    final digit = switch (state) {
+      _StepState.won => green,
+      _StepState.lost => pink,
+      _ => (Fp.cardHigh, Fp.lilac),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 13),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Fp.line10)),
+      ),
       child: Row(
         children: [
           Container(
             width: 30,
-            height: 30,
+            padding: const EdgeInsets.symmetric(vertical: 4),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: box,
-              borderRadius: BorderRadius.circular(9),
-              border: Border.all(color: border),
-              boxShadow: state == _StepState.current
-                  ? [BoxShadow(color: Fp.accentAlpha(0.6), blurRadius: 12)]
-                  : null,
+              color: digit.$1,
+              borderRadius: BorderRadius.circular(8),
+              border: state == _StepState.current ? Border.all(color: Fp.accent2, width: 1.5) : null,
             ),
             child: Text(
               '$number',
-              style: Fp.body(13, weight: FontWeight.w800, color: digit),
+              style: Fp.body(11, weight: FontWeight.w700, color: digit.$2),
             ),
           ),
           const SizedBox(width: 12),
@@ -1042,19 +1089,15 @@ class _StepLine extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: Fp.body(14, weight: FontWeight.w800, color: future ? Fp.text2 : Fp.text),
-                ),
-                Text('$detail · plage $range', style: Fp.body(12, color: Fp.text2)),
+                Text(title, style: Fp.body(14, weight: FontWeight.w700)),
+                Text('$detail · plage $range', style: Fp.body(12, color: Fp.muted)),
               ],
             ),
           ),
-          if (status.isNotEmpty)
-            Text(
-              status,
-              style: Fp.body(12.5, weight: FontWeight.w800, color: statusColor),
-            ),
+          if (status.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Tag(status, color: tag.$2, background: tag.$1),
+          ],
         ],
       ),
     );
@@ -1469,6 +1512,6 @@ class _Small extends StatelessWidget {
 /// « environ 4 montantes sur 100 » (« moins d'une sur 100 » sous 1 %).
 String _outOf100(double p) {
   final n = (p * 100).round();
-  if (p < 0.005) return 'Moins d\'une montante sur 100';
-  return 'Environ ${n < 1 ? 1 : n} montante${n > 1 ? 's' : ''} sur 100';
+  if (p < 0.005) return 'Moins d\'une sur 100';
+  return 'Environ ${n < 1 ? 1 : n} sur 100';
 }

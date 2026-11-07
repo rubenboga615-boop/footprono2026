@@ -128,10 +128,14 @@ await check('montante : lancement, suggestions réservées à Premium', async ()
   // Montante lancée : le plan s'affiche (plus de message, lot du 06/11/2026).
   await visible(text(/Palier 1 sur/));
   // Suggestions du moteur : réservées à Premium, avec le bouton d'abonnement.
+  // Défilement par petits pas jusqu'au bouton (la liste ne construit que ce qui est proche).
   await page.mouse.move(195, 400);
-  await page.mouse.wheel(0, 600);
-  await page.waitForTimeout(800);
-  await button('Choisir le pari').click();
+  const choose = page.getByRole('button', { name: /Choisir le pari/ });
+  for (let i = 0; i < 12 && !(await choose.count()); i += 1) {
+    await page.mouse.wheel(0, 200);
+    await page.waitForTimeout(600);
+  }
+  await choose.last().click();
   await visible(text(/Premium/));
 });
 
