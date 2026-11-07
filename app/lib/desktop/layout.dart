@@ -22,7 +22,12 @@ class DesktopScope extends InheritedWidget {
 /// [maxWidth] et n'a plus à laisser la place de la barre de navigation flottante.
 EdgeInsets pagePadding(BuildContext context, double top, double bottom, {double maxWidth = 760}) {
   // Téléphone : 16 sur les côtés, comme la maquette validée le 07/11/2026.
-  if (!DesktopScope.of(context)) return EdgeInsets.fromLTRB(16, top, 16, bottom);
+  if (!DesktopScope.of(context)) {
+    // Onglets (bas ≥ 100, barre de navigation flottante) : la barre remonte de la hauteur de
+    // la barre des gestes du téléphone ; la dernière ligne passait dessous (revue du 07/11/2026).
+    final inset = bottom >= 100 ? MediaQuery.viewPaddingOf(context).bottom : 0.0;
+    return EdgeInsets.fromLTRB(16, top, 16, bottom + inset);
+  }
   final side = math.max(28.0, (MediaQuery.sizeOf(context).width - maxWidth) / 2);
   return EdgeInsets.fromLTRB(side, math.max(top, 22), side, math.min(bottom, 40));
 }

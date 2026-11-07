@@ -818,6 +818,22 @@ class _MontanteViewState extends State<MontanteView> {
                 '${money(m['start_stake'] as int, currency)} (argent fictif)',
                 style: Fp.body(13, color: Fp.text2),
               ),
+              // Le chiffre qui compte pour le joueur, en haut (revue du 07/11/2026 : il était en
+              // petit sous le tableau).
+              if ((m['chance_by_odds'] ?? m['chance_by_model']) case final num chance when active) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '${_outOf100(chance.toDouble())} vont au bout'
+                  '${m['chance_by_odds'] != null ? ' (selon les cotes)' : ' (selon le moteur)'}',
+                  style: Fp.body(13.5, weight: FontWeight.w800),
+                ),
+              ],
+              const SizedBox(height: 6),
+              Text(
+                'Une montante : le gain de chaque palier est remis en jeu au suivant. Un seul pari '
+                'perdu, et tout ce qui a été misé est perdu.',
+                style: Fp.body(12, color: Fp.text3, height: 1.35),
+              ),
             ],
           ),
         ),
@@ -1448,4 +1464,11 @@ class _Small extends StatelessWidget {
       ],
     );
   }
+}
+
+/// « environ 4 montantes sur 100 » (« moins d'une sur 100 » sous 1 %).
+String _outOf100(double p) {
+  final n = (p * 100).round();
+  if (p < 0.005) return 'Moins d\'une montante sur 100';
+  return 'Environ ${n < 1 ? 1 : n} montante${n > 1 ? 's' : ''} sur 100';
 }

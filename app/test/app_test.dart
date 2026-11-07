@@ -1963,6 +1963,19 @@ void main() {
     expect(MatchInfo(FakeServer.match).started, isFalse);
   });
 
+  testWidgets('matchs : cloche des notifications, légende de l\'encadré, textes de Flutter en français', (
+    tester,
+  ) async {
+    await startApp(tester, loggedIn: true);
+    // Revue du 07/11/2026 : légende visible sous l'en-tête, pas seulement en bas de la liste.
+    expect(find.textContaining('Encadré : l\'issue la plus probable selon le moteur'), findsOneWidget);
+    final context = tester.element(find.textContaining('Encadré :'));
+    expect(MaterialLocalizations.of(context).modalBarrierDismissLabel, 'Ignorer'); // et non « Dismiss »
+    await tester.tap(find.byTooltip('Notifications'));
+    await tester.pumpAndSettle();
+    expect(find.text('Notifications'), findsWidgets);
+  });
+
   testWidgets('mode bêta proposé une seule fois à l\'ouverture, jamais imposé', (tester) async {
     final (state, server) = await startApp(tester, loggedIn: true, betaAvailable: true);
     expect(find.text('J\'accepte de partager'), findsOneWidget);

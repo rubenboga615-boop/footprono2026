@@ -1092,8 +1092,37 @@ class _LockedPreview extends StatelessWidget {
         Loader<Json>(
           load: () async => await api.get('/smart-coupons/history') as Json,
           builder: (context, h, _) {
-            final c = (h['coupons'] as List).cast<Json>().where((c) => c['status'] != 'pending').firstOrNull;
-            return c == null ? const SizedBox.shrink() : _Example(c);
+            final settled = (h['coupons'] as List)
+                .cast<Json>()
+                .where((c) => c['status'] != 'pending')
+                .toList();
+            // Revue du 07/11/2026 : toujours le dernier coupon (souvent le même profil, parfois
+            // perdu) ; d'abord le bilan honnête de la semaine, puis un exemple qui change de
+            // profil chaque jour.
+            final since = DateTime.now().subtract(const Duration(days: 7));
+            final week = [
+              for (final c in settled)
+                if (c['status'] != 'void' && DateTime.parse('${c['day']}').isAfter(since)) c,
+            ];
+            final won = week.where((c) => c['status'] == 'won').length;
+            final expected = week.fold<double>(0, (t, c) => t + (c['probability'] as num).toDouble());
+            const profiles = ['sur', 'equilibre', 'audacieux'];
+            final wanted = profiles[DateTime.now().difference(DateTime(2026)).inDays % profiles.length];
+            final c = settled.where((c) => c['profile'] == wanted).firstOrNull ?? settled.firstOrNull;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (week.isNotEmpty)
+                  MCard(
+                    child: Text(
+                      '7 derniers jours : ${week.length > 1 ? '$won coupons gagnés' : '$won coupon gagné'} '
+                      'sur ${week.length} (le moteur en annonçait ${expected.toStringAsFixed(1).replaceAll('.', ',')}).',
+                      style: Fp.body(13.5, weight: FontWeight.w700, height: 1.4),
+                    ),
+                  ),
+                if (c != null) _Example(c),
+              ],
+            );
           },
         ),
         MCard(

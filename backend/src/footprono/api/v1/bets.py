@@ -49,13 +49,42 @@ async def main_offers(
     match_ids: Annotated[list[int], Query(max_length=MAX_MAIN_MATCHES)],
 ) -> dict[int, list[OfferOut]]:
     """Cotes réelles des colonnes du tableau des matchs (1, N, 2, +2,5 buts, les deux
-    marquent), plusieurs matchs à la fois. Un match sans cote récente est absent."""
-    out = {}
-    for match_id in dict.fromkeys(match_ids):
-        offers = await _offers_out(session, match_id, user, MAIN_KEYS)
-        if offers:
-            out[match_id] = offers
+    marquent), plusieurs matchs à la fois. Un match sans cote récente est absent.
+
+    Deux requêtes pour tous les matchs, gardées quelques minutes (même cache que le Coupon
+    intelligent) ; sans la cote d'ouverture, affichée seulement sur l'écran du match. Avant :
+    trois requêtes ou plus par match, 9,8 à 11,1 s pour la liste du jour (essai du 07/11/2026).
+    """
+    ids = list(dict.fromkeys(match_ids))
+    offers, probs = await service.cached_offers_and_probabilities(session, ids)
+    out: dict[int, list[OfferOut]] = {}
+    for match_id in ids:
+        rows = [
+            _offer_out(o, probs.get(match_id, {}).get(k))
+            for k, o in sorted(offers.get(match_id, {}).items())
+            if k in MAIN_KEYS and market_allowed(user, o.market)
+        ]
+        if rows:
+            out[match_id] = rows
     return out
+
+
+def _offer_out(o: service.Offer, p: float | None, first: Any = None) -> OfferOut:
+    return OfferOut(
+        market=o.market,
+        line=o.line or None,
+        selection=o.selection,
+        odds=o.odds,
+        bookmaker=o.bookmaker,
+        label=o.label,
+        fetched_at=o.fetched_at,
+        model_probability=p,
+        model_fair_odds=round(1 / p, 3) if p else None,
+        opening_odds=first.price if first else None,
+        opened_at=first.fetched_at if first else None,
+        source_updated_at=o.source_updated_at,
+        checked_at=o.checked_at,
+    )
 
 
 async def _offers_out(
@@ -69,28 +98,10 @@ async def _offers_out(
         if market_allowed(user, o.market) and (keys is None or k in keys)
     }
     history = await service.offer_history(session, [o.quote_id for o in allowed.values()])
-    out = []
-    for k, o in sorted(allowed.items()):
-        first = history.get(o.quote_id, [None])[0]
-        p = probs.get(k)
-        out.append(
-            OfferOut(
-                market=o.market,
-                line=o.line or None,
-                selection=o.selection,
-                odds=o.odds,
-                bookmaker=o.bookmaker,
-                label=o.label,
-                fetched_at=o.fetched_at,
-                model_probability=p,
-                model_fair_odds=round(1 / p, 3) if p else None,
-                opening_odds=first.price if first else None,
-                opened_at=first.fetched_at if first else None,
-                source_updated_at=o.source_updated_at,
-                checked_at=o.checked_at,
-            )
-        )
-    return out
+    return [
+        _offer_out(o, probs.get(k), history.get(o.quote_id, [None])[0])
+        for k, o in sorted(allowed.items())
+    ]
 
 
 @router.get("/matches/{match_id}/odds-history", response_model=OddsHistoryOut)

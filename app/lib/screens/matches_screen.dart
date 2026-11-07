@@ -11,6 +11,7 @@ import '../widgets/common.dart';
 import '../widgets/install_tip.dart';
 import '../widgets/maquette.dart';
 import 'match_screen.dart';
+import 'notifications_screen.dart';
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({super.key});
@@ -105,7 +106,13 @@ class _MatchesScreenState extends State<MatchesScreen> {
                     ),
                     const SizedBox(height: 16),
                   ] else ...[
-                    MTitle('Matchs', selectedDay == today ? 'du jour' : 'à venir'),
+                    // Cloche des notifications (revue du 07/11/2026 : seulement dans le profil).
+                    Row(
+                      children: [
+                        Expanded(child: MTitle('Matchs', selectedDay == today ? 'du jour' : 'à venir')),
+                        _Bell(unread: context.watch<AppState>().unread),
+                      ],
+                    ),
                     const SizedBox(height: 10),
                     // Jours qui défilent ; « Tous championnats ▾ » toujours visible à droite.
                     Row(
@@ -296,6 +303,14 @@ class _CompactListState extends State<_CompactList> {
               ],
             ),
           ),
+        if (widget.header)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              'Encadré : l\'issue la plus probable selon le moteur (pas un conseil de pari)',
+              style: Fp.body(11, color: const Color(0x90F4F2F8)),
+            ),
+          ),
         if (widget.title != null)
           Padding(
             padding: const EdgeInsets.only(top: 14, bottom: 2),
@@ -306,11 +321,10 @@ class _CompactListState extends State<_CompactList> {
         if (widget.note) ...[
           const SizedBox(height: 12),
           Text(
+            // L'encadré est expliqué sous l'en-tête.
             offers.isNotEmpty
-                ? 'En haut : la chance selon le moteur ; en bas : la cote 1xBet. Encadré : l\'issue la plus '
-                      'probable selon le moteur (pas un conseil de pari). Un appui ouvre le match.'
-                : 'La chance selon le moteur ; encadré : l\'issue la plus probable (pas un conseil de pari). '
-                      'Un appui ouvre le match.',
+                ? 'En haut : la chance selon le moteur ; en bas : la cote 1xBet. Un appui ouvre le match.'
+                : 'La chance selon le moteur. Un appui ouvre le match.',
             style: Fp.body(12.5, color: M.small, height: 1.4),
           ),
         ],
@@ -379,9 +393,11 @@ class _CompactRow extends StatelessWidget {
                     m.score == null
                         ? '${m.home.name} – ${m.away.name}'
                         : '${m.home.name} ${m.score} ${m.away.name}',
-                    maxLines: 1,
+                    // Deux lignes si besoin : l'équipe à l'extérieur était coupée (« Korona
+                    // Kielce – Rado… », revue du 07/11/2026).
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: Fp.body(13.5, weight: FontWeight.w600),
+                    style: Fp.body(13.5, weight: FontWeight.w600, height: 1.25),
                   ),
                   Text(
                     competitionName(m.competition),
@@ -648,4 +664,23 @@ class _MatchRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Cloche des notifications, avec le nombre de non lues.
+class _Bell extends StatelessWidget {
+  const _Bell({required this.unread});
+  final int unread;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: unread > 0 ? 'Notifications, $unread non lues' : 'Notifications',
+    onPressed: () =>
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsScreen())),
+    icon: Badge(
+      isLabelVisible: unread > 0,
+      label: Text(unread > 99 ? '99+' : '$unread'),
+      backgroundColor: Fp.accent,
+      child: const Icon(Icons.notifications_none_rounded, color: Fp.text),
+    ),
+  );
 }

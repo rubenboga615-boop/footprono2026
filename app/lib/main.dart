@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/semantics.dart';
 import 'package:provider/provider.dart';
 
@@ -55,6 +56,11 @@ class FootProbaApp extends StatelessWidget {
         title: 'FootProba',
         debugShowCheckedModeBanner: false,
         theme: Fp.theme(),
+        // Fenêtres annoncées en français au lecteur d'écran (avant : « Dialog », « Dismiss »,
+        // « Scrim », revue du 07/11/2026).
+        locale: const Locale('fr'),
+        supportedLocales: const [Locale('fr')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         scaffoldMessengerKey: messengerKey,
         navigatorKey: navigatorKey,
         builder: (context, child) => FpBackground(child: WideFrame(child: child ?? const SizedBox())),
