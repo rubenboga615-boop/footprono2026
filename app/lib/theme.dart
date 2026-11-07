@@ -401,7 +401,7 @@ class GlassCard extends StatelessWidget {
 
 /// Titre en deux tons : premier mot blanc, second dans l'accent clair.
 class TwoToneTitle extends StatelessWidget {
-  const TwoToneTitle(this.first, this.second, {super.key, this.size = 24, this.joined = false});
+  const TwoToneTitle(this.first, this.second, {super.key, this.size = 23, this.joined = false});
   final String first;
   final String second;
   final double size;
