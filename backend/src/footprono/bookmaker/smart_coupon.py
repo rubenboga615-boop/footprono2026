@@ -201,6 +201,8 @@ class Filters:
     after_hour: int | None = None  # coup d'envoi à partir de cette heure (UTC = Abidjan)
     exclude_matches: frozenset[int] = frozenset()
     exclude_teams: frozenset[int] = frozenset()
+    # Championnats écartés par le joueur (« Toujours exclure ce championnat »).
+    exclude_competitions: frozenset[str] = frozenset()
 
     def keeps(self, match: Match) -> bool:
         if match.id in self.exclude_matches:
@@ -245,7 +247,9 @@ async def window_candidates(
     """Sélections jouables de chaque match de la période (préparées à l'avance si possible,
     bookmaker/playable.py)."""
     rows = [
-        r for r in await _matches(session, start, end, filters.competitions) if filters.keeps(r[0])
+        r
+        for r in await _matches(session, start, end, filters.competitions)
+        if filters.keeps(r[0]) and r[3] not in filters.exclude_competitions
     ]
     offers, probs = await playable.load(session, [m.id for m, *_ in rows], now, redis)
     return [
@@ -454,6 +458,7 @@ async def generate(
     after_hour: int | None = None,
     exclude_matches: list[int] | None = None,
     exclude_teams: list[int] | None = None,
+    exclude_competitions: list[str] | None = None,
     now: datetime | None = None,
     redis: Redis | None = None,
 ) -> dict[str, Any]:
@@ -477,6 +482,7 @@ async def generate(
         after_hour=after_hour,
         exclude_matches=frozenset(exclude_matches or ()),
         exclude_teams=frozenset(exclude_teams or ()),
+        exclude_competitions=frozenset(exclude_competitions or ()),
     )
     first = await next_kickoff(session, start, competitions)
     if period == "next" and first is not None:

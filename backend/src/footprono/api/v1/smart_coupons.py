@@ -32,6 +32,7 @@ async def generate(
     after_hour: int | None = None,
     exclude_matches: Annotated[list[int] | None, Query()] = None,
     exclude_teams: Annotated[list[int] | None, Query()] = None,
+    exclude_competitions: Annotated[list[str] | None, Query()] = None,
 ) -> Any:
     require_premium(user, "coupon intelligent")
     return await smart_coupon.generate(
@@ -47,6 +48,7 @@ async def generate(
         after_hour=after_hour,
         exclude_matches=exclude_matches,
         exclude_teams=exclude_teams,
+        exclude_competitions=exclude_competitions,
         redis=redis,
     )
 

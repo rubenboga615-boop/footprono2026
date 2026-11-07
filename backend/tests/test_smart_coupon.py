@@ -302,6 +302,9 @@ async def test_grosse_cote_filters_and_periods(
     team = without_m1["coupon"]["selections"][0]["home_team_id"]
     no_team = await gen(profile="equilibre", period="tomorrow", size=2, exclude_teams=[team])
     assert m2 not in [s["match_id"] for s in no_team["coupon"]["selections"]]
+    comp = without_m1["coupon"]["selections"][0]["competition"]
+    no_comp = await gen(profile="equilibre", period="tomorrow", size=2, exclude_competitions=[comp])
+    assert no_comp["coupon"] is None  # tous les matchs du jour sont dans ce championnat
     late = await gen(profile="equilibre", period="tomorrow", size=2, after_hour=21)
     assert late["coupon"] is None  # matchs à 20 h : avant l'heure demandée
 

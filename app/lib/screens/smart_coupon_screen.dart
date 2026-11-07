@@ -91,6 +91,9 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
   int hour = 0;
   final Set<String> competitions = {};
   final Set<int> excludedMatches = {};
+
+  /// Championnats écartés (« Toujours exclure ce championnat »), pour ce coupon.
+  final Set<String> excludedCompetitions = {};
   bool composing = false; // le moteur compose le coupon
   String? adding; // « Ajout 3 / 7… » pendant l'ajout au coupon
   bool get busy => composing || adding != null;
@@ -167,31 +170,52 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
       for (final c in competitions) 'competitions=$c',
       for (final m in excludedMatches) 'exclude_matches=$m',
       for (final t in context.read<AppState>().excludedTeams.keys) 'exclude_teams=$t',
+      for (final c in excludedCompetitions) 'exclude_competitions=$c',
     ];
     return '/smart-coupon?${parts.join('&')}';
   }
 
+  /// Cote visée personnalisée : champ vide, valeur refusée avec un message (essai du 07/11/2026 :
+  /// 1,5, 0 ou « abc » fermaient la fenêtre sans rien dire).
   Future<void> _customTarget() async {
-    final ctrl = TextEditingController(text: '$target');
+    final ctrl = TextEditingController();
+    String? error;
     final v = await showDialog<num>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cote visée'),
-        content: TextField(
-          controller: ctrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(helperText: 'De 2 à 1000'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, num.tryParse(ctrl.text.replaceAll(',', '.'))),
-            child: const Text('Valider'),
-          ),
-        ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) {
+          void submit() {
+            final n = num.tryParse(ctrl.text.trim().replaceAll(',', '.'));
+            if (n == null || n < 2 || n > 1000) {
+              setLocal(() => error = 'Écris une cote entre 2 et 1000 (par exemple 15 ou 12,5).');
+              return;
+            }
+            Navigator.pop(context, n);
+          }
+
+          return AlertDialog(
+            title: const Text('Cote visée'),
+            content: TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onSubmitted: (_) => submit(),
+              decoration: InputDecoration(
+                hintText: 'Actuelle : ${decimal(target)}',
+                helperText: error == null ? 'De 2 à 1000' : null,
+                errorText: error,
+                errorMaxLines: 3,
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+              FilledButton(onPressed: submit, child: const Text('Valider')),
+            ],
+          );
+        },
       ),
     );
-    if (v != null && v >= 2 && v <= 1000) setState(() => target = v);
+    if (v != null) setState(() => target = v);
   }
 
   /// Remplacer : la sélection est écartée, le moteur recompose le coupon sans ce match.
@@ -200,47 +224,100 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
     await _generate();
   }
 
-  Future<void> _exclude(Json s) async {
+  /// « Changer » (rapport du 07/11/2026 : Remplacer et Exclure faisaient la même chose, et
+  /// on ne pouvait pas retirer une sélection) : un seul bouton, cinq choix.
+  Future<void> _change(Json s) async {
     final state = context.read<AppState>();
     final home = s['home'] as String, away = s['away'] as String;
+    final comp = s['competition'] as String?;
+    Widget option(String value, String label, {IconData? icon}) => ListTile(
+      leading: Icon(icon, color: Fp.accentLight, size: 20),
+      title: Text(label, style: Fp.body(14)),
+      onTap: () => Navigator.pop(context, value),
+    );
     final choice = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Fp.background,
       builder: (context) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+          padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Exclure $home – $away ?', style: Fp.title(17)),
-              const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: () => Navigator.pop(context, 'match'),
-                child: const Text('Seulement ce match'),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text('$home – $away', style: Fp.title(17)),
               ),
+              const SizedBox(height: 6),
+              option('replace', 'Remplacer par un autre match', icon: Icons.autorenew_rounded),
+              option('remove', 'Retirer sans remplacer', icon: Icons.remove_circle_outline_rounded),
               if (s['home_team_id'] != null) ...[
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  onPressed: () => Navigator.pop(context, 'home'),
-                  child: Text('Toujours exclure $home'),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  onPressed: () => Navigator.pop(context, 'away'),
-                  child: Text('Toujours exclure $away'),
-                ),
+                option('home', 'Toujours exclure $home', icon: Icons.block_rounded),
+                option('away', 'Toujours exclure $away', icon: Icons.block_rounded),
               ],
+              if (comp != null)
+                option(
+                  'comp',
+                  'Exclure ce championnat (${competitionName(comp)})',
+                  icon: Icons.block_rounded,
+                ),
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
             ],
           ),
         ),
       ),
     );
-    if (choice == null) return;
-    if (choice == 'match') excludedMatches.add(s['match_id'] as int);
-    if (choice == 'home') await state.excludeTeam(s['home_team_id'] as int, home);
-    if (choice == 'away') await state.excludeTeam(s['away_team_id'] as int, away);
-    await _generate();
+    switch (choice) {
+      case 'replace':
+        await _replace(s);
+      case 'remove':
+        _remove(s);
+      case 'home':
+        await state.excludeTeam(s['home_team_id'] as int, home);
+        await _generate();
+      case 'away':
+        await state.excludeTeam(s['away_team_id'] as int, away);
+        await _generate();
+      case 'comp':
+        excludedCompetitions.add(comp!);
+        await _generate();
+    }
+  }
+
+  /// Retirer sans remplacer : le coupon garde les autres sélections ; cote et chances
+  /// recalculées sur place (produit des cotes, produit des chances du moteur).
+  void _remove(Json s) {
+    final r = result;
+    final coupon = r?['coupon'] as Json?;
+    if (r == null || coupon == null) return;
+    final sels = [
+      for (final x in (coupon['selections'] as List).cast<Json>())
+        if (x['match_id'] != s['match_id']) x,
+    ];
+    excludedMatches.add(s['match_id'] as int);
+    if (sels.isEmpty) {
+      setState(() => result = {...r, 'coupon': null, 'message': 'Coupon vide : compose un nouveau coupon.'});
+      return;
+    }
+    var total = 1.0, p = 1.0;
+    for (final x in sels) {
+      total *= double.parse('${x['odds']}');
+      p *= (x['model_probability'] as num).toDouble();
+    }
+    setState(
+      () => result = {
+        ...r,
+        'coupon': {
+          ...coupon,
+          'selections': sels,
+          'total_odds': total.toStringAsFixed(2),
+          'probability': p,
+          'implied_probability': 1 / total,
+          'one_in': (1 / p).round(),
+        },
+      },
+    );
   }
 
   Future<void> _addToCoupon(List<Json> selections) async {
@@ -309,7 +386,9 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                       for (final t in SmartCouponScreen.targets)
                         FpChip('$t', selected: target == t, onTap: () => setState(() => target = t)),
                       FpChip(
-                        SmartCouponScreen.targets.contains(target) ? 'Autre…' : 'Autre : ${decimal(target)}',
+                        SmartCouponScreen.targets.contains(target)
+                            ? 'Autre…'
+                            : 'Autre : ${decimal(target, max: 2)}',
                         selected: !SmartCouponScreen.targets.contains(target),
                         onTap: _customTarget,
                       ),
@@ -377,7 +456,10 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                       onSelected: (i) => setState(() => _big ? maxBig = i + 1 : size = i + 1),
                     ),
                   ],
-                  if (state.excludedTeams.isNotEmpty || excludedMatches.isNotEmpty) ...[
+                  // Exclusions toujours visibles, au-dessus de « Composer le coupon ».
+                  if (state.excludedTeams.isNotEmpty ||
+                      excludedMatches.isNotEmpty ||
+                      excludedCompetitions.isNotEmpty) ...[
                     _Label('Exclus'),
                     Wrap(
                       spacing: 8,
@@ -385,6 +467,11 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                       children: [
                         for (final e in state.excludedTeams.entries)
                           InputChip(label: Text(e.value), onDeleted: () => state.includeTeam(e.key)),
+                        for (final c in excludedCompetitions)
+                          InputChip(
+                            label: Text(competitionName(c)),
+                            onDeleted: () => setState(() => excludedCompetitions.remove(c)),
+                          ),
                         if (excludedMatches.isNotEmpty)
                           InputChip(
                             label: Text(
@@ -417,8 +504,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                       coupon: coupon,
                       big: _big,
                       rule: _rule(result!),
-                      onReplace: busy ? null : _replace,
-                      onExclude: busy ? null : _exclude,
+                      onChange: busy ? null : _change,
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -493,15 +579,14 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
 }
 
 class _CouponCard extends StatelessWidget {
-  const _CouponCard({required this.coupon, this.big = false, this.rule, this.onReplace, this.onExclude});
+  const _CouponCard({required this.coupon, this.big = false, this.rule, this.onChange});
 
   /// Comment le moteur a composé ce coupon, en une phrase (essai réel du 06/11/2026 : le
   /// joueur ne comprenait ni les « 60 % » partout ni la cote au-dessus de la cible).
   final String? rule;
   final Json coupon;
   final bool big;
-  final void Function(Json)? onReplace;
-  final void Function(Json)? onExclude;
+  final void Function(Json)? onChange;
 
   @override
   Widget build(BuildContext context) {
@@ -523,23 +608,15 @@ class _CouponCard extends StatelessWidget {
             if (i > 0) const Divider(height: 18),
             _SelectionRow(
               s,
-              trailing: onReplace == null
+              trailing: onChange == null
                   ? null
-                  : Column(
-                      children: [
-                        IconButton(
-                          tooltip: 'Remplacer',
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.autorenew_rounded, size: 18, color: Fp.text2),
-                          onPressed: () => onReplace!(s),
-                        ),
-                        IconButton(
-                          tooltip: 'Exclure',
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.close_rounded, size: 18, color: Fp.text2),
-                          onPressed: () => onExclude!(s),
-                        ),
-                      ],
+                  : TextButton(
+                      onPressed: () => onChange!(s),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        textStyle: Fp.body(13.5, weight: FontWeight.w600),
+                      ),
+                      child: const Text('Changer'),
                     ),
             ),
           ],

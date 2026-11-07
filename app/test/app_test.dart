@@ -1040,7 +1040,8 @@ void main() {
     await tester.tap(find.text('Coupon'));
     await tester.pumpAndSettle();
     expect(find.text('Victoire Lens'), findsOneWidget);
-    expect(find.text(money(1850)), findsOneWidget); // 1 000 × 1,85
+    expect(find.text(money(1850)), findsOneWidget); // 1 000 × 1,85, mise comprise
+    expect(find.text('+${money(850)}'), findsOneWidget); // bénéfice net
 
     await tester.ensureVisible(find.text('Placer le pari'));
     await tester.pumpAndSettle();
@@ -1050,6 +1051,63 @@ void main() {
     expect(server.placedBets.single['stake'], 1000);
     expect((server.placedBets.single['selections'] as List).single['odds'], '1.850');
     expect(state.coupon, isEmpty);
+  });
+
+  testWidgets('coupon : « Vider » demande confirmation', (tester) async {
+    final (state, _) = await startApp(tester, loggedIn: true);
+    await tester.tap(find.text('Lens – Lyon').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1,85').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Retour'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Coupon'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Vider'));
+    await tester.tap(find.text('Vider'));
+    await tester.pumpAndSettle();
+    expect(find.text('Vider le coupon ?'), findsOneWidget);
+    await tester.tap(find.text('Annuler'));
+    await tester.pumpAndSettle();
+    expect(state.coupon, hasLength(1));
+    await tester.tap(find.text('Vider'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Vider'));
+    await tester.pumpAndSettle();
+    expect(state.coupon, isEmpty);
+  });
+
+  testWidgets('Coupon intelligent : cote visée invalide refusée avec un message, retirer sans remplacer', (
+    tester,
+  ) async {
+    await startApp(tester, loggedIn: true, premium: true);
+    await tester.binding.setSurfaceSize(const Size(430, 2600));
+    await tester.tap(find.text('Coupon'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Coupon intelligent'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Grosse cote'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Autre…'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'abc');
+    await tester.tap(find.text('Valider'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Écris une cote entre 2 et 1000'), findsOneWidget); // fenêtre gardée
+    await tester.enterText(find.byType(TextField).last, '12,5');
+    await tester.tap(find.text('Valider'));
+    await tester.pumpAndSettle();
+    expect(find.text('Autre : 12,5'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Composer le coupon'));
+    await tester.tap(find.text('Composer le coupon'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Changer').first);
+    await tester.tap(find.text('Changer').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Retirer sans remplacer'));
+    await tester.pumpAndSettle();
+    expect(find.text('Coupon vide : compose un nouveau coupon.'), findsOneWidget);
   });
 
   testWidgets('Premium : handicap asiatique visible, pas de verrou', (tester) async {
@@ -1225,7 +1283,12 @@ void main() {
     // Règle du coupon expliquée (cotes reçues en texte, comme du serveur).
     expect(find.textContaining('jusqu\'à dépasser la cote visée'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Exclure'));
+    // Un seul bouton « Changer » par sélection (rapport du 07/11/2026), cinq choix.
+    await tester.ensureVisible(find.text('Changer').first);
+    await tester.tap(find.text('Changer').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Retirer sans remplacer'), findsOneWidget);
+    expect(find.text('Exclure ce championnat (Ligue 1)'), findsOneWidget);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Toujours exclure Lens'));
     await tester.pumpAndSettle();

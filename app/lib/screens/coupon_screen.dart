@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -175,6 +177,22 @@ class _CouponScreenState extends State<CouponScreen> {
     setState(() => stake.text = '${current + v}');
   }
 
+  /// « Vider » demande confirmation (essai du 07/11/2026 : 10 sélections effacées d'un appui).
+  Future<void> _confirmClear(AppState state, int count) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Vider le coupon ?'),
+        content: Text('Retirer ${count > 1 ? 'les $count sélections' : 'la sélection'} du coupon ?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Vider')),
+        ],
+      ),
+    );
+    if (ok == true) state.clearCoupon();
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
@@ -333,9 +351,12 @@ class _CouponScreenState extends State<CouponScreen> {
                           ] else
                             _Line('Mise imposée par la montante', money(step.stake, currency)),
                           const SizedBox(height: 10),
+                          // Mise comprise, puis le bénéfice net (essai du 07/11/2026 : « Gain possible
+                          // 1 200 F » laissait croire que l'on gagnait 1 200 F en plus de sa mise).
+                          _Line('Tu récupères', money(payout, currency)),
                           _Line(
-                            'Gain possible',
-                            money(payout, currency),
+                            'Bénéfice',
+                            '+${money(math.max(0, payout - amount), currency)}',
                             valueStyle: Fp.body(17, weight: FontWeight.w800, color: const Color(0xFF6EE7B7)),
                           ),
                           const SizedBox(height: 10),
@@ -378,7 +399,7 @@ class _CouponScreenState extends State<CouponScreen> {
                           child: const Text('Mettre à jour les cotes'),
                         ),
                         TextButton(
-                          onPressed: busy ? null : state.clearCoupon,
+                          onPressed: busy ? null : () => _confirmClear(state, items.length),
                           style: TextButton.styleFrom(foregroundColor: Fp.lossText),
                           child: const Text('Vider'),
                         ),
