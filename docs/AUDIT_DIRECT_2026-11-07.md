@@ -92,3 +92,26 @@ avancement « x sur 3 validées », minute, temps additionnel, règlement de cha
 - Libellé contradictoire : « **Sans encaisser de but** · Zemun encaisse au moins un but »
   (titre du marché « clean sheet » et sélection « non »). **Piste** : « Zemun encaisse au
   moins un but » seul, ou « Clean sheet Zemun : non ».
+
+## 9. Suivi du pari n° 32 — 16 h 20 GMT (serveur `45039a7`, version web de 15 h 17)
+
+Maccabi Haifa – Maccabi Netanya à la **mi-temps (0-0)**, Hapoel Katamon – Bnei Sakhnin à la
+**19e (0-0)**, Antwerp – Lommel à venir (19:45).
+
+| Point (essai de 13 h 35) | Constat de 16 h 20 |
+|---|---|
+| §1 Doublon dans la liste | **corrigé** : chaque match en cours n'apparaît qu'une fois, dans « En direct » (« MT Maccabi Haifa 0 - 0 Maccabi Netanya », « 19' Hapoel Katamon 0 - 0 Bnei Sakhnin ») |
+| §2 Chances d'avant-match pendant le direct | **corrigé** : bandeau « Chances calculées avant le coup d'envoi : elles ne tiennent pas compte du score. Score actuel : 0 - 0 (MT). Paris fermés sur ce match. » ; plus de « choix du moteur » |
+| §3 Cotes d'un match commencé ajoutables | **corrigé** : chaque cote est marquée « fermé » |
+| §4 Temps additionnel | **corrigé** dans la liste (« 90+1' » vu à 15 h 58 pour HNK Gorica – Slaven Belupo ; « 45+3' » sur la capture du fondateur) ; en-tête du match : « 0 - 0 Mi-temps », « En direct 19' » |
+| Fiche du pari 32 | « **0 sur 3 validée · 2 en cours · 1 à venir** », chaque sélection avec son état : « en cours 19' · 0-0 », « à venir » |
+
+**Nouveaux petits constats** :
+1. **Fiche du pari : « en cours 45' » pendant la mi-temps** de Maccabi Haifa – Netanya, alors
+   que la liste et l'écran du match disent « MT » / « Mi-temps ». **Piste** : même libellé
+   partout (« Mi-temps · 0-0 »).
+2. **Pas d'indication « en bonne voie »** sur une sélection en cours : Netanya (+3,0) à 0-0 et
+   « Katamon moins de 2,5 buts » à 0-0 sont toutes deux gagnantes à cet instant, mais rien
+   ne le montre (les bookmakers mettent un point vert). **Piste** : « gagnante pour
+   l'instant » / « perdante pour l'instant » d'après le score, sans changer le règlement.
+3. Chance du coupon en direct : absente (attendu, étape 1 de la proposition non faite).
