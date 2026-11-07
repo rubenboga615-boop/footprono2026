@@ -31,6 +31,12 @@ from footprono.predictions.models import PredictionRun
 
 logger = logging.getLogger(__name__)
 QUOTA_KEY = "console:api_quota"
+# Tâches fréquentes : passage le plus ancien admis (planifiées toutes les 2, 10 et 5 min).
+HEARTBEATS = {
+    "follow_live": timedelta(minutes=15),
+    "check_payments": timedelta(minutes=40),
+    "kickoff_reminders": timedelta(minutes=30),
+}
 QUOTA_TTL = 600  # /status ne coûte pas de requête, mais inutile de l'appeler à chaque page
 
 
@@ -235,6 +241,28 @@ async def dashboard(session: AsyncSession, redis: Redis, settings: Settings) -> 
                 + ", ".join(sorted(stale)),
             }
         )
+    runs = await recent_runs(redis) if redis_ok else []
+    # Tâche arrêtée sans erreur (planificateur arrêté, tâche bloquée) : rien ne prévenait
+    # (revue du 07/11/2026). Seulement quand le worker répond : sinon l'alerte « aucun
+    # worker » le dit déjà.
+    if workers:
+        for task in runs:
+            limit = HEARTBEATS.get(task["task"])
+            if limit is None:
+                continue
+            # Sans aucun passage en 24 h (tâche toute neuve juste après une mise à jour) :
+            # pas d'alerte, la surveillance extérieure (/health/tasks) couvre le direct.
+            if not task["runs"]:
+                continue
+            last = task["runs"][0]["at"]
+            if now - last > limit:
+                todo.append(
+                    {
+                        "level": "error",
+                        "text": f"« {task['label']} » ne tourne plus "
+                        f"(depuis le {last:%d/%m à %H:%M} GMT)",
+                    }
+                )
     if last_odds is None or now - last_odds > timedelta(hours=7):
         todo.append(
             {
@@ -262,7 +290,7 @@ async def dashboard(session: AsyncSession, redis: Redis, settings: Settings) -> 
         "users": {"total": users or 0, "premium": premium or 0, "new_7d": new_7d, "trend": trend},
         "quota": quota,
         "backup": backup,
-        "runs": await recent_runs(redis) if redis_ok else [],
+        "runs": runs,
         "todo": todo,
         "jobs": await list_jobs(session, limit=8),
     }

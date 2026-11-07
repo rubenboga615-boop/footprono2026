@@ -96,6 +96,12 @@ def create_celery(settings: Settings | None = None) -> Celery:
                 "schedule": crontab(minute="*/5"),
                 "options": {"expires": 280},
             },
+            # « Ton pari commence dans 25 min » : une fois par pari, 30 min avant au plus.
+            "kickoff-reminders": {
+                "task": "footprono.kickoff_reminders",
+                "schedule": crontab(minute="*/5"),
+                "options": {"expires": 280},
+            },
             # Paiements dont la notification CinetPay n'est pas arrivée.
             "check-payments": {
                 "task": "footprono.check_payments",

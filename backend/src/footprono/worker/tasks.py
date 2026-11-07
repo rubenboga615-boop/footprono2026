@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from footprono import __version__, alerts
 from footprono.accounts.reminders import send_premium_reminders
 from footprono.bookmaker import playable, settlement, smart_coupon
+from footprono.bookmaker.kickoff import send_kickoff_reminders
 from footprono.cache.redis import create_redis
 from footprono.console import jobs as console_jobs
 from footprono.console.runs import tracked
@@ -388,6 +389,30 @@ async def _premium_reminders() -> dict[str, Any]:
     try:
         async with create_session_factory(engine)() as session:
             sent = await send_premium_reminders(session)
+            await notifications.publish_pending(session, redis, push)
+    finally:
+        await redis.aclose()
+        if push is not None:
+            await push.aclose()
+        await engine.dispose()
+    return {"status": "ok", "sent": sent}
+
+
+@celery_app.task(name="footprono.kickoff_reminders")
+@tracked("kickoff_reminders")
+def kickoff_reminders() -> dict[str, Any]:
+    """« Ton pari commence dans 25 min » (bookmaker/kickoff.py)."""
+    return asyncio.run(_kickoff_reminders())
+
+
+async def _kickoff_reminders() -> dict[str, Any]:
+    settings = get_settings()
+    engine = create_engine(settings)
+    redis = create_redis(settings)
+    push = push_sender_or_none(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            sent = await send_kickoff_reminders(session)
             await notifications.publish_pending(session, redis, push)
     finally:
         await redis.aclose()

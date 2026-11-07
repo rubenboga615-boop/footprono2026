@@ -33,6 +33,7 @@ TRACKED = {
     "daily_smart_coupons": "Coupons du jour",
     "check_payments": "Paiements (10 min)",
     "premium_reminders": "Rappels Premium",
+    "kickoff_reminders": "Coups d'envoi (5 min)",
 }
 
 F = TypeVar("F", bound=Callable[..., Any])

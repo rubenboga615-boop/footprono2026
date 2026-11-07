@@ -139,3 +139,29 @@ async def test_tasks_probe_for_external_monitoring(client: AsyncClient) -> None:
     finally:
         await store.delete(PREFIX + "follow_live")
         await store.aclose()
+
+
+async def test_stopped_task_is_reported_even_without_error(
+    db_factory: Factory, redis: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Revue du 07/11/2026 : une tâche arrêtée sans erreur (planificateur arrêté) ne
+    prévenait personne. Suivi du direct sans passage depuis 40 min : panne signalée."""
+    monkeypatch.setattr(dashboard, "_ping_worker", lambda _url: 1)
+    for name in ("follow_live", "check_payments", "kickoff_reminders"):
+        await redis.delete(PREFIX + name)
+    await redis.lpush(
+        PREFIX + "follow_live", json.dumps({"at": time.time() - 40 * 60, "s": 1, "st": "ok"})
+    )
+    await redis.lpush(
+        PREFIX + "check_payments", json.dumps({"at": time.time() - 60, "s": 1, "st": "ok"})
+    )
+    try:
+        async with db_factory() as session:
+            board = await dashboard.dashboard(session, redis, make_settings())
+        texts = [t["text"] for t in board["todo"] if t["level"] == "error"]
+        assert any(t.startswith("« Direct (2 min) » ne tourne plus (depuis le ") for t in texts)
+        assert not any("Coups d'envoi" in t for t in texts)  # jamais lancée : pas d'alerte
+        assert not any("Paiements" in t for t in texts)  # passé il y a 1 min
+    finally:
+        for name in ("follow_live", "check_payments", "kickoff_reminders"):
+            await redis.delete(PREFIX + name)
