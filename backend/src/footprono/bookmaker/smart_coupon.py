@@ -17,8 +17,9 @@ match (elles sont liées).
   saison, confrontations), jamais par une opinion.
 - **Grosse cote** : l'utilisateur fixe une cote totale visée. Pour chaque
   profil, on ajoute ses angles du plus probable au moins probable jusqu'à
-  atteindre la cote (``target_coupon``), puis on garde le coupon dont la cote
-  est la plus proche de la cible. Les sélections sont choisies par leur probabilité seule, jamais
+  atteindre la cote (``target_coupon`` ; la dernière, parmi les 5 suivantes, est la
+  plus petite cote qui suffit), puis on garde le coupon dont la cote est la plus
+  proche de la cible. Les sélections sont choisies par leur probabilité seule, jamais
   par l'écart entre le moteur et la cote : chercher « la combinaison la plus
   probable » parmi toutes choisissait les sélections où le moteur contredit le
   plus la cote, c'est-à-dire là où il se trompe le plus souvent (vérifié sur
@@ -308,23 +309,36 @@ async def best_angles(
     return ranked_angles(profile, await window_candidates(session, start, end, now, filters, redis))
 
 
+# Dernière sélection : choisie parmi les quelques suivantes les plus probables.
+CLOSE_WINDOW = 5
+
+
 def target_coupon(ranked: list[Pick], target: Decimal, max_size: int) -> list[Pick]:
     """Les sélections les plus probables (dans l'ordre de ``ranked``) jusqu'à la cote visée.
 
-    Ordre de probabilité pur : choisir une sélection « parce que sa cote suffit » ou
-    « parce que le moteur la juge plus probable que sa cote » reviendrait à choisir là
-    où le moteur contredit le bookmaker (vérifié le 03/10/2026). Liste vide si la cote
-    n'est pas atteinte avec ``max_size`` sélections au plus.
+    Ordre de probabilité pur : choisir une sélection « parce que le moteur la juge plus
+    probable que sa cote » reviendrait à choisir là où le moteur contredit le bookmaker
+    (vérifié le 03/10/2026). Liste vide si la cote n'est pas atteinte avec ``max_size``
+    sélections au plus.
+
+    Seule la **dernière** sélection, celle qui fait passer la cible, est prise parmi les
+    ``CLOSE_WINDOW`` suivantes les plus probables : la plus petite cote qui suffit. Avant,
+    la suivante dans l'ordre faisait souvent dépasser de loin (25 visé, 37,31 obtenu, essai
+    réel du 07/11/2026). Ce choix ne regarde que la hauteur de la cote, jamais l'écart entre
+    le moteur et le bookmaker ; une cote plus basse veut dire un pari que le bookmaker
+    juge plus probable, jamais une « bonne affaire ».
     """
     chosen: list[Pick] = []
     total = Decimal(1)
-    for pk in ranked:
+    for i, pk in enumerate(ranked):
         if len(chosen) >= max_size:
             break
+        if total * pk.offer.odds >= target:
+            window = ranked[i : i + CLOSE_WINDOW]
+            enough = [c for c in window if total * c.offer.odds >= target]
+            return [*chosen, min(enough, key=lambda c: c.offer.odds)]
         chosen.append(pk)
         total *= pk.offer.odds
-        if total >= target:
-            return chosen
     return []
 
 

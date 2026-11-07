@@ -256,6 +256,22 @@ def test_target_coupon_adds_most_probable_until_target() -> None:
     last = smart_coupon.target_coupon(ranked, Decimal("2.5"), max_size=12)
     assert [pk.match.id for pk in last] == [1, 2, 3]
     assert smart_coupon.target_coupon(ranked, Decimal("3.5"), max_size=2) == []
+    # Dernière sélection : la plus petite cote qui suffit parmi les suivantes les plus
+    # probables (essai réel du 07/11/2026 : 25 visé, 37,31 obtenu).
+    near = [_fake(1, "2.00", 0.80), _fake(2, "2.00", 0.79), _fake(3, "2.50", 0.70),
+            _fake(4, "1.60", 0.68), _fake(5, "1.30", 0.66)]  # fmt: skip
+    closer = smart_coupon.target_coupon(near, Decimal("5"), max_size=12)
+    assert [pk.match.id for pk in closer] == [1, 2, 5]  # 2 x 2 x 1,30 = 5,2 (et non 10)
+    # Hors de la fenêtre (6e suivante et au-delà) : jamais prise.
+    far = [
+        _fake(1, "2.00", 0.8),
+        *[_fake(i, "3.00", 0.7) for i in range(2, 7)],
+        _fake(7, "1.05", 0.6),
+    ]
+    assert [pk.match.id for pk in smart_coupon.target_coupon(far, Decimal("5"), max_size=12)] == [
+        1,
+        2,
+    ]
     assert smart_coupon.target_coupon(ranked, Decimal("100"), max_size=12) == []
 
 
