@@ -434,6 +434,7 @@ class FakeServer {
             'total_odds': '1.85',
             'probability': 0.62,
             'implied_probability': 0.5405,
+            'best_probability': 0.635,
           },
           'alternatives': [],
           'message': null,
@@ -1307,6 +1308,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(state.excludedTeams, {1: 'Lens'});
     expect(server.smartQueries.last['exclude_teams'], '1');
+
+    // Proposition du 07/11/2026 : coupon tiré pour ce joueur, dit, et « Un autre coupon ».
+    expect(find.textContaining('Composé pour toi parmi les meilleurs'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'Chance de ce coupon : 62,0\s%\s\(le meilleur : 63,5\s%\)')), findsOneWidget);
+    await tester.ensureVisible(find.text('Un autre coupon'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Un autre coupon'));
+    await tester.pumpAndSettle();
+    expect(server.smartQueries.last['variant'], '1');
 
     await tester.ensureVisible(find.text('Partager en image'));
     await tester.pumpAndSettle();

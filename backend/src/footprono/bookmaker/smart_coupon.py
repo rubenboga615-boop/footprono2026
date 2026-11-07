@@ -26,6 +26,8 @@ match (elles sont liées).
   les données réelles le 03/10/2026).
 """
 
+import hashlib
+import random
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -342,6 +344,67 @@ def target_coupon(ranked: list[Pick], target: Decimal, max_size: int) -> list[Pi
     return []
 
 
+# ---------------------------------------------------------------- diversité
+
+# Proposition du 07/11/2026 (docs/AUDIT_PROPOSITION_DIVERSITE_2026-11-07.md) : avec le même
+# coupon pour tous, un mauvais jour fait perdre tout le monde en même temps. Beaucoup de
+# sélections sont presque à égalité (profils plafonnés : Équilibré juste sous 75 %) ; entre
+# elles, chaque joueur a son propre tirage, le même toute la journée (« Un autre coupon » :
+# tirage suivant). Jamais un coupon nettement moins bon : chaque sélection à 1 point au plus
+# de la dernière du meilleur coupon, et au moins 97 % de sa chance. Pas un moyen de gagner
+# plus : la chance moyenne reste la même, les joueurs ne perdent plus tous le même jour.
+TIE = 0.01
+MIN_SHARE = 0.97
+TRIES = 30
+
+
+def player_rng(player: int | None, day: date, profile: str, variant: int) -> random.Random | None:
+    """Tirage propre au joueur, au jour, au profil et au numéro de variante."""
+    if player is None:
+        return None
+    seed = hashlib.sha256(f"{player}|{day.isoformat()}|{profile}|{variant}".encode()).digest()
+    return random.Random(int.from_bytes(seed[:8], "big"))  # noqa: S311 (pas de secret : un tirage reproductible)
+
+
+def chance(picks: Sequence[Pick]) -> float:
+    out = 1.0
+    for pk in picks:
+        out *= pk.probability
+    return out
+
+
+def vary(ranked: list[Pick], size: int, rng: random.Random | None) -> tuple[list[Pick], list[Pick]]:
+    """(coupon, sélections de rechange) d'un profil : les ``size`` premières, ou un tirage
+    parmi celles à 1 point au plus de la dernière d'entre elles."""
+    best = ranked[:size]
+    pool = [pk for pk in ranked if best and pk.probability >= best[-1].probability - TIE]
+    if rng is not None and len(pool) > size:
+        floor = MIN_SHARE * chance(best)
+        for _ in range(TRIES):
+            drawn = rng.sample(pool, size)
+            if chance(drawn) >= floor:
+                chosen = [pk for pk in ranked if pk in drawn]
+                return chosen, [pk for pk in ranked if pk not in drawn][:ALTERNATIVES]
+    return best, ranked[size : size + ALTERNATIVES]
+
+
+def shuffle_ties(ranked: list[Pick], rng: random.Random | None) -> list[Pick]:
+    """Grosse cote : l'ordre des sélections presque à égalité (1 point) mélangé."""
+    if rng is None:
+        return ranked
+    out: list[Pick] = []
+    i = 0
+    while i < len(ranked):
+        j = i
+        while j < len(ranked) and ranked[i].probability - ranked[j].probability <= TIE:
+            j += 1
+        group = ranked[i:j]
+        rng.shuffle(group)
+        out += group
+        i = j
+    return out
+
+
 # ----------------------------------------------------------------- explications
 
 
@@ -475,10 +538,14 @@ async def generate(
     exclude_competitions: list[str] | None = None,
     now: datetime | None = None,
     redis: Redis | None = None,
+    player: int | None = None,
+    variant: int = 0,
 ) -> dict[str, Any]:
     """Coupon d'un profil (``size`` sélections) ou Grosse cote (``target_odds``).
 
-    En Grosse cote, ``size`` est le nombre maximum de sélections.
+    En Grosse cote, ``size`` est le nombre maximum de sélections. ``player`` : tirage propre
+    au joueur parmi les sélections presque à égalité (voir ``vary``) ; ``variant`` : « Un
+    autre coupon ».
     """
     grosse = profile == TARGET_PROFILE
     if not grosse and profile not in PROFILES:
@@ -534,13 +601,20 @@ async def generate(
         # plus probable des coupons qui atteignent la cote.
         # Cotes et pronostics chargés une seule fois pour tous les profils.
         per_match = await window_candidates(session, start, end, now, filters, redis)
-        coupons = [
-            target_coupon(ranked_angles(prof, per_match), target_odds, size)
-            for prof in PROFILES.values()
-        ]
-        reached = [c for c in coupons if c]
-        # La cote la plus proche de la cible (critère indépendant de l'avis du moteur).
-        chosen = min(reached, key=lambda c: (summarize(c)[0], len(c))) if reached else []
+
+        def closest(rng: random.Random | None) -> list[Pick]:
+            coupons = [
+                target_coupon(shuffle_ties(ranked_angles(prof, per_match), rng), target_odds, size)
+                for prof in PROFILES.values()
+            ]
+            reached = [c for c in coupons if c]
+            # La cote la plus proche de la cible (critère indépendant de l'avis du moteur).
+            return min(reached, key=lambda c: (summarize(c)[0], len(c))) if reached else []
+
+        best = closest(None)
+        chosen = closest(player_rng(player, now.date(), profile, variant)) if best else []
+        if not chosen or chance(chosen) < MIN_SHARE * chance(best):
+            chosen = best
         chosen.sort(key=lambda pk: (pk.match.kickoff_at, pk.match.id))
         others: list[Pick] = []
         if not chosen:
@@ -553,7 +627,8 @@ async def generate(
     else:
         prof = PROFILES[profile]
         picks = await best_angles(session, prof, start, end, now, filters=filters, redis=redis)
-        chosen, others = picks[:size], picks[size : size + ALTERNATIVES]
+        best = picks[:size]
+        chosen, others = vary(picks, size, player_rng(player, now.date(), profile, variant))
         if len(chosen) < size:
             out["message"] = (
                 f"Seulement {len(chosen)} match(s) avec une sélection « {prof.label.lower()} » et "
@@ -570,6 +645,8 @@ async def generate(
         "implied_probability": round(float(1 / total), 6),
         # « 1 chance sur N », selon le moteur.
         "one_in": max(1, round(1 / probability)) if probability > 0 else None,
+        # Chance du meilleur coupon (tirage propre au joueur : un peu en dessous au plus).
+        "best_probability": round(summarize(best)[1], 6) if best else None,
     }
     out["alternatives"] = [
         _selection_out(pk, await _analysis(session, pk.match.id)) for pk in others

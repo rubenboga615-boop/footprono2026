@@ -33,6 +33,9 @@ async def generate(
     exclude_matches: Annotated[list[int] | None, Query()] = None,
     exclude_teams: Annotated[list[int] | None, Query()] = None,
     exclude_competitions: Annotated[list[str] | None, Query()] = None,
+    variant: Annotated[
+        int, Query(ge=0, le=99, description="« Un autre coupon » : tirage suivant du joueur")
+    ] = 0,
 ) -> Any:
     require_premium(user, "coupon intelligent")
     return await smart_coupon.generate(
@@ -50,6 +53,10 @@ async def generate(
         exclude_teams=exclude_teams,
         exclude_competitions=exclude_competitions,
         redis=redis,
+        # Chaque joueur son tirage parmi les sélections presque à égalité, le même toute la
+        # journée (proposition du 07/11/2026 : pas tout le monde perdant le même jour).
+        player=user.id,
+        variant=variant,
     )
 
 

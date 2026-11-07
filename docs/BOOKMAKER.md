@@ -149,3 +149,26 @@ propose d'abord le moins de sélections.
   le plus (03/10/2026).
 - **Grosse cote** : la sélection qui fait passer la cible est la plus petite cote suffisante
   parmi les 5 suivantes les plus probables (25 visé donnait 37,31).
+
+## Coupon intelligent : un coupon par joueur (07/11/2026)
+
+Proposition du 07/11/2026 (`docs/AUDIT_PROPOSITION_DIVERSITE_2026-11-07.md`) : avec le même
+coupon pour tous (comparaison du jour : 8 coupons sur 8 identiques entre deux joueurs), un
+mauvais jour fait perdre tout le monde en même temps. Les profils étant plafonnés, beaucoup de
+sélections sont presque à égalité (Équilibré : juste sous 75 %).
+
+Règle (`smart_coupon.vary`, `shuffle_ties`) :
+- parmi les sélections à **1 point au plus** de la dernière du meilleur coupon, chaque joueur a
+  son propre tirage (joueur, jour, profil), **le même toute la journée** ;
+- jamais en dessous de **97 %** de la chance du meilleur coupon (sinon le meilleur coupon) ;
+- Grosse cote : l'ordre des sélections presque à égalité est mélangé de la même façon, puis la
+  règle habituelle (cote la plus proche de la cible) ; même plancher de 97 % ;
+- « Un autre coupon » : tirage suivant (`variant`) ; l'application dit « Composé pour toi parmi
+  les meilleurs de la période » et montre la chance du meilleur coupon quand elle diffère ;
+- Coupons du jour : inchangés, les mêmes pour tous (codes 1xBet saisis à la main).
+
+Simulation (1 000 joueurs, un samedi type avec 12 sélections presque à égalité) : 218 coupons
+différents, le plus donné à 11 joueurs, la sélection la plus présente dans 27 % des coupons ;
+chance moyenne 41,3 % contre 41,9 % pour le meilleur coupon (−0,6 point), la plus basse 40,7 %.
+Pas un moyen de gagner plus : le but est que les joueurs ne perdent plus tous le même jour.
+À suivre dans l'Observatoire avec de vrais joueurs (part des joueurs perdants par jour).

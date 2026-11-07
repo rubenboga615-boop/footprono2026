@@ -103,6 +103,9 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
   Json? result;
   Object? error;
 
+  /// « Un autre coupon » : tirage suivant parmi les sélections presque à égalité (0 : le tien).
+  int variant = 0;
+
   static DateTime _today() {
     final n = DateTime.now();
     return DateTime(n.year, n.month, n.day);
@@ -114,11 +117,12 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
   static String _iso(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  Future<void> _generate() async {
+  Future<void> _generate({bool another = false}) async {
     final state = context.read<AppState>();
     setState(() {
       composing = true;
       error = null;
+      variant = another ? (variant + 1) % 100 : 0;
     });
     try {
       final query = <String, Object?>{
@@ -129,6 +133,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
         if (_period == 'day') 'day': _iso(day),
         if (_period == 'range') ...{'date_from': _iso(day), 'date_to': _iso(rangeTo ?? day)},
         if (SmartCouponScreen.hours[hour].$1 != null) 'after_hour': '${SmartCouponScreen.hours[hour].$1}',
+        if (variant > 0) 'variant': '$variant',
       };
       final r = await state.api.get(_withLists(query), null, ApiClient.slowTimeout) as Json;
       state.beta.action('coupon_compose');
@@ -162,9 +167,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
     if (range == null || range.length < 2) return null;
     return 'Règle : les sélections les plus sûres de la période parmi celles que le moteur annonce '
         'entre ${percent(range[0])} et ${percent(range[1])} (profil '
-        '${r['profile_label']}), une par match : souvent tout près de ${percent(range[1])}. À chance égale, '
-        'les matchs les plus proches passent d\'abord : « 3 jours », « Ce week-end » ou « 7 jours » '
-        'peuvent donner le même coupon que « Prochaine journée ».';
+        '${r['profile_label']}), une par match : souvent tout près de ${percent(range[1])}.';
   }
 
   /// Paramètres répétés (championnats, exclusions) : ajoutés à la main dans l'adresse.
@@ -532,6 +535,29 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 10),
+                    // Proposition du 07/11/2026 : plus le même coupon pour tous (tout le monde
+                    // perdant le même jour) ; le joueur le sait et peut en demander un autre.
+                    Text(
+                      [
+                        'Composé pour toi parmi les meilleurs de la période : les autres joueurs '
+                            'reçoivent des coupons proches, pas forcément les mêmes. Le tien reste le même '
+                            'toute la journée.',
+                        if (coupon['best_probability'] case final num b
+                            when b - (coupon['probability'] as num) >= 0.0005)
+                          'Chance de ce coupon : ${percent((coupon['probability'] as num).toDouble(), decimals: 1)} '
+                              '(le meilleur : ${percent(b.toDouble(), decimals: 1)}).',
+                      ].join(' '),
+                      style: Fp.body(12, color: Fp.text2, height: 1.4),
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: busy ? null : () => _generate(another: true),
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        label: const Text('Un autre coupon'),
+                      ),
                     ),
                     if (alternatives.isNotEmpty) ...[
                       const SectionTitle('Autres choix (moins sûrs)'),

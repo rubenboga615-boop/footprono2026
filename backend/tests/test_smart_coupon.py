@@ -596,3 +596,56 @@ def test_daily_coupons_hold_at_most_one_goal_bet() -> None:
     out = smart_coupon.balanced_angles(sur, per_match, quota=1)
     assert [(p.match.id, p.offer.market) for p in out] == [(1, "OU"), (2, "DC"), (4, "DC")]
     assert sum(smart_coupon.is_goal_market(p.offer.market) for p in out) == 1
+
+
+def test_each_player_gets_a_near_best_coupon_and_not_all_the_same() -> None:
+    """Proposition du 07/11/2026 : 1 000 joueurs, plus le même coupon pour tous ; chacun à
+    97 % au moins de la chance du meilleur ; même coupon toute la journée pour un joueur ;
+    la chance moyenne reste celle du meilleur coupon (à un point près)."""
+    from collections import Counter
+    from datetime import date
+    from types import SimpleNamespace
+
+    def pick(mid: int, p: float) -> smart_coupon.Pick:
+        offer = SimpleNamespace(odds=Decimal("1.33"), quote_id=mid, market="DC")
+        return smart_coupon.Pick(SimpleNamespace(id=mid), "A", "B", "EPL", offer, p)  # type: ignore[arg-type]
+
+    # Équilibré un samedi : beaucoup de sélections juste sous 75 %, puis d'autres plus bas.
+    ranked = [pick(i, 0.749 - 0.0008 * i) for i in range(12)] + [
+        pick(100 + i, 0.70 - 0.01 * i) for i in range(10)
+    ]
+    best = ranked[:3]
+    day = date(2026, 11, 7)
+    coupons = []
+    for player in range(1, 1001):
+        chosen, spare = smart_coupon.vary(
+            ranked, 3, smart_coupon.player_rng(player, day, "equilibre", 0)
+        )
+        assert (len(chosen), len(spare)) == (3, smart_coupon.ALTERNATIVES)
+        assert smart_coupon.chance(chosen) >= 0.97 * smart_coupon.chance(best)
+        assert all(pk not in spare for pk in chosen)
+        coupons.append(tuple(pk.match.id for pk in chosen))
+    shared = Counter(coupons).most_common(1)[0][1]
+    assert len(set(coupons)) > 50
+    assert shared < 100  # le coupon le plus donné : moins d'un joueur sur dix
+    mean = (
+        sum(
+            smart_coupon.chance([ranked[[pk.match.id for pk in ranked].index(i)] for i in c])
+            for c in coupons
+        )
+        / 1000
+    )
+    assert mean >= smart_coupon.chance(best) - 0.01
+    # Le même joueur, le même jour : le même coupon ; « Un autre coupon » : le tirage suivant.
+    again, _ = smart_coupon.vary(ranked, 3, smart_coupon.player_rng(7, day, "equilibre", 0))
+    other, _ = smart_coupon.vary(ranked, 3, smart_coupon.player_rng(7, day, "equilibre", 1))
+    assert tuple(pk.match.id for pk in again) == coupons[6]
+    assert tuple(pk.match.id for pk in other) != coupons[6]
+    # Sans joueur (coupons du jour, publiés pour tous) : toujours le meilleur.
+    assert smart_coupon.vary(ranked, 3, None)[0] == best
+    # Peu de sélections à égalité : le meilleur coupon, sans tirage.
+    lonely = [pick(1, 0.749), pick(2, 0.70), pick(3, 0.66), pick(4, 0.62)]
+    assert (
+        smart_coupon.vary(lonely, 3, smart_coupon.player_rng(1, day, "equilibre", 0))[0]
+        == lonely[:3]
+    )
