@@ -990,6 +990,10 @@ Future<(AppState, FakeServer)> startApp(
 void main() {
   testWidgets('connexion : erreur du serveur affichée, puis accès aux matchs', (tester) async {
     final (state, _) = await startApp(tester);
+    // Accueil de la maquette du 07/11/2026, puis « J'ai déjà un compte » (sans Google : formulaire).
+    expect(find.text('Créer mon compte gratuit'), findsOneWidget);
+    await tester.tap(find.text('J\'ai déjà un compte'));
+    await tester.pumpAndSettle();
     expect(find.text('Se connecter'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField).at(0), '+229 97 00 00 00');
@@ -1009,7 +1013,7 @@ void main() {
 
   testWidgets('inscription : case 18 ans obligatoire', (tester) async {
     await startApp(tester);
-    await tester.tap(find.text('Créer un compte'));
+    await tester.tap(find.text('Créer mon compte gratuit'));
     await tester.pumpAndSettle();
     expect(find.text("J'ai 18 ans ou plus"), findsOneWidget);
     expect(find.text("conditions d'utilisation"), findsOneWidget);
@@ -1960,7 +1964,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(server.deleted, isTrue);
     expect(state.me, isNull);
-    expect(find.text('Se connecter'), findsOneWidget);
+    expect(find.text('J\'ai déjà un compte'), findsOneWidget); // retour à l'accueil
   });
 
   testWidgets('connexion Google : première fois, pays par défaut Côte d\'Ivoire, 18 ans, puis réussite', (
@@ -1968,6 +1972,10 @@ void main() {
   ) async {
     final google = FakeGoogle();
     final (state, server) = await startApp(tester, google: google);
+    // Google sur l'écran suivant l'accueil (demandé le 07/11/2026).
+    expect(find.text('Continuer avec Google'), findsNothing);
+    await tester.tap(find.text('Créer mon compte gratuit'));
+    await tester.pumpAndSettle();
     expect(find.text('Continuer avec Google'), findsOneWidget);
 
     google.next = null; // fenêtre de Google fermée : rien ne se passe
@@ -2001,6 +2009,8 @@ void main() {
     final google = FakeGoogle();
     final (state, server) = await startApp(tester, google: google);
     server.googleAccounts.add('jeton-google');
+    await tester.tap(find.text('J\'ai déjà un compte'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Continuer avec Google'));
     await tester.pumpAndSettle();
     expect(state.me?.displayName, 'Kossi');
@@ -2042,6 +2052,8 @@ void main() {
         return true;
       },
     );
+    await tester.tap(find.text('J\'ai déjà un compte'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Numéro de téléphone'));
     await tester.pumpAndSettle();
     expect(find.text('+225'), findsOneWidget);

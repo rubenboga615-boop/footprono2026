@@ -52,7 +52,16 @@ class Fp {
     Color color = text,
     FontWeight weight = FontWeight.w400,
     double? height,
-  }) => TextStyle(fontFamily: bodyFont, fontSize: size, fontWeight: weight, color: color, height: height);
+  }) => TextStyle(
+    fontFamily: bodyFont,
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    height: height,
+    // Sans l'espacement hérité du thème Material (0,25) : le texte fait la même largeur que
+    // dans la maquette validée le 07/11/2026 (il était environ 5 % plus large).
+    letterSpacing: 0,
+  );
 
   static final radius14 = BorderRadius.circular(14);
 
@@ -234,57 +243,25 @@ class FpBackground extends StatelessWidget {
 class _BackgroundPainter extends CustomPainter {
   const _BackgroundPainter();
 
+  /// Fond de la maquette validée le 07/11/2026 : noir violacé et un seul halo en haut à
+  /// droite (`radial-gradient(500px 300px at 80% 5%, #2a1655 0, transparent 70%)`), sans les
+  /// traits en diagonale de l'ancien fond.
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Offset.zero & size, Paint()..color = Fp.background);
-    // Coordonnées des maquettes (écran de 390 × 844), mises à l'échelle.
-    final sx = size.width / 390, sy = size.height / 844;
-    final s = math.min(sx, 1.4);
-
-    void halo(double left, double top, double d, double opacity) {
-      final rect = Rect.fromLTWH(left * sx, top * sy, d * s, d * s);
-      canvas.drawOval(
-        rect,
-        Paint()
-          ..shader = RadialGradient(colors: [Fp.accentAlpha(0.35 * opacity), Fp.accentAlpha(0)])
-              .createShader(rect),
-      );
-    }
-
-    void ribbon(
-      double left,
-      double top,
-      double height,
-      double angle,
-      double blur,
-      double opacity,
-      bool line,
-    ) {
-      canvas.save();
-      final rect = Rect.fromLTWH(left * sx, top * sy, 900 * s, height);
-      canvas.translate(rect.center.dx, rect.center.dy);
-      canvas.rotate(angle * math.pi / 180);
-      final r = Rect.fromCenter(center: Offset.zero, width: rect.width, height: rect.height);
-      final colors = line
-          ? [
-              Colors.transparent,
-              Fp.accentAlpha(0.25 * opacity),
-              Colors.white.withValues(alpha: 0.18 * opacity),
-              Colors.transparent,
-            ]
-          : [Colors.transparent, Fp.accentAlpha(0.55 * opacity), Colors.transparent];
-      final paint = Paint()..shader = LinearGradient(colors: colors).createShader(r);
-      if (blur > 0) paint.maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
-      canvas.drawRect(r, paint);
-      canvas.restore();
-    }
-
-    halo(-180, -120, 560, 0.9);
-    halo(390 - 520 + 260, 844 - 520 + 160, 520, 0.6);
-    ribbon(-260, 150, 46, -24, 14, 0.7, false);
-    ribbon(-240, 190, 3, -24, 0, 0.9, true);
-    ribbon(-200, 640, 70, -18, 22, 0.55, false);
-    ribbon(-220, 690, 2, -18, 0, 0.8, true);
+    final rect = Rect.fromCenter(
+      center: Offset(size.width * 0.8, size.height * 0.05),
+      width: 1000,
+      height: 600,
+    );
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..shader = const RadialGradient(
+          colors: [Color(0xFF2A1655), Color(0x002A1655)],
+          stops: [0, 0.7],
+        ).createShader(rect),
+    );
   }
 
   @override

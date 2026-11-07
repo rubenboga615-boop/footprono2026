@@ -7,6 +7,7 @@ import '../api/client.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/install_tip.dart';
+import '../widgets/maquette.dart';
 import 'server_dialog.dart';
 
 const countries = {
@@ -42,7 +43,9 @@ String fullPhone(String country, String local) {
   return '${dialCodes[country]} $t';
 }
 
-enum _Mode { welcome, login, register }
+// welcome : accueil de la maquette du 07/11/2026 ; start : Google ou numéro (créer un compte
+// ou se connecter) ; login / register : formulaire par numéro.
+enum _Mode { welcome, start, login, register }
 
 /// Connexion : avec Google (Android) ou avec le numéro ; inscription par numéro ;
 /// première connexion Google (pays, 18 ans).
@@ -54,7 +57,10 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  late _Mode mode = context.read<AppState>().google != null ? _Mode.welcome : _Mode.login;
+  _Mode mode = _Mode.welcome;
+
+  /// Écran suivant l'accueil : « Créer mon compte gratuit » (vrai) ou « J'ai déjà un compte ».
+  bool creating = true;
   bool busy = false;
   bool adult = false;
   bool showPassword = false;
@@ -133,16 +139,22 @@ class _AuthScreenState extends State<AuthScreen> {
     } else {
       card = switch (mode) {
         _Mode.welcome => _welcome(),
+        _Mode.start => _start(),
         _Mode.login || _Mode.register => _phoneForm(state),
       };
     }
-    final showBack = signup == null && mode != _Mode.welcome && state.google != null;
+    final welcome = signup == null && mode == _Mode.welcome;
+    final showBack = signup == null && mode != _Mode.welcome;
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
-        child: Center(
+        child: Align(
+          // Accueil : en haut, comme la maquette ; les formulaires restent centrés.
+          alignment: welcome ? Alignment.topCenter : Alignment.center,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+            padding: welcome
+                ? const EdgeInsets.fromLTRB(16, 18, 16, 24)
+                : const EdgeInsets.fromLTRB(20, 24, 20, 24),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
               child: Column(
@@ -153,22 +165,41 @@ class _AuthScreenState extends State<AuthScreen> {
                       if (showBack)
                         IconButton.outlined(
                           tooltip: 'Retour',
-                          onPressed: busy ? null : () => _go(_Mode.welcome),
+                          onPressed: busy ? null : _back,
                           icon: const Icon(Icons.chevron_left_rounded),
+                        )
+                      else if (welcome)
+                        // Maquette : « FootProba » écrit seul, sans le carré du logo.
+                        Text.rich(
+                          const TextSpan(
+                            children: [
+                              TextSpan(text: 'Foot'),
+                              TextSpan(
+                                text: 'Proba',
+                                style: TextStyle(color: Fp.accentLight),
+                              ),
+                            ],
+                          ),
+                          style: Fp.title(23),
                         )
                       else
                         const FpLogo(size: 20),
                     ],
                   ),
-                  const SizedBox(height: 34),
-                  const InstallTip(margin: EdgeInsets.only(bottom: 16)),
+                  SizedBox(height: welcome ? 22 : 34),
+                  // Absent de la maquette de l'accueil : proposé à l'écran suivant.
+                  if (!welcome) const InstallTip(margin: EdgeInsets.only(bottom: 16)),
                   card,
-                  const SizedBox(height: 22),
+                  SizedBox(height: welcome ? 12 : 22),
                   Text(
-                    'On ne promet pas de gains : personne ne bat le bookmaker à coup sûr.\n'
-                    'Paris de l\'application en argent fictif · 18 ans et plus.',
+                    welcome
+                        ? 'On ne promet pas de gains : personne ne bat le bookmaker à coup sûr.\n'
+                              'Paris de l\'application en argent fictif · 18 ans et plus.'
+                        : '18 ans et plus · argent fictif, aucun pari réel',
                     textAlign: TextAlign.center,
-                    style: Fp.body(12, color: Fp.text3, height: 1.5),
+                    style: welcome
+                        ? Fp.body(12.5, color: const Color(0xB8F4F2F8), height: 1.4)
+                        : Fp.body(12, color: Fp.text3, height: 1.5),
                   ),
                   const SizedBox(height: 4),
                   Wrap(
@@ -197,6 +228,25 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
+  /// Retour : formulaire → choix (Google ou numéro) → accueil.
+  void _back() => _go(switch (mode) {
+    _Mode.login || _Mode.register when context.read<AppState>().google != null => _Mode.start,
+    _ => _Mode.welcome,
+  });
+
+  /// Après l'accueil : Google ou numéro ; sans Google (navigateur sans connexion Google),
+  /// directement le formulaire.
+  void _choose(bool create) {
+    creating = create;
+    _go(
+      context.read<AppState>().google != null
+          ? _Mode.start
+          : create
+          ? _Mode.register
+          : _Mode.login,
+    );
+  }
+
   /// Ce que FootProba apporte vraiment (maquette validée le 07/11/2026), sans promettre de gain.
   static const _benefits = [
     (
@@ -208,18 +258,19 @@ class _AuthScreenState extends State<AuthScreen> {
     ('Des outils pour garder le contrôle', 'Montante planifiée, bilan de tes paris, alertes.'),
   ];
 
+  /// Accueil, valeurs de la maquette : titre 30, texte 13,5, carte arrondie, deux boutons.
   Widget _welcome() {
     final head = Fp.title(30).copyWith(height: 1.15);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text.rich(
-          TextSpan(
+          const TextSpan(
             children: [
-              const TextSpan(text: 'Parie mieux informé.\n'),
+              TextSpan(text: 'Parie mieux informé.\n'),
               TextSpan(
                 text: 'Perds moins bêtement.',
-                style: head.copyWith(color: Fp.accentLight),
+                style: TextStyle(color: Fp.accentLight),
               ),
             ],
           ),
@@ -228,16 +279,19 @@ class _AuthScreenState extends State<AuthScreen> {
         const SizedBox(height: 10),
         Text(
           'Avant de miser, sache quelles sont les vraies chances de ton pari.',
-          style: Fp.body(14, color: Fp.text2, height: 1.45),
+          style: Fp.body(13.5, color: M.muted, height: 1.45),
         ),
-        const SizedBox(height: 14),
-        GlassCard.section(
+        MCard(
           child: Column(
             children: [
-              for (final (i, (title, text)) in _benefits.indexed) ...[
-                if (i > 0) const Divider(height: 1),
-                Padding(
+              for (final (i, (title, text)) in _benefits.indexed)
+                Container(
                   padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    border: i < _benefits.length - 1
+                        ? const Border(bottom: BorderSide(color: M.line10))
+                        : null,
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -246,7 +300,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         height: 26,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: Fp.accentAlpha(0.27),
+                          color: const Color(0x447C3AED),
                           borderRadius: BorderRadius.circular(9),
                         ),
                         child: Text(
@@ -260,65 +314,73 @@ class _AuthScreenState extends State<AuthScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(title, style: Fp.body(14.5, weight: FontWeight.w700)),
-                            const SizedBox(height: 2),
-                            Text(text, style: Fp.body(12.8, color: Fp.text2, height: 1.4)),
+                            Text(text, style: Fp.body(12.8, color: const Color(0xC0F4F2F8), height: 1.4)),
                           ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        _welcomeButtons(),
+        const SizedBox(height: 12),
+        MButton('Créer mon compte gratuit', onPressed: () => _choose(true)),
+        const SizedBox(height: 8),
+        MButton('J\'ai déjà un compte', secondary: true, onPressed: () => _choose(false)),
       ],
     );
   }
 
-  Widget _welcomeButtons() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        GlowButton(
-          onPressed: busy ? null : _google,
-          busy: busy,
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GoogleMark(size: 28),
-              SizedBox(width: 12),
-              Flexible(child: Text('Continuer avec Google', overflow: TextOverflow.ellipsis)),
-              SizedBox(width: 10),
-              Icon(Icons.arrow_forward_rounded, size: 20),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          'Un appui, aucun mot de passe à retenir.',
-          textAlign: TextAlign.center,
-          style: Fp.body(12, color: Fp.text3),
-        ),
-        if (error != null) ...[
-          const SizedBox(height: 12),
+  /// Écran suivant (demandé le 07/11/2026) : Google d'abord, ou le numéro.
+  Widget _start() {
+    return MCard(
+      margin: EdgeInsets.zero,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          MTitle(creating ? 'Créer mon' : 'Se', creating ? 'compte' : 'connecter'),
+          const SizedBox(height: 6),
           Text(
-            error!,
-            textAlign: TextAlign.center,
-            style: Fp.body(13, color: Fp.lossText, height: 1.4),
+            creating
+                ? 'Gratuit. Avec Google, un appui suffit, aucun mot de passe à retenir.'
+                : 'Avec le compte Google ou le numéro utilisés à l\'inscription.',
+            style: Fp.body(13.5, color: M.muted, height: 1.45),
+          ),
+          const SizedBox(height: 16),
+          GlowButton(
+            onPressed: busy ? null : _google,
+            busy: busy,
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GoogleMark(size: 28),
+                SizedBox(width: 12),
+                Flexible(child: Text('Continuer avec Google', overflow: TextOverflow.ellipsis)),
+                SizedBox(width: 10),
+                Icon(Icons.arrow_forward_rounded, size: 20),
+              ],
+            ),
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              error!,
+              textAlign: TextAlign.center,
+              style: Fp.body(13, color: Fp.lossText, height: 1.4),
+            ),
+          ],
+          const SizedBox(height: 18),
+          const OrDivider('OU AVEC TON NUMÉRO'),
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
+            onPressed: busy ? null : () => _go(creating ? _Mode.register : _Mode.login),
+            icon: const Icon(Icons.phone_iphone_rounded, size: 18),
+            label: const Text('Numéro de téléphone'),
           ),
         ],
-        const SizedBox(height: 18),
-        const OrDivider('OU AVEC TON NUMÉRO'),
-        const SizedBox(height: 14),
-        OutlinedButton.icon(
-          onPressed: busy ? null : () => _go(_Mode.login),
-          icon: const Icon(Icons.phone_iphone_rounded, size: 18),
-          label: const Text('Numéro de téléphone'),
-        ),
-      ],
+      ),
     );
   }
 

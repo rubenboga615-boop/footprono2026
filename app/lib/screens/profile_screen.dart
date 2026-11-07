@@ -10,6 +10,7 @@ import '../format.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/maquette.dart';
 import 'auth_screen.dart' show countries;
 import 'notifications_screen.dart';
 import 'reliability_screen.dart';
@@ -244,7 +245,7 @@ class ProfileScreen extends StatelessWidget {
         child: RefreshIndicator(
           onRefresh: () async => guard(context, state.refreshMe),
           child: ListView(
-            padding: pagePadding(context, 26, 120, maxWidth: 1080),
+            padding: pagePadding(context, 18, 120, maxWidth: 1080),
             children: [
               ...deskSplit(
                 context,
@@ -255,53 +256,16 @@ class ProfileScreen extends StatelessWidget {
                       onRetry: () => guard(context, state.refreshMe),
                     )
                   else ...[
-                    Row(
-                      children: [
-                        Container(
-                          width: 60,
-                          height: 60,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Fp.accentAlpha(0.2),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: const Color(0x8CA78BFA)),
-                          ),
-                          child: Text(
-                            me.displayName.isEmpty ? '?' : me.displayName[0].toUpperCase(),
-                            style: Fp.title(24, color: const Color(0xFFE4D8FD)),
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(me.displayName, style: Fp.title(22)),
-                              const SizedBox(height: 2),
-                              Text(
-                                [
-                                  me.email ?? me.phone ?? '',
-                                  countries[me.country] ?? me.country,
-                                ].where((t) => t.isNotEmpty).join(' · '),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Fp.body(13, color: Fp.text2),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
+                    // Maquette validée le 07/11/2026 : « Mon profil », puis la carte Premium.
+                    const MTitle('Mon profil'),
                     const _PlanCard(),
-                    const SizedBox(height: 12),
                   ],
                 ],
                 [
                   // Maquette v2 : les réglages du joueur, puis le compte (pages légales
                   // obligatoires, mot de passe, suppression) dans une seconde carte.
-                  GlassCard.section(
-                    padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+                  MCard(
+                    padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
                     child: Column(
                       children: [
                         _Item(
@@ -313,7 +277,6 @@ class ProfileScreen extends StatelessWidget {
                           badge: state.unread,
                           onTap: () => open(const NotificationsScreen()),
                         ),
-                        const Divider(),
                         _SwitchItem(
                           icon: Icons.calendar_today_outlined,
                           title: 'Coupons du jour, chaque matin',
@@ -328,7 +291,6 @@ class ProfileScreen extends StatelessWidget {
                             WebPushStatus.unavailable => const SizedBox.shrink(),
                             _ => Column(
                               children: [
-                                const Divider(),
                                 _Item(
                                   icon: Icons.phone_iphone_rounded,
                                   title: 'Notifications sur cet appareil',
@@ -348,15 +310,13 @@ class ProfileScreen extends StatelessWidget {
                             ),
                           },
                         ),
-                        if (me != null && me.betaAvailable) ...[const Divider(), _BetaItem(me: me)],
-                        const Divider(),
+                        if (me != null && me.betaAvailable) ...[_BetaItem(me: me)],
                         _Item(
                           icon: Icons.verified_user_outlined,
                           title: 'Fiabilité du moteur',
                           onTap: () => open(const ReliabilityScreen()),
                         ),
                         if (me?.googleLinked ?? false) ...[
-                          const Divider(),
                           _Item(
                             icon: Icons.g_mobiledata_rounded,
                             title: 'Google lié',
@@ -366,7 +326,6 @@ class ProfileScreen extends StatelessWidget {
                         ] else if (me != null && state.google != null) ...[
                           // Maquette validée le 07/11/2026 : une simple ligne (la grande carte
                           // prenait plus de place que l'abonnement).
-                          const Divider(),
                           _Item(
                             icon: Icons.g_mobiledata_rounded,
                             title: 'Lier mon compte Google',
@@ -375,13 +334,11 @@ class ProfileScreen extends StatelessWidget {
                             }),
                           ),
                         ],
-                        const Divider(),
                         _Item(
                           icon: Icons.chat_bubble_outline_rounded,
                           title: 'Aide · WhatsApp',
                           onTap: () => state.openSupport('Bonjour FootProba, '),
                         ),
-                        const Divider(),
                         _Item(
                           icon: Icons.lock_outline_rounded,
                           title: 'Jeu responsable',
@@ -390,25 +347,31 @@ class ProfileScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  GlassCard.section(
-                    padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+                  MCard(
+                    padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
                     child: Column(
                       children: [
+                        if (me != null)
+                          _Item(
+                            icon: Icons.person_outline_rounded,
+                            title: me.displayName,
+                            trailing: [
+                              me.email ?? me.phone ?? '',
+                              countries[me.country] ?? me.country,
+                            ].where((t) => t.isNotEmpty).join(' · '),
+                          ),
                         if (me?.hasPassword ?? true) ...[
                           _Item(
                             icon: Icons.key_outlined,
                             title: 'Mot de passe',
                             onTap: () => _changePassword(context, state),
                           ),
-                          const Divider(),
                         ],
                         _Item(
                           icon: Icons.phonelink_erase_outlined,
                           title: 'Déconnecter mes autres téléphones',
                           onTap: () => _logoutOthers(context, state),
                         ),
-                        const Divider(),
                         if (serverChoice) ...[
                           _Item(
                             icon: Icons.dns_outlined,
@@ -416,23 +379,19 @@ class ProfileScreen extends StatelessWidget {
                             trailing: state.api.baseUrl,
                             onTap: () => showServerDialog(context),
                           ),
-                          const Divider(),
                         ],
                         const _Item(icon: Icons.language_rounded, title: 'Langue', trailing: 'Français'),
-                        const Divider(),
                         _Item(
                           icon: Icons.privacy_tip_outlined,
                           title: 'Confidentialité',
                           onTap: () =>
                               state.openUrl(Uri.parse(state.api.baseUrl).resolve('/confidentialite')),
                         ),
-                        const Divider(),
                         _Item(
                           icon: Icons.gavel_outlined,
                           title: 'Conditions d\'utilisation',
                           onTap: () => state.openUrl(Uri.parse(state.api.baseUrl).resolve('/conditions')),
                         ),
-                        const Divider(),
                         _Item(
                           icon: Icons.delete_outline_rounded,
                           title: 'Supprimer mon compte',
@@ -649,92 +608,85 @@ class _PlanCard extends StatelessWidget {
       ('Analyse du match (forme, face-à-face)', false),
       ('Suggestions de montante', false),
     ];
+    // Valeurs de la maquette : ✓ vert, cadenas doré, colonnes de 64, texte 13,5.
     Widget cell(bool ok) => SizedBox(
       width: 64,
       child: Center(
         child: ok
-            ? const Icon(Icons.check_rounded, size: 17, color: Fp.win)
-            : const Icon(Icons.lock_rounded, size: 15, color: Color(0xFFC9B2F8)),
+            ? const Icon(Icons.check_rounded, size: 14, color: M.green)
+            : const Icon(Icons.lock_rounded, size: 14, color: Color(0xFFF5B83D)),
       ),
     );
-    return GradientCard(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+    // « 2 000 F / mois » comme la maquette (la devise reste dite dans la fenêtre de paiement).
+    final short = plan.priceCurrency == 'XOF' ? '${thousands(plan.price)} F' : price;
+    return MCard(
+      highlight: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
               Expanded(
-                child: plan.premium
-                    ? const TwoToneTitle('FootProba', 'Premium', size: 18)
-                    : const TwoToneTitle('Version', 'gratuite', size: 18),
+                child: Text(plan.premium ? 'FootProba Premium' : 'Version gratuite', style: Fp.title(17)),
               ),
-              if (plan.premium)
-                const Tag('ACTIF', color: Color(0xFF6EE7B7), background: Color(0x2E34D399))
-              else
-                Tag('$price / mois', color: const Color(0xFFC9B2F8), background: Fp.accentAlpha(0.2)),
+              if (plan.premium) const MPill.win('Actif') else MPill('$short / mois'),
             ],
           ),
-          const SizedBox(height: 6),
-          if (plan.premium && plan.premiumUntil != null)
+          if (plan.premium && plan.premiumUntil != null) ...[
+            const SizedBox(height: 6),
             Text(
               'Jusqu\'au ${numericDate(plan.premiumUntil!.toLocal())} · encore ${plan.daysLeft} jour'
               '${plan.daysLeft > 1 ? 's' : ''}',
-              style: Fp.body(13, color: Fp.text2),
-            )
-          else ...[
-            Row(
-              children: [
-                const Spacer(),
-                for (final t in const ['Gratuit', 'Premium'])
-                  SizedBox(
-                    width: 64,
-                    child: Text(
-                      t,
-                      textAlign: TextAlign.center,
-                      style: Fp.body(11.5, color: Fp.text2, weight: FontWeight.w700),
-                    ),
-                  ),
-              ],
+              style: Fp.body(13.5, color: M.muted),
             ),
-            for (final (i, (label, free)) in rows.indexed) ...[
-              if (i > 0) const Divider(height: 1),
-              Padding(
+          ] else ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: M.line)),
+              ),
+              child: Row(
+                children: [
+                  const Spacer(),
+                  for (final t in const ['Gratuit', 'Premium'])
+                    SizedBox(
+                      width: 64,
+                      child: Text(
+                        t,
+                        textAlign: TextAlign.center,
+                        style: Fp.body(12, color: M.head),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            for (final (i, (label, free)) in rows.indexed)
+              Container(
                 padding: const EdgeInsets.symmetric(vertical: 7),
+                decoration: BoxDecoration(
+                  border: i < rows.length - 1 ? const Border(bottom: BorderSide(color: M.line)) : null,
+                ),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: Text(label, style: Fp.body(13, color: Fp.textStrong, height: 1.3)),
-                    ),
+                    Expanded(child: Text(label, style: Fp.body(13.5))),
                     cell(free),
                     cell(true),
                   ],
                 ),
               ),
-            ],
           ],
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () => _buy(context, plan),
-              style: FilledButton.styleFrom(
-                backgroundColor: plan.premium ? Colors.white : Fp.accent,
-                foregroundColor: plan.premium ? const Color(0xFF2E1065) : Colors.white,
-                minimumSize: const Size(0, 46),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                textStyle: Fp.body(13, weight: FontWeight.w800),
-              ),
-              child: Text(plan.premium ? 'Prolonger · $price / mois' : 'Passer Premium · $price / mois'),
-            ),
+          MButton(
+            plan.premium ? 'Prolonger · $short / mois' : 'Passer Premium · $short / mois',
+            onPressed: () => _buy(context, plan),
           ),
           if (!plan.premium) ...[
             const SizedBox(height: 8),
             Text(
               'Payé une fois, 30 jours, sans renouvellement automatique.',
               textAlign: TextAlign.center,
-              style: Fp.body(12, color: Fp.text2),
+              style: Fp.body(12.5, color: M.small),
             ),
           ],
         ],
@@ -768,20 +720,21 @@ class _Item extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 52),
+        // Maquette du 07/11/2026 : lignes de 14 px, sans séparateur, plus basses.
+        constraints: const BoxConstraints(minHeight: 34),
         child: Row(
           children: [
-            Icon(icon, color: const Color(0xFFC9B2F8), size: 20),
-            const SizedBox(width: 12),
+            Icon(icon, color: const Color(0xFFC9B2F8), size: 18),
+            const SizedBox(width: 10),
             Expanded(
               child: warning == null
-                  ? Text(title, style: Fp.body(14, weight: FontWeight.w600))
+                  ? Text(title, style: Fp.body(14))
                   : Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(title, style: Fp.body(14, weight: FontWeight.w600)),
+                          Text(title, style: Fp.body(14)),
                           Text(warning!, style: Fp.body(12, color: Fp.text3)),
                         ],
                       ),
@@ -827,14 +780,12 @@ class _SwitchItem extends StatelessWidget {
       child: InkWell(
         onTap: onChanged == null ? null : () => onChanged!(!value),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 52),
+          constraints: const BoxConstraints(minHeight: 34),
           child: Row(
             children: [
-              Icon(icon, color: const Color(0xFFC9B2F8), size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(title, style: Fp.body(14, weight: FontWeight.w600)),
-              ),
+              Icon(icon, color: const Color(0xFFC9B2F8), size: 18),
+              const SizedBox(width: 10),
+              Expanded(child: Text(title, style: Fp.body(14))),
               SizedBox(
                 width: 46,
                 height: 28,

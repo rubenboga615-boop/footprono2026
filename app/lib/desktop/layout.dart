@@ -21,7 +21,8 @@ class DesktopScope extends InheritedWidget {
 /// Marges d'une page : sur téléphone 18 px ; sur ordinateur, le contenu est centré dans
 /// [maxWidth] et n'a plus à laisser la place de la barre de navigation flottante.
 EdgeInsets pagePadding(BuildContext context, double top, double bottom, {double maxWidth = 760}) {
-  if (!DesktopScope.of(context)) return EdgeInsets.fromLTRB(18, top, 18, bottom);
+  // Téléphone : 16 sur les côtés, comme la maquette validée le 07/11/2026.
+  if (!DesktopScope.of(context)) return EdgeInsets.fromLTRB(16, top, 16, bottom);
   final side = math.max(28.0, (MediaQuery.sizeOf(context).width - maxWidth) / 2);
   return EdgeInsets.fromLTRB(side, math.max(top, 22), side, math.min(bottom, 40));
 }
