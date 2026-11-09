@@ -9,6 +9,7 @@ import '../desktop/layout.dart';
 import '../format.dart';
 import '../labels.dart';
 import '../state/app_state.dart';
+import 'premium_screen.dart' show PremiumCard, openPremium;
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'bookmaker_screen.dart' as bookmaker;
@@ -286,10 +287,10 @@ class _DailyCouponCard extends StatelessWidget {
           if (locked)
             Row(
               children: [
-                const Icon(Icons.lock_outline_rounded, size: 16, color: Color(0xFFC9B2F8)),
+                const Icon(Icons.lock_outline_rounded, size: 16, color: Fp.muted),
                 const SizedBox(width: 8),
                 Flexible(
-                  child: Text('Sélections et code dans Premium', style: Fp.body(12.5, color: Fp.text2)),
+                  child: Text('Sélections et code 1xBet dans Premium', style: Fp.body(13, color: Fp.muted)),
                 ),
               ],
             )
@@ -311,45 +312,17 @@ class _DailyCouponCard extends StatelessWidget {
   }
 }
 
-/// Ouvre l'onglet Profil, où l'on passe Premium (l'écran ouvert par-dessus est refermé).
-void openPremium(BuildContext context) {
-  Navigator.of(context).popUntil((r) => r.isFirst);
-  context.read<AppState>().openTab(4);
-}
-
 /// Version gratuite : les coupons du jour (sélections et code) sont dans Premium.
 class _UnlockCard extends StatelessWidget {
   const _UnlockCard();
 
   @override
-  Widget build(BuildContext context) {
-    return GradientCard(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Débloquer les coupons du jour', style: Fp.body(15, weight: FontWeight.w800)),
-          const SizedBox(height: 4),
-          Text(
-            'Chaque matin : les sélections, la chance et le code 1xBet. Premium · 2 000 F CFA / mois.',
-            style: Fp.body(12.5, color: Fp.text2, height: 1.4),
-          ),
-          const SizedBox(height: 10),
-          FilledButton(
-            onPressed: () => openPremium(context),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: const Color(0xFF2E1065),
-              minimumSize: const Size(0, 40),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              textStyle: Fp.body(13, weight: FontWeight.w800),
-            ),
-            child: const Text('Passer Premium'),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const PremiumCard(
+    title: 'Débloquer les coupons du jour',
+    lock: false,
+    action: 'Passer Premium',
+    text: 'Chaque matin : les sélections, la chance de chacune et le code 1xBet à coller.',
+  );
 }
 
 /// « 1XBET  7HQ2K  [Copier] »

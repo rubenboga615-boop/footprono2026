@@ -80,6 +80,69 @@ class PremiumTable extends StatelessWidget {
   }
 }
 
+/// Prix affiché sur les boutons : « 2 000 F / mois » (la devise complète est sur l'écran
+/// « Passer Premium »).
+String premiumPrice(BuildContext context) {
+  final plan = context.read<AppState>().me?.plan;
+  if (plan == null) return '2 000 F / mois';
+  return '${plan.priceCurrency == 'XOF' ? '${thousands(plan.price)} F' : money(plan.price, plan.priceCurrency)} / mois';
+}
+
+/// Depuis un écran verrouillé : « Passer Premium » directement (avant : retour à l'onglet
+/// Profil, un détour de plus pour payer).
+void openPremium(BuildContext context) {
+  final plan = context.read<AppState>().me?.plan;
+  if (plan == null) {
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    context.read<AppState>().openTab(4);
+    return;
+  }
+  openPremiumPurchase(context, plan);
+}
+
+/// Cadre « Inclus dans Premium » des écrans verrouillés (maquettes N1, N2, N3) : fond
+/// #2B2060, bordure violette, cadenas au trait, bouton « Débloquer · 2 000 F / mois ».
+class PremiumCard extends StatelessWidget {
+  const PremiumCard({
+    super.key,
+    required this.text,
+    this.title = 'Inclus dans Premium',
+    this.lock = true,
+    this.action = 'Débloquer',
+    this.secondary,
+  });
+  final String title;
+  final String text;
+  final bool lock;
+  final String action;
+  final Widget? secondary;
+
+  @override
+  Widget build(BuildContext context) => MCard(
+    highlight: true,
+    color: Fp.cardHigh,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            if (lock) ...[
+              const Icon(Icons.lock_outline_rounded, size: 18, color: Colors.white),
+              const SizedBox(width: 10),
+            ],
+            Expanded(child: Text(title, style: Fp.title(16))),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(text, style: Fp.body(13.5, color: Fp.muted, height: 1.45)),
+        const SizedBox(height: 14),
+        MButton('$action · ${premiumPrice(context)}', onPressed: () => openPremium(context)),
+        if (secondary != null) ...[const SizedBox(height: 10), secondary!],
+      ],
+    ),
+  );
+}
+
 /// Choix du moyen de paiement (ceux du serveur, et le Wave manuel s'il est proposé).
 Future<void> openPremiumPurchase(BuildContext context, Plan plan) async {
   final state = context.read<AppState>();

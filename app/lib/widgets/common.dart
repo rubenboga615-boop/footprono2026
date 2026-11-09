@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../api/client.dart';
 import '../state/app_state.dart';
+import '../screens/premium_screen.dart' show PremiumCard;
 import '../theme.dart';
 
 /// Charge une donnée et affiche chargement, erreur (avec « Réessayer ») ou contenu.
@@ -265,37 +266,10 @@ class PremiumLock extends StatelessWidget {
   final String text;
   final List<String> markets;
 
+  // Maquettes N1-N3 : même cadre que les écrans verrouillés ; jamais d'impasse, le bouton
+  // ouvre « Passer Premium » (essai du 07/11/2026).
   @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      highlight: true,
-      child: Row(
-        children: [
-          const Icon(Icons.lock_rounded, color: Fp.accentLight),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Premium', style: Fp.title(15, color: Fp.accentLight)),
-                const SizedBox(height: 4),
-                Text(text, style: Fp.body(13, color: Fp.text2, height: 1.4)),
-                // Jamais d'impasse : le bouton mène à l'abonnement (essai du 07/11/2026).
-                const SizedBox(height: 10),
-                FilledButton(
-                  onPressed: () {
-                    Navigator.of(context).popUntil((r) => r.isFirst);
-                    context.read<AppState>().openTab(4);
-                  },
-                  child: const Text('Passer Premium'),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => PremiumCard(text: text);
 }
 
 /// Ligne « libellé … valeur ».

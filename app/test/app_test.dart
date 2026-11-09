@@ -1162,7 +1162,7 @@ void main() {
     await tester.pumpAndSettle();
     // Aperçu flouté (structure seulement, aucun chiffre) puis le bouton d'abonnement.
     expect(find.text('Inclus dans Premium'), findsOneWidget);
-    expect(find.text('Débloquer · 2 000 F / mois'), findsOneWidget);
+    expect(find.text('Débloquer · 2${nbsp}000 F / mois'), findsOneWidget);
     expect(find.text('Forme · 5 derniers matchs'), findsNothing);
   });
 
@@ -1176,7 +1176,7 @@ void main() {
     expect(find.text('chez Monaco'), findsOneWidget);
     expect(find.text('2,41'), findsOneWidget);
     expect(find.text('Statistiques avancées'), findsNothing);
-    expect(find.text('Premium'), findsOneWidget);
+    expect(find.text('Inclus dans Premium'), findsOneWidget);
 
     await tester.tap(find.text('Extérieur'));
     await tester.pumpAndSettle();
@@ -1756,12 +1756,12 @@ void main() {
     await tester.tap(find.text('Coupons du jour'));
     await tester.pumpAndSettle();
     expect(find.text('62$nbsp%'), findsOneWidget); // la chance reste visible
-    expect(find.text('Sélections et code dans Premium'), findsNWidgets(3));
+    expect(find.text('Sélections et code 1xBet dans Premium'), findsNWidgets(3));
     expect(find.text('Copier'), findsNothing);
     expect(find.text('Débloquer les coupons du jour'), findsOneWidget);
-    await tester.tap(find.text('Passer Premium'));
+    await tester.tap(find.text('Passer Premium · 2${nbsp}000 F / mois'));
     await tester.pumpAndSettle();
-    expect(find.text('Version gratuite'), findsOneWidget); // onglet Profil, carte Premium
+    expect(find.text('Premium · 30 jours'), findsOneWidget); // « Passer Premium » directement
   });
 
   testWidgets('coupons du jour : chance, état en direct, code copié, détail', (tester) async {
@@ -2068,10 +2068,10 @@ void main() {
     expect(find.textContaining('Exemple : coupon du'), findsOneWidget);
     expect(find.text('Gagné'), findsOneWidget);
     expect(find.text('Lens – Lyon'), findsOneWidget);
-    await tester.ensureVisible(find.text('Débloquer · 2 000 F / mois'));
-    await tester.tap(find.text('Débloquer · 2 000 F / mois'));
+    await tester.ensureVisible(find.text('Débloquer · 2${nbsp}000 F / mois'));
+    await tester.tap(find.text('Débloquer · 2${nbsp}000 F / mois'));
     await tester.pumpAndSettle();
-    expect(find.text('Version gratuite'), findsOneWidget);
+    expect(find.text('Premium · 30 jours'), findsOneWidget); // « Passer Premium » directement
   });
 
   testWidgets('nouvelle version : téléchargée dans l\'application, installateur ouvert', (tester) async {

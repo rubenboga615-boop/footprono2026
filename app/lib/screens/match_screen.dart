@@ -15,7 +15,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/team_logo.dart';
 import '../widgets/maquette.dart';
-import 'daily_coupons_screen.dart' show openPremium;
+import 'premium_screen.dart' show PremiumCard;
 import 'odds_history.dart';
 import 'referee_screen.dart';
 import 'team_screen.dart';
@@ -566,28 +566,10 @@ class _MatchViewState extends State<_MatchView> {
             ),
           ),
         ),
-        MCard(
-          highlight: true,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.lock_rounded, size: 17, color: Color(0xFFF5B83D)),
-                  const SizedBox(width: 6),
-                  Text('Inclus dans Premium', style: Fp.title(17)),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Forme, face-à-face, moyennes de la saison, classement, enjeu, corners, cartons et tirs '
-                'attendus.',
-                style: Fp.body(13.5, color: M.muted, height: 1.45),
-              ),
-              const SizedBox(height: 12),
-              MButton('Débloquer · 2 000 F / mois', onPressed: () => openPremium(context)),
-            ],
-          ),
+        const PremiumCard(
+          text:
+              'Forme, face-à-face, moyennes de la saison, classement, enjeu, corners, cartons et tirs '
+              'attendus.',
         ),
       ];
     }

@@ -13,6 +13,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/maquette.dart';
 import 'daily_coupons_screen.dart';
+import 'premium_screen.dart' show PremiumCard;
 import 'share_coupon.dart';
 
 /// Coupon intelligent : la sélection la plus sûre de chaque match (selon le profil),
@@ -1211,34 +1212,15 @@ class _LockedPreview extends StatelessWidget {
             );
           },
         ),
-        MCard(
-          highlight: true,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.lock_rounded, size: 17, color: Color(0xFFF5B83D)),
-                  const SizedBox(width: 6),
-                  Text('Inclus dans Premium', style: Fp.title(17)),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Le coupon du jour selon ton profil, la cote que tu vises, et pourquoi chaque match a été '
-                'choisi.',
-                style: Fp.body(13.5, color: M.muted, height: 1.45),
-              ),
-              const SizedBox(height: 12),
-              MButton('Débloquer · 2 000 F / mois', onPressed: () => openPremium(context)),
-              const SizedBox(height: 8),
-              MButton(
-                'Voir le bilan de tous les coupons',
-                secondary: true,
-                onPressed: () =>
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SmartHistoryScreen())),
-              ),
-            ],
+        PremiumCard(
+          text:
+              'Le coupon du jour selon ton profil, la cote que tu vises, et pourquoi chaque match a été '
+              'choisi.',
+          secondary: MButton(
+            'Voir le bilan de tous les coupons',
+            secondary: true,
+            onPressed: () =>
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SmartHistoryScreen())),
           ),
         ),
       ],
