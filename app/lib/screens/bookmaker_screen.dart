@@ -31,13 +31,22 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
   void initState() {
     super.initState();
     // Paris en cours : résultats et scores des matchs mis à jour tout seuls, chaque minute.
+    // Arrêté en arrière-plan (rapport du 09/11/2026), rechargé une fois au retour.
+    _foreground = context.read<AppState>().foreground..addListener(_onForeground);
     _timer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted && tab == 0) _reload?.call();
+      if (mounted && tab == 0 && _foreground.value) _reload?.call();
     });
+  }
+
+  late final ValueNotifier<bool> _foreground;
+
+  void _onForeground() {
+    if (mounted && tab == 0 && _foreground.value) _reload?.call();
   }
 
   @override
   void dispose() {
+    _foreground.removeListener(_onForeground);
     _timer?.cancel();
     super.dispose();
   }

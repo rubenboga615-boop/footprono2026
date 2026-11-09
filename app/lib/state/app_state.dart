@@ -755,8 +755,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return UpdateStep.browser;
   }
 
+  /// Faux quand l'application est en arrière-plan : les écrans qui se rechargent tout seuls
+  /// s'arrêtent, puis se rechargent une fois au retour.
+  final ValueNotifier<bool> foreground = ValueNotifier(true);
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final front = state == AppLifecycleState.resumed || state == AppLifecycleState.inactive;
+    beta.background = !front;
+    foreground.value = front;
     // Retour du guichet de paiement : vérification immédiate.
     if (state == AppLifecycleState.resumed && pendingPayment != null) {
       unawaited(_announcePayment());

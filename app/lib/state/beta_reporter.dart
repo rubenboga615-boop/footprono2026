@@ -32,6 +32,17 @@ class BetaReporter {
   bool _sending = false;
   bool _enabled = false;
 
+  bool _background = false;
+  DateTime? _resumedAt;
+
+  /// Application en arrière-plan (écran éteint, autre application) : le téléphone suspend le
+  /// réseau, une requête attend alors jusqu'au délai maximal. Ce n'est pas une panne
+  /// (Observatoire du 09/11/2026 : 10 « attentes » de 20 s par jour venaient de là).
+  set background(bool on) {
+    if (_background && !on) _resumedAt = _clock();
+    _background = on;
+  }
+
   bool get enabled => _enabled;
   set enabled(bool on) {
     _enabled = on;
@@ -46,6 +57,9 @@ class BetaReporter {
     if (!_enabled) return;
     final p = requestPath.split('?').first;
     if (p == path) return;
+    // Requête commencée ou finie pendant que l'application était en arrière-plan : ignorée.
+    final resumed = _resumedAt;
+    if (_background || (resumed != null && _clock().subtract(elapsed).isBefore(resumed))) return;
     final ms = elapsed.inMilliseconds;
     if (error != null) {
       // Réponses normales du serveur (cote changée, Premium requis…) : pas des pannes.

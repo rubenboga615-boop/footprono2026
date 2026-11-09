@@ -90,8 +90,14 @@ class RecordScreen extends StatelessWidget {
             KeyValue('Paris réglés', '${bets['settled']}'),
             KeyValue(
               'Gagnés · perdus',
-              '${bets['won']} · ${bets['lost']}'
-                  '${(bets['push'] as int) + (bets['partial'] as int) > 0 ? ' · ${(bets['push'] as int) + (bets['partial'] as int)} autres' : ''}',
+              // Rapport du 09/11/2026 : « 1 autres » ne disait ni l'accord ni ce que c'était.
+              [
+                '${bets['won']}',
+                '${bets['lost']}',
+                if (bets['push'] as int > 0) '${bets['push']} remboursé${bets['push'] as int > 1 ? 's' : ''}',
+                if (bets['partial'] as int > 0)
+                  '${bets['partial']} en partie gagné${bets['partial'] as int > 1 ? 's' : ''}',
+              ].join(' · '),
             ),
             KeyValue('Misé', money(data['staked'] as int, currency)),
             KeyValue('Récupéré', money(data['returned'] as int, currency)),

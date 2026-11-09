@@ -983,7 +983,7 @@ class _RecentRow extends StatelessWidget {
               children: [
                 Text('${m['home']} ${m['score']} ${m['away']}', style: Fp.body(14, weight: FontWeight.w700)),
                 Text(
-                  '1 ${percent(probs[0])} · N ${percent(probs[1])} · 2 ${percent(probs[2])}',
+                  '1 : ${percent(probs[0])} · N : ${percent(probs[1])} · 2 : ${percent(probs[2])}',
                   style: Fp.body(12, color: Fp.text2),
                 ),
               ],

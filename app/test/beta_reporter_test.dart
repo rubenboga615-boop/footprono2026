@@ -70,4 +70,20 @@ void main() {
     beta.enabled = false;
     expect(beta.pending, isEmpty);
   });
+
+  test('arrière-plan : les requêtes suspendues par le téléphone ne sont pas des pannes', () async {
+    beta.enabled = true;
+    final timeout = ApiException(0, 'timeout', '');
+    beta.background = true;
+    beta.observe('/me/bets-summary', const Duration(seconds: 20), timeout);
+    // Commencée en arrière-plan, finie après le retour : ignorée aussi.
+    beta.background = false;
+    now = now.add(const Duration(seconds: 5));
+    beta.observe('/me/wallet/entries', const Duration(seconds: 20), timeout);
+    expect(beta.pending, isEmpty);
+    // Commencée après le retour : comptée.
+    beta.observe('/me/wallet/entries', const Duration(seconds: 2), timeout);
+    await Future<void>.delayed(Duration.zero);
+    expect([...sent, ...beta.pending].map((e) => e['path']), ['/me/wallet/entries']);
+  });
 }

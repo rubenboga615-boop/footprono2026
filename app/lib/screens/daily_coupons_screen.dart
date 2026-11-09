@@ -59,11 +59,22 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
   void initState() {
     super.initState();
     // Matchs en cours : l'état se met à jour toute seule, une fois par minute.
-    _timer = Timer.periodic(const Duration(minutes: 1), (_) => _reload?.call());
+    // Arrêté en arrière-plan (rapport du 09/11/2026), rechargé une fois au retour.
+    _foreground = context.read<AppState>().foreground..addListener(_onForeground);
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (_foreground.value) _reload?.call();
+    });
+  }
+
+  late final ValueNotifier<bool> _foreground;
+
+  void _onForeground() {
+    if (mounted && _foreground.value) _reload?.call();
   }
 
   @override
   void dispose() {
+    _foreground.removeListener(_onForeground);
     _timer?.cancel();
     super.dispose();
   }
