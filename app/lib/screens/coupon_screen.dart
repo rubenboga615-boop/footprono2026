@@ -313,7 +313,8 @@ class _CouponScreenState extends State<CouponScreen> {
               Row(
                 children: [
                   const Expanded(child: MTitle('Mon', 'coupon', 26)),
-                  if (me != null) Tooltip(message: 'Solde fictif', child: _Pill(money(me.balance, currency))),
+                  if (me != null)
+                    Tooltip(message: 'Solde fictif', child: MOutlinePill(money(me.balance, currency))),
                 ],
               ),
               const SizedBox(height: 12),
@@ -755,24 +756,6 @@ class _StepSwitch extends StatelessWidget {
 }
 
 /// Solde fictif (maquette C3 : pastille à bordure, texte violet clair).
-class _Pill extends StatelessWidget {
-  const _Pill(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: Fp.line),
-    ),
-    child: Text(
-      text,
-      style: Fp.body(12, color: Fp.lilac, weight: FontWeight.w600),
-    ),
-  );
-}
-
 /// Maquette N6 : un match du coupon a commencé ; le dire avec son nom et le retirer d'un appui.
 class _StartedWarning extends StatelessWidget {
   const _StartedWarning({required this.item, required this.onRemove});

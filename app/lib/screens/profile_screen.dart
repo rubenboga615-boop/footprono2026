@@ -257,174 +257,145 @@ class ProfileScreen extends StatelessWidget {
                       onRetry: () => guard(context, state.refreshMe),
                     )
                   else ...[
-                    // Maquette validée le 07/11/2026 : « Mon profil », puis la carte Premium.
-                    const MTitle('Mon profil'),
+                    // Maquettes N4 et C6 (07/11/2026) : « Mon profil », puis la carte Premium.
+                    const MTitle('Mon', 'profil', 26),
+                    const SizedBox(height: 4),
                     const _PlanCard(),
                   ],
                 ],
                 [
-                  // Maquette v2 : les réglages du joueur, puis le compte (pages légales
-                  // obligatoires, mot de passe, suppression) dans une seconde carte.
-                  MCard(
-                    padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
-                    child: Column(
-                      children: [
+                  // Maquettes N4 et C6 : lignes en gras sans icône, séparées d'un trait ; les
+                  // réglages du joueur, puis le compte, puis le partage et les pages légales.
+                  ValueListenableBuilder(
+                    valueListenable: state.webPushStatus,
+                    builder: (context, web, _) => _Group([
+                      _Item(
+                        // Le badge rouge de l'onglet Profil : dit en clair ici.
+                        title: state.unread > 0
+                            ? 'Notifications · ${state.unread} non lue${state.unread > 1 ? 's' : ''}'
+                            : 'Notifications',
+                        badge: state.unread,
+                        onTap: () => open(const NotificationsScreen()),
+                      ),
+                      _SwitchItem(
+                        title: 'Coupons du jour, chaque matin',
+                        value: me?.dailyCouponsNotifications ?? true,
+                        onChanged: me == null
+                            ? null
+                            : (on) => guard(context, () => state.setDailyCouponsNotifications(on)),
+                      ),
+                      if (web != WebPushStatus.unavailable)
                         _Item(
-                          icon: Icons.notifications_none_rounded,
-                          // Le badge rouge de l'onglet Profil : dit en clair ici.
-                          title: state.unread > 0
-                              ? 'Notifications · ${state.unread} non lue${state.unread > 1 ? 's' : ''}'
-                              : 'Notifications',
-                          badge: state.unread,
-                          onTap: () => open(const NotificationsScreen()),
-                        ),
-                        _SwitchItem(
-                          icon: Icons.calendar_today_outlined,
-                          title: 'Coupons du jour, chaque matin',
-                          value: me?.dailyCouponsNotifications ?? true,
-                          onChanged: me == null
-                              ? null
-                              : (on) => guard(context, () => state.setDailyCouponsNotifications(on)),
-                        ),
-                        ValueListenableBuilder(
-                          valueListenable: state.webPushStatus,
-                          builder: (context, web, _) => switch (web) {
-                            WebPushStatus.unavailable => const SizedBox.shrink(),
-                            _ => Column(
-                              children: [
-                                _Item(
-                                  icon: Icons.phone_iphone_rounded,
-                                  title: 'Notifications sur cet appareil',
-                                  trailing: switch (web) {
-                                    WebPushStatus.on => 'Activées',
-                                    WebPushStatus.denied => 'Refusées',
-                                    WebPushStatus.install => 'Écran d\'accueil',
-                                    _ => 'Activer',
-                                  },
-                                  onTap: switch (web) {
-                                    WebPushStatus.off => state.enableWebPush,
-                                    WebPushStatus.on => null,
-                                    _ => () => _webPushHelp(context, web),
-                                  },
-                                ),
-                              ],
-                            ),
+                          title: 'Notifications sur cet appareil',
+                          trailing: switch (web) {
+                            WebPushStatus.on => 'Activées',
+                            WebPushStatus.denied => 'Refusées',
+                            WebPushStatus.install => 'Écran d\'accueil',
+                            _ => 'Activer',
+                          },
+                          onTap: switch (web) {
+                            WebPushStatus.off => state.enableWebPush,
+                            WebPushStatus.on => null,
+                            _ => () => _webPushHelp(context, web),
                           },
                         ),
-                        if (me != null && me.betaAvailable) ...[_BetaItem(me: me)],
+                      _Item(title: 'Fiabilité du moteur', onTap: () => open(const ReliabilityScreen())),
+                      // Ancien bouton de l'écran Matchs (retiré : maquette du 07/11/2026).
+                      _Item(title: 'Classement mérité', onTap: () => open(const MeritedScreen())),
+                      if (me?.googleLinked ?? false)
                         _Item(
-                          icon: Icons.verified_user_outlined,
-                          title: 'Fiabilité du moteur',
-                          onTap: () => open(const ReliabilityScreen()),
-                        ),
-                        // Ancien bouton de l'écran Matchs (retiré : maquette du 07/11/2026).
+                          title: 'Google lié',
+                          trailing: me!.email,
+                          onTap: () => _googleLinked(context, state),
+                        )
+                      else if (me != null && state.google != null)
+                        // Maquette validée le 07/11/2026 : une simple ligne (la grande carte
+                        // prenait plus de place que l'abonnement).
                         _Item(
-                          icon: Icons.leaderboard_outlined,
-                          title: 'Classement mérité',
-                          onTap: () => open(const MeritedScreen()),
+                          title: 'Lier mon compte Google',
+                          onTap: () => guard(context, () async {
+                            if (await state.linkGoogle()) showMessage('Compte Google lié.');
+                          }),
                         ),
-                        if (me?.googleLinked ?? false) ...[
-                          _Item(
-                            icon: Icons.g_mobiledata_rounded,
-                            title: 'Google lié',
-                            trailing: me!.email,
-                            onTap: () => _googleLinked(context, state),
-                          ),
-                        ] else if (me != null && state.google != null) ...[
-                          // Maquette validée le 07/11/2026 : une simple ligne (la grande carte
-                          // prenait plus de place que l'abonnement).
-                          _Item(
-                            icon: Icons.g_mobiledata_rounded,
-                            title: 'Lier mon compte Google',
-                            onTap: () => guard(context, () async {
-                              if (await state.linkGoogle()) showMessage('Compte Google lié.');
-                            }),
-                          ),
-                        ],
-                        _Item(
-                          icon: Icons.chat_bubble_outline_rounded,
-                          title: 'Aide · WhatsApp',
-                          onTap: () => state.openSupport('Bonjour FootProba, '),
-                        ),
-                        _Item(
-                          icon: Icons.lock_outline_rounded,
-                          title: 'Jeu responsable',
-                          onTap: () => _responsible(context),
-                        ),
-                      ],
-                    ),
+                      _Item(title: 'Aide · WhatsApp', onTap: () => state.openSupport('Bonjour FootProba, ')),
+                    ]),
                   ),
-                  MCard(
-                    padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
-                    child: Column(
-                      children: [
-                        if (me != null)
-                          _Item(
-                            icon: Icons.person_outline_rounded,
-                            title: me.displayName,
-                            trailing: [
-                              me.email ?? me.phone ?? '',
-                              countries[me.country] ?? me.country,
-                            ].where((t) => t.isNotEmpty).join(' · '),
-                          ),
-                        if (me?.hasPassword ?? true) ...[
-                          _Item(
-                            icon: Icons.key_outlined,
-                            title: 'Mot de passe',
-                            onTap: () => _changePassword(context, state),
-                          ),
-                        ],
-                        _Item(
-                          icon: Icons.phonelink_erase_outlined,
-                          title: 'Déconnecter mes autres téléphones',
-                          onTap: () => _logoutOthers(context, state),
-                        ),
-                        if (serverChoice) ...[
-                          _Item(
-                            icon: Icons.dns_outlined,
-                            title: 'Serveur (développement)',
-                            trailing: state.api.baseUrl,
-                            onTap: () => showServerDialog(context),
-                          ),
-                        ],
-                        const _Item(icon: Icons.language_rounded, title: 'Langue', trailing: 'Français'),
-                        _Item(
-                          icon: Icons.privacy_tip_outlined,
-                          title: 'Confidentialité',
-                          onTap: () =>
-                              state.openUrl(Uri.parse(state.api.baseUrl).resolve('/confidentialite')),
-                        ),
-                        _Item(
-                          icon: Icons.gavel_outlined,
-                          title: 'Conditions d\'utilisation',
-                          onTap: () => state.openUrl(Uri.parse(state.api.baseUrl).resolve('/conditions')),
-                        ),
-                        _Item(
-                          icon: Icons.delete_outline_rounded,
-                          title: 'Supprimer mon compte',
-                          warning: 'Efface tes données, définitivement',
-                          onTap: () => _deleteAccount(context, state),
-                        ),
-                      ],
+                  _Group([
+                    if (me != null)
+                      _Item(
+                        title: me.displayName,
+                        subtitle: me.email ?? me.phone,
+                        trailing: countries[me.country] ?? me.country,
+                      ),
+                    if (me?.hasPassword ?? true)
+                      _Item(title: 'Mot de passe', onTap: () => _changePassword(context, state)),
+                    _Item(
+                      title: 'Déconnecter mes autres téléphones',
+                      onTap: () => _logoutOthers(context, state),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Center(
-                    child: TextButton.icon(
+                    if (serverChoice)
+                      _Item(
+                        title: 'Serveur (développement)',
+                        trailing: state.api.baseUrl,
+                        onTap: () => showServerDialog(context),
+                      ),
+                    const _Item(title: 'Langue', trailing: 'Français'),
+                  ]),
+                  _Group([
+                    if (me != null && me.betaAvailable) _BetaItem(me: me),
+                    _Item(
+                      title: 'Conditions d\'utilisation',
+                      onTap: () => state.openUrl(Uri.parse(state.api.baseUrl).resolve('/conditions')),
+                    ),
+                    _Item(
+                      title: 'Confidentialité',
+                      onTap: () => state.openUrl(Uri.parse(state.api.baseUrl).resolve('/confidentialite')),
+                    ),
+                    _Item(title: 'Jeu responsable', onTap: () => _responsible(context)),
+                  ]),
+                  const SizedBox(height: 12),
+                  // Maquette C6 : bouton entouré, texte lilas.
+                  SizedBox(
+                    height: 48,
+                    child: OutlinedButton.icon(
                       onPressed: () => _logout(context, state),
                       icon: const Icon(Icons.logout_rounded, size: 18),
                       label: const Text('Se déconnecter'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Fp.lossText,
-                        textStyle: Fp.body(14, weight: FontWeight.w700),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Fp.lilac,
+                        side: const BorderSide(color: Fp.line),
+                        shape: const StadiumBorder(),
+                        textStyle: Fp.body(15, weight: FontWeight.w600),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 12),
+                  MCard(
+                    padding: EdgeInsets.zero,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () => _deleteAccount(context, state),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Supprimer mon compte',
+                              style: Fp.body(15, weight: FontWeight.w700, color: Fp.loss),
+                            ),
+                            const SizedBox(height: 2),
+                            Text('Efface tes données, définitivement', style: Fp.body(12, color: Fp.muted)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   Text(
                     appBuild > 0 ? 'FootProba · version $appBuild' : 'FootProba · version de développement',
                     textAlign: TextAlign.center,
-                    style: Fp.body(12, color: Fp.text3),
+                    style: Fp.body(12, color: Fp.muted),
                   ),
                 ],
                 leftWidth: 480,
@@ -621,19 +592,18 @@ class _PlanCard extends StatelessWidget {
       ('Analyse du match (forme, face-à-face)', false),
       ('Suggestions de montante', false),
     ];
-    // Valeurs de la maquette : ✓ vert, cadenas doré, colonnes de 64, texte 13,5.
+    // Maquette N4 : ✓ vert, cadenas gris au trait, colonnes de 62, texte 13.
     Widget cell(bool ok) => SizedBox(
-      width: 64,
+      width: 62,
       child: Center(
         child: ok
-            ? const Icon(Icons.check_rounded, size: 14, color: M.green)
-            : const Icon(Icons.lock_rounded, size: 14, color: Color(0xFFF5B83D)),
+            ? const Icon(Icons.check_rounded, size: 15, color: Fp.win)
+            : const Icon(Icons.lock_outline_rounded, size: 15, color: Fp.muted),
       ),
     );
     // « 2 000 F / mois » comme la maquette (la devise reste dite dans la fenêtre de paiement).
     final short = plan.priceCurrency == 'XOF' ? '${thousands(plan.price)} F' : price;
     return MCard(
-      highlight: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -642,7 +612,7 @@ class _PlanCard extends StatelessWidget {
               Expanded(
                 child: Text(plan.premium ? 'FootProba Premium' : 'Version gratuite', style: Fp.title(17)),
               ),
-              if (plan.premium) const MPill.win('Actif') else MPill('$short / mois'),
+              if (plan.premium) const Tag.win('Actif') else MOutlinePill('$short / mois'),
             ],
           ),
           if (plan.premium && plan.premiumUntil != null) ...[
@@ -655,34 +625,34 @@ class _PlanCard extends StatelessWidget {
           ] else ...[
             const SizedBox(height: 8),
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 7),
+              padding: const EdgeInsets.symmetric(vertical: 9),
               decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: M.line)),
+                border: Border(bottom: BorderSide(color: Fp.divider)),
               ),
               child: Row(
                 children: [
                   const Spacer(),
                   for (final t in const ['Gratuit', 'Premium'])
                     SizedBox(
-                      width: 64,
+                      width: 62,
                       child: Text(
                         t,
                         textAlign: TextAlign.center,
-                        style: Fp.body(12, color: M.head),
+                        style: Fp.body(12, weight: FontWeight.w600, color: Fp.muted),
                       ),
                     ),
                 ],
               ),
             ),
-            for (final (i, (label, free)) in rows.indexed)
+            for (final (label, free) in rows)
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 7),
-                decoration: BoxDecoration(
-                  border: i < rows.length - 1 ? const Border(bottom: BorderSide(color: M.line)) : null,
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: const BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Fp.divider)),
                 ),
                 child: Row(
                   children: [
-                    Expanded(child: Text(label, style: Fp.body(13.5))),
+                    Expanded(child: Text(label, style: Fp.body(13))),
                     cell(free),
                     cell(true),
                   ],
@@ -708,7 +678,7 @@ class _PlanCard extends StatelessWidget {
             Text(
               'Payé une fois, 30 jours, sans renouvellement automatique.',
               textAlign: TextAlign.center,
-              style: Fp.body(12.5, color: M.small),
+              style: Fp.body(12.5, color: Fp.muted),
             ),
           ],
         ],
@@ -717,22 +687,33 @@ class _PlanCard extends StatelessWidget {
   }
 }
 
+/// Carte de lignes séparées d'un trait (maquettes C6 et N4).
+class _Group extends StatelessWidget {
+  const _Group(this.rows);
+  final List<Widget> rows;
+
+  @override
+  Widget build(BuildContext context) => MCard(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+    child: Column(
+      children: [
+        for (final (i, row) in rows.indexed) ...[
+          if (i > 0) const Divider(height: 1, thickness: 1, color: Fp.divider),
+          row,
+        ],
+      ],
+    ),
+  );
+}
+
 class _Item extends StatelessWidget {
-  const _Item({
-    required this.icon,
-    required this.title,
-    this.trailing,
-    this.onTap,
-    this.badge = 0,
-    this.warning,
-  });
-  final IconData icon;
+  const _Item({required this.title, this.subtitle, this.trailing, this.onTap, this.badge = 0});
   final String title;
 
-  /// Avertissement sous le titre (seulement « Supprimer mon compte »).
-  final String? warning;
+  /// Sous le titre, en petit (l'adresse ou le numéro du compte).
+  final String? subtitle;
 
-  /// Valeur affichée à droite (langue, adresse Google).
+  /// Valeur affichée à droite (pays, langue, adresse Google).
   final String? trailing;
   final VoidCallback? onTap;
   final int badge;
@@ -742,56 +723,75 @@ class _Item extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: ConstrainedBox(
-        // Maquette du 07/11/2026 : lignes de 14 px, sans séparateur, plus basses.
-        constraints: const BoxConstraints(minHeight: 34),
-        child: Row(
-          children: [
-            Icon(icon, color: const Color(0xFFC9B2F8), size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: warning == null
-                  ? Text(title, style: Fp.body(14))
-                  : Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(title, style: Fp.body(14)),
-                          Text(warning!, style: Fp.body(12, color: Fp.text3)),
-                        ],
-                      ),
-                    ),
-            ),
-            if (trailing != null)
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 190),
-                child: Text(
-                  trailing!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.right,
-                  style: Fp.body(12, color: Fp.text2),
+        // Maquette C6 : lignes de 46, texte 15 en gras, valeur et › en gris.
+        constraints: const BoxConstraints(minHeight: 46),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Fp.body(15, weight: FontWeight.w700)),
+                    if (subtitle case final s? when s.isNotEmpty)
+                      Text(s, style: Fp.body(12, color: Fp.muted)),
+                  ],
                 ),
               ),
-            if (badge > 0) ...[
-              const SizedBox(width: 8),
-              Badge(label: Text('$badge'), backgroundColor: Fp.loss),
+              if (trailing != null)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 190),
+                  child: Text(
+                    trailing!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: Fp.body(13, color: Fp.muted),
+                  ),
+                ),
+              if (badge > 0) ...[
+                const SizedBox(width: 8),
+                Badge(label: Text('$badge'), backgroundColor: Fp.loss, textColor: Fp.background),
+              ],
+              if (onTap != null && trailing == null) ...[
+                const SizedBox(width: 8),
+                const Icon(Icons.chevron_right_rounded, size: 18, color: Fp.muted),
+              ],
             ],
-            if (onTap != null && trailing == null) ...[
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right_rounded, size: 18, color: Fp.text4),
-            ],
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Ligne avec interrupteur compact (42 × 24 dans la maquette v2).
+/// Interrupteur de la maquette (44 × 26, gris éteint).
+class _Toggle extends StatelessWidget {
+  const _Toggle({required this.value, required this.onChanged});
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 46,
+    height: 28,
+    child: FittedBox(
+      child: Switch(
+        value: value,
+        onChanged: onChanged,
+        activeTrackColor: Fp.accent,
+        activeThumbColor: Colors.white,
+        inactiveTrackColor: const Color(0xFF3A3550),
+        inactiveThumbColor: Colors.white,
+        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+      ),
+    ),
+  );
+}
+
 class _SwitchItem extends StatelessWidget {
-  const _SwitchItem({required this.icon, required this.title, required this.value, this.onChanged});
-  final IconData icon;
+  const _SwitchItem({required this.title, required this.value, this.onChanged});
   final String title;
   final bool value;
   final ValueChanged<bool>? onChanged;
@@ -802,25 +802,13 @@ class _SwitchItem extends StatelessWidget {
       child: InkWell(
         onTap: onChanged == null ? null : () => onChanged!(!value),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 34),
+          constraints: const BoxConstraints(minHeight: 46),
           child: Row(
             children: [
-              Icon(icon, color: const Color(0xFFC9B2F8), size: 18),
-              const SizedBox(width: 10),
-              Expanded(child: Text(title, style: Fp.body(14))),
-              SizedBox(
-                width: 46,
-                height: 28,
-                child: FittedBox(
-                  child: Switch(
-                    value: value,
-                    onChanged: onChanged,
-                    activeTrackColor: Fp.accent,
-                    activeThumbColor: Colors.white,
-                    trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
-                  ),
-                ),
+              Expanded(
+                child: Text(title, style: Fp.body(15, weight: FontWeight.w700)),
               ),
+              _Toggle(value: value, onChanged: onChanged),
             ],
           ),
         ),
@@ -930,13 +918,7 @@ class _BetaItem extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.only(top: 2),
-                child: Icon(Icons.science_outlined, color: Color(0xFFC9B2F8), size: 20),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -945,52 +927,31 @@ class _BetaItem extends StatelessWidget {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       spacing: 6,
                       children: [
-                        Text('Aider à améliorer FootProba', style: Fp.body(14, weight: FontWeight.w600)),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0x22FBBF24),
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                          child: Text(
-                            'TEST',
-                            style: Fp.body(11, weight: FontWeight.w700, color: Fp.warning),
-                          ),
-                        ),
+                        Text('Aider à améliorer FootProba', style: Fp.body(15, weight: FontWeight.w700)),
+                        const Tag('TEST', color: Fp.warning, background: Color(0xFF1F1709)),
                       ],
                     ),
                     const SizedBox(height: 3),
                     Text(
                       me.betaSharing && tester != null
                           ? 'Tu partages en tant que « Testeur n° $tester ». Jamais ton nom ni ton numéro.'
-                          : 'Pendant la période de test, partage anonyme de ton activité et des problèmes '
-                                'rencontrés. Jamais ton nom ni ton numéro.',
-                      style: Fp.body(12.5, color: Fp.text2),
+                          : 'Partage anonyme de ton activité pendant la période de test. Jamais ton nom '
+                                'ni ton numéro.',
+                      style: Fp.body(12.5, color: Fp.muted),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     GestureDetector(
                       onTap: () => explain(context, ask: false),
                       child: Text(
                         'Ce qui est partagé ›',
-                        style: Fp.body(13, weight: FontWeight.w700, color: Fp.accentLight),
+                        style: Fp.body(13, weight: FontWeight.w600, color: Fp.lilac),
                       ),
                     ),
                   ],
                 ),
               ),
-              SizedBox(
-                width: 46,
-                height: 28,
-                child: FittedBox(
-                  child: Switch(
-                    value: me.betaSharing,
-                    onChanged: toggle,
-                    activeTrackColor: Fp.accent,
-                    activeThumbColor: Colors.white,
-                    trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
-                  ),
-                ),
-              ),
+              const SizedBox(width: 10),
+              _Toggle(value: me.betaSharing, onChanged: toggle),
             ],
           ),
         ),

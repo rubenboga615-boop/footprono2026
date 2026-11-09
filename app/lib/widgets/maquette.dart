@@ -139,6 +139,25 @@ class MPill extends StatelessWidget {
   );
 }
 
+/// Pastille entourée (« 2 000 F / mois », solde du coupon) : maquettes C3 et N4.
+class MOutlinePill extends StatelessWidget {
+  const MOutlinePill(this.text, {super.key});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: Fp.line),
+    ),
+    child: Text(
+      text,
+      style: Fp.body(12, color: Fp.lilac, weight: FontWeight.w600),
+    ),
+  );
+}
+
 /// Petite pastille de filtre (« Sam. 7 », « Tous championnats ▾ »).
 class MChip extends StatelessWidget {
   const MChip(this.label, {super.key, this.selected = false, required this.onTap});
