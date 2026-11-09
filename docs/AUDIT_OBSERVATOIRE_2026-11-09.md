@@ -82,3 +82,40 @@ si l'écart se confirme, la retirer des profils Sûr / Équilibré en attendant.
 
 37 demandés, 17 ajoutés au coupon, 20 non ajoutés ; 2 montantes perdues, au palier 2 (sur 2
 lancées). Rien d'anormal ; il faudra plus de testeurs (testeur n° 2 : 0 pari).
+
+## 6. Réussite par marché et par championnat (« Mon bilan » du fondateur + compte de test)
+
+Sélections gagnées · perdues (remboursées à part). Fondateur : 48 paris ; compte de test :
+3 paris. Marge du hasard ≈ 2 × √(p(1−p)/n).
+
+### Par marché
+
+| Marché | Fondateur | Compte de test | Ensemble | Annoncé (Observatoire) | Lecture |
+|---|---|---|---|---|---|
+| Plus/moins de buts | 36 · 8 (82 %) | 1 · 2 | 37 · 10 (79 %) | 73 % | bien |
+| **Double chance** | 16 · 15 (52 %) | 0 · 2 | **16 · 17 (48 %)** | **71 %** | **écart de 23 points, au-delà du hasard (± 16)** |
+| Buts d'une équipe (domicile + extérieur) | 25 · 10 (71 %) | 3 · 1 | 28 · 11 (72 %) | 70 % | juste |
+| Handicap européen | 16 · 3 (84 %) | 1 · 1 | 17 · 4 (81 %) | 76 % | bien |
+| **Buts en 1re mi-temps** | 9 · 8 (53 %) | — | 9 · 8 (53 %) | 70 % | à surveiller (± 22) |
+| Total de corners | 10 · 2 (83 %) | 2 · 2 | 12 · 4 (75 %) | 69 % | bien |
+| Les deux marquent | 7 · 5 (58 %) | 1 · 0 | 8 · 5 (62 %) | 60 % | juste |
+| Remboursé si nul | 8 · 0 | — | 8 · 0 | 62 % | bien (peu) |
+| Résultat du match | 5 · 2 | 0 · 1 | 5 · 3 | 63 % | trop peu |
+
+**Conclusion par marché** : tout est juste ou meilleur qu'annoncé, **sauf la Double chance**
+(48 % pour 71 % annoncé, 33 sélections) et, à surveiller, les buts en 1re mi-temps. La Double
+chance revient souvent dans les profils Sûr et Équilibré (et dans les coupons de sélections
+de cette semaine) : la vérifier en priorité sur les saisons passées.
+
+### Par championnat (fondateur)
+
+| Bien au-dessus de 70 % | Autour de 50–70 % | En dessous |
+|---|---|---|
+| Premier League 22 · 3 (88 %), Bundesliga 16 · 1 (94 %), Liga 19 · 5 (79 %), Ekstraklasa 7 · 1, Ligue 1 7 · 0, Liga I roumaine 7 · 0, HNL croate 4 · 0, Süper Lig 3 · 0 | Serie A 13 · 9 (59 %), Allsvenskan 5 · 3, Superliga danoise 4 · 3, Liga Portugal 5 · 2, Eredivisie 4 · 2, Pro League belge 5 · 5, Super League suisse 4 · 4 | **Bundesliga autrichienne 2 · 5 (29 %)**, **Ligat ha'Al israélienne 2 · 5 (29 %)**, Premiership écossaise 0 · 2, Eliteserien 0 · 2 |
+
+- Aucun championnat n'a assez de sélections pour conclure (2 à 25). Avec 22 championnats,
+  en trouver un ou deux très bas par hasard est attendu (2 sur 7 pour ≈ 65 % annoncé :
+  environ 6 chances sur 100 par championnat).
+- **Pistes** : ne rien retirer pour l'instant ; suivre ce tableau dans l'Observatoire à partir
+  de 30 sélections par championnat ; Serie A (13 · 9) et Autriche / Israël en premier.
+- Compte de test : trop peu (1 à 3 sélections par championnat), non interprété.
