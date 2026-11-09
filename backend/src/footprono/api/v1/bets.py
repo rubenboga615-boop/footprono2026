@@ -160,13 +160,18 @@ async def _bet_out(session: SessionDep, bet: Bet) -> BetOut:
             match, item.home_team, item.away_team = info[s.match_id]
             item.kickoff_at = match.kickoff_at
             # Suivi comme chez un bookmaker : à venir, en cours (minute, score) ou terminé.
-            state = smart_coupon.live_state({"result": s.result, "market": s.market}, match, counts)
+            state = smart_coupon.live_state(
+                {"result": s.result, "market": s.market, "line": s.line, "selection": s.selection},
+                match,
+                counts,
+            )
             item.state, item.minute, item.score = (
                 state["state"],
                 state.get("minute"),
                 state.get("score"),
             )
             item.count, item.count_label = state.get("count"), state.get("count_label")
+            item.extra, item.now = state.get("extra"), state.get("now")
         out.append(item)
     return BetOut(
         id=bet.id,

@@ -186,7 +186,13 @@ class Fp {
         titleTextStyle: title(18),
         contentTextStyle: body(14, color: text2, height: 1.45),
       ),
-      bottomSheetTheme: const BottomSheetThemeData(backgroundColor: Color(0xFF15121F)),
+      // Maquettes (C7, N5) : fenêtre du bas en couleur de carte, coins de 24, poignée #3A3260.
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: card,
+        dragHandleColor: line,
+        modalBarrierColor: Color(0xB805030C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(color: accentLight),
       popupMenuTheme: const PopupMenuThemeData(color: Color(0xFF1A1626)),
     );

@@ -75,7 +75,10 @@ class BetSelectionOut(BaseModel):
     # État du match pour le suivi en direct : upcoming, live, finished, settled.
     state: str = "upcoming"
     minute: int | None = None
+    extra: int | None = None  # temps additionnel (90+4)
     score: list[int | None] | None = None
+    # En direct : résultat si le match s'arrêtait maintenant (win, loss, push, half_win…).
+    now: str | None = None
     # Marché de comptage terminé : corners (cartons, tirs) domicile et extérieur.
     count: list[int] | None = None
     count_label: str | None = None

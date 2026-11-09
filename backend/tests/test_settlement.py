@@ -11,7 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.accounts.models import Wallet, WalletEntry
 from footprono.bookmaker.models import Bet
-from footprono.bookmaker.settlement import Grade, bet_outcome, counts_grade, goals_grade
+from footprono.bookmaker.settlement import (
+    Grade,
+    bet_outcome,
+    counts_grade,
+    goals_grade,
+    live_grade,
+)
 from footprono.football.models import Match, MatchStatus
 
 from .test_bets import _login, _sel, world  # noqa: F401 (fixture partagée)
@@ -242,3 +248,16 @@ async def test_each_selection_graded_as_soon_as_its_match_ends(
     assert (first["result"], first["state"], first["score"]) == ("win", "settled", [2, 0])
     assert (second["result"], second["state"]) == ("pending", "live")
     assert (second["minute"], second["score"]) == (67, [1, 1])
+    assert second["now"] == "loss"  # victoire à domicile, 1-1 : perdante pour l'instant
+
+
+def test_live_grade_same_rules_as_settlement() -> None:
+    """« Gagnante pour l'instant » : le score actuel réglé comme un score final."""
+    m = Match(live_home_goals=2, live_away_goals=1)
+    assert live_grade(m, "OU", "2.5", "over") == "win"
+    assert live_grade(m, "OU", "3.5", "over") == "loss"
+    assert live_grade(m, "AH", "-0.75", "home") == "half_win"
+    assert live_grade(m, "AH", "-1", "home") == "push"
+    assert live_grade(m, "HT_1X2", "", "home") is None  # mi-temps : pas en direct
+    assert live_grade(m, "CORNERS_OU", "9.5", "over") is None
+    assert live_grade(Match(), "OU", "2.5", "over") is None

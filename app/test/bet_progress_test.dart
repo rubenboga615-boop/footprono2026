@@ -3,7 +3,7 @@ import 'package:footprono/api/models.dart';
 import 'package:footprono/labels.dart';
 import 'package:footprono/screens/bookmaker_screen.dart';
 
-Json _sel(int id, String result, String state, {int? minute, List<int>? score}) => {
+Json _sel(int id, String result, String state, {int? minute, List<int>? score, String? now}) => {
   'match_id': id,
   'market': 'TEAM_OU_AWAY',
   'line': '1.5',
@@ -17,6 +17,7 @@ Json _sel(int id, String result, String state, {int? minute, List<int>? score}) 
   'state': state,
   'minute': minute,
   'score': score,
+  'now': now,
 };
 
 void main() {
@@ -36,13 +37,13 @@ void main() {
       'selections': [
         _sel(1, 'win', 'settled', score: [0, 1]),
         _sel(2, 'win', 'settled', score: [2, 0]),
-        _sel(3, 'pending', 'live', minute: 67, score: [1, 1]),
+        _sel(3, 'pending', 'live', minute: 67, score: [1, 1], now: 'win'),
         _sel(4, 'pending', 'upcoming'),
       ],
     });
     expect(betProgress(bet), '2 sur 4 validées · 1 en cours · 1 à venir');
     final live = bet.selections[2];
-    expect(selectionState(live), endsWith("en cours 67' · 1-1"));
+    expect(selectionState(live), "En direct 67' · 1-1 · gagnante pour l'instant");
     expect(selectionState(bet.selections[0]), endsWith('gagné · 0-1'));
     expect(selectionState(bet.selections[3]), endsWith('à venir'));
     expect(selectionState(bet.selections[3]), contains('7 nov.'));

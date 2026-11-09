@@ -12,6 +12,7 @@ football-data : si le score change, les paris concernés des 7 derniers jours
 sont **réglés à nouveau** (écart crédité ou débité, avec une note).
 """
 
+import functools
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -94,6 +95,28 @@ def goals_grade(match: Match, market: str, key: str) -> Selection | None:
     hh, ha = int(ht[0] or 0), int(ht[1] or 0)
     joint = _point_mass((7, 7, 11, 11), (hh, ha, match.home_goals, match.away_goals))
     return derive_markets(ScoreDistribution(joint=joint)).get(key)
+
+
+@functools.lru_cache(maxsize=4096)
+def _score_selection(home: int, away: int, key: str) -> Selection | None:
+    joint = _point_mass((7, 7, 11, 11), (0, 0, home, away))
+    return derive_markets(ScoreDistribution(joint=joint)).get(key)
+
+
+def live_grade(match: Match, market: str, line: str, selection: str) -> str | None:
+    """Ce que donnerait la sélection si le match s'arrêtait sur le score actuel (« gagnante pour
+    l'instant »), par le même calcul que le règlement. Seulement les marchés du match complet
+    en buts : pas la mi-temps, ni les corners, cartons, tirs (pas de compte en direct)."""
+    if match.live_home_goals is None or match.live_away_goals is None:
+        return None
+    if market.startswith(HALF_TIME_MARKETS) or market.split("_")[0] in COUNT_PREFIXES:
+        return None
+    if market == "BOOKING_POINTS_OU":
+        return None
+    outcome = _score_selection(
+        match.live_home_goals, match.live_away_goals, f"{market}|{line}|{selection}"
+    )
+    return None if outcome is None else _grade(outcome, Decimal(1)).result
 
 
 def _count_values(

@@ -918,6 +918,15 @@ def live_state(
             out["extra"] = match.live_extra
         if match.live_home_goals is not None:
             out["score"] = [match.live_home_goals, match.live_away_goals]
+            if result == "pending" and "selection" in selection:
+                now = settlement.live_grade(
+                    match,
+                    selection.get("market", ""),
+                    selection.get("line") or "",
+                    selection["selection"],
+                )
+                if now is not None:
+                    out["now"] = now  # gagnante (perdante…) pour l'instant
     return out
 
 

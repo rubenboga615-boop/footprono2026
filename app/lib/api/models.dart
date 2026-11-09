@@ -289,6 +289,8 @@ class BetSel {
       kickoffAt = parseDate(j['kickoff_at']),
       state = j['state'] as String? ?? 'upcoming',
       minute = j['minute'] as int?,
+      extra = j['extra'] as int?,
+      now = j['now'] as String?,
       score = (j['score'] as List?)?.cast<int?>(),
       count = (j['count'] as List?)?.cast<int>(),
       countLabel = j['count_label'] as String?;
@@ -301,6 +303,12 @@ class BetSel {
   /// Suivi du match : upcoming, live (minute, score), finished (résultat bientôt noté), settled.
   final String state;
   final int? minute;
+
+  /// Temps additionnel (« 90+4' »).
+  final int? extra;
+
+  /// En direct : résultat si le match s'arrêtait maintenant (win, loss, push, half_win…).
+  final String? now;
   final List<int?>? score;
   final String awayTeam;
   final DateTime? kickoffAt;

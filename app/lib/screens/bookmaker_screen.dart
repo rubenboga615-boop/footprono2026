@@ -11,6 +11,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/maquette.dart';
 import 'record_screen.dart';
 
 class BookmakerScreen extends StatefulWidget {
@@ -294,7 +295,9 @@ Widget betTag(Bet b) {
   return switch (b.outcome) {
     'won' || 'partial' => Tag.win(label),
     'lost' => Tag.loss(label),
-    _ => Tag(label, color: b.status == 'open' ? Fp.accentLight : Fp.textSoft),
+    // Maquette C7 : « En cours » en ambre.
+    _ when b.status == 'open' => Tag(label, color: Fp.warning, background: const Color(0xFF1F1709)),
+    _ => Tag(label, color: Fp.textSoft),
   };
 }
 
@@ -320,7 +323,7 @@ class _BetRow extends StatelessWidget {
         builder: (_) => SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-            child: BetCard(bet: b),
+            child: BetCard(bet: b, plain: true),
           ),
         ),
       ),
@@ -413,14 +416,32 @@ String scoreText(String market, List<int?>? score, List<int>? count, String? cou
 bool isCountMarket(String market) =>
     const ['CORNERS', 'CARDS', 'SHOTS', 'SOT', 'BOOKING'].contains(market.split('_').first);
 
-/// Date et état du match d'une sélection : « Sam. 7 nov. 15:00 · en cours 67' · 1-1 ».
+/// « Gagnante pour l'instant » : la sélection réglée sur le score actuel (maquette C7).
+String? nowLabel(BetSel s) => switch (s.now) {
+  'win' => 'gagnante pour l\'instant',
+  'half_win' => 'à moitié gagnante pour l\'instant',
+  'push' => 'remboursée si le score ne bouge plus',
+  'half_loss' => 'à moitié perdante pour l\'instant',
+  'loss' => 'perdante pour l\'instant',
+  _ => null,
+};
+
+/// Date et état du match d'une sélection : « Sam. 7 nov. 15:00 · à venir »,
+/// « En direct 67' · 1-1 · gagnante pour l'instant » (maquette C7).
 String selectionState(BetSel s) {
   final k = s.kickoffAt?.toLocal();
   final when = k == null ? '' : '${shortDate(k)} ${hourMinute(k)}';
   final score = scoreText(s.market, s.score, s.count, s.countLabel);
+  if (s.result == 'pending' && s.state == 'live') {
+    final minute = s.minute == null
+        ? ''
+        : s.extra != null && s.extra! > 0
+        ? ' ${s.minute}+${s.extra}\''
+        : ' ${s.minute}\'';
+    return ['En direct$minute$score', ?nowLabel(s)].join(' · ');
+  }
   final state = switch (s.result) {
     'pending' => switch (s.state) {
-      'live' => 'en cours${s.minute == null ? '' : ' ${s.minute}\''}$score',
       'finished' => 'terminé$score · résultat dans quelques minutes',
       _ => 'à venir',
     },
@@ -432,8 +453,12 @@ String selectionState(BetSel s) {
 Color selectionColor(BetSel s) => switch (s.result) {
   'win' || 'half_win' => Fp.win,
   'loss' || 'half_loss' => Fp.loss,
-  'pending' when s.state == 'live' => Fp.warning,
-  _ => Fp.text3,
+  'pending' when s.state == 'live' => switch (s.now) {
+    'win' || 'half_win' => Fp.win,
+    'push' => Fp.muted,
+    _ => Fp.warning,
+  },
+  _ => Fp.muted,
 };
 
 const _entryKinds = {
@@ -494,8 +519,11 @@ class _EntryRow extends StatelessWidget {
 }
 
 class BetCard extends StatelessWidget {
-  const BetCard({super.key, required this.bet});
+  const BetCard({super.key, required this.bet, this.plain = false});
   final Bet bet;
+
+  /// Dans la fenêtre du bas : sans carte autour (maquette C7).
+  final bool plain;
 
   @override
   Widget build(BuildContext context) {
@@ -505,75 +533,101 @@ class BetCard extends StatelessWidget {
       'lost' => Fp.loss,
       _ => b.status == 'open' ? Fp.accentLight : Fp.text2,
     };
-    return GlassCard.section(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    Widget kv(String k, String v, Color valueColor) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text('Pari n° ${b.id} · ${betKind(b)}', style: Fp.title(15, weight: FontWeight.w600)),
-              ),
-              betTag(b),
-            ],
+          Expanded(
+            child: Text(k, style: Fp.body(13, color: Fp.muted)),
           ),
-          const SizedBox(height: 10),
-          for (final s in b.selections)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Icon(
-                    switch (s.result) {
-                      'win' || 'half_win' => Icons.check_circle_rounded,
-                      'loss' || 'half_loss' => Icons.cancel_rounded,
-                      'push' => Icons.replay_circle_filled_rounded,
-                      _ when s.state == 'live' => Icons.play_circle_fill_rounded,
-                      _ when s.state == 'finished' => Icons.hourglass_bottom_rounded,
-                      _ => Icons.schedule_rounded,
-                    },
-                    size: 18,
-                    color: selectionColor(s),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('${s.homeTeam} - ${s.awayTeam}', style: Fp.body(11, color: Fp.text3)),
-                        Text(
-                          fullLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam),
-                          style: Fp.body(13, weight: FontWeight.w600),
-                        ),
-                        Text(selectionState(s), style: Fp.body(11, color: selectionColor(s))),
-                      ],
-                    ),
-                  ),
-                  Text(odds(s.odds), style: Fp.body(13, weight: FontWeight.w700)),
-                ],
-              ),
-            ),
-          if (b.status == 'open' && b.selections.length > 1) ...[
-            const SizedBox(height: 6),
-            Text(
-              betProgress(b),
-              style: Fp.body(12, color: Fp.text2, weight: FontWeight.w600),
-            ),
-          ],
-          if (lostEarly(b) case final note?) ...[
-            const SizedBox(height: 8),
-            Text(note, style: Fp.body(12, color: Fp.text2, height: 1.4)),
-          ],
-          const Divider(height: 18),
-          KeyValue('Mise · cote ${odds(b.totalOdds)}', money(b.stake, b.currency)),
-          if (b.status == 'open')
-            KeyValue('Gain possible', money(b.potentialPayout, b.currency), valueColor: Fp.win)
-          else
-            KeyValue('Rendu', money(b.payout ?? 0, b.currency), valueColor: color, bold: true),
-          if (b.placedAt != null)
-            Text('Placé le ${dateTime(b.placedAt!)}', style: Fp.body(11, color: Fp.text3)),
+          Text(
+            v,
+            style: Fp.body(15, weight: FontWeight.w700, color: valueColor),
+          ),
         ],
       ),
     );
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text('Pari n° ${b.id} · ${betKind(b)}', style: Fp.title(17))),
+            const SizedBox(width: 8),
+            betTag(b),
+          ],
+        ),
+        const SizedBox(height: 4),
+        for (final (i, s) in b.selections.indexed)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              border: i < b.selections.length - 1
+                  ? const Border(bottom: BorderSide(color: Fp.divider))
+                  : null,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 5),
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(color: selectionColor(s), shape: BoxShape.circle),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${s.homeTeam} – ${s.awayTeam}', style: Fp.body(12, color: Fp.muted)),
+                      const SizedBox(height: 1),
+                      Text(
+                        fullLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam),
+                        style: Fp.body(14, weight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(selectionState(s), style: Fp.body(12, color: selectionColor(s))),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(odds(s.odds), style: Fp.body(14, weight: FontWeight.w700)),
+              ],
+            ),
+          ),
+        const Divider(height: 1, thickness: 1, color: Fp.divider),
+        if (b.status == 'open' && b.selections.length > 1) ...[
+          const SizedBox(height: 10),
+          Text(betProgress(b), style: Fp.body(13, color: Fp.muted)),
+        ],
+        if (lostEarly(b) case final note?) ...[
+          const SizedBox(height: 8),
+          Text(note, style: Fp.body(12, color: Fp.muted, height: 1.4)),
+        ],
+        const SizedBox(height: 6),
+        kv('Mise · cote ${odds(b.totalOdds)}', money(b.stake, b.currency), Fp.text),
+        if (b.status == 'open')
+          kv('Gain possible', money(b.potentialPayout, b.currency), Fp.win)
+        else
+          kv('Rendu', money(b.payout ?? 0, b.currency), color),
+        if (b.status == 'open' && b.selections.any((s) => s.now != null)) ...[
+          const SizedBox(height: 4),
+          Text(
+            '« Pour l\'instant » d\'après le score actuel ; le règlement se fait à la fin du match.',
+            style: Fp.body(12, color: Fp.muted, height: 1.35),
+          ),
+        ],
+        if (b.placedAt != null) ...[
+          const SizedBox(height: 4),
+          Text('Placé le ${dateTime(b.placedAt!)}', style: Fp.body(12, color: Fp.muted)),
+        ],
+      ],
+    );
+    return plain ? body : MCard(child: body);
   }
 }
