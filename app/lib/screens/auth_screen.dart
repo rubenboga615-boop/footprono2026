@@ -124,9 +124,66 @@ class _AuthScreenState extends State<AuthScreen> {
     await context.read<AppState>().signInWithGoogle();
   });
 
-  void _forgotPassword() {
-    final number = phone.text.trim().isEmpty ? '' : ' Mon numéro : ${fullPhone(dial, phone.text)}.';
-    context.read<AppState>().openSupport("Bonjour, j'ai oublié mon mot de passe FootProba.$number");
+  /// Maquette N12 : ce qui va se passer, le numéro du compte (modifiable), puis WhatsApp.
+  Future<void> _forgotPassword() async {
+    final number = TextEditingController(text: phone.text.trim().isEmpty ? '' : fullPhone(dial, phone.text));
+    final send = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => Padding(
+        padding: EdgeInsets.fromLTRB(18, 0, 18, 18 + MediaQuery.viewInsetsOf(context).bottom),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Mot de passe oublié ?', style: Fp.title(18)),
+              const SizedBox(height: 8),
+              Text(
+                'Écris-nous sur WhatsApp depuis le numéro de ton compte. On vérifie que c\'est toi et on '
+                't\'envoie un mot de passe provisoire, à changer ensuite dans Profil → Mot de passe.',
+                style: Fp.body(14, color: Fp.muted, height: 1.4),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Numéro de ton compte',
+                style: Fp.body(13, color: Fp.muted, weight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: number,
+                keyboardType: TextInputType.phone,
+                style: Fp.body(16),
+                decoration: const InputDecoration(hintText: '+225 07 00 00 00 00'),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(context, true),
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
+                  label: const Text('Écrire sur WhatsApp'),
+                  style: FilledButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    backgroundColor: const Color(0xFF25D366),
+                    foregroundColor: const Color(0xFF0E0B1A),
+                    textStyle: Fp.body(16, weight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              MButton('Annuler', secondary: true, onPressed: () => Navigator.pop(context, false)),
+            ],
+          ),
+        ),
+      ),
+    );
+    final text = number.text.trim();
+    number.dispose();
+    if (send != true || !mounted) return;
+    final mine = text.isEmpty ? '' : ' Mon numéro : $text.';
+    await context.read<AppState>().openSupport("Bonjour, j'ai oublié mon mot de passe FootProba.$mine");
   }
 
   @override
@@ -549,74 +606,85 @@ class _GoogleProfileState extends State<_GoogleProfile> {
     }
   }
 
+  // Maquette N13 : titre au-dessus, puis le compte Google, le pays, l'âge et les conditions
+  // dans une carte ; « Commencer » et « Annuler » en pilules.
   @override
   Widget build(BuildContext context) {
     final s = widget.signup;
     final initial = (s.name.isNotEmpty ? s.name : s.email).characters.first.toUpperCase();
-    return GlassCard.hero(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Center(
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Fp.line),
-                color: Colors.black.withValues(alpha: 0.3),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Center(child: TwoToneTitle('Presque', 'prêt', size: 28)),
+        const SizedBox(height: 6),
+        Text(
+          'Deux réponses, une seule fois.',
+          textAlign: TextAlign.center,
+          style: Fp.body(14, color: Fp.muted),
+        ),
+        MCard(
+          margin: const EdgeInsets.only(top: 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
                 children: [
                   CircleAvatar(
                     radius: 15,
-                    backgroundColor: Fp.accentSoft,
-                    child: Text(initial, style: Fp.title(14, color: Fp.accentLight)),
+                    backgroundColor: Fp.cardHigh,
+                    child: Text(initial, style: Fp.title(13, color: Fp.lilac)),
                   ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      s.email,
-                      overflow: TextOverflow.ellipsis,
-                      style: Fp.body(13, color: Fp.textSoft),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          s.name.isNotEmpty ? s.name : s.email,
+                          overflow: TextOverflow.ellipsis,
+                          style: Fp.body(15, weight: FontWeight.w700),
+                        ),
+                        Text(
+                          s.name.isNotEmpty ? '${s.email} · compte Google lié' : 'compte Google lié',
+                          overflow: TextOverflow.ellipsis,
+                          style: Fp.body(13, color: Fp.muted),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: 14),
+              CountryPicker(value: country, onChanged: (v) => setState(() => country = v)),
+              const SizedBox(height: 14),
+              AdultCheck(value: adult, onChanged: (v) => setState(() => adult = v)),
+              const SizedBox(height: 10),
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text('En continuant, tu acceptes les ', style: Fp.body(12.5, color: Fp.muted, height: 1.4)),
+                  const _LegalLink('conditions d\'utilisation', '/conditions'),
+                  Text(' et la ', style: Fp.body(12.5, color: Fp.muted, height: 1.4)),
+                  const _LegalLink('politique de confidentialité', '/confidentialite'),
+                  Text('.', style: Fp.body(12.5, color: Fp.muted, height: 1.4)),
+                ],
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 12),
+                Text(error!, style: Fp.body(13, color: Fp.lossText, height: 1.4)),
+              ],
+              const SizedBox(height: 16),
+              MButton('Commencer', busy: busy, onPressed: busy ? null : _start),
+              const SizedBox(height: 10),
+              MButton(
+                'Annuler',
+                secondary: true,
+                onPressed: busy ? null : () => context.read<AppState>().cancelGoogleSignup(),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          const Center(child: TwoToneTitle('Presque', 'prêt', size: 28)),
-          const SizedBox(height: 6),
-          Text(
-            'Deux réponses, une seule fois.',
-            textAlign: TextAlign.center,
-            style: Fp.body(14, color: Fp.text2),
-          ),
-          const SizedBox(height: 18),
-          CountryPicker(value: country, onChanged: (v) => setState(() => country = v)),
-          const SizedBox(height: 16),
-          AdultCheck(value: adult, onChanged: (v) => setState(() => adult = v)),
-          if (error != null) ...[
-            const SizedBox(height: 12),
-            Text(error!, style: Fp.body(13, color: Fp.lossText, height: 1.4)),
-          ],
-          const SizedBox(height: 18),
-          GlowButton(
-            onPressed: busy ? null : _start,
-            busy: busy,
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [Text('Commencer'), SizedBox(width: 10), Icon(Icons.arrow_forward_rounded, size: 20)],
-            ),
-          ),
-          const SizedBox(height: 6),
-          TextButton(
-            onPressed: busy ? null : () => context.read<AppState>().cancelGoogleSignup(),
-            child: const Text('Annuler'),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

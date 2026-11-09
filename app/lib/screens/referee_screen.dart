@@ -8,6 +8,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/maquette.dart';
 import 'team_screen.dart' show seasonLabel;
 
 /// Écart de jaunes par match à partir duquel un arbitre est dit plus sévère ou plus clément.
@@ -49,13 +50,17 @@ class RefereeScreen extends StatelessWidget {
     final recent = (data['recent'] as List).cast<Json>();
     final min = data['min_matches'] as int;
     final latest = seasons.first;
+    final verdict = severity(latest);
+    final gap = latest['enough'] == true && latest['yellow'] != null && latest['league_yellow'] != null
+        ? (latest['yellow'] as num) - (latest['league_yellow'] as num)
+        : null;
     return ListView(
       padding: pagePadding(context, 16, 40, maxWidth: 1080),
       children: [
         BackHeader(
           'Arbitre',
-          data['name'] as String,
-          subtitle: '${total['matches']} matchs dirigés dans nos championnats depuis 2016.',
+          '',
+          joined: true,
           trailing: SquareButton(
             icon: Icons.leaderboard_rounded,
             tooltip: 'Tous les arbitres',
@@ -69,44 +74,87 @@ class RefereeScreen extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 16),
         ...deskColumns(context, [
+          // Maquette N11 : qui, où, combien de matchs, et le verdict en étiquette.
+          MCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(color: Fp.cardHigh, shape: BoxShape.circle),
+                      child: const Icon(Icons.sports_rounded, color: Fp.lilac, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(data['name'] as String, style: Fp.title(19)),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${competitionName(latest['competition'] as String)} · '
+                            '${seasonLabel(latest['season'] as int)} · ${latest['matches']} matchs · '
+                            '${total['matches']} depuis 2016',
+                            style: Fp.body(13, color: Fp.muted, height: 1.35),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                if (gap != null && gap.abs() >= _severityGap) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: gap > 0
+                        ? const Tag.loss('Plus sévère que la moyenne')
+                        : const Tag.win('Plus clément que la moyenne'),
+                  ),
+                ],
+              ],
+            ),
+          ),
           _SummaryCard(
             title:
                 '${competitionName(latest['competition'] as String)} ${seasonLabel(latest['season'] as int)}',
             s: latest,
             min: min,
+            verdict: verdict,
           ),
-          const SizedBox(height: 12),
-          _SummaryCard(title: 'Depuis 2016', s: total, min: min),
-          const SizedBox(height: 12),
-          GlassCard.section(
+          _SummaryCard(title: 'Depuis 2016', s: total, min: min, verdict: severity(total)),
+          MCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Saison par saison', style: Fp.title(15, weight: FontWeight.w600)),
+                Text('Saison par saison', style: Fp.title(16)),
+                const SizedBox(height: 2),
+                Text('jaunes par match · moyenne du championnat', style: Fp.body(12.5, color: Fp.muted)),
                 const SizedBox(height: 4),
-                Text('jaunes par match · moyenne du championnat', style: Fp.body(12, color: Fp.text3)),
-                const SizedBox(height: 6),
-                for (final s in seasons)
+                for (final (i, s) in seasons.indexed) ...[
+                  if (i > 0) const Divider(height: 1, thickness: 1, color: Fp.divider),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Row(
                       children: [
                         Expanded(
                           child: Text(
                             '${competitionName(s['competition'] as String)} ${seasonLabel(s['season'] as int)}',
-                            style: Fp.body(14, weight: FontWeight.w600),
+                            style: Fp.body(14.5),
                           ),
                         ),
-                        Text('${s['matches']} m.', style: Fp.body(12, color: Fp.text3)),
+                        Text('${s['matches']} m.', style: Fp.body(12.5, color: Fp.muted)),
                         const SizedBox(width: 12),
                         SizedBox(
                           width: 40,
                           child: Text(
                             _n(s['yellow']),
                             textAlign: TextAlign.right,
-                            style: Fp.body(14, color: Fp.accentLight, weight: FontWeight.w700),
+                            style: Fp.body(14.5, weight: FontWeight.w700),
                           ),
                         ),
                         SizedBox(
@@ -114,49 +162,53 @@ class RefereeScreen extends StatelessWidget {
                           child: Text(
                             _n(s['league_yellow']),
                             textAlign: TextAlign.right,
-                            style: Fp.body(14, color: Fp.text2),
+                            style: Fp.body(14, color: Fp.muted),
                           ),
                         ),
                       ],
                     ),
                   ),
+                ],
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          GlassCard.section(
+          MCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Derniers matchs', style: Fp.title(15, weight: FontWeight.w600)),
-                const SizedBox(height: 6),
-                for (final r in recent)
+                Text('Derniers matchs', style: Fp.title(16)),
+                const SizedBox(height: 4),
+                for (final (i, r) in recent.indexed) ...[
+                  if (i > 0) const Divider(height: 1, thickness: 1, color: Fp.divider),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Row(
                       children: [
-                        SizedBox(
-                          width: 78,
-                          child: Text(
-                            numericDate(DateTime.parse(r['date'] as String)),
-                            style: Fp.body(12, color: Fp.text2),
-                          ),
-                        ),
                         Expanded(
-                          child: Text(
-                            '${r['home']} – ${r['away']}',
-                            overflow: TextOverflow.ellipsis,
-                            style: Fp.body(13, weight: FontWeight.w600),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${r['home']} – ${r['away']}',
+                                overflow: TextOverflow.ellipsis,
+                                style: Fp.body(14.5),
+                              ),
+                              Text(
+                                shortDate(DateTime.parse(r['date'] as String)),
+                                style: Fp.body(12, color: Fp.muted),
+                              ),
+                            ],
                           ),
                         ),
                         Text(
                           '${r['home_yellow']} + ${r['away_yellow']} J'
                           '${(r['red'] as int) > 0 ? ' · ${r['red']} R' : ''}',
-                          style: Fp.body(13, color: Fp.textSoft),
+                          style: Fp.body(13.5, color: Fp.muted),
                         ),
                       ],
                     ),
                   ),
+                ],
               ],
             ),
           ),
@@ -165,7 +217,7 @@ class RefereeScreen extends StatelessWidget {
             'Cartons : football-data ; arbitre : API-Football (football-data en Premier League). '
             'La moyenne de référence est celle du même championnat sur les mêmes saisons. Le moteur '
             'tient déjà compte de l\'arbitre pour les marchés cartons.',
-            style: Fp.body(12, color: Fp.text3, height: 1.4),
+            style: Fp.body(12.5, color: Fp.muted, height: 1.4),
           ),
         ]),
       ],
@@ -174,35 +226,54 @@ class RefereeScreen extends StatelessWidget {
 }
 
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.title, required this.s, required this.min});
+  const _SummaryCard({required this.title, required this.s, required this.min, this.verdict});
   final String title;
   final Json s;
   final int min;
+  final String? verdict;
 
   @override
   Widget build(BuildContext context) {
-    final verdict = severity(s);
-    return GlassCard.section(
+    // Maquette N11 : libellé à gauche, chiffre en gras et moyenne en gris à droite.
+    Widget row(String label, Object? value, [Object? average]) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          Expanded(
+            child: Text(label, style: Fp.body(13.5, color: Fp.muted)),
+          ),
+          Text(_n(value), style: Fp.body(16, weight: FontWeight.w700)),
+          if (average != null) ...[
+            const SizedBox(width: 6),
+            Text(
+              'moyenne ${_n(average)}',
+              style: Fp.body(13, color: Fp.muted, weight: FontWeight.w600),
+            ),
+          ],
+        ],
+      ),
+    );
+    return MCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(title, style: Fp.title(15, weight: FontWeight.w600)),
-              ),
-              Text('${s['matches']} matchs', style: Fp.body(12, color: Fp.text3)),
+              Expanded(child: Text(title, style: Fp.title(16))),
+              Text('${s['matches']} matchs', style: Fp.body(12.5, color: Fp.muted)),
             ],
           ),
-          const SizedBox(height: 6),
-          KeyValue('Jaunes par match', '${_n(s['yellow'])}  (moyenne ${_n(s['league_yellow'])})'),
-          KeyValue('Rouges par match', '${_n(s['red'])}  (moyenne ${_n(s['league_red'])})'),
-          KeyValue('Jaunes à l\'équipe à domicile', _n(s['home_yellow'])),
-          KeyValue('Jaunes à l\'équipe à l\'extérieur', _n(s['away_yellow'])),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
+          row('Cartons jaunes par match', s['yellow'], s['league_yellow'] ?? '—'),
+          row('Cartons rouges par match', s['red'], s['league_red'] ?? '—'),
+          row('Jaunes à l\'équipe à domicile', s['home_yellow']),
+          row('Jaunes à l\'équipe à l\'extérieur', s['away_yellow']),
+          const SizedBox(height: 4),
           Text(
             verdict ?? 'Seulement ${s['matches']} matchs : pas assez pour juger ($min minimum).',
-            style: Fp.body(13, color: verdict == null ? Fp.warning : Fp.textSoft, height: 1.4),
+            style: Fp.body(13, color: verdict == null ? Fp.warning : Fp.muted, height: 1.4),
           ),
         ],
       ),

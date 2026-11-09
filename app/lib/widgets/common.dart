@@ -10,8 +10,11 @@ import '../theme.dart';
 
 /// Charge une donnée et affiche chargement, erreur (avec « Réessayer ») ou contenu.
 class Loader<T> extends StatefulWidget {
-  const Loader({super.key, required this.load, required this.builder});
+  const Loader({super.key, required this.load, required this.builder, this.errorHeader});
   final Future<T> Function() load;
+
+  /// Gardé au-dessus du message d'erreur (maquette N16 : le titre de l'écran reste).
+  final Widget? errorHeader;
   final Widget Function(BuildContext context, T data, Future<void> Function() reload) builder;
 
   @override
@@ -52,7 +55,13 @@ class _LoaderState<T> extends State<Loader<T>> {
           );
         }
         if (snap.hasError) {
-          return ErrorPanel(error: snap.error!, onRetry: _reload);
+          final panel = ErrorPanel(error: snap.error!, onRetry: _reload);
+          final header = widget.errorHeader;
+          if (header == null) return panel;
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+            children: [header, const SizedBox(height: 80), panel],
+          );
         }
         return widget.builder(context, snap.data as T, _reload);
       },
@@ -65,29 +74,53 @@ class ErrorPanel extends StatelessWidget {
   final Object error;
   final VoidCallback? onRetry;
 
+  // Maquette N16 : sans carte, icône rose, titre, phrase, « Réessayer » en pilule.
   @override
   Widget build(BuildContext context) {
-    final message = error is ApiException ? (error as ApiException).message : 'Erreur inattendue : $error';
+    final api = error is ApiException ? error as ApiException : null;
+    final (title, message) = switch (api) {
+      ApiException(status: 0, code: 'network') => (
+        'Pas de connexion',
+        'Vérifie ta connexion internet. Tes paris et ton coupon sont gardés.',
+      ),
+      ApiException(status: 0, code: 'timeout') => ('FootProba ne répond pas', api.message),
+      final e? => ('Un problème est survenu', e.message),
+      null => ('Un problème est survenu', 'Erreur inattendue : $error'),
+    };
+    final offline = api?.status == 0;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: GlassCard(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.cloud_off_rounded, color: Fp.loss, size: 32),
-              const SizedBox(height: 12),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: Fp.body(14, color: Fp.text2, height: 1.4),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(offline ? Icons.wifi_off_rounded : Icons.error_outline_rounded, color: Fp.loss, size: 40),
+            const SizedBox(height: 14),
+            Text(title, textAlign: TextAlign.center, style: Fp.title(18)),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Fp.body(14, color: Fp.muted, height: 1.4),
+            ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 18),
+              SizedBox(
+                width: 220,
+                height: 52,
+                child: FilledButton(
+                  onPressed: onRetry,
+                  style: FilledButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    backgroundColor: Fp.accent,
+                    foregroundColor: Colors.white,
+                    textStyle: Fp.body(16, weight: FontWeight.w700),
+                  ),
+                  child: const Text('Réessayer'),
+                ),
               ),
-              if (onRetry != null) ...[
-                const SizedBox(height: 16),
-                OutlinedButton(onPressed: onRetry, child: const Text('Réessayer')),
-              ],
             ],
-          ),
+          ],
         ),
       ),
     );

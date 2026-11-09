@@ -46,6 +46,14 @@ class _MatchesScreenState extends State<MatchesScreen> {
         bottom: false,
         child: Loader<(List<Upcoming>, List<MatchInfo>)>(
           load: _load,
+          errorHeader: DesktopScope.of(context)
+              ? null
+              : Row(
+                  children: [
+                    const Expanded(child: MTitle('Matchs', 'du jour', 26)),
+                    _Bell(unread: context.watch<AppState>().unread),
+                  ],
+                ),
           builder: (context, data, reload) {
             final (all, live) = data;
             // Un match en cours n'est que dans « En direct » (essai du 07/11/2026 : il apparaissait

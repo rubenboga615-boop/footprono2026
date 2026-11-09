@@ -2185,7 +2185,7 @@ void main() {
     google.next = 'jeton-google';
     await tester.tap(find.text('Continuer avec Google'));
     await tester.pumpAndSettle();
-    expect(find.text('kossi@gmail.com'), findsOneWidget);
+    expect(find.text('kossi@gmail.com · compte Google lié'), findsOneWidget);
     expect(find.text("Côte d'Ivoire"), findsOneWidget); // pays proposé d'abord
     await tester.tap(find.text('Commencer'));
     await tester.pumpAndSettle();
@@ -2258,6 +2258,9 @@ void main() {
     expect(find.text('+225'), findsOneWidget);
     await tester.enterText(find.byType(TextField).at(0), '05 00 00 00 01');
     await tester.tap(find.text('Mot de passe oublié ?'));
+    await tester.pumpAndSettle();
+    expect(find.text('+225 05 00 00 00 01'), findsOneWidget); // numéro du compte repris
+    await tester.tap(find.text('Écrire sur WhatsApp'));
     await tester.pumpAndSettle();
     expect(opened.single.host, 'wa.me');
     expect(opened.single.path, '/2250500649904');
