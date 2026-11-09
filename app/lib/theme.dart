@@ -97,26 +97,27 @@ class Fp {
         titleTextStyle: title(18),
       ),
       inputDecorationTheme: InputDecorationTheme(
+        // Maquettes (AG, AH, N12) : champ sombre #0E0B1A bordé de #2A2347, violet au focus.
         filled: true,
-        fillColor: fill,
+        fillColor: background,
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        hintStyle: body(15, color: const Color(0x80F4F2F8)),
-        labelStyle: body(14, color: text2),
+        hintStyle: body(15, color: const Color(0x80A9A3C2)),
+        labelStyle: body(14, color: muted),
         prefixIconColor: text2,
         suffixIconColor: text2,
         suffixStyle: body(14, color: accentLight, weight: FontWeight.w600),
         border: OutlineInputBorder(
           borderRadius: radius14,
-          borderSide: const BorderSide(color: line),
+          borderSide: const BorderSide(color: line12),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: radius14,
-          borderSide: const BorderSide(color: line),
+          borderSide: const BorderSide(color: line12),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: radius14,
-          borderSide: BorderSide(color: accentLine, width: 1.2),
+          borderSide: const BorderSide(color: accent2, width: 1.5),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -125,32 +126,35 @@ class Fp {
           foregroundColor: Colors.white,
           disabledBackgroundColor: accentAlpha(0.35),
           disabledForegroundColor: Colors.white70,
-          minimumSize: const Size(0, 46),
+          minimumSize: const Size(0, 48),
           elevation: 0,
           visualDensity: VisualDensity.standard,
-          textStyle: body(15, weight: FontWeight.w700),
-          shape: RoundedRectangleBorder(borderRadius: radius14),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          textStyle: body(16, weight: FontWeight.w700),
+          // Maquettes du 07/11/2026 : boutons en pilule.
+          shape: const StadiumBorder(),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xD0F4F2F8),
+          foregroundColor: text,
           backgroundColor: Colors.transparent,
-          minimumSize: const Size(0, 42),
+          minimumSize: const Size(0, 46),
           visualDensity: VisualDensity.standard,
-          side: const BorderSide(color: Color(0x33FFFFFF)),
-          textStyle: body(14, weight: FontWeight.w700),
-          shape: RoundedRectangleBorder(borderRadius: radius14),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+          side: const BorderSide(color: line),
+          textStyle: body(15, weight: FontWeight.w600),
+          shape: const StadiumBorder(),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: accentLight,
-          textStyle: body(14, weight: FontWeight.w700),
+          foregroundColor: lilac,
+          textStyle: body(15, weight: FontWeight.w700),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: const Color(0xFF1C1828),
+        backgroundColor: cardHigh,
         contentTextStyle: body(14),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
@@ -158,7 +162,7 @@ class Fp {
           side: const BorderSide(color: line),
         ),
       ),
-      dividerTheme: const DividerThemeData(color: Color(0x12FFFFFF), space: 1, thickness: 1),
+      dividerTheme: const DividerThemeData(color: divider, space: 1, thickness: 1),
       checkboxTheme: CheckboxThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? accent : fill),
@@ -168,8 +172,10 @@ class Fp {
         thumbColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected) ? Colors.white : const Color(0xFFE9E6F2),
         ),
-        trackColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? accent : fill7),
-        trackOutlineColor: const WidgetStatePropertyAll(line),
+        trackColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? accent : const Color(0xFF3A3550),
+        ),
+        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
       sliderTheme: SliderThemeData(
         activeTrackColor: accent,
@@ -178,13 +184,15 @@ class Fp {
         overlayColor: accentAlpha(0.2),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: const Color(0xFF15121F),
+        // Maquettes AG, AH : fenêtre couleur de carte, coins de 22, fine bordure.
+        backgroundColor: card,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: line),
+          borderRadius: BorderRadius.circular(22),
+          side: const BorderSide(color: line12),
         ),
-        titleTextStyle: title(18),
-        contentTextStyle: body(14, color: text2, height: 1.45),
+        titleTextStyle: title(19),
+        contentTextStyle: body(14, color: muted, height: 1.45),
       ),
       // Maquettes (C7, N5) : fenêtre du bas en couleur de carte, coins de 24, poignée #3A3260.
       bottomSheetTheme: const BottomSheetThemeData(
@@ -194,7 +202,7 @@ class Fp {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(color: accentLight),
-      popupMenuTheme: const PopupMenuThemeData(color: Color(0xFF1A1626)),
+      popupMenuTheme: const PopupMenuThemeData(color: card),
     );
   }
 }

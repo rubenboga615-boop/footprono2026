@@ -177,21 +177,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               child: ListView(
                 padding: pagePadding(context, 16, 32),
                 children: [
-                  BackHeader(
-                    'Notifications',
-                    '',
-                    joined: true,
-                    trailing: list.isEmpty
-                        ? null
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              TextButton(onPressed: _readAll, child: const Text('Tout lire')),
-                              TextButton(onPressed: _deleteAll, child: const Text('Tout effacer')),
-                            ],
-                          ),
-                  ),
-                  const SizedBox(height: 8),
+                  const BackHeader('Notifications', '', joined: true),
+                  const SizedBox(height: 10),
+                  // Sous le titre (maquette U : à côté, les boutons chevauchaient le titre).
+                  if (list.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        OutlinedButton(onPressed: _readAll, child: const Text('Tout lire')),
+                        const SizedBox(width: 8),
+                        OutlinedButton(onPressed: _deleteAll, child: const Text('Tout effacer')),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   if (list.isEmpty)
                     const EmptyState('Aucune notification.', icon: Icons.notifications_none_rounded)
                   else
@@ -199,7 +197,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       padding: const EdgeInsets.only(bottom: 10),
                       child: Text(
                         'Glisse une notification vers la gauche pour l\'effacer.',
-                        style: Fp.body(12, color: Fp.text3),
+                        style: Fp.body(12.5, color: Fp.muted),
                       ),
                     ),
                   ...children,
