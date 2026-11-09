@@ -251,12 +251,12 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
                   else if (entries.isEmpty)
                     const EmptyState('Aucun mouvement.')
                   else
-                    GlassCard.section(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    MCard(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
                       child: Column(
                         children: [
                           for (final (i, e) in entries.indexed) ...[
-                            if (i > 0) const Divider(),
+                            if (i > 0) const Divider(height: 1, thickness: 1, color: Fp.divider),
                             _EntryRow(e: e, currency: currency),
                           ],
                         ],
@@ -480,6 +480,15 @@ const _entryKinds = {
   'correction': 'Correction (score rectifié)',
 };
 
+/// Un mouvement du solde (maquette N9) : « Mise · pari n° 32 », date courte ; montant à
+/// droite, rose pour une mise, vert pour un gain, lilas pour le reste ; solde après, en petit.
+/// Note utile seulement si elle dit autre chose que le type et le numéro du pari
+/// (« solde de départ », « pari 38 » répétaient la ligne ; « match reporté » non).
+bool _usefulNote(String note, String kind, Object? betId) {
+  final n = note.trim().toLowerCase();
+  return n.isNotEmpty && n != (_entryKinds[kind] ?? kind).toLowerCase() && n != 'pari $betId';
+}
+
 class _EntryRow extends StatelessWidget {
   const _EntryRow({required this.e, required this.currency});
   final Json e;
@@ -488,9 +497,23 @@ class _EntryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final amount = e['amount'] as int;
-    final when = parseDate(e['created_at']);
+    final when = parseDate(e['created_at'])?.toLocal();
+    final kind = e['kind'] as String;
+    final color = switch (kind) {
+      'stake' => Fp.loss,
+      'payout' => Fp.win,
+      _ => amount < 0 ? Fp.loss : Fp.lilac,
+    };
+    final short = currency == 'XOF' || currency == 'XAF';
+    final value = short
+        ? '${amount > 0
+              ? '+'
+              : amount < 0
+              ? '−'
+              : ''}${thousands(amount.abs())} F'
+        : signedMoney(amount, currency);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
           Expanded(
@@ -498,26 +521,30 @@ class _EntryRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${_entryKinds[e['kind']] ?? e['kind']}${e['bet_id'] != null ? ' · pari n° ${e['bet_id']}' : ''}',
-                  style: Fp.body(13, weight: FontWeight.w600),
+                  [
+                    _entryKinds[kind] ?? kind,
+                    if (e['bet_id'] != null) 'pari n° ${e['bet_id']}',
+                    // Note utile seulement si elle dit autre chose que le type (« match reporté »).
+                    if (e['note'] case final String note when _usefulNote(note, kind, e['bet_id'])) note,
+                  ].join(' · '),
+                  style: Fp.body(15, weight: FontWeight.w700),
                 ),
-                Text(
-                  '${when != null ? dateTime(when) : ''}${e['note'] != null ? ' · ${e['note']}' : ''}',
-                  style: Fp.body(11, color: Fp.text3),
-                ),
+                if (when != null)
+                  Text('${shortDate(when)} ${hourMinute(when)}', style: Fp.body(13, color: Fp.muted)),
               ],
             ),
           ),
+          const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                signedMoney(amount, currency),
-                style: Fp.body(13, weight: FontWeight.w700, color: amount >= 0 ? Fp.win : Fp.loss),
+                value,
+                style: Fp.body(15, weight: FontWeight.w700, color: color),
               ),
               Text(
-                'solde ${money(e['balance_after'] as int, currency)}',
-                style: Fp.body(11, color: Fp.text3),
+                'solde ${thousands(e['balance_after'] as int)}${short ? ' F' : ''}',
+                style: Fp.body(11.5, color: Fp.muted),
               ),
             ],
           ),
