@@ -1530,7 +1530,7 @@ void main() {
     await tester.tap(find.textContaining('Passer Premium'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Ce paiement est réel'), findsOneWidget);
-    await tester.tap(find.text('Orange Money, MTN, Wave ou carte'));
+    await tester.tap(find.text('Payer avec Orange Money, MTN, Wave ou carte'));
     await tester.pumpAndSettle();
     expect(server.boughtWith, 'paystack');
     expect(opened.single.toString(), 'https://checkout.cinetpay.com/payment/abc');
@@ -1572,7 +1572,7 @@ void main() {
     await tester.tap(find.textContaining('Passer Premium'));
     await tester.pumpAndSettle();
     expect(find.text('Requête invalide'), findsNothing);
-    await tester.tap(find.text('Mobile Money ou carte'));
+    await tester.tap(find.text('Payer avec Mobile Money ou carte'));
     await tester.pumpAndSettle();
     expect(server.boughtWith, isNull);
     expect(opened.single.toString(), 'https://checkout.cinetpay.com/payment/abc');
@@ -1648,7 +1648,7 @@ void main() {
     await tester.scrollUntilVisible(find.textContaining('Passer Premium'), 200);
     await tester.tap(find.textContaining('Passer Premium'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Wave (envoi au numéro FootProba)'));
+    await tester.tap(find.text('Payer avec Wave (envoi au numéro FootProba)'));
     await tester.pumpAndSettle();
     expect(find.text('+225 07 00 00 00 00'), findsOneWidget); // groupé pour le recopier
     expect(server.boughtWith, isNull);

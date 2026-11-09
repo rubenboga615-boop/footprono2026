@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../desktop/layout.dart';
@@ -14,6 +13,7 @@ import '../widgets/maquette.dart';
 import 'auth_screen.dart' show countries;
 import 'merited_screen.dart';
 import 'notifications_screen.dart';
+import 'premium_screen.dart';
 import 'reliability_screen.dart';
 import 'server_dialog.dart';
 
@@ -432,175 +432,11 @@ void _webPushHelp(BuildContext context, WebPushStatus status) {
 class _PlanCard extends StatelessWidget {
   const _PlanCard();
 
-  /// Choix du moyen de paiement (ceux du serveur, et le Wave manuel s'il est proposé).
-  Future<void> _buy(BuildContext context, Plan plan) async {
-    final state = context.read<AppState>();
-    final offer = await guard(context, state.paymentMethods);
-    if (offer == null || !context.mounted) return;
-    final amount = money(offer['price'] as int, offer['currency'] as String);
-    final methods = [for (final m in offer['methods'] as List) m as Json];
-    final manual = offer['manual'] as Json?;
-    if (methods.isEmpty && manual == null) {
-      // Aucun paiement en ligne réglé sur le serveur : jamais d'impasse (essai du 07/11/2026),
-      // l'abonnement passe par WhatsApp et Premium est activé depuis la console.
-      final me = state.me!;
-      final ask = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Premium · 30 jours'),
-          content: Text(
-            '$amount, payés une fois (pas de renouvellement automatique). Le paiement dans '
-            'l\'application arrive bientôt : écris-nous sur WhatsApp, on t\'indique comment payer '
-            'par Mobile Money et on active Premium dès la réception.',
-            style: Fp.body(13, color: Fp.text2, height: 1.4),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Écrire sur WhatsApp'),
-            ),
-          ],
-        ),
-      );
-      if (ask == true) {
-        await state.openSupport(
-          'Bonjour FootProba, je veux passer Premium ($amount). '
-          'Mon compte : n° ${me.id}${me.phone != null ? ' (${me.phone})' : ''}.',
-        );
-      }
-      return;
-    }
-    final choice = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Premium · 30 jours'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '$amount, payés une fois (pas de renouvellement automatique)'
-              '${plan.premium ? ', à la suite de ta période en cours' : ''}. Ce paiement est réel '
-              '(contrairement aux paris, en argent fictif).',
-              style: Fp.body(13, color: Fp.text2, height: 1.4),
-            ),
-            const SizedBox(height: 12),
-            for (final m in methods)
-              _MethodTile(
-                icon: m['id'] == 'wave' ? Icons.waves_rounded : Icons.phone_android_rounded,
-                title: m['label'] as String,
-                subtitle: 'Premium activé dès la confirmation du paiement',
-                onTap: () => Navigator.pop(context, m['id'] as String),
-              ),
-            if (manual != null)
-              _MethodTile(
-                icon: Icons.send_to_mobile_rounded,
-                title: methods.isEmpty ? 'Wave' : 'Wave (envoi au numéro FootProba)',
-                subtitle: 'Premium activé après vérification de l\'envoi',
-                onTap: () => Navigator.pop(context, 'manual'),
-              ),
-          ],
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler'))],
-      ),
-    );
-    if (choice == null || !context.mounted) return;
-    if (choice == 'manual') {
-      await _manualWave(context, state, amount, manual!['wave_number'] as String);
-      return;
-    }
-    await guard(context, () => state.buyPremium(choice));
-  }
-
-  /// Wave sans compte marchand : le joueur envoie le montant au numéro de FootProba puis
-  /// la capture sur WhatsApp ; l'administrateur vérifie la réception et active Premium.
-  Future<void> _manualWave(BuildContext context, AppState state, String amount, String number) async {
-    final me = state.me!;
-    final account = 'compte n° ${me.id}${me.phone != null ? ' (${me.phone})' : ''}';
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Payer avec Wave'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '1. Dans Wave, envoie exactement $amount au numéro officiel de FootProba (le même que '
-              'l\'aide WhatsApp) :',
-              style: Fp.body(13, height: 1.4),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  // Groupé deux par deux : plus facile à recopier dans Wave.
-                  child: Text(groupedPhone(number), style: Fp.body(18, weight: FontWeight.w800)),
-                ),
-                IconButton(
-                  tooltip: 'Copier le numéro',
-                  icon: const Icon(Icons.copy_rounded, size: 18),
-                  onPressed: () async {
-                    await Clipboard.setData(ClipboardData(text: number));
-                    showMessage('Numéro copié');
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '2. Envoie la capture du reçu Wave sur WhatsApp (bouton ci-dessous).\n\n'
-              'Premium est activé sur ton $account dès que la réception est vérifiée, '
-              'en général dans la journée. Tu reçois une notification.',
-              style: Fp.body(13, color: Fp.text2, height: 1.4),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fermer')),
-          FilledButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              state.markWavePending();
-              state.openSupport(
-                'Bonjour FootProba, j\'ai payé Premium ($amount) par Wave au $number. '
-                'Mon $account. Voici la capture du reçu :',
-              );
-            },
-            icon: const Icon(Icons.chat_rounded, size: 18),
-            label: const Text('Envoyer la capture'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final me = context.watch<AppState>().me!;
     final plan = me.plan;
     final price = money(plan.price, plan.priceCurrency);
-    // Maquette validée le 07/11/2026 : ce que Premium ajoute, sans ambiguïté (les ✓ seuls
-    // laissaient croire que la version gratuite avait déjà tout).
-    const rows = [
-      ('Chances 1-N-2, buts, les 2 marquent', true),
-      ('Coupons du jour : profil, cote, bilan', true),
-      ('Coupons du jour : sélections et code 1xBet', false),
-      ('Coupon intelligent (ta cote, ton profil)', false),
-      ('Corners, cartons, tirs, handicaps', false),
-      ('Analyse du match (forme, face-à-face)', false),
-      ('Suggestions de montante', false),
-    ];
-    // Maquette N4 : ✓ vert, cadenas gris au trait, colonnes de 62, texte 13.
-    Widget cell(bool ok) => SizedBox(
-      width: 62,
-      child: Center(
-        child: ok
-            ? const Icon(Icons.check_rounded, size: 15, color: Fp.win)
-            : const Icon(Icons.lock_outline_rounded, size: 15, color: Fp.muted),
-      ),
-    );
     // « 2 000 F / mois » comme la maquette (la devise reste dite dans la fenêtre de paiement).
     final short = plan.priceCurrency == 'XOF' ? '${thousands(plan.price)} F' : price;
     return MCard(
@@ -623,46 +459,13 @@ class _PlanCard extends StatelessWidget {
               style: Fp.body(13.5, color: M.muted),
             ),
           ] else ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 9),
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: Fp.divider)),
-              ),
-              child: Row(
-                children: [
-                  const Spacer(),
-                  for (final t in const ['Gratuit', 'Premium'])
-                    SizedBox(
-                      width: 62,
-                      child: Text(
-                        t,
-                        textAlign: TextAlign.center,
-                        style: Fp.body(12, weight: FontWeight.w600, color: Fp.muted),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            for (final (label, free) in rows)
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Fp.divider)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(child: Text(label, style: Fp.body(13))),
-                    cell(free),
-                    cell(true),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 6),
+            const PremiumTable(),
           ],
           const SizedBox(height: 12),
           MButton(
             plan.premium ? 'Prolonger · $short / mois' : 'Passer Premium · $short / mois',
-            onPressed: () => _buy(context, plan),
+            onPressed: () => openPremiumPurchase(context, plan),
           ),
           if (context.watch<AppState>().wavePendingSince case final since?) ...[
             const SizedBox(height: 10),
@@ -958,30 +761,4 @@ class _BetaItem extends StatelessWidget {
       ),
     );
   }
-}
-
-class _MethodTile extends StatelessWidget {
-  const _MethodTile({required this.icon, required this.title, required this.subtitle, required this.onTap});
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 8),
-    child: Material(
-      color: Fp.fill7,
-      borderRadius: BorderRadius.circular(12),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        leading: Icon(icon, color: Fp.accentLight),
-        title: Text(title, style: Fp.body(14, weight: FontWeight.w700)),
-        subtitle: Text(subtitle, style: Fp.body(12, color: Fp.text3)),
-        trailing: const Icon(Icons.chevron_right_rounded),
-        onTap: onTap,
-      ),
-    ),
-  );
 }

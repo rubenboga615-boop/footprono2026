@@ -51,9 +51,13 @@ class MCard extends StatelessWidget {
     this.highlight = false,
     this.padding = const EdgeInsets.all(14),
     this.margin = const EdgeInsets.only(top: 12),
+    this.color,
   });
   final Widget child;
   final bool highlight;
+
+  /// Fond (#2B2060 pour la carte du prix, maquette C9) ; carte ordinaire sinon.
+  final Color? color;
   final EdgeInsets padding;
   final EdgeInsets margin;
 
@@ -62,7 +66,7 @@ class MCard extends StatelessWidget {
     margin: margin,
     padding: padding,
     decoration: BoxDecoration(
-      color: M.card,
+      color: color ?? M.card,
       borderRadius: BorderRadius.circular(18),
       border: highlight ? Border.all(color: M.hlBorder, width: 1.5) : null,
     ),
@@ -70,7 +74,8 @@ class MCard extends StatelessWidget {
   );
 }
 
-/// Bouton principal (violet) ou secondaire (bordure), pleine largeur, coins 14.
+/// Bouton principal (violet, 52 de haut) ou secondaire (bordure #3A3260, 48), pleine largeur,
+/// en pilule comme les maquettes du 07/11/2026.
 class MButton extends StatelessWidget {
   const MButton(this.label, {super.key, required this.onPressed, this.secondary = false, this.busy = false});
   final String label;
@@ -80,7 +85,7 @@ class MButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(14));
+    const shape = StadiumBorder();
     final child = busy
         ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
         : Text(label, textAlign: TextAlign.center);
@@ -91,13 +96,13 @@ class MButton extends StatelessWidget {
               onPressed: onPressed,
               style: OutlinedButton.styleFrom(
                 shape: shape,
-                padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
-                minimumSize: const Size(0, 42),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                minimumSize: const Size(0, 48),
                 visualDensity: VisualDensity.standard,
                 backgroundColor: Colors.transparent,
-                side: const BorderSide(color: Color(0x33FFFFFF)),
-                foregroundColor: const Color(0xD0F4F2F8),
-                textStyle: Fp.body(14, weight: FontWeight.w700),
+                side: const BorderSide(color: Fp.line),
+                foregroundColor: Colors.white,
+                textStyle: Fp.body(15, weight: FontWeight.w600),
               ),
               child: child,
             )
@@ -105,13 +110,13 @@ class MButton extends StatelessWidget {
               onPressed: onPressed,
               style: FilledButton.styleFrom(
                 shape: shape,
-                padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 12),
-                minimumSize: const Size(0, 46),
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                minimumSize: const Size(0, 52),
                 visualDensity: VisualDensity.standard,
                 elevation: 0,
                 backgroundColor: Fp.accent,
                 foregroundColor: Colors.white,
-                textStyle: Fp.body(15, weight: FontWeight.w700),
+                textStyle: Fp.body(16, weight: FontWeight.w700),
               ),
               child: child,
             ),
