@@ -158,13 +158,29 @@ class _CreateMontante extends StatefulWidget {
 }
 
 class _CreateMontanteState extends State<_CreateMontante> {
-  final start = TextEditingController(text: '5000');
+  final start = TextEditingController(text: thousands(5000));
   int count = 6;
   bool secureOn = false;
   int secure = 20;
   bool editRanges = false;
   bool busy = false;
   final ranges = List.generate(8, (i) => RangeValues(1.55 + 0.05 * i, 1.65 + 0.05 * i));
+
+  /// Maquette N7 : trois choix de cotes ; plages de chaque palier en légère montée, de la
+  /// première à la dernière (de, à, largeur d'une plage). Null : réglées palier par palier.
+  static const presets = [(1.30, 1.45, 0.05), (1.55, 1.90, 0.10), (2.00, 2.50, 0.15)];
+  int? preset = 1;
+
+  void _apply() {
+    final p = preset;
+    if (p == null) return;
+    final (a, b, w) = presets[p];
+    final step = count > 1 ? (b - a - w) / (count - 1) : 0.0;
+    double r2(double v) => (v * 100).round() / 100;
+    for (var i = 0; i < count; i++) {
+      ranges[i] = RangeValues(r2(a + step * i), r2(a + step * i + w));
+    }
+  }
 
   int get stake => int.tryParse(start.text.replaceAll(RegExp(r'\D'), '')) ?? 0;
 
@@ -210,102 +226,143 @@ class _CreateMontanteState extends State<_CreateMontante> {
       hi = (gHi * (100 - pct) / 100).floor();
     }
     final goal = rows.isEmpty ? null : [rows.last.$3, rows.last.$4];
+    // Chance d'aller au bout selon les cotes, marge du bookmaker comprise (même calcul que le
+    // serveur : produit des 1/cote au milieu de chaque plage).
+    var chance = 1.0;
+    for (final r in ranges.take(count)) {
+      chance *= 2 / (r.start + r.end);
+    }
+    // Ordinateur : la place ne manque pas, le plan (escalier) reste affiché.
+    final desktop = DesktopScope.of(context);
+    final showPlan = editRanges || desktop;
+    Widget label(String text) => Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 8),
+      child: Text(
+        text,
+        style: Fp.body(13, color: Fp.muted, weight: FontWeight.w600),
+      ),
+    );
+    Widget kv(String k, String v, {Color color = Fp.text}) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(k, style: Fp.body(13.5, color: Fp.muted)),
+          ),
+          Text(
+            v,
+            style: Fp.body(15, weight: FontWeight.w700, color: color),
+          ),
+        ],
+      ),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Expanded(child: TwoToneTitle('Ma', 'montante')),
-            if (goal != null) _Goal(goal),
-          ],
+        // Maquette N7 (07/11/2026).
+        const MTitle('Nouvelle', 'montante', 26),
+        const SizedBox(height: 6),
+        Text(
+          'Tu remises tout le gain de chaque palier sur le suivant. Un pari perdu arrête la montante.',
+          style: Fp.body(14, color: Fp.muted, height: 1.4),
         ),
-        const SizedBox(height: 16),
-        GlassCard.section(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Mise de départ',
-                style: Fp.body(14, color: Fp.text2, weight: FontWeight.w600),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: start,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                onChanged: (_) => setState(() {}),
-                style: Fp.title(24),
-                decoration: InputDecoration(
-                  suffixText: currencyLabel(currency),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Fp.accentLine),
-                  ),
-                  fillColor: Fp.accentFaint,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final v in const [1000, 5000, 10000, 25000])
-                    FpChip(
-                      thousands(v),
-                      selected: stake == v,
-                      onTap: () => setState(() => start.text = '$v'),
-                    ),
-                ],
-              ),
-            ],
+        label('Mise de départ (argent fictif)'),
+        TextField(
+          controller: start,
+          keyboardType: TextInputType.number,
+          // « 5 000 » comme la maquette : chiffres groupés pendant la saisie.
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            TextInputFormatter.withFunction((_, v) {
+              final text = v.text.isEmpty ? '' : thousands(int.parse(v.text));
+              return TextEditingValue(
+                text: text,
+                selection: TextSelection.collapsed(offset: text.length),
+              );
+            }),
+          ],
+          onChanged: (_) => setState(() {}),
+          style: Fp.title(22),
+          decoration: InputDecoration(
+            suffixText: currencyLabel(currency),
+            suffixStyle: Fp.body(13, color: Fp.muted),
+            filled: true,
+            fillColor: Fp.background,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Fp.line),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Fp.accent2, width: 1.5),
+            ),
           ),
         ),
-        const SizedBox(height: 12),
-        GlassCard.section(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text('Plan · $count paliers', style: Fp.title(17, weight: FontWeight.w600)),
-                  ),
-                  GestureDetector(
-                    onTap: () => setState(() => editRanges = !editRanges),
-                    child: Text(
-                      editRanges ? 'Terminé' : 'Modifier les plages',
-                      style: Fp.body(14, color: Fp.accentLight, weight: FontWeight.w700),
-                    ),
-                  ),
-                ],
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final v in const [1000, 5000, 10000, 25000])
+              MChip(
+                thousands(v),
+                selected: stake == v,
+                onTap: () => setState(() => start.text = thousands(v)),
               ),
-              if (editRanges) ...[
-                const SizedBox(height: 8),
-                Text('Nombre de paliers : $count', style: Fp.body(13, color: Fp.text2)),
-                Slider(
-                  value: count.toDouble(),
-                  min: 4,
-                  max: 8,
-                  divisions: 4,
-                  label: '$count',
-                  onChanged: (v) => setState(() => count = v.round()),
-                ),
-                for (var i = 0; i < count; i++) ...[
-                  Text(
-                    'Palier ${i + 1} : ${odds(ranges[i].start)} – ${odds(ranges[i].end)}',
-                    style: Fp.body(13, weight: FontWeight.w600),
-                  ),
-                  RangeSlider(
-                    values: ranges[i],
-                    min: 1.2,
-                    max: 3.0,
-                    divisions: 36,
-                    onChanged: (v) => setState(() => ranges[i] = v),
-                  ),
-                ],
-              ] else ...[
-                const SizedBox(height: 10),
+          ],
+        ),
+        label('Nombre de paliers'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (var n = 4; n <= 8; n++)
+              MChip(
+                '$n',
+                selected: count == n,
+                onTap: () => setState(() {
+                  count = n;
+                  _apply();
+                }),
+              ),
+          ],
+        ),
+        label('Cote de chaque palier'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final (i, (a, b, _)) in presets.indexed)
+              MChip(
+                '${odds(a)}–${odds(b)}',
+                selected: preset == i,
+                onTap: () => setState(() {
+                  preset = i;
+                  _apply();
+                }),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        if (!desktop)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => setState(() => editRanges = !editRanges),
+              style: TextButton.styleFrom(padding: EdgeInsets.zero, foregroundColor: Fp.lilac),
+              child: Text(
+                editRanges ? 'Masquer le plan' : 'Voir le plan palier par palier ›',
+                style: Fp.body(13, weight: FontWeight.w600, color: Fp.lilac),
+              ),
+            ),
+          ),
+        if (showPlan)
+          MCard(
+            margin: const EdgeInsets.only(top: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 ..._plan(context, [
                   for (final (i, r) in rows.indexed)
                     _PlanRow(
@@ -316,53 +373,51 @@ class _CreateMontanteState extends State<_CreateMontante> {
                       gain: r.$3 == r.$4 ? thousands(r.$3) : '${thousands(r.$3)}\nà ${thousands(r.$4)}',
                     ),
                 ]),
+                const SizedBox(height: 4),
+                Text('Régler la plage d\'un palier', style: Fp.body(13, color: Fp.muted)),
+                for (var i = 0; i < count; i++) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Palier ${i + 1} : ${odds(ranges[i].start)} – ${odds(ranges[i].end)}',
+                    style: Fp.body(13, weight: FontWeight.w600),
+                  ),
+                  RangeSlider(
+                    values: ranges[i],
+                    min: 1.2,
+                    max: 3.0,
+                    onChanged: (v) => setState(() {
+                      ranges[i] = RangeValues((v.start * 20).round() / 20, (v.end * 20).round() / 20);
+                      preset = null;
+                    }),
+                  ),
+                ],
+                Text(
+                  'Tout pari dont la cote est dans la plage du palier convient. Les gains à venir dépendent '
+                  'des cotes réellement jouées.',
+                  style: Fp.body(12.5, color: Fp.muted, height: 1.4),
+                ),
               ],
-              const SizedBox(height: 8),
-              Text(
-                'Tout pari dont la cote est dans la plage du palier convient. Les gains à venir dépendent '
-                'des cotes réellement jouées.',
-                style: Fp.body(13, color: Fp.text2, height: 1.4),
+            ),
+          ),
+        MCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (goal != null)
+                kv('Objectif', goal[0] == goal[1] ? '${_range(goal)} F' : '${_about(goal)} F environ'),
+              kv('Chance d\'aller au bout', _outOf100(chance).toLowerCase(), color: Fp.warning),
+              const SizedBox(height: 4),
+              _SecureCard(
+                on: secureOn,
+                pct: secure,
+                onChanged: (v) => setState(() => secureOn = v),
+                onPct: (v) => setState(() => secure = v),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 12),
-        _SecureCard(
-          on: secureOn,
-          pct: secure,
-          onChanged: (v) => setState(() => secureOn = v),
-          onPct: (v) => setState(() => secure = v),
-        ),
         const SizedBox(height: 16),
-        FilledButton(
-          onPressed: busy || stake < 100 ? null : _create,
-          child: const Text('Lancer la montante'),
-        ),
-      ],
-    );
-  }
-}
-
-class _Goal extends StatelessWidget {
-  const _Goal(this.range);
-  final List range;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text('Objectif', style: Fp.body(12, color: Fp.text2)),
-        // Même chiffre que la dernière ligne du plan (« environ »), fourchette en dessous.
-        Text(
-          range[0] == range[1] ? '${_range(range)} F' : '${_about(range)} F environ',
-          style: Fp.body(13, weight: FontWeight.w700),
-        ),
-        if (range[0] != range[1])
-          Text(
-            'entre ${_range(range, sep: ' et ')} F',
-            style: Fp.body(11, color: Fp.text3),
-          ),
+        MButton('Lancer la montante', busy: busy, onPressed: busy || stake < 100 ? null : _create),
       ],
     );
   }
@@ -377,50 +432,56 @@ class _SecureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
-      decoration: BoxDecoration(
-        color: Fp.fill,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Fp.line12),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Sécuriser $pct % de chaque gain', style: Fp.body(16, weight: FontWeight.w700)),
-                    const SizedBox(height: 2),
-                    Text(
-                      onChanged == null
-                          ? 'Fixé au lancement de la montante'
-                          : 'Mis de côté au lieu d\'être remisé',
-                      style: Fp.body(13, color: Fp.text2),
-                    ),
-                  ],
-                ),
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Sécuriser $pct % de chaque gain', style: Fp.body(15, weight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(
+                    onChanged == null
+                        ? 'Fixé au lancement de la montante'
+                        : 'Mis de côté au lieu d\'être remisé',
+                    style: Fp.body(13, color: Fp.muted),
+                  ),
+                ],
               ),
-              // Montante lancée : réglage figé, affiché sans interrupteur inactif.
-              if (onChanged != null)
-                Switch(value: on, onChanged: onChanged)
-              else
-                on ? const Tag.win('Activé') : const Tag('Désactivé', color: Fp.textSoft),
-            ],
-          ),
-          if (on && onPct != null)
-            Slider(
-              value: pct.toDouble(),
-              min: 5,
-              max: 90,
-              divisions: 17,
-              label: '$pct %',
-              onChanged: (v) => onPct!(v.round()),
             ),
-        ],
-      ),
+            // Montante lancée : réglage figé, affiché sans interrupteur inactif.
+            if (onChanged != null)
+              SizedBox(
+                width: 46,
+                height: 28,
+                child: FittedBox(
+                  child: Switch(
+                    value: on,
+                    onChanged: onChanged,
+                    activeTrackColor: Fp.accent,
+                    activeThumbColor: Colors.white,
+                    inactiveTrackColor: const Color(0xFF3A3550),
+                    inactiveThumbColor: Colors.white,
+                    trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+                  ),
+                ),
+              )
+            else
+              on ? const Tag.win('Activé') : const Tag('Désactivé', color: Fp.textSoft),
+          ],
+        ),
+        if (on && onPct != null)
+          Slider(
+            value: pct.toDouble(),
+            min: 5,
+            max: 90,
+            divisions: 17,
+            label: '$pct %',
+            onChanged: (v) => onPct!(v.round()),
+          ),
+      ],
     );
   }
 }
@@ -1008,7 +1069,10 @@ class _MontanteViewState extends State<MontanteView> {
             ),
           ],
           const SizedBox(height: 12),
-          _SecureCard(on: (m['secure_pct'] as int) > 0, pct: m['secure_pct'] as int),
+          MCard(
+            margin: EdgeInsets.zero,
+            child: _SecureCard(on: (m['secure_pct'] as int) > 0, pct: m['secure_pct'] as int),
+          ),
           const SizedBox(height: 14),
           OutlinedButton(
             style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
@@ -1100,32 +1164,6 @@ class _StepLine extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _Figure extends StatelessWidget {
-  const _Figure(this.label, this.value, this.color);
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: Fp.body(12, color: Fp.text2, height: 1.3),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          textAlign: TextAlign.center,
-          style: Fp.title(19, color: color),
-        ),
-      ],
     );
   }
 }
@@ -1303,61 +1341,39 @@ class _SuggestionsScreenState extends State<SuggestionsScreen> {
             return ListView(
               padding: padding,
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: BackHeader('Pari du', 'palier ${data['step']}'),
+                // Maquette N8 : titre, mise et plage en une ligne, puis une liste compacte.
+                BackHeader('Suggestions pour le', 'palier ${data['step']}'),
+                const SizedBox(height: 8),
+                Text(
+                  'Mise ${thousands(stake)} F · cote ${odds(lo)} à ${odds(hi)} · gain '
+                  '${thousands((stake * lo).floor())} à ${thousands((stake * hi).floor())} F · la cote la plus '
+                  'basse d\'abord',
+                  style: Fp.body(13.5, color: Fp.muted, height: 1.4),
                 ),
-                GlassCard(
-                  child: Row(
-                    children: [
-                      Expanded(child: _Figure('Mise', '${thousands(stake)} F', Fp.text)),
-                      Expanded(child: _Figure('Plage de cote', '${odds(lo)}–${odds(hi)}', Fp.accentLight)),
-                      Expanded(
-                        child: _Figure(
-                          'Gain',
-                          '${thousands((stake * lo).floor())} à ${thousands((stake * hi).floor())}',
-                          Fp.text,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Text('Suggestions', style: Fp.title(17, weight: FontWeight.w600)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'la cote la plus basse d\'abord',
-                        textAlign: TextAlign.right,
-                        style: Fp.body(12, color: Fp.text2),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
                 if (list.isEmpty)
                   const EmptyState(
                     'Aucun pari avec une cote réelle dans cette plage pour l\'instant. Les matchs déjà pris '
                     'par tes autres montantes en cours sont écartés : ton risque reste réparti.',
                     icon: Icons.search_off_rounded,
+                  )
+                else
+                  MCard(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                    child: Column(
+                      children: [
+                        for (final (i, s) in list.indexed) ...[
+                          if (i > 0) const Divider(height: 1, thickness: 1, color: Fp.divider),
+                          _SuggestionCard(s: s, matches: matches, onPlay: () => _play(context, s, data)),
+                        ],
+                      ],
+                    ),
                   ),
-                for (final (i, s) in list.indexed)
-                  _SuggestionCard(
-                    rank: i + 1,
-                    s: s,
-                    matches: matches,
-                    primary: i == 0,
-                    onPlay: () => _play(context, s, data),
-                  ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 Text(
-                  'Modèle : chances estimées par notre moteur. Selon la cote : chances que donne le '
-                  'bookmaker. Quand les deux ne sont pas d\'accord, la cote a le plus souvent raison '
-                  '(vérifié sur 7 000 matchs) : un écart n\'est pas une bonne affaire. Rien n\'est joué '
-                  'sans ta validation.',
-                  style: Fp.body(12, color: Fp.text3, height: 1.4),
+                  'Le moteur n\'est pas plus fort que le bookmaker : une suggestion n\'est pas un conseil de '
+                  'pari. Quand les deux ne sont pas d\'accord, la cote a le plus souvent raison (vérifié sur '
+                  '7 000 matchs). Rien n\'est joué sans ta validation.',
+                  style: Fp.body(12.5, color: Fp.muted, height: 1.4),
                 ),
               ],
             );
@@ -1368,143 +1384,111 @@ class _SuggestionsScreenState extends State<SuggestionsScreen> {
   }
 }
 
+/// Une suggestion (maquette N8) : chaque sélection en gras, le match, l'heure et la chance du
+/// moteur ; la cote dans une case violette, à toucher pour jouer le palier.
 class _SuggestionCard extends StatelessWidget {
-  const _SuggestionCard({
-    required this.rank,
-    required this.s,
-    required this.matches,
-    required this.primary,
-    required this.onPlay,
-  });
-  final int rank;
+  const _SuggestionCard({required this.s, required this.matches, required this.onPlay});
   final Json s;
   final Map<int, MatchInfo> matches;
-  final bool primary;
   final VoidCallback onPlay;
 
   @override
   Widget build(BuildContext context) {
     final sels = (s['selections'] as List).cast<Json>();
-    final kind = sels.length == 1 ? 'SIMPLE' : 'COMBINÉ DE ${sels.length}';
-    return GlassCard.section(
-      margin: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '$rank. $kind',
-                  style: Fp.body(14, color: Fp.text2, weight: FontWeight.w700).copyWith(letterSpacing: 1),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          for (final sel in sels)
-            Builder(
-              builder: (context) {
-                final m = matches[sel['match_id']];
-                final home = m?.home.name ?? 'Domicile';
-                final away = m?.away.name ?? 'Extérieur';
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
+    final model = (s['model_probability'] as num).toDouble();
+    final implied = (s['implied_probability'] as num).toDouble();
+    return InkWell(
+      onTap: onPlay,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (sels.length > 1)
+                    Text(
+                      'Combiné de ${sels.length}',
+                      style: Fp.body(12, color: Fp.muted, weight: FontWeight.w600),
+                    ),
+                  for (final sel in sels)
+                    Builder(
+                      builder: (context) {
+                        final m = matches[sel['match_id']];
+                        final home = m?.home.name ?? 'Domicile';
+                        final away = m?.away.name ?? 'Extérieur';
+                        final market = sel['market'] as String, line = (sel['line'] ?? '') as String;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 2),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               // Libellé complet : « Buts de Stuttgart · Moins de 2,5 buts »,
                               // jamais « Moins de 2,5 buts » seul (ambigu pour un total d'équipe).
-                              fullLabel(
-                                sel['market'] as String,
-                                (sel['line'] ?? '') as String,
-                                sel['selection'] as String,
-                                home: home,
-                                away: away,
+                              Text(
+                                fullLabel(market, line, sel['selection'] as String, home: home, away: away),
+                                style: Fp.body(15, weight: FontWeight.w700),
                               ),
-                              style: Fp.body(15, weight: FontWeight.w700),
-                            ),
-                            Text(
-                              '$home – $away${m != null ? ' · ${shortDate(m.date)} ${m.when}' : ''}',
-                              style: Fp.body(13, color: Fp.text2),
-                            ),
-                            if (explainSelection(
-                                  sel['market'] as String,
-                                  (sel['line'] ?? '') as String,
-                                  sel['selection'] as String,
-                                  home: home,
-                                  away: away,
-                                )
-                                case final e?)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 3),
-                                child: Text(e, style: Fp.body(12, color: Fp.accentLight, height: 1.35)),
+                              Text(
+                                [
+                                  '$home – $away',
+                                  if (m != null) '${shortDate(m.date)} ${m.when}',
+                                  if (sels.length > 1) 'cote ${odds(sel['odds'])}',
+                                ].join(' · '),
+                                style: Fp.body(13, color: Fp.muted),
                               ),
-                          ],
-                        ),
-                      ),
-                      Text(odds(sel['odds']), style: Fp.body(14, weight: FontWeight.w600)),
-                    ],
+                              if (explainSelection(
+                                    market,
+                                    line,
+                                    sel['selection'] as String,
+                                    home: home,
+                                    away: away,
+                                  )
+                                  case final e?)
+                                Text(e, style: Fp.body(12, color: Fp.lilac, height: 1.35)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  Text(
+                    'moteur ${percent(model)} · selon la cote ${percent(implied, decimals: 1)}',
+                    style: Fp.body(13, color: Fp.muted),
                   ),
-                );
-              },
-            ),
-          const Divider(height: 24),
-          Row(
-            children: [
-              Expanded(child: _Small('Cote totale', odds(s['total_odds']), Fp.text)),
-              Expanded(
-                child: _Small('Modèle', percent((s['model_probability'] as num).toDouble()), Fp.accentLight),
+                  // Décision du 07/11/2026 : gardée mais expliquée (et montrée après les autres).
+                  if (s['engine_below_odds'] == true)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'Le moteur est moins confiant que le bookmaker sur ce pari.',
+                        style: Fp.body(12.5, color: Fp.warning, height: 1.4),
+                      ),
+                    ),
+                ],
               ),
-              Expanded(
-                child: _Small(
-                  'Selon la cote',
-                  percent((s['implied_probability'] as num).toDouble(), decimals: 1),
-                  Fp.text2,
+            ),
+            const SizedBox(width: 12),
+            Semantics(
+              button: true,
+              label: 'Choisir ce pari, cote ${odds(s['total_odds'])}',
+              excludeSemantics: true,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Fp.cardHigh,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Fp.accent2, width: 1.5),
+                ),
+                child: Text(
+                  odds(s['total_odds']),
+                  style: Fp.body(16, weight: FontWeight.w800, color: Fp.lilac),
                 ),
               ),
-            ],
-          ),
-          // Décision du 07/11/2026 : gardée mais expliquée (et montrée après les autres).
-          if (s['engine_below_odds'] == true) ...[
-            const SizedBox(height: 10),
-            Text(
-              'Le moteur est moins confiant que le bookmaker sur ce pari '
-              '(${percent((s['model_probability'] as num).toDouble())} contre '
-              '${percent((s['implied_probability'] as num).toDouble())} selon la cote).',
-              style: Fp.body(12.5, color: Fp.warning, height: 1.4),
             ),
           ],
-          const SizedBox(height: 14),
-          primary
-              ? FilledButton(onPressed: onPlay, child: const Text('Choisir ce pari'))
-              : OutlinedButton(onPressed: onPlay, child: const Text('Choisir ce pari')),
-        ],
+        ),
       ),
-    );
-  }
-}
-
-class _Small extends StatelessWidget {
-  const _Small(this.label, this.value, this.color);
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Fp.body(12, color: Fp.text2)),
-        const SizedBox(height: 2),
-        Text(value, style: Fp.title(17, color: color)),
-      ],
     );
   }
 }

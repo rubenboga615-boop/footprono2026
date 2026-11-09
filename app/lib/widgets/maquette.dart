@@ -180,11 +180,14 @@ class MChip extends StatelessWidget {
       onTap: onTap,
       child: Container(
         height: 38,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Text(
-          label,
-          style: Fp.body(13, color: Fp.text, weight: FontWeight.w600),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        // Largeur du texte (dans un Wrap, un Container centré prenait toute la ligne).
+        child: Center(
+          widthFactor: 1,
+          child: Text(
+            label,
+            style: Fp.body(13, color: Fp.text, weight: FontWeight.w600),
+          ),
         ),
       ),
     ),
