@@ -345,3 +345,107 @@ class IngestionRun(Base):
     status: Mapped[str] = mapped_column(String(16))
     parameters: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     report: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+# --- Données du direct (plan du 10/11/2026, étape 1) ------------------------------
+# Tirées de la réponse ``/fixtures?ids=`` déjà demandée toutes les 2 minutes pendant les
+# matchs : aucune requête en plus. Rangées pour le règlement pendant le match, les chances
+# en direct et les études à venir. Données sportives publiques (aucune donnée de joueur
+# de l'application).
+
+
+class MatchEvent(Base):
+    """Un événement du match : but, carton, remplacement, décision de la VAR.
+
+    Liste remplacée en entier à chaque relevé (un but annulé par la VAR disparaît)."""
+
+    __tablename__ = "match_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)
+    seq: Mapped[int] = mapped_column(SmallInteger)  # ordre dans la réponse
+    minute: Mapped[int | None] = mapped_column(SmallInteger)
+    extra: Mapped[int | None] = mapped_column(SmallInteger)  # temps additionnel (45+2)
+    side: Mapped[str | None] = mapped_column(String(4))  # home, away
+    kind: Mapped[str] = mapped_column(String(16))  # Goal, Card, subst, Var
+    detail: Mapped[str | None] = mapped_column(String(64))  # Normal Goal, Yellow Card…
+    player_api_id: Mapped[int | None] = mapped_column(Integer)
+    player: Mapped[str | None] = mapped_column(String(96))
+    assist_api_id: Mapped[int | None] = mapped_column(Integer)
+    assist: Mapped[str | None] = mapped_column(String(96))
+    comments: Mapped[str | None] = mapped_column(String(160))
+
+
+class LiveSnapshot(Base):
+    """État d'un match à un relevé : minute, score et statistiques des deux équipes.
+
+    Statistiques gardées telles qu'API-Football les donne (``{type: valeur}``), toutes,
+    même celles que l'application n'affiche pas encore. Un relevé par minute de jeu (la
+    mi-temps, minute figée, n'en garde qu'un, le plus récent)."""
+
+    __tablename__ = "live_snapshots"
+    __table_args__ = (UniqueConstraint("match_id", "status", "minute", "extra"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)
+    taken_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(8))
+    minute: Mapped[int] = mapped_column(SmallInteger, default=0)
+    extra: Mapped[int] = mapped_column(SmallInteger, default=0)
+    home_goals: Mapped[int | None] = mapped_column(SmallInteger)
+    away_goals: Mapped[int | None] = mapped_column(SmallInteger)
+    home_stats: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    away_stats: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    raw_file_id: Mapped[int | None] = mapped_column(ForeignKey("raw_files.id"))
+
+
+class MatchLineup(Base):
+    """Composition d'une équipe : système de jeu et entraîneur."""
+
+    __tablename__ = "match_lineups"
+    __table_args__ = (UniqueConstraint("match_id", "side"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)
+    side: Mapped[str] = mapped_column(String(4))
+    formation: Mapped[str | None] = mapped_column(String(16))
+    coach_api_id: Mapped[int | None] = mapped_column(Integer)
+    coach: Mapped[str | None] = mapped_column(String(96))
+
+
+class MatchLineupPlayer(Base):
+    """Un joueur de la feuille de match : titulaire ou remplaçant, poste, numéro."""
+
+    __tablename__ = "match_lineup_players"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)
+    side: Mapped[str] = mapped_column(String(4))
+    starter: Mapped[bool] = mapped_column(Boolean)
+    player_api_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    name: Mapped[str] = mapped_column(String(96))
+    number: Mapped[int | None] = mapped_column(SmallInteger)
+    position: Mapped[str | None] = mapped_column(String(4))  # G, D, M, F
+    grid: Mapped[str | None] = mapped_column(String(8))  # « 2:3 » : ligne et place
+
+
+class PlayerMatchStats(Base):
+    """Statistiques d'un joueur dans un match ; la réponse complète dans ``stats``."""
+
+    __tablename__ = "player_match_stats"
+    __table_args__ = (UniqueConstraint("match_id", "player_api_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)
+    side: Mapped[str] = mapped_column(String(4))
+    player_api_id: Mapped[int] = mapped_column(Integer, index=True)
+    name: Mapped[str] = mapped_column(String(96))
+    minutes: Mapped[int | None] = mapped_column(SmallInteger)
+    rating: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    goals: Mapped[int | None] = mapped_column(SmallInteger)
+    assists: Mapped[int | None] = mapped_column(SmallInteger)
+    shots: Mapped[int | None] = mapped_column(SmallInteger)
+    shots_on: Mapped[int | None] = mapped_column(SmallInteger)
+    yellow: Mapped[int | None] = mapped_column(SmallInteger)
+    red: Mapped[int | None] = mapped_column(SmallInteger)
+    stats: Mapped[dict[str, Any]] = mapped_column(JSONB)

@@ -10,10 +10,12 @@ statistiques par période. football-data confirme le lendemain et remplace le
 score s'il diffère (écart signalé par le chargement football-data).
 """
 
+import asyncio
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func, or_, select, update
@@ -26,14 +28,16 @@ from footprono.football.models import (
     BookmakerOdds,
     Competition,
     DataSource,
+    LiveSnapshot,
     Match,
     MatchStatus,
     MatchTeamSheet,
     MatchTeamStats,
+    RawFile,
     Season,
     StatPeriod,
 )
-from footprono.ingestion import loader, raw_store, service
+from footprono.ingestion import details, loader, raw_store, service
 from footprono.ingestion.reference import (
     COMPETITIONS,
     COMPETITIONS_BY_CODE,
@@ -62,6 +66,8 @@ IDS_PER_REQUEST = 20  # limite de /fixtures?ids=
 LINEUPS_BEFORE = timedelta(minutes=75)
 # Statuts API-Football d'un match en cours (mi-temps et interruptions comprises).
 LIVE_STATUSES = frozenset({"1H", "HT", "2H", "ET", "BT", "P", "LIVE", "SUSP", "INT"})
+# Statuts où le score de la 1re mi-temps est définitif.
+HALF_TIME_KNOWN = frozenset({"HT", "2H", "ET", "BT", "P"})
 
 
 def _noop(_message: str) -> None:
@@ -409,6 +415,11 @@ async def follow_live(
         if isinstance(lineups, list) and lineups:
             await save_team_sheet(session, match.id, "lineups", lineups, now)
             report["lineups"] = report.get("lineups", 0) + 1
+        # Événements, relevé (minute, score, statistiques), compositions et joueurs rangés
+        # à chaque passage : même réponse, aucune requête en plus (plan du 10/11/2026).
+        stored = await details.store(session, match.id, item, now, raw_id)
+        report["events"] = report.get("events", 0) + stored.events
+        report["snapshots"] = report.get("snapshots", 0) + stored.snapshots
         if match.status is MatchStatus.SCHEDULED:
             values: dict[str, Any] = {"api_status": fixture.status, "live_updated_at": now}
             # Coup d'envoi retardé ou avancé : repris à chaque passage (avant : à la collecte
@@ -424,6 +435,12 @@ async def follow_live(
                     live_home_goals=fixture.home_goals,
                     live_away_goals=fixture.away_goals,
                 )
+                # Score de la mi-temps dès la pause (avant : seulement à la fin du match, et
+                # les paris sur la 1re mi-temps attendaient le coup de sifflet final).
+                if fixture.status in HALF_TIME_KNOWN and fixture.home_goals_ht is not None:
+                    values.update(
+                        home_goals_ht=fixture.home_goals_ht, away_goals_ht=fixture.away_goals_ht
+                    )
                 report["live"] += 0 if fixture.finished else 1
             home_goals, away_goals = regulation_score(item)
             if fixture.finished and home_goals is not None and away_goals is not None:
@@ -573,3 +590,178 @@ async def _latest_prices(
         ).join(last, last.c.id == BookmakerOdds.id)
     )
     return {(m, b, bet, v): (i, p) for m, b, bet, v, i, p in rows.tuples()}
+
+
+# --- Données du direct : relecture, rattrapage, essai (plan du 10/11/2026, étape 1) ---
+
+LIVE_ORIGIN = f"{api_football.BASE_URL}/fixtures?ids="
+
+
+async def replay_live_files(
+    session: AsyncSession, progress: Callable[[str], None] = _noop
+) -> dict[str, Any]:
+    """Range les relevés déjà gardés sur le disque (réponses du suivi en direct), dans
+    l'ordre où ils ont été pris. Aucune requête."""
+    files = (
+        await session.scalars(
+            select(RawFile).where(RawFile.origin == LIVE_ORIGIN).order_by(RawFile.fetched_at)
+        )
+    ).all()
+    ids = {
+        a: m
+        for a, m in (
+            await session.execute(
+                select(Match.api_football_id, Match.id).where(Match.api_football_id.is_not(None))
+            )
+        ).tuples()
+        if a is not None
+    }
+    total = details.Stored()
+    missing = read = 0
+    for raw in files:
+        try:
+            data = json.loads(await asyncio.to_thread(Path(raw.path).read_bytes))
+        except (OSError, ValueError):
+            missing += 1
+            continue
+        read += 1
+        for item in data.get("fixtures") or []:
+            match_id = ids.get(int(item.get("fixture", {}).get("id") or 0))
+            if match_id is not None:
+                total.add(await details.store(session, match_id, item, raw.fetched_at, raw.id))
+        await session.commit()
+        if read % 50 == 0:
+            progress(f"{read} fichiers relus sur {len(files)}")
+    return {
+        "files": len(files),
+        "read": read,
+        "missing": missing,
+        "stored": total.summary(),
+        "stat_types": sorted(total.stat_types),
+    }
+
+
+async def backfill_details(
+    session: AsyncSession,
+    settings: Settings,
+    *,
+    competition: str | None = None,
+    max_requests: int = 100,
+    progress: Callable[[str], None] = _noop,
+) -> dict[str, Any]:
+    """Événements, compositions, statistiques d'équipes et de joueurs des matchs terminés
+    qui n'en ont pas encore, les plus récents d'abord, 20 matchs par requête."""
+    if settings.api_football_key is None:
+        return {"status": "unavailable", "error": "FP_API_FOOTBALL_KEY absente"}
+    done = select(LiveSnapshot.id).where(LiveSnapshot.match_id == Match.id).exists()
+    query = (
+        select(Match.api_football_id, Match.id)
+        .where(Match.status == MatchStatus.FINISHED, Match.api_football_id.is_not(None), ~done)
+        .order_by(Match.kickoff_at.desc().nulls_last(), Match.match_date.desc())
+        .limit(max_requests * IDS_PER_REQUEST)
+    )
+    if competition:
+        query = (
+            query.join(Season, Season.id == Match.season_id)
+            .join(Competition, Competition.id == Season.competition_id)
+            .where(Competition.code == competition)
+        )
+    todo = {a: m for a, m in (await session.execute(query)).tuples() if a is not None}
+    report: dict[str, Any] = {"status": "ok", "matches": 0, "requests": 0, "empty": 0}
+    total = details.Stored()
+    now = datetime.now(UTC)
+    async with api_football.ApiFootballClient(
+        settings.api_football_key.get_secret_value(),
+        budget=max_requests,
+        min_remaining=settings.api_football_min_remaining,
+        transport=service.api_football_transport,
+    ) as client:
+        await client.status()
+        ids = list(todo)
+        for start in range(0, len(ids), IDS_PER_REQUEST):
+            if not client.can_spend():
+                report["stopped"] = "quota ou limite de requêtes atteinte"
+                break
+            chunk = ids[start : start + IDS_PER_REQUEST]
+            body = await client.get("/fixtures", {"ids": "-".join(map(str, chunk))})
+            items = body.get("response") or []
+            raw_id = await raw_store.archive(
+                session,
+                settings.raw_data_dir,
+                DataSource.API_FOOTBALL,
+                LIVE_ORIGIN,
+                f"details/{now:%Y%m%dT%H%M%S}-{start // IDS_PER_REQUEST}.json",
+                json.dumps({"fixtures": items}).encode(),
+            )
+            for item in items:
+                match_id = todo.get(int(item.get("fixture", {}).get("id") or 0))
+                if match_id is None:
+                    continue
+                stored = await details.store(session, match_id, item, now, raw_id)
+                report["matches"] += 1
+                report["empty"] += int(stored.events == 0 and stored.lineups == 0)
+                total.add(stored)
+            await session.commit()
+            progress(f"{report['matches']} matchs complétés ({client.used} requêtes)")
+        report["requests"] = client.used
+    report["left"] = max(0, len(todo) - report["matches"])
+    report["stored"] = total.summary()
+    report["stat_types"] = sorted(total.stat_types)
+    return report
+
+
+async def probe_live(
+    session: AsyncSession, settings: Settings, fixture_id: int | None = None
+) -> dict[str, Any]:
+    """Essai : ce que renvoient ``/fixtures?ids=`` et ``/odds/live`` pour un match en cours
+    (ou le dernier match suivi). Deux requêtes, rien d'enregistré."""
+    if settings.api_football_key is None:
+        return {"status": "unavailable", "error": "FP_API_FOOTBALL_KEY absente"}
+    if fixture_id is None:
+        playing = await session.scalar(
+            select(Match.api_football_id)
+            .where(Match.api_football_id.is_not(None), Match.api_status.in_(LIVE_STATUSES))
+            .order_by(Match.kickoff_at.desc())
+            .limit(1)
+        )
+        recent = await session.scalar(
+            select(Match.api_football_id)
+            .where(Match.api_football_id.is_not(None), Match.status == MatchStatus.FINISHED)
+            .order_by(Match.kickoff_at.desc().nulls_last())
+            .limit(1)
+        )
+        fixture_id = int(playing or recent or 0) or None
+    if fixture_id is None:
+        return {"status": "idle", "error": "aucun match suivi"}
+    async with api_football.ApiFootballClient(
+        settings.api_football_key.get_secret_value(),
+        budget=2,
+        min_remaining=settings.api_football_min_remaining,
+        transport=service.api_football_transport,
+    ) as client:
+        body = await client.get("/fixtures", {"ids": str(fixture_id)})
+        odds = await client.get("/odds/live", {"fixture": fixture_id})
+    items = body.get("response") or []
+    out: dict[str, Any] = {"status": "ok", "fixture": fixture_id, "found": bool(items)}
+    if items:
+        item = items[0]
+        home, away = details.team_stats(item)
+        out.update(
+            match=f"{item['teams']['home']['name']} - {item['teams']['away']['name']}",
+            state=item["fixture"]["status"].get("short"),
+            minute=item["fixture"]["status"].get("elapsed"),
+            blocks=sorted(k for k, v in item.items() if v),
+            events=len(item.get("events") or []),
+            event_kinds=sorted({str(e.get("type")) for e in item.get("events") or []}),
+            lineups=len(item.get("lineups") or []),
+            players=sum(len(b.get("players") or []) for b in item.get("players") or []),
+            stat_types=sorted(set(home or {}) | set(away or {})),
+        )
+    live_odds = odds.get("response") or []
+    bets = [b for entry in live_odds for b in entry.get("odds") or []]
+    out["live_odds"] = {
+        "available": bool(live_odds),
+        "markets": len(bets),
+        "names": sorted({str(b.get("name")) for b in bets})[:40],
+    }
+    return out

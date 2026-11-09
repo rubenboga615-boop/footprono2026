@@ -797,6 +797,143 @@ register(
 )
 
 
+async def live_probe(ctx: JobContext, params: dict[str, Any]) -> str:
+    fixture = params.get("fixture") or None
+    async with ctx.factory() as session:
+        out = await live.probe_live(session, ctx.settings, int(fixture) if fixture else None)
+    ctx.result = out
+    if out["status"] != "ok":
+        raise AppError(out.get("error", "essai impossible"))
+    if not out["found"]:
+        return f"match API-Football n° {out['fixture']} introuvable"
+    ctx.log(f"{out['match']} · {out['state']} {out['minute'] or ''}'")
+    ctx.log(f"Blocs reçus : {', '.join(out['blocks'])}")
+    ctx.log(
+        f"Événements : {out['events']} ({', '.join(out['event_kinds']) or 'aucun'}) ; "
+        f"compositions : {out['lineups']} ; joueurs : {out['players']}"
+    )
+    ctx.log(f"Statistiques ({len(out['stat_types'])}) : {', '.join(out['stat_types']) or 'aucune'}")
+    odds = out["live_odds"]
+    ctx.log(
+        f"Cotes en direct : {odds['markets']} marchés"
+        + (f" ({', '.join(odds['names'])})" if odds["names"] else " (aucune pour ce match)")
+    )
+    return (
+        f"{out['match']} : {out['events']} événements, {len(out['stat_types'])} statistiques, "
+        f"{out['players']} joueurs ; cotes en direct : "
+        + (f"{odds['markets']} marchés" if odds["available"] else "aucune")
+    )
+
+
+register(
+    Action(
+        id="live_probe",
+        title="Tester le direct",
+        family="Diagnostic",
+        description=(
+            "Montre ce qu'API-Football renvoie pour un match en cours (ou le dernier match "
+            "suivi) : blocs reçus, événements, compositions, joueurs, liste des statistiques, "
+            "et les cotes en direct. Rien n'est enregistré."
+        ),
+        risk="lecture",
+        run=live_probe,
+        cost="2 requêtes API-Football",
+        duration="quelques secondes",
+        params=(
+            Param(
+                "fixture",
+                "Numéro du match chez API-Football (vide : un match en cours)",
+                "text",
+                default="",
+                pattern=r"\d{0,9}",
+            ),
+        ),
+    )
+)
+
+
+async def live_replay(ctx: JobContext, params: dict[str, Any]) -> str:
+    async with ctx.factory() as session:
+        out = await live.replay_live_files(session, ctx.log)
+    ctx.result = out
+    if out["missing"]:
+        ctx.log(f"{out['missing']} fichiers absents du disque")
+    ctx.log(f"Statistiques rencontrées : {', '.join(out['stat_types']) or 'aucune'}")
+    return f"{out['read']} relevés relus sur {out['files']} : {out['stored']}"
+
+
+register(
+    Action(
+        id="live_replay",
+        title="Relire les relevés gardés",
+        family="Données",
+        description=(
+            "Range dans la base les réponses du suivi en direct déjà gardées sur le disque "
+            "depuis sa mise en service : événements, relevés minute par minute, compositions, "
+            "joueurs. À lancer une fois ; relancer ne crée pas de doublon."
+        ),
+        risk="modifie",
+        run=live_replay,
+        exclusive=True,
+        cost="aucune requête",
+        duration="quelques minutes",
+    )
+)
+
+
+async def details_backfill(ctx: JobContext, params: dict[str, Any]) -> str:
+    async with ctx.factory() as session:
+        out = await live.backfill_details(
+            session,
+            ctx.settings,
+            competition=params.get("competition") or None,
+            max_requests=int(params["max_requests"]),
+            progress=ctx.log,
+        )
+    ctx.result = out
+    if out["status"] != "ok":
+        raise AppError(out.get("error", "rattrapage impossible"))
+    if out.get("stopped"):
+        ctx.log(f"Arrêt : {out['stopped']}")
+    if out["empty"]:
+        ctx.log(f"{out['empty']} matchs sans événements ni compositions chez API-Football")
+    ctx.log(f"Statistiques rencontrées : {', '.join(out['stat_types']) or 'aucune'}")
+    return (
+        f"{out['matches']} matchs complétés ({out['requests']} requêtes) : {out['stored']} ; "
+        f"il en reste {out['left']} dans cette sélection"
+    )
+
+
+register(
+    Action(
+        id="details_backfill",
+        title="Compléter les matchs passés",
+        family="Données",
+        description=(
+            "Pour les matchs terminés qui n'en ont pas encore : événements (buts, cartons, "
+            "remplacements à la minute), compositions, statistiques des équipes et des "
+            "joueurs. Les plus récents d'abord, 20 matchs par requête, dans le quota du jour. "
+            "Relancer continue où le précédent s'est arrêté."
+        ),
+        risk="modifie",
+        run=details_backfill,
+        exclusive=True,
+        cost="1 requête API-Football pour 20 matchs",
+        duration="quelques minutes",
+        params=(
+            Param(
+                "competition",
+                "Championnat (vide : tous)",
+                "choice",
+                default="",
+                options=lambda: [("", "Tous"), *competition_options()],
+            ),
+            Param("max_requests", "Requêtes au plus", "int", default=100, minimum=1, maximum=2000),
+        ),
+    )
+)
+
+
 def history_options() -> list[tuple[str, str]]:
     return [(code, f"{code} · {league.label}") for code, league in history.LEAGUES.items()]
 

@@ -120,6 +120,28 @@ les comble. « — » : la source n'a pas la donnée (mi-temps API-Football avan
   demain). **Affichage seulement** : le moteur ne s'en sert pas tant qu'un
   modèle de la valeur des joueurs n'a pas prouvé son apport en backtest.
   API : `GET /matches/{id}/team-sheets`.
+- **Données du direct, rangées** (plan du 10/11/2026, étape 1 ; `ingestion/details.py`) :
+  la réponse `/fixtures?ids=` du suivi en direct contient aussi les événements, les
+  statistiques des équipes, les compositions et les statistiques des joueurs. Elles sont
+  rangées à chaque passage, **sans requête de plus** :
+  - `match_events` : buts, cartons, remplacements, décisions de la VAR, avec la minute
+    (et le temps additionnel), l'équipe, le joueur et le passeur ; liste remplacée en
+    entier à chaque relevé (un but annulé disparaît) ;
+  - `live_snapshots` : un relevé par minute de jeu (statut, minute, score) avec **toutes**
+    les statistiques des deux équipes telles que données (`{type: valeur}`, même celles
+    que l'application n'affiche pas encore) ; la mi-temps n'en garde qu'un ;
+  - `match_lineups` et `match_lineup_players` : système de jeu, entraîneur, titulaires
+    et remplaçants (poste, numéro, place sur le terrain) ;
+  - `player_match_stats` : minutes, note, buts, passes décisives, tirs, cartons, et la
+    fiche complète du joueur (`stats`).
+  Le **score de la mi-temps** est enregistré dès la pause (avant : à la fin du match),
+  pour régler les paris sur la 1re mi-temps sans attendre (étape 2).
+  Console : « Tester le direct » (Diagnostic, 2 requêtes : blocs reçus, liste des
+  statistiques, cotes en direct `/odds/live`, rien d'enregistré) ; « Relire les relevés
+  gardés » (Données, aucune requête : réponses déjà archivées sur le disque) ;
+  « Compléter les matchs passés » (Données, 20 matchs terminés par requête, les plus
+  récents d'abord, dans le quota ; un match déjà complété n'est plus demandé).
+  Données sportives publiques : aucune donnée des joueurs de l'application.
 - API-Football ne dépend que de football-data pour la saison : il se charge
   après lui (ordre de `all` et de la tâche quotidienne).
 
