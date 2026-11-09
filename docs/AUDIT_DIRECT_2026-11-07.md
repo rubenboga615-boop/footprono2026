@@ -115,3 +115,23 @@ Maccabi Haifa – Maccabi Netanya à la **mi-temps (0-0)**, Hapoel Katamon – B
    ne le montre (les bookmakers mettent un point vert). **Piste** : « gagnante pour
    l'instant » / « perdante pour l'instant » d'après le score, sans changer le règlement.
 3. Chance du coupon en direct : absente (attendu, étape 1 de la proposition non faite).
+
+## 10. Règlement final du pari n° 32 (vérifié le 9/11 à 21 h GMT)
+
+Les rappels de 18 h et 21 h 50 du 7/11 sont arrivés avec deux jours de retard (session en
+pause) : pas d'observation pendant la fin des matchs, seulement le résultat enregistré.
+
+| Sélection | Score final | Résultat enregistré | Juste ? |
+|---|---|---|---|
+| Maccabi Haifa – Maccabi Netanya, Netanya (+3,0) | 0-4 | gagnée | oui |
+| Hapoel Katamon – Bnei Sakhnin, buts de Katamon moins de 2,5 | 1-1 | gagnée | oui |
+| Antwerp – Lommel, moins de 4,5 buts | 2-2 | gagnée | oui (4 buts) |
+
+- Pari **gagné**, 1 556 F CFA crédités ; solde 98 556 F (97 000 + 1 556).
+- Réglé le 7/11 à **21:40:03 GMT**, environ 5 minutes après la fin d'Antwerp – Lommel
+  (coup d'envoi 19:45).
+- Notification « **Pari gagné** · combiné de 3 matchs : 1 556 F CFA crédités sur ton
+  solde. » créée à la même seconde : **la première notification de bonne nouvelle** vue sur
+  ce compte (avant : seulement « Pari perdu »).
+- Non vérifié : l'heure à laquelle les deux premières sélections sont passées à « gagnée »
+  (règlement sélection par sélection), faute d'observation à 18 h.
