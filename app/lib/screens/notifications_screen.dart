@@ -178,8 +178,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 padding: pagePadding(context, 16, 32),
                 children: [
                   BackHeader(
-                    'Notifi',
-                    'cations',
+                    'Notifications',
+                    '',
                     joined: true,
                     trailing: list.isEmpty
                         ? null

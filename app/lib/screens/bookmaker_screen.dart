@@ -107,12 +107,15 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
             final double? roi;
             final int month;
             final int count;
+            final int settledCount;
             if (summary != null) {
               atStake = summary['at_stake'] as int;
               roi = (summary['yield'] as num?)?.toDouble();
               month = summary['last_30_days'] as int;
               count = summary['bets'] as int;
+              settledCount = (summary['settled'] as int?) ?? settled.length;
             } else {
+              settledCount = settled.length;
               atStake = open.fold<int>(0, (a, b) => a + b.stake);
               final staked = settled.fold<int>(0, (a, b) => a + b.stake);
               final returned = settled.fold<int>(0, (a, b) => a + (b.payout ?? 0));
@@ -135,12 +138,14 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
                   const TwoToneTitle('Mes', 'paris'),
                   const SizedBox(height: 16),
                   const OddsDownBanner(),
-                  GlassCard(
+                  MCard(
+                    margin: EdgeInsets.zero,
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text('Solde (argent fictif)', style: Fp.body(13, color: Fp.text2)),
+                        // Maquette I : solde, puis En jeu · 30 jours · Paris sur une ligne.
+                        Text('Solde (argent fictif)', style: Fp.body(13, color: Fp.muted)),
                         const SizedBox(height: 2),
                         FittedBox(
                           fit: BoxFit.scaleDown,
@@ -148,77 +153,80 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
                           child: Text.rich(
                             TextSpan(
                               children: [
-                                TextSpan(text: me != null ? thousands(me.balance) : '—', style: Fp.title(34)),
                                 TextSpan(
-                                  text: '  ${currencyLabel(currency)}',
-                                  style: Fp.title(18, color: Fp.accentLight),
+                                  text: me != null ? thousands(me.balance) : '—',
+                                  style: Fp.title(34, weight: FontWeight.w800),
+                                ),
+                                TextSpan(
+                                  text: ' ${currencyLabel(currency)}',
+                                  style: Fp.body(13, color: Fp.muted, weight: FontWeight.w600),
                                 ),
                               ],
                             ),
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text.rich(
-                          TextSpan(
-                            style: Fp.body(13, color: Fp.text2),
-                            children: [
-                              const TextSpan(text: 'En jeu '),
-                              TextSpan(
-                                text: '${thousands(atStake)} F',
-                                style: Fp.body(13, weight: FontWeight.w700),
+                        Wrap(
+                          spacing: 14,
+                          runSpacing: 4,
+                          children: [
+                            for (final (label, value, color) in [
+                              ('En jeu', '${thousands(atStake)} F', Fp.text),
+                              (
+                                '30 jours',
+                                '${month > 0
+                                    ? '+'
+                                    : month < 0
+                                    ? '−'
+                                    : ''}${thousands(month.abs())} F',
+                                month > 0 ? Fp.win : (month < 0 ? Fp.loss : Fp.text),
                               ),
-                              const TextSpan(text: '      30 jours '),
-                              TextSpan(
-                                text: signedMoney(month, currency),
-                                style: Fp.body(
-                                  13,
-                                  weight: FontWeight.w700,
-                                  color: month > 0 ? Fp.win : (month < 0 ? Fp.lossText : Fp.text),
+                              ('Paris', thousands(count), Fp.text),
+                              // Rapport du 09/11/2026 : « −48,1 % » après 3 paris alarmait sans rien
+                              // dire. En dessous de 20 paris réglés, le rendement n'est pas affiché.
+                              if (roi != null && settledCount >= 20)
+                                (
+                                  'Rendement',
+                                  '${roi >= 0 ? '+' : ''}${percent(roi, decimals: 1)}',
+                                  roi >= 0 ? Fp.win : Fp.loss,
+                                ),
+                            ])
+                              Text.rich(
+                                TextSpan(
+                                  style: Fp.body(13, color: Fp.muted),
+                                  children: [
+                                    TextSpan(text: '$label '),
+                                    TextSpan(
+                                      text: value,
+                                      style: Fp.body(13, weight: FontWeight.w700, color: color),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text.rich(
-                          TextSpan(
-                            style: Fp.body(13, color: Fp.text2),
-                            children: [
-                              const TextSpan(text: 'Rendement '),
-                              TextSpan(
-                                text: roi == null
-                                    ? '—'
-                                    : '${roi >= 0 ? '+' : ''}${percent(roi, decimals: 1)}',
-                                style: Fp.body(
-                                  13,
-                                  weight: FontWeight.w700,
-                                  color: roi == null ? Fp.text : (roi >= 0 ? Fp.win : Fp.lossText),
-                                ),
-                              ),
-                              const TextSpan(text: '      Paris '),
-                              TextSpan(
-                                text: thousands(count),
-                                style: Fp.body(13, weight: FontWeight.w700, color: Fp.text),
-                              ),
-                            ],
+                        if (roi != null && settledCount > 0 && settledCount < 20) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Rendement : trop peu de paris réglés pour conclure ($settledCount sur 20).',
+                            style: Fp.body(12, color: Fp.muted),
                           ),
-                        ),
+                        ],
                         const SizedBox(height: 14),
                         Row(
                           children: [
                             Expanded(
-                              child: OutlinedButton(
+                              child: MButton(
+                                'Mon bilan',
+                                secondary: true,
                                 onPressed: () =>
                                     Navigator.of(context)
                                         .push(MaterialPageRoute(builder: (_) => const RecordScreen())),
-                                child: const Text('Mon bilan'),
                               ),
                             ),
                             if (me != null && me.balance < 1000) ...[
                               const SizedBox(width: 10),
-                              Expanded(
-                                child: FilledButton(onPressed: _refill, child: const Text('Recharger')),
-                              ),
+                              Expanded(child: MButton('Recharger', onPressed: _refill)),
                             ],
                           ],
                         ),
@@ -280,14 +288,17 @@ class _BetList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (bets.isEmpty) return EmptyState(empty, icon: Icons.sports_score_rounded);
-    return GlassCard.section(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final (i, b) in bets.indexed) ...[_BetRow(bet: b), if (i < bets.length - 1) const Divider()],
-        ],
-      ),
+    // Maquette I : une carte par pari.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (i, b) in bets.indexed)
+          MCard(
+            margin: EdgeInsets.only(top: i == 0 ? 0 : 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: _BetRow(bet: b),
+          ),
+      ],
     );
   }
 }
@@ -344,10 +355,7 @@ class _BetRow extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    betKind(b),
-                    style: Fp.body(12, color: Fp.text2, weight: FontWeight.w600),
-                  ),
+                  child: Text(betKind(b), style: Fp.body(13, color: Fp.muted)),
                 ),
                 betTag(b),
               ],
@@ -367,14 +375,18 @@ class _BetRow extends StatelessWidget {
                   : b.payout != null && b.payout! > 0
                   ? ' · rendu ${money(b.payout!, b.currency)}'
                   : ''}',
-              style: Fp.body(13, color: Fp.text2),
+              style: Fp.body(13, color: Fp.muted),
             ),
             if (b.status == 'open' && b.selections.length > 1) ...[
-              const SizedBox(height: 2),
-              Text(
-                betProgress(b),
-                style: Fp.body(12, color: Fp.accentLight, weight: FontWeight.w600),
+              const SizedBox(height: 10),
+              ProbBar(
+                b.selections.where((s) => s.result == 'win' || s.result == 'half_win').length /
+                    b.selections.length,
+                height: 5,
+                color: Fp.win,
               ),
+              const SizedBox(height: 8),
+              Text(betProgress(b), style: Fp.body(13, color: Fp.muted)),
             ],
           ],
         ),

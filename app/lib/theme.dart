@@ -993,3 +993,10 @@ class FpField extends StatelessWidget {
     );
   }
 }
+
+/// Résultat d'un match passé, G / N / P (maquette R) : fond sombre teinté, lettre en couleur.
+(Color, Color, String) formColors(Object? result) => switch (result) {
+  'W' => (const Color(0xFF12301F), Fp.win, 'G'),
+  'L' => (const Color(0xFF3A1620), Fp.loss, 'P'),
+  _ => (const Color(0xFF2E2A45), Fp.lilac, 'N'),
+};

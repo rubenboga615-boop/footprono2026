@@ -253,24 +253,19 @@ class _ResultBox extends StatelessWidget {
   final String result;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: 26,
-    height: 26,
-    alignment: Alignment.center,
-    decoration: BoxDecoration(
-      color: switch (result) {
-        'W' => Fp.win,
-        'L' => Fp.loss,
-        _ => Fp.text4,
-      },
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Text(switch (result) {
-      'W' => 'G',
-      'L' => 'P',
-      _ => 'N',
-    }, style: Fp.body(13, weight: FontWeight.w700, color: const Color(0xFF0B0A10))),
-  );
+  Widget build(BuildContext context) {
+    final (bg, fg, letter) = formColors(result);
+    return Container(
+      width: 26,
+      height: 26,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+      child: Text(
+        letter,
+        style: Fp.body(13, weight: FontWeight.w700, color: fg),
+      ),
+    );
+  }
 }
 
 class _Stat extends StatelessWidget {

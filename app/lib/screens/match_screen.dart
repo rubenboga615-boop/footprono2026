@@ -709,23 +709,20 @@ class _MatchViewState extends State<_MatchView> {
             const SizedBox(width: 6),
             Tooltip(
               message: '${f['venue'] == 'home' ? 'contre' : 'chez'} ${f['opponent']} : ${f['score']}',
-              child: Container(
-                width: 28,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: switch (f['result']) {
-                    'W' => Fp.win,
-                    'L' => Fp.loss,
-                    _ => const Color(0x8CF4F2F8),
-                  },
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(switch (f['result']) {
-                  'W' => 'G',
-                  'L' => 'P',
-                  _ => 'N',
-                }, style: Fp.body(13, weight: FontWeight.w700, color: const Color(0xFF0B0A10))),
+              child: Builder(
+                builder: (context) {
+                  final (bg, fg, letter) = formColors(f['result']);
+                  return Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+                    child: Text(
+                      letter,
+                      style: Fp.body(13, weight: FontWeight.w700, color: fg),
+                    ),
+                  );
+                },
               ),
             ),
           ],

@@ -322,7 +322,7 @@ class _CouponScreenState extends State<CouponScreen> {
               // Coupon vide : les deux entrées vers les coupons du moteur.
               if (items.isEmpty) ...[
                 _Banner(
-                  icon: Icons.star_outline_rounded,
+                  icon: Icons.confirmation_number_outlined,
                   title: 'Coupon intelligent',
                   subtitle: 'Le moteur compose un coupon pour toi',
                   onTap: () =>
@@ -331,7 +331,7 @@ class _CouponScreenState extends State<CouponScreen> {
                 ),
                 const SizedBox(height: 8),
                 _Banner(
-                  icon: Icons.calendar_today_outlined,
+                  icon: Icons.track_changes_rounded,
                   title: 'Coupons du jour',
                   subtitle: 'Un coupon par profil chaque matin, avec son code',
                   onTap: () =>
@@ -556,48 +556,32 @@ class _Banner extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
 
+  // Maquette Z1 : carte ordinaire, icône lilas au trait, titre en gras, flèche.
   @override
   Widget build(BuildContext context) {
-    final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(18),
-      side: const BorderSide(color: Color(0x8CA78BFA)),
-    );
     return Material(
-      shape: shape,
-      color: Colors.transparent,
+      color: Fp.card,
+      borderRadius: BorderRadius.circular(18),
       clipBehavior: Clip.antiAlias,
-      child: Ink(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(colors: [Color(0x477C3AED), Color(0x0F7C3AED)]),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: Fp.accentAlpha(0.3),
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: Icon(icon, size: 20, color: const Color(0xFFE4D8FD)),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+          child: Row(
+            children: [
+              Icon(icon, size: 22, color: Fp.lilac),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Fp.body(15, weight: FontWeight.w700)),
+                    Text(subtitle, style: Fp.body(13, color: Fp.muted)),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: Fp.body(14.5, weight: FontWeight.w800)),
-                      Text(subtitle, style: Fp.body(12, color: Fp.text2)),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right_rounded, color: Color(0xFFC9B2F8)),
-              ],
-            ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: Fp.text),
+            ],
           ),
         ),
       ),
