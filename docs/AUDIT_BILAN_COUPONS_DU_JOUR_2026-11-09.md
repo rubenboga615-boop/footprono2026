@@ -48,7 +48,7 @@ Serveur `a384c8e`. Rien n'a été modifié dans le code.
 
 | # | Constat | Piste |
 |---|---|---|
-| 1 | **Aucun code 1xBet** sur les 16 coupons (`booking_codes` vide partout, y compris le coupon du jour 9/11 avant son règlement d'après l'historique) | vérifier dans la console si les codes sont saisis puis effacés au règlement, ou jamais saisis ; c'est la promesse n° 2 de l'accueil |
+| 1 | **Aucun code 1xBet** sur les 16 coupons (`booking_codes` vide partout ; vérifié seulement après règlement, tous les coupons étant terminés à 21 h) | vérifier dans la console si les codes sont saisis puis effacés au règlement, ou jamais saisis ; c'est la promesse n° 2 de l'accueil |
 | 2 | **Audacieux du 7/11 réglé avec 24 h de retard** (matchs finis vers 17 h 30 le 7/11 ; réglé le 8/11 à 17:24). Le joueur l'a vu « en cours » toute la nuit | chercher quel résultat est arrivé en retard (Nacional – Academico Viseu, Liga Portugal ?) |
 | 3 | **Deux bilans différents pour la même période** : « 30 derniers jours » Sûr 4 sur 6, et « Bilan depuis le lancement » Sûr 5 sur 7 (le premier n'inclut pas le coupon réglé aujourd'hui) | un seul chiffre, ou préciser « jusqu'à hier » |
 | 4 | **Jours entiers sans coupon dans l'historique** (jeudi 5 : aucun ; mar. 3 et lun. 9 : seulement Sûr) : rien ne l'indique dans l'historique, le joueur croit à un oubli | une ligne « Jeu. 5 nov. : pas de coupon (trop peu de matchs) » |
