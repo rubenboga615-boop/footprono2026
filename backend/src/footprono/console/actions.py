@@ -916,16 +916,29 @@ def _live_verdict(rep: dict[str, Any]) -> tuple[bool, list[str]]:
     return ok, lines
 
 
-async def live_study(ctx: JobContext, params: dict[str, Any]) -> str:
-    async with ctx.factory() as session:
-        rep = await live_chances.study(session)
-    ctx.result = rep
+def _log_live_report(ctx: JobContext, rep: dict[str, Any]) -> None:
+    """Une ligne par repère et par marché, puis le détail des tranches de chaque marché « à
+    revoir » (annoncé → arrivé), pour savoir dans quel sens le moteur se trompe."""
     for r in rep["rows"]:
         gap = "—" if r["worst_gap"] is None else f"{100 * r['worst_gap']:.1f} points"
         ctx.log(
             f"{r['checkpoint']} {r['family']} : {r['selections']} sélections, pire tranche "
             f"{gap}, {r['verdict']}"
         )
+        if r["verdict"] == "à revoir":
+            for b in r["bins"]:
+                if b["n"] >= 200:
+                    ctx.log(
+                        f"    {b['range']} : annoncé {100 * b['announced']:.1f} % → arrivé "
+                        f"{100 * b['observed']:.1f} % ({b['n']})"
+                    )
+
+
+async def live_study(ctx: JobContext, params: dict[str, Any]) -> str:
+    async with ctx.factory() as session:
+        rep = await live_chances.study(session)
+    ctx.result = rep
+    _log_live_report(ctx, rep)
     ok, lines = _live_verdict(rep)
     for line in lines:
         ctx.log(line)
@@ -934,6 +947,72 @@ async def live_study(ctx: JobContext, params: dict[str, Any]) -> str:
     return f"{rep['matches']} matchs étudiés : " + (
         "juste à chaque repère, publication possible" if ok else "pas encore publiable"
     )
+
+
+async def live_history_study(ctx: JobContext, params: dict[str, Any]) -> str:
+    from footprono.engine.cli import predict as replay
+    from footprono.engine.correction import DEFAULT_FEATURES
+    from footprono.engine.goals import GoalsConfig
+    from footprono.engine.history import load_history
+
+    seasons = parse_seasons(params["seasons"])
+    ctx.log("Chargement de l'historique…")
+    async with ctx.factory() as session:
+        hist = await load_history(session)
+    ctx.log(f"{len(hist)} matchs ; prévisions rejouées hors échantillon (quelques minutes)…")
+    pred = await asyncio.to_thread(
+        replay, hist, [c.code for c in COMPETITIONS], seasons, GoalsConfig(), DEFAULT_FEATURES
+    )
+    played = [
+        (int(pred.match_id[k]), (pred.lam_h[k], pred.lam_a[k], pred.share_h[k], pred.share_a[k]))
+        for k in range(len(pred.match_id))
+    ]
+    ctx.log(f"{len(played)} matchs prévus ; minutes des buts et cartons rouges…")
+    async with ctx.factory() as session:
+        rep, _ = await live_chances.history_study(session, played)
+    ctx.result = rep
+    _log_live_report(ctx, rep)
+    ok, lines = _live_verdict(rep)
+    for line in lines:
+        ctx.log(line)
+    shares = rep["goal_minutes"]
+    ctx.log(
+        "Part des buts par quart d'heure (1re période ; 2e période) : "
+        + " · ".join(f"{k} {100 * v:.1f} %" for k, v in shares.items())
+    )
+    if rep["inconsistent"]:
+        ctx.log(f"{rep['inconsistent']} matchs écartés (buts des événements ≠ score final)")
+    return f"{rep['matches']} matchs étudiés : " + ("juste à chaque repère" if ok else "à revoir")
+
+
+register(
+    Action(
+        id="live_history_study",
+        title="Vérifier les chances en direct sur les saisons passées",
+        family="Moteur",
+        description=(
+            "Même vérification que « Vérifier les chances en direct », sur les saisons "
+            "passées : prévisions d'avant-match rejouées hors échantillon (comme le "
+            "backtest), minutes des buts gardées par « Compléter les matchs passés ». Donne "
+            "aussi le détail des tranches à revoir et la part des buts par quart d'heure. "
+            "Calcul seulement, rien n'est publié ni modifié."
+        ),
+        risk="lecture",
+        run=live_history_study,
+        exclusive=True,
+        cost="aucune requête",
+        duration="10 à 30 minutes",
+        params=(
+            Param(
+                "seasons",
+                "Saisons (début, par exemple 2023-2025)",
+                "text",
+                default="2023-2025",
+                pattern=r"\d{4}(-\d{4})?",
+            ),
+        ),
+    )
+)
 
 
 register(

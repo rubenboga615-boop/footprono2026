@@ -79,6 +79,15 @@ async def test_study_of_played_matches(
         await session.commit()
 
         rep = await live_chances.study(session)
+        # Saisons passées : prévisions rejouées données à la main, même résultat.
+        past, matches = await live_chances.history_study(
+            session, [(i, (1.6, 1.1, 0.45, 0.44)) for i in ids]
+        )
+    assert (past["matches"], past["inconsistent"]) == (1, 1)
+    # Buts à 20', 55' et 80' : 1 sur 1 en 1re période (15-30), 2 en 2e (45-60, 75-90+).
+    assert past["goal_minutes"]["15-30"] == 1.0
+    assert past["goal_minutes"]["45-60"] == 0.5
+    assert len(matches) == 1
     # Convention « contre son camp » inversée : 2 buts pour le domicile, 1 pour l'extérieur.
     assert rep["matches"] == 1
     assert rep["inconsistent"] == 1

@@ -186,3 +186,56 @@ async def current(session: AsyncSession, match_ids: Sequence[int]) -> dict[int, 
             "markets": {k: round(sel.win, 4) for k, sel in markets.items()},
         }
     return out
+
+
+# ------------------------------------- saisons passées (prévisions rejouées hors échantillon)
+
+
+def goal_minutes(matches: Sequence[PlayedMatch]) -> dict[str, float]:
+    """Part des buts de chaque période marqués par quart d'heure (temps additionnel compris
+    dans le dernier) : sert à vérifier le rythme uniforme du moteur dans chaque période."""
+    bands = {"0-15": 0, "15-30": 0, "30-45+": 0, "45-60": 0, "60-75": 0, "75-90+": 0}
+    for m in matches:
+        for minute, _, _ in m.goals:
+            key = (
+                "0-15" if minute <= 15 else "15-30" if minute <= 30 else "30-45+"
+                if minute <= 45 else "45-60" if minute <= 60 else "60-75" if minute <= 75
+                else "75-90+"
+            )  # fmt: skip
+            bands[key] += 1
+    first = sum(list(bands.values())[:3]) or 1
+    second = sum(list(bands.values())[3:]) or 1
+    return {k: round(v / (first if i < 3 else second), 4) for i, (k, v) in enumerate(bands.items())}
+
+
+async def history_study(
+    session: AsyncSession, played: Sequence[tuple[int, tuple[float, float, float, float]]]
+) -> tuple[dict[str, Any], list[PlayedMatch]]:
+    """Même étude que ``study`` sur des matchs passés dont la prévision a été rejouée hors
+    échantillon (``played`` : numéro du match, paramètres d'avant-match)."""
+    params = dict(played)
+    with_details = select(LiveSnapshot.id).where(LiveSnapshot.match_id == Match.id).exists()
+    finals: dict[int, tuple[int, int, int, int]] = {}
+    for chunk in _chunks(list(params)):
+        rows = await session.execute(
+            select(
+                Match.id, Match.home_goals, Match.away_goals,
+                Match.home_goals_ht, Match.away_goals_ht,
+            ).where(Match.id.in_(chunk), with_details)
+        )  # fmt: skip
+        for mid, hg, ag, hht, aht in rows.tuples():
+            if hg is not None and ag is not None and hht is not None and aht is not None:
+                finals[mid] = (hg, ag, hht, aht)
+    events = await _events(session, list(finals))
+    matches, skipped = [], 0
+    for mid, final in finals.items():
+        m = played_match(params[mid], events.get(mid, []), final)
+        if m is None:
+            skipped += 1
+        else:
+            matches.append(m)
+    out = report(minute_entries(matches))
+    out["matches"] = len(matches)
+    out["inconsistent"] = skipped
+    out["goal_minutes"] = goal_minutes(matches)
+    return out, matches
