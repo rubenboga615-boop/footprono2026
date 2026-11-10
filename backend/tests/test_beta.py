@@ -117,6 +117,12 @@ async def test_sharing_is_off_by_default_and_anonymous(
     assert row["last_problem"]["screen"] in ("Coupon intelligent", "Cotes d'un match")
     assert obs["smart_coupons"] == {"composed": 1, "added": 0}
     assert obs["markets"][0]["selections"] == 1
+    bands = {b["band"]: b for b in obs["odds_bands"]}
+    assert bands["2 à 5"] == {
+        "band": "2 à 5", "bets": 1, "announced": 0.55, "observed": 1.0, "return": 1.0,
+    }  # fmt: skip
+    assert bands["5 à 10"]["bets"] == 0
+    assert bands["5 à 10"]["observed"] is None
 
     exported = await client.get("/api/v1/admin/console/beta/export", headers=head)
     text = exported.text

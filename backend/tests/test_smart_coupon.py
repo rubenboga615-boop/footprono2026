@@ -298,9 +298,17 @@ async def test_grosse_cote_filters_and_periods(
     assert len({s["match_id"] for s in coupon["selections"]}) == len(coupon["selections"])
     assert big["profile_label"] == "Grosse cote"
 
-    impossible = await gen(profile="grosse", period="tomorrow", target_odds="500", size=12)
+    impossible = await gen(profile="grosse", period="tomorrow", target_odds="10", size=1)
     assert impossible["coupon"] is None
-    assert "Impossible d'atteindre une cote de 500" in impossible["message"]
+    assert "Impossible d'atteindre une cote de 10" in impossible["message"]
+    # Cote visée de 2 à 10 (plan du 10/11/2026, étape 4).
+    too_big = await client.get(
+        "/api/v1/smart-coupon",
+        params={"profile": "grosse", "period": "tomorrow", "target_odds": "500"},
+        headers=headers,
+    )
+    assert too_big.status_code == 400
+    assert "de 2 à 10" in too_big.text
     no_target = await client.get(
         "/api/v1/smart-coupon", params={"profile": "grosse"}, headers=headers
     )

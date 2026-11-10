@@ -185,6 +185,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool ready = false;
   Me? me;
   final List<CouponItem> coupon = [];
+
+  /// Mise proposée à Mon coupon par le dernier ajout (500 F pour un coupon Grosse cote, plan du
+  /// 10/11/2026, étape 4), reprise une fois par l'écran du coupon.
+  int? suggestedStake;
+
+  /// Le coupon vient d'un coupon Grosse cote : la phrase de vérité y est affichée.
+  bool couponBig = false;
   int unread = 0;
 
   /// Incrémenté quand l'utilisateur touche une notification : l'écran des
@@ -502,6 +509,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     me = null;
     beta.enabled = false;
     coupon.clear();
+    couponBig = false;
     unread = 0;
     await _prefs?.remove(_kToken);
   }
@@ -606,6 +614,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final existing = coupon.indexWhere((c) => c.match.id == match.id);
     if (existing >= 0 && coupon[existing].offer.key == offer.key) {
       coupon.removeAt(existing);
+      if (coupon.isEmpty) couponBig = false;
       notifyListeners();
       return 'Retiré du coupon';
     }
@@ -624,11 +633,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void removeFromCoupon(CouponItem item) {
     coupon.remove(item);
+    if (coupon.isEmpty) couponBig = false;
     notifyListeners();
   }
 
   void clearCoupon() {
     coupon.clear();
+    couponBig = false;
     notifyListeners();
   }
 

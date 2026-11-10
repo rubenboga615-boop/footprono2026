@@ -1051,6 +1051,12 @@ async function betaPage() {
     d.markets.map((m) => h("tr", {}, h("td", { text: m.market }), h("td", { text: number(m.selections) }),
       h("td", { text: percent(m.announced) }), h("td", { text: percent(m.observed) }))),
     "Aucune sélection réglée.");
+  // Bilan par cote du coupon (plan du 10/11/2026, étape 4) : les grosses cotes à part.
+  const bands = table(["Cote du coupon", "Paris", "Annoncé", "Arrivé", "Rendement"],
+    (d.odds_bands || []).map((b) => h("tr", {}, h("td", { text: b.band }), h("td", { text: number(b.bets) }),
+      h("td", { text: percent(b.announced) }), h("td", { text: percent(b.observed) }),
+      h("td", { class: b.return < 0 ? "badt" : b.return > 0 ? "okt" : "", text: percent(b.return, true) }))),
+    "Aucun pari réglé.");
   const sc = d.smart_coupons;
   const lost = Object.entries(d.montantes_lost_at_step);
   const total = lost.reduce((a, [, n]) => a + n, 0);
@@ -1063,6 +1069,7 @@ async function betaPage() {
   view(head, kpis,
     card("Testeurs", testers),
     h("div", { class: "grid-2" }, card("Problèmes par écran (7 jours)", screens), card("Réussite par marché (paris des testeurs)", markets)),
+    card("Réussite par cote du coupon (paris des testeurs)", bands),
     card("Coupons intelligents et montantes", coupons),
     h("p", { class: "note", style: "margin-top:12px", text: "« Annoncé » : probabilité moyenne du moteur au moment du pari ; « Arrivé » : part des sélections gagnées. Peu de paris : écarts encore peu significatifs." }));
 }

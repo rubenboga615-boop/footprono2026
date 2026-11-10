@@ -67,7 +67,7 @@ class SmartCouponScreen extends StatefulWidget {
     'UNL',
     'COPA',
   ];
-  static const targets = [10, 25, 50, 100];
+  static const targets = [5, 7, 10];
   static const hours = [(null, 'Toute heure'), (15, 'Après 15 h'), (18, 'Après 18 h'), (20, 'Après 20 h')];
   static const periods = [
     ('today', 'Aujourd\'hui'),
@@ -89,7 +89,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
   int period = 5; // Prochaine journée : jamais vide pendant une trêve
   int size = 3;
   int maxBig = AppState.maxCoupon; // Grosse cote : plafond de sélections
-  num target = 25; // le choix le plus courant (essai du 07/11/2026 : 50 coché d'office)
+  num target = 7; // cote visée de 2 à 10 (plan du 10/11/2026, étape 4)
   DateTime day = _today().add(const Duration(days: 1));
   DateTime? rangeTo;
   int hour = 0;
@@ -195,8 +195,8 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
         builder: (context, setLocal) {
           void submit() {
             final n = num.tryParse(ctrl.text.trim().replaceAll(',', '.'));
-            if (n == null || n < 2 || n > 1000) {
-              setLocal(() => error = 'Écris une cote entre 2 et 1000 (par exemple 15 ou 12,5).');
+            if (n == null || n < 2 || n > 10) {
+              setLocal(() => error = 'Écris une cote entre 2 et 10 (par exemple 4 ou 6,5).');
               return;
             }
             Navigator.pop(context, n);
@@ -211,7 +211,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
               onSubmitted: (_) => submit(),
               decoration: InputDecoration(
                 hintText: 'Actuelle : ${decimal(target)}',
-                helperText: error == null ? 'De 2 à 1000' : null,
+                helperText: error == null ? 'De 2 à 10' : null,
                 errorText: error,
                 errorMaxLines: 3,
               ),
@@ -329,13 +329,14 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
     );
   }
 
-  Future<void> _addToCoupon(List<Json> selections) async {
+  Future<void> _addToCoupon(List<Json> selections, {bool big = false}) async {
     setState(() => adding = 'Ajout…');
     final state = context.read<AppState>();
     try {
       await addSelectionsToCoupon(
         state,
         selections,
+        stake: big ? 500 : null,
         onProgress: (done, total) {
           if (mounted) setState(() => adding = 'Ajout $done / $total…');
         },
@@ -526,6 +527,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                               _sels(coupon),
                               coupon,
                               '${result?['profile_label'] ?? ''}',
+                              big: _big,
                             ),
                             child: const Text('Partager en image'),
                           ),
@@ -533,7 +535,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: FilledButton(
-                            onPressed: busy ? null : () => _addToCoupon(_sels(coupon)),
+                            onPressed: busy ? null : () => _addToCoupon(_sels(coupon), big: _big),
                             child: Text(adding ?? 'Ajouter au coupon'),
                           ),
                         ),
@@ -696,6 +698,13 @@ class _CouponCard extends StatelessWidget {
               if (rule != null) ...[
                 const SizedBox(height: 6),
                 Text(rule!, style: Fp.body(12, color: Fp.muted, height: 1.4)),
+              ],
+              if (big && p > 0) ...[
+                const SizedBox(height: 8),
+                Text(
+                  truthPhrase(p, double.parse('${coupon['total_odds']}')),
+                  style: Fp.body(13, weight: FontWeight.w700, height: 1.4),
+                ),
               ],
               if (big || sels.length >= 6) ...[
                 const SizedBox(height: 8),
@@ -1156,6 +1165,7 @@ String _selections(int n) => '$n sélection${n > 1 ? 's' : ''} ajoutée${n > 1 ?
 Future<void> addSelectionsToCoupon(
   AppState state,
   List<Json> selections, {
+  int? stake,
   void Function(int done, int total)? onProgress,
 }) async {
   // Match et cotes du moment de chaque sélection, tous demandés en même temps : l'un après
@@ -1175,7 +1185,11 @@ Future<void> addSelectionsToCoupon(
   var added = 0, missing = 0;
   try {
     // Ajoutées dans l'ordre du coupon proposé, une fois tout reçu.
-    for (final (match, offer) in await Future.wait(selections.map(load))) {
+    final loaded = await Future.wait(selections.map(load));
+    // Grosse cote : mise proposée de 500 F dans Mon coupon (plan du 10/11/2026, étape 4).
+    state.suggestedStake = stake;
+    if (stake != null) state.couponBig = true;
+    for (final (match, offer) in loaded) {
       if (offer == null) {
         missing++;
       } else if (!state.inCoupon(match.id, offer.key)) {
@@ -1233,9 +1247,10 @@ class _LockedPreview extends StatelessWidget {
         Loader<Json>(
           load: () async => await api.get('/smart-coupons/history') as Json,
           builder: (context, h, _) {
+            // Jamais d'exemple Grosse cote dans la vitrine (plan du 10/11/2026, étape 4).
             final settled = (h['coupons'] as List)
                 .cast<Json>()
-                .where((c) => c['status'] != 'pending')
+                .where((c) => c['status'] != 'pending' && c['profile'] != 'grosse')
                 .toList();
             // Revue du 07/11/2026 : toujours le dernier coupon (souvent le même profil, parfois
             // perdu) ; d'abord le bilan honnête de la semaine, puis un exemple qui change de

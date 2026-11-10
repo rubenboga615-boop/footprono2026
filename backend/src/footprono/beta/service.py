@@ -12,6 +12,7 @@ Règles (maquette validée le 06/11/2026) :
 import re
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import delete, func, select, update
@@ -111,6 +112,15 @@ async def record(session: AsyncSession, user: User, events: list[dict[str, Any]]
     return kept
 
 
+# Tranches de cote totale des paris pour le bilan de l'Observatoire.
+ODDS_BANDS: tuple[tuple[str, Decimal, Decimal], ...] = (
+    ("moins de 2", Decimal(0), Decimal(2)),
+    ("2 à 5", Decimal(2), Decimal(5)),
+    ("5 à 10", Decimal(5), Decimal(10)),
+    ("10 et plus", Decimal(10), Decimal("1e9")),
+)
+
+
 def _won(bet: Bet) -> bool:
     """Gagné : le pari rapporte plus que la mise (un pari réglé en partie peut perdre)."""
     return (bet.payout or 0) > bet.stake
@@ -186,11 +196,17 @@ async def observatory(session: AsyncSession, now: datetime | None = None) -> dic
     )  # fmt: skip
 
     markets: dict[str, list[float]] = defaultdict(lambda: [0, 0.0, 0, 0])  # n, Σp, n_p, gagnés
+    bet_probability: dict[int, float | None] = {b.id: 1.0 for b in bets}
     if bets:
         sels = await session.scalars(
             select(BetSelection).where(BetSelection.bet_id.in_([b.id for b in bets]))
         )
         for sel in sels:
+            known = bet_probability.get(sel.bet_id)
+            if known is not None and sel.result not in ("void",):
+                bet_probability[sel.bet_id] = (
+                    None if sel.model_probability is None else known * float(sel.model_probability)
+                )
             if sel.result not in ("win", "half_win", "loss", "half_loss"):
                 continue
             family = family_of(f"{sel.market}|{sel.line}|{sel.selection}")
@@ -209,6 +225,20 @@ async def observatory(session: AsyncSession, now: datetime | None = None) -> dic
         ),
         key=lambda x: -int(x["selections"] or 0),
     )  # fmt: skip
+
+    # Bilan par cote du coupon (plan du 10/11/2026, étape 4) : les grosses cotes à part.
+    band_rows = []
+    for label, low, high in ODDS_BANDS:
+        inside = [b for b in bets if low <= b.total_odds < high]
+        probs = [p for b in inside if (p := bet_probability.get(b.id)) is not None]
+        stake = sum(b.stake for b in inside)
+        band_rows.append({
+            "band": label, "bets": len(inside),
+            "announced": round(sum(probs) / len(probs), 4) if probs else None,
+            "observed": round(sum(_won(b) for b in inside) / len(inside), 4) if inside else None,
+            "return": round((sum(b.payout or 0 for b in inside) - stake) / stake, 4)
+            if stake else None,
+        })  # fmt: skip
 
     actions: defaultdict[str, int] = defaultdict(int)
     for e in events:
@@ -229,6 +259,7 @@ async def observatory(session: AsyncSession, now: datetime | None = None) -> dic
         },
         "screens": screens,
         "markets": market_rows,
+        "odds_bands": band_rows,
         "smart_coupons": {
             "composed": actions.get("coupon_compose", 0),
             "added": actions.get("coupon_add", 0),

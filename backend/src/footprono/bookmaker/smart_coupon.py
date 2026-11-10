@@ -84,7 +84,7 @@ PERIODS = {
 }
 TARGET_PROFILE = "grosse"
 TARGET_LABEL = "Grosse cote"
-TARGET_MIN, TARGET_MAX = Decimal("2"), Decimal("1000")
+TARGET_MIN, TARGET_MAX = Decimal("2"), Decimal("10")
 NEXT_ROUND_DAYS = 4  # vendredi → lundi
 MIN_SIZE, MAX_SIZE = 1, 12
 MAX_RANGE_DAYS = 14

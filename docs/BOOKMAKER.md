@@ -168,6 +168,25 @@ propose d'abord le moins de sélections.
 - **Grosse cote** : la sélection qui fait passer la cible est la plus petite cote suffisante
   parmi les 5 suivantes les plus probables (25 visé donnait 37,31).
 
+## Grosse cote encadrée (plan du 10/11/2026, étape 4)
+
+Proposition du 09/11/2026 (`docs/AUDIT_PROPOSITION_GROSSE_COTE_2026-11-09.md`) :
+
+- **Cote visée de 2 à 10** (`TARGET_MAX` dans `bookmaker/smart_coupon.py`) : au-delà, le
+  serveur répond 400 « cote visée : de 2 à 10 ». Application : boutons 5 · 7 · 10 (7 par
+  défaut) et « Autre… », qui refuse 12 avec « Écris une cote entre 2 et 10 ».
+- **Phrase de vérité** (`truthPhrase` dans `app/lib/format.dart`) sur le résultat, l'image
+  partagée et Mon coupon : « Environ 1 coupon sur N passe. Sur 10 coupons de 500 F comme
+  celui-ci (5 000 F misés), tu récupères en moyenne environ X F », X = 10 × mise × chance du
+  moteur × cote, arrondi à la centaine. Dans Mon coupon, la mise est celle saisie.
+- **Mise proposée de 500 F** dans Mon coupon quand le coupon vient de la Grosse cote.
+- **Vitrine Premium** : l'exemple du Coupon intelligent verrouillé n'est jamais un coupon
+  Grosse cote.
+- **Observatoire** : « Réussite par cote du coupon » (moins de 2, 2 à 5, 5 à 10, 10 et plus) :
+  paris, chance annoncée (produit des chances du moteur des sélections, sans les
+  sélections annulées), part gagnée, rendement. Dans un mois : décider s'il faut descendre
+  à 5 ou retirer le profil.
+
 ## Coupon intelligent : un coupon par joueur (07/11/2026)
 
 Proposition du 07/11/2026 (`docs/AUDIT_PROPOSITION_DIVERSITE_2026-11-07.md`) : avec le même

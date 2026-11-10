@@ -290,6 +290,13 @@ class _CouponScreenState extends State<CouponScreen> {
       _lastCount = items.length;
       if (items.isNotEmpty) WidgetsBinding.instance.addPostFrameCallback((_) => _loadSteps());
     }
+    final suggested = state.suggestedStake;
+    if (suggested != null) {
+      state.suggestedStake = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => stake.text = '$suggested');
+      });
+    }
     final me = state.me;
     final currency = me?.currency ?? 'XOF';
     final total = totalOdds(items);
@@ -388,6 +395,13 @@ class _CouponScreenState extends State<CouponScreen> {
                             'Selon la cote 1xBet : ${pct(1 / total)} (marge du bookmaker comprise)',
                             style: Fp.body(11.5, color: Fp.muted),
                           ),
+                          if (state.couponBig && modelProb != null && modelProb > 0 && amount > 0) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              truthPhrase(modelProb, total, stake: amount),
+                              style: Fp.body(12.5, weight: FontWeight.w700, height: 1.4),
+                            ),
+                          ],
                           const SizedBox(height: 4),
                           if (items.length >= 6)
                             Padding(

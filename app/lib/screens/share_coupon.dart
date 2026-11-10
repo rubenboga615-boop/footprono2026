@@ -15,7 +15,13 @@ import '../theme.dart';
 
 /// Aperçu du coupon en image (sélections, cotes, chances du moteur, « argent fictif »),
 /// puis partage. Aucune donnée personnelle sur l'image.
-Future<void> shareCoupon(BuildContext context, List<Json> sels, Json coupon, String profile) {
+Future<void> shareCoupon(
+  BuildContext context,
+  List<Json> sels,
+  Json coupon,
+  String profile, {
+  bool big = false,
+}) {
   final key = GlobalKey();
   return showModalBottomSheet<void>(
     context: context,
@@ -32,7 +38,7 @@ Future<void> shareCoupon(BuildContext context, List<Json> sels, Json coupon, Str
             const SizedBox(height: 12),
             RepaintBoundary(
               key: key,
-              child: CouponImage(sels: sels, coupon: coupon, profile: profile),
+              child: CouponImage(sels: sels, coupon: coupon, profile: profile, big: big),
             ),
             const SizedBox(height: 14),
             FilledButton.icon(
@@ -60,10 +66,19 @@ Future<void> shareCoupon(BuildContext context, List<Json> sels, Json coupon, Str
 }
 
 class CouponImage extends StatelessWidget {
-  const CouponImage({super.key, required this.sels, required this.coupon, required this.profile});
+  const CouponImage({
+    super.key,
+    required this.sels,
+    required this.coupon,
+    required this.profile,
+    this.big = false,
+  });
   final List<Json> sels;
   final Json coupon;
   final String profile;
+
+  /// Grosse cote : la phrase de vérité suit la cote et la chance (plan du 10/11/2026).
+  final bool big;
 
   @override
   Widget build(BuildContext context) {
@@ -153,6 +168,13 @@ class CouponImage extends StatelessWidget {
               ),
             ],
           ),
+          if (big && p > 0) ...[
+            const SizedBox(height: 8),
+            Text(
+              truthPhrase(p, double.parse('${coupon['total_odds']}')),
+              style: Fp.body(12, color: Fp.warning, height: 1.4),
+            ),
+          ],
           // Code 1xBet (coupons du jour) et adresse de FootProba : l'image partagée sur WhatsApp
           // sert à jouer le coupon et à faire venir de nouveaux joueurs (rapport du 07/11/2026).
           for (final b in ((coupon['booking_codes'] as List?) ?? const []).cast<Json>()) ...[

@@ -142,6 +142,16 @@ String chanceInWords(double p) {
   return 'environ ${(p * 10).round()} fois sur 10';
 }
 
+/// Phrase de vérité d'un coupon à grosse cote (plan du 10/11/2026, étape 4) : combien passent,
+/// et ce que rapportent en moyenne 10 coupons de [stake] F selon la chance du moteur.
+String truthPhrase(double p, double totalOdds, {int stake = 500}) {
+  if (p <= 0 || totalOdds <= 1) return '';
+  final back = (10 * stake * p * totalOdds / 100).round() * 100;
+  return 'Environ 1 coupon sur ${(1 / p).round()} passe. Sur 10 coupons de ${thousands(stake)} F '
+      'comme celui-ci (${thousands(10 * stake)} F misés), tu récupères en moyenne environ '
+      '${thousands(back)} F.';
+}
+
 /// Numéro lisible pour le recopier : « +225 05 00 64 99 04 » (indicatif, puis deux par deux).
 String groupedPhone(String number) {
   final digits = number.replaceAll(RegExp(r'[^0-9+]'), '');

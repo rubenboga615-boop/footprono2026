@@ -1117,11 +1117,16 @@ void main() {
     await tester.enterText(find.byType(TextField).last, 'abc');
     await tester.tap(find.text('Valider'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Écris une cote entre 2 et 1000'), findsOneWidget); // fenêtre gardée
+    expect(find.textContaining('Écris une cote entre 2 et 10'), findsOneWidget); // fenêtre gardée
+    // Cote visée de 2 à 10 (plan du 10/11/2026, étape 4).
     await tester.enterText(find.byType(TextField).last, '12,5');
     await tester.tap(find.text('Valider'));
     await tester.pumpAndSettle();
-    expect(find.text('Autre : 12,5'), findsOneWidget);
+    expect(find.textContaining('Écris une cote entre 2 et 10'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).last, '6,5');
+    await tester.tap(find.text('Valider'));
+    await tester.pumpAndSettle();
+    expect(find.text('Autre : 6,5'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Composer le coupon'));
     await tester.tap(find.text('Composer le coupon'));
@@ -1285,7 +1290,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Grosse cote'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('25'));
+    expect(find.text('25'), findsNothing); // cotes visées de 2 à 10
+    await tester.tap(find.text('5'));
     await tester.tap(find.text('Plus de réglages'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Après 18 h'));
@@ -1299,10 +1305,16 @@ void main() {
       'profile': 'grosse',
       'period': 'next',
       'size': '12',
-      'target_odds': '25',
+      'target_odds': '5',
       'after_hour': '18',
     });
     expect(find.textContaining('environ 6 fois sur 10'), findsOneWidget); // probabilité 0,62
+    // Phrase de vérité : 10 × 500 F × 0,62 × 1,85 = 5 735 F, arrondi à la centaine.
+    final truth = find.text(
+      'Environ 1 coupon sur 2 passe. Sur 10 coupons de 500 F comme celui-ci (5\u00a0000 F misés), '
+      'tu récupères en moyenne environ 5\u00a0700 F.',
+    );
+    expect(truth, findsOneWidget);
     expect(find.textContaining('Coupon à gros risque'), findsOneWidget);
     // Règle du coupon expliquée (cotes reçues en texte, comme du serveur).
     expect(find.textContaining('jusqu\'à dépasser la cote visée'), findsOneWidget);
@@ -1336,10 +1348,25 @@ void main() {
     await tester.tap(find.text('Partager en image'));
     await tester.pumpAndSettle();
     expect(find.text('Chances du moteur'), findsOneWidget);
+    expect(truth, findsNWidgets(2)); // résultat et image partagée
     expect(
       find.text('Probabilités calculées par FootProba. Argent fictif : aucun gain réel.'),
       findsOneWidget,
     );
+    Navigator.of(tester.element(find.text('Chances du moteur'))).pop();
+    await tester.pumpAndSettle();
+
+    // Ajouté au coupon : mise proposée de 500 F et phrase de vérité dans Mon coupon.
+    await tester.ensureVisible(find.text('Ajouter au coupon'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ajouter au coupon'));
+    await tester.pumpAndSettle();
+    expect(state.coupon, hasLength(1));
+    expect(state.couponBig, isTrue);
+    await tester.tap(find.text('Voir mon coupon'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, '500'), findsOneWidget);
+    expect(find.textContaining('Sur 10 coupons de 500 F'), findsOneWidget);
   });
 
   testWidgets('match : choix du moteur, deux sélections du même match à départager', (tester) async {
