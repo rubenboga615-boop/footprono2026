@@ -654,20 +654,28 @@ async def backfill_details(
     if settings.api_football_key is None:
         return {"status": "unavailable", "error": "FP_API_FOOTBALL_KEY absente"}
     done = select(LiveSnapshot.id).where(LiveSnapshot.match_id == Match.id).exists()
+
+    def missing(query: Any) -> Any:
+        query = query.where(
+            Match.status == MatchStatus.FINISHED, Match.api_football_id.is_not(None), ~done
+        )
+        if competition:
+            query = (
+                query.join(Season, Season.id == Match.season_id)
+                .join(Competition, Competition.id == Season.competition_id)
+                .where(Competition.code == competition)
+            )
+        return query
+
     query = (
-        select(Match.api_football_id, Match.id)
-        .where(Match.status == MatchStatus.FINISHED, Match.api_football_id.is_not(None), ~done)
+        missing(select(Match.api_football_id, Match.id))
         .order_by(Match.kickoff_at.desc().nulls_last(), Match.match_date.desc())
         .limit(max_requests * IDS_PER_REQUEST)
     )
-    if competition:
-        query = (
-            query.join(Season, Season.id == Match.season_id)
-            .join(Competition, Competition.id == Season.competition_id)
-            .where(Competition.code == competition)
-        )
     todo = {a: m for a, m in (await session.execute(query)).tuples() if a is not None}
-    report: dict[str, Any] = {"status": "ok", "matches": 0, "requests": 0, "empty": 0}
+    report: dict[str, Any] = {
+        "status": "ok", "matches": 0, "requests": 0, "empty": 0, "not_returned": 0,
+    }  # fmt: skip
     total = details.Stored()
     now = datetime.now(UTC)
     async with api_football.ApiFootballClient(
@@ -693,6 +701,8 @@ async def backfill_details(
                 f"details/{now:%Y%m%dT%H%M%S}-{start // IDS_PER_REQUEST}.json",
                 json.dumps({"fixtures": items}).encode(),
             )
+            returned = {int(item.get("fixture", {}).get("id") or 0) for item in items}
+            report["not_returned"] += len(set(chunk) - returned)
             for item in items:
                 match_id = todo.get(int(item.get("fixture", {}).get("id") or 0))
                 if match_id is None:
@@ -704,7 +714,10 @@ async def backfill_details(
             await session.commit()
             progress(f"{report['matches']} matchs complétés ({client.used} requêtes)")
         report["requests"] = client.used
-    report["left"] = max(0, len(todo) - report["matches"])
+    # Ce qui reste en tout (pas seulement dans ce lot) : 0 = tout est complet.
+    report["left"] = int(
+        await session.scalar(missing(select(func.count()).select_from(Match))) or 0
+    )
     report["stored"] = total.summary()
     report["stat_types"] = sorted(total.stat_types)
     return report

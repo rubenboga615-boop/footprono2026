@@ -1019,10 +1019,19 @@ async def details_backfill(ctx: JobContext, params: dict[str, Any]) -> str:
         ctx.log(f"Arrêt : {out['stopped']}")
     if out["empty"]:
         ctx.log(f"{out['empty']} matchs sans événements ni compositions chez API-Football")
+    if out.get("not_returned"):
+        ctx.log(
+            f"{out['not_returned']} matchs non renvoyés par API-Football : ils restent comptés "
+            "dans « il en reste » et seront redemandés au prochain lancement"
+        )
     ctx.log(f"Statistiques rencontrées : {', '.join(out['stat_types']) or 'aucune'}")
     return (
         f"{out['matches']} matchs complétés ({out['requests']} requêtes) : {out['stored']} ; "
-        f"il en reste {out['left']} dans cette sélection"
+        + (
+            "tout est complet"
+            if out["left"] == 0
+            else f"il en reste {out['left']} en tout (environ {-(-out['left'] // 20)} requêtes)"
+        )
     )
 
 

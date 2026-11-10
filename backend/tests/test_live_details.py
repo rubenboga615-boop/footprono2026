@@ -238,7 +238,8 @@ async def test_backfill_finished_matches_then_probe(
         report = await backfill_details(session, settings, competition="EPL", max_requests=5)
     assert report["status"] == "ok", report
     assert (report["matches"], report["requests"], report["empty"]) == (2, 1, 1)
-    assert report["left"] == 0
+    assert report["left"] == 0  # tout est complet (en tout, pas seulement ce lot)
+    assert report["not_returned"] == 0
     async with db_factory() as session:
         assert await _count(session, MatchEvent, ids[0]) == 3
         assert await _count(session, LiveSnapshot, ids[1]) == 1  # match sans détails : marqué
