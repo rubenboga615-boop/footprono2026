@@ -19,12 +19,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono import __version__
 from footprono.accounts.models import User
+from footprono.bookmaker.models import Bet, BetSelection
 from footprono.bookmaker.smart_coupon import BOOKING_BOOKMAKERS
 from footprono.bookmaker.smart_models import SmartCoupon
 from footprono.console.jobs import list_jobs
 from footprono.console.runs import recent_runs
 from footprono.core.config import Settings
-from footprono.football.models import BookmakerOdds, IngestionRun
+from footprono.football.models import BookmakerOdds, IngestionRun, Match, MatchStatus, Team
 from footprono.ingestion.sources import api_football
 from footprono.payments.models import Payment
 from footprono.predictions.models import PredictionRun
@@ -38,6 +39,47 @@ HEARTBEATS = {
     "kickoff_reminders": timedelta(minutes=30),
 }
 QUOTA_TTL = 600  # /status ne coûte pas de requête, mais inutile de l'appeler à chaque page
+
+
+async def _unfollowed_matches(session: AsyncSession) -> list[str]:
+    """Matchs pas encore joués d'un pari ouvert ou d'un Coupon du jour en attente, sans
+    numéro API-Football (donc sans suivi en direct ni règlement le jour même)."""
+    ids = set(
+        (
+            await session.scalars(
+                select(BetSelection.match_id)
+                .join(Bet, Bet.id == BetSelection.bet_id)
+                .where(Bet.status == "open")
+            )
+        ).all()
+    )
+    for coupon in (
+        await session.scalars(select(SmartCoupon).where(SmartCoupon.status == "pending"))
+    ).all():
+        ids.update(int(sel["match_id"]) for sel in coupon.selections)
+    if not ids:
+        return []
+    rows = (
+        await session.scalars(
+            select(Match).where(
+                Match.id.in_(ids),
+                Match.api_football_id.is_(None),
+                Match.status != MatchStatus.FINISHED,
+            )
+        )
+    ).all()
+    names = dict(
+        (
+            await session.execute(
+                select(Team.id, Team.name).where(
+                    Team.id.in_({m.home_team_id for m in rows} | {m.away_team_id for m in rows})
+                )
+            )
+        )
+        .tuples()
+        .all()
+    )
+    return [f"{names.get(m.home_team_id, '?')} - {names.get(m.away_team_id, '?')}" for m in rows]
 
 
 async def api_quota(
@@ -263,6 +305,18 @@ async def dashboard(session: AsyncSession, redis: Redis, settings: Settings) -> 
                         f"(depuis le {last:%d/%m à %H:%M} GMT)",
                     }
                 )
+    unfollowed = await _unfollowed_matches(session)
+    if unfollowed:
+        # Rapport du 09/11/2026 : un Coupon du jour réglé 24 h en retard. Sans numéro
+        # API-Football, un match n'est pas suivi en direct : son résultat n'arrive que le
+        # lendemain (football-data). « Collecter l'historique API-Football » les relie.
+        todo.append(
+            {
+                "level": "warning",
+                "text": f"{len(unfollowed)} match(s) de paris ou de coupons en cours sans suivi "
+                "en direct (résultat seulement le lendemain) : " + ", ".join(unfollowed[:5]),
+            }
+        )
     if last_odds is None or now - last_odds > timedelta(hours=7):
         todo.append(
             {

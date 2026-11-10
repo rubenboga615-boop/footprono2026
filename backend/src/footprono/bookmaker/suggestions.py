@@ -27,6 +27,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.bookmaker import playable, service, smart_coupon
+from footprono.bookmaker.odds_math import combined_odds
 from footprono.bookmaker.rules import automatic
 from footprono.football.models import Match, MatchStatus
 
@@ -76,12 +77,10 @@ async def _candidates(
 
 
 def _describe(combo: tuple[Candidate, ...]) -> dict[str, Any]:
-    total = Decimal(1)
     probability = 1.0
     for c in combo:
-        total *= c.offer.odds
         probability *= c.probability
-    total = total.quantize(Decimal("0.001"))
+    total = combined_odds(c.offer.odds for c in combo)
     implied = float(1 / total)
     return {
         "selections": [
@@ -137,10 +136,7 @@ def rank(
     def consider(combo: tuple[Candidate, ...]) -> None:
         if len({c.match_id for c in combo}) != len(combo):
             return  # jamais deux sélections du même match (elles sont liées)
-        total = Decimal(1)
-        for c in combo:
-            total *= c.offer.odds
-        total = total.quantize(Decimal("0.001"))
+        total = combined_odds(c.offer.odds for c in combo)
         if low <= total <= high:
             # Cote la plus basse, moins de sélections, match le plus proche.
             found.append(((total, len(combo), min(c.kickoff_at for c in combo)), combo))

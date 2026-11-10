@@ -25,6 +25,7 @@ from footprono.core.config import Settings
 from footprono.football.models import Competition, DataSource, Match, MatchStatus, Team, TeamAlias
 from footprono.ingestion import service
 from footprono.ingestion.loader import season_id
+from footprono.ingestion.nation_names import french_name
 from footprono.ingestion.reference import CUP_ARCHIVE_DIRS, CUPS, CUPS_BY_CODE, cup_season
 from footprono.ingestion.sources import api_football
 
@@ -108,8 +109,10 @@ async def _team_ids(
         if team_id is None and by_name:
             team_id = aliases.get(name) or names.get(name)
         if team_id is None:
+            # Sélection nationale : nom français (« Écosse », pas « Scotland »).
+            shown = name if by_name else french_name(name)
             # Nom déjà pris (club homonyme) : la sélection est créée avec un nom distinct.
-            label = name if name not in names else f"{name} ({country})"
+            label = shown if shown not in names else f"{shown} ({country})"
             team_id = await session.scalar(
                 insert(Team).values(name=label, country=country).returning(Team.id)
             )

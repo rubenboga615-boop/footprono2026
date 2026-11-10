@@ -36,13 +36,14 @@ from decimal import Decimal
 from typing import Any
 
 from redis.asyncio import Redis
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from footprono.accounts.models import User
 from footprono.bookmaker import playable, service, settlement
 from footprono.bookmaker.models import BetSelection
+from footprono.bookmaker.odds_math import combined_odds, shown_odds
 from footprono.bookmaker.rules import automatic
 from footprono.bookmaker.smart_models import SmartCoupon
 from footprono.core.errors import AppError, NotFoundError
@@ -514,11 +515,11 @@ def selection_summary(pick: Pick) -> dict[str, Any]:
 
 
 def summarize(selections: list[Pick]) -> tuple[Decimal, float]:
-    total, probability = Decimal(1), 1.0
+    probability = 1.0
     for pk in selections:
-        total *= pk.offer.odds
         probability *= pk.probability
-    return total.quantize(Decimal("0.01")), probability
+    # Même arrondi que la fiche du pari (bookmaker/odds_math.py).
+    return shown_odds(combined_odds(pk.offer.odds for pk in selections)), probability
 
 
 async def generate(
@@ -863,16 +864,37 @@ async def history(
             select(SmartCoupon).where(SmartCoupon.status.in_(("won", "lost", "partial")))
         )
     ).all()
+    shown = rows[:limit]
+    # Score de chaque sélection (rapport du 09/11/2026 : seulement « Gagné / Perdu »).
+    ids = {sel["match_id"] for c in shown for sel in c.selections}
+    matches = (
+        {m.id: m for m in (await session.scalars(select(Match).where(Match.id.in_(ids)))).all()}
+        if ids
+        else {}
+    )
+    counts = await settlement.finished_counts(
+        session,
+        [(matches[sel["match_id"]], sel["market"]) for c in shown for sel in c.selections
+         if sel["match_id"] in matches],
+    )  # fmt: skip
+    first_day = await session.scalar(select(func.min(SmartCoupon.day)))
     return {
         "stats": _profile_record(done),
         "has_more": len(rows) > limit,
+        "first_day": first_day,
+        "days": _days_without(shown, first_day if len(rows) <= limit else None),
         "coupons": [
             {
                 "id": c.id,
                 "day": c.day,
                 "profile": c.profile,
                 "profile_label": PROFILES[c.profile].label,
-                "selections": [] if _locked(c, premium) else c.selections,
+                "selections": []
+                if _locked(c, premium)
+                else [
+                    {**sel, **live_state(sel, matches.get(sel["match_id"]), counts)}
+                    for sel in c.selections
+                ],
                 "selection_count": len(c.selections),
                 "locked": _locked(c, premium),
                 "total_odds": c.total_odds,
@@ -880,9 +902,29 @@ async def history(
                 "status": c.status,
                 "settled_at": c.settled_at,
             }
-            for c in rows[:limit]
+            for c in shown
         ],
     }
+
+
+def _days_without(coupons: Sequence[SmartCoupon], first_day: date | None) -> list[dict[str, Any]]:
+    """Jours de la page sans coupon pour un ou plusieurs profils (rapport du 09/11/2026 :
+    rien ne disait qu'un jour entier manquait, le joueur croyait à un oubli). Du plus récent
+    au plus ancien ; ``first_day`` (dernière page) : jusqu'au tout premier jour."""
+    if not coupons:
+        return []
+    by_day: dict[date, set[str]] = {}
+    for c in coupons:
+        by_day.setdefault(c.day, set()).add(c.profile)
+    newest, oldest = max(by_day), first_day or min(by_day)
+    out = []
+    day = newest
+    while day >= oldest:
+        missing = [PROFILES[p].label for p in DAILY_RULES if p not in by_day.get(day, set())]
+        if missing:
+            out.append({"day": day, "missing": missing, "none": len(missing) == len(DAILY_RULES)})
+        day -= timedelta(days=1)
+    return out
 
 
 # Bookmakers dont l'administrateur peut saisir le code de réservation d'un coupon.
@@ -1007,7 +1049,11 @@ async def day_coupons(
     recent = (
         await session.scalars(
             select(SmartCoupon).where(
-                SmartCoupon.day >= today - timedelta(days=30), SmartCoupon.day < today
+                # Aujourd'hui compris : un coupon réglé aujourd'hui compte tout de suite, comme
+                # dans le bilan depuis le lancement (rapport du 09/11/2026 : 4 sur 6 ici,
+                # 5 sur 7 là-bas pour la même période).
+                SmartCoupon.day >= today - timedelta(days=30),
+                SmartCoupon.day <= today,
             )
         )
     ).all()

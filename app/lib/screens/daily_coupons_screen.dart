@@ -250,7 +250,7 @@ class _DailyCouponCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  '$count sélection${count > 1 ? 's' : ''} · cote ${odds(c['total_odds'])}',
+                  '${count == 1 ? 'Un seul pari ce jour-là' : '$count sélections'} · cote ${odds(c['total_odds'])}',
                   style: Fp.body(14.5, weight: FontWeight.w800),
                 ),
               ),
@@ -295,15 +295,7 @@ class _DailyCouponCard extends StatelessWidget {
               ],
             )
           else if (codes.isEmpty && !_over(c))
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0x66000000),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0x52A78BFA)),
-              ),
-              child: Text('Code bientôt disponible', style: Fp.body(12.5, color: Fp.text2)),
-            )
+            NoCodeYet((c['selections'] as List).cast<Json>())
           else
             for (final b in codes) BookingCodeRow(b),
         ],
@@ -367,6 +359,52 @@ class BookingCodeRow extends StatelessWidget {
   }
 }
 
+/// Pas encore de code 1xBet (saisi à la main chaque matin) : les sélections à reproduire,
+/// copiables d'un geste (rapport du 09/11/2026 : aucun code sur 16 coupons, le joueur
+/// restait sans rien).
+class NoCodeYet extends StatelessWidget {
+  const NoCodeYet(this.selections, {super.key});
+  final List<Json> selections;
+
+  String get text => [
+    for (final s in selections)
+      '${s['home']} - ${s['away']} : '
+          '${fullLabel(s['market'] as String, (s['line'] ?? '') as String, s['selection'] as String, home: s['home'] as String, away: s['away'] as String)}'
+          ' (${odds(s['odds'])})',
+  ].join('\n');
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: Fp.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Fp.line12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Code bientôt disponible. En attendant, copie les sélections pour 1xBet.',
+              style: Fp.body(12.5, color: Fp.muted, height: 1.35),
+            ),
+          ),
+          if (selections.isNotEmpty)
+            IconButton(
+              tooltip: 'Copier les sélections',
+              icon: const Icon(Icons.copy_rounded, size: 18, color: Fp.lilac),
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: text));
+                showMessage('Sélections copiées : colle-les dans tes notes ou dans 1xBet.');
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Détail d'un coupon du jour : chaque sélection et son état, le code, le partage.
 class DailyCouponDetail extends StatelessWidget {
   const DailyCouponDetail({super.key, required this.coupon});
@@ -396,7 +434,7 @@ class DailyCouponDetail extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (codes.isEmpty && !_over(coupon))
-                    Text('Code bientôt disponible.', style: Fp.body(13, color: Fp.text3))
+                    NoCodeYet(sels)
                   else
                     for (final b in codes) BookingCodeRow(b),
                   const SizedBox(height: 8),

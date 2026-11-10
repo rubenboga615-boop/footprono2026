@@ -22,9 +22,10 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.core.config import Settings
-from footprono.football.models import Competition, DataSource, Match, Season, TeamAlias
+from footprono.football.models import Competition, DataSource, Match, Season, Team, TeamAlias
 from footprono.ingestion import service
 from footprono.ingestion.cups import CupFixture, load_cup_fixtures
+from footprono.ingestion.nation_names import french_name
 from footprono.ingestion.reference import NATIONS, NATIONS_BY_CODE, nation_neutral
 from footprono.ingestion.sources import api_football
 
@@ -47,6 +48,31 @@ async def sync_nations(session: AsyncSession) -> None:
             .values(**values)
             .on_conflict_do_update(index_elements=["code"], set_=values)
         )
+    await rename_nations(session)
+
+
+async def rename_nations(session: AsyncSession) -> int:
+    """Sélections déjà en base nommées en français (« Scotland » → « Écosse ») ; renvoie le
+    nombre de renommées. Rattachement par numéro API-Football : rien d'autre ne change."""
+    suffix = f" ({NATION_COUNTRY})"
+    teams = (await session.scalars(select(Team).where(Team.country == NATION_COUNTRY))).all()
+    taken = set((await session.scalars(select(Team.name))).all())
+    renamed = 0
+    for team in teams:
+        base = team.name.removesuffix(suffix)
+        wanted = french_name(base)
+        if wanted == base:
+            continue
+        name = wanted if wanted not in taken else f"{wanted}{suffix}"
+        if name in taken:
+            continue
+        taken.discard(team.name)
+        team.name = name
+        taken.add(name)
+        renamed += 1
+    if renamed:
+        await session.flush()
+    return renamed
 
 
 def _neutral(code: str) -> Callable[[CupFixture], bool]:

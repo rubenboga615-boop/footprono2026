@@ -43,10 +43,12 @@ String decimal(Object? value, {int max = 2}) {
   return s.replaceAll('.', ',');
 }
 
-/// Cote à deux décimales : « 1,60 ».
+/// Cote à deux décimales : « 1,60 », arrondie au plus proche comme le serveur
+/// (bookmaker/odds_math.py) : 1,835 → 1,84 (rapport du 09/11/2026 : « 1,83 », car 1,835
+/// s'écrit 1,83499… en machine).
 String odds(Object? value) {
   final d = value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
-  return d.toStringAsFixed(2).replaceAll('.', ',');
+  return ((d * 100 + (d >= 0 ? 1e-6 : -1e-6)).round() / 100).toStringAsFixed(2).replaceAll('.', ',');
 }
 
 /// Ligne d'un marché : « 2.5 » → « 2,5 », « -0.25 » → « −0,25 ».

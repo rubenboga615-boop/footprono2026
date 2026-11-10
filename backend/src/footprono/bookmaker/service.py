@@ -22,6 +22,7 @@ from footprono.accounts import service as accounts
 from footprono.accounts.models import User
 from footprono.accounts.plans import require_market
 from footprono.bookmaker.models import Bet, BetSelection
+from footprono.bookmaker.odds_math import combined_odds
 from footprono.core.errors import AppError, NotFoundError
 from footprono.engine.markets import WITHDRAWN_MARKETS, Selection
 from footprono.football.models import BookmakerOdds, Match, MatchStatus
@@ -256,10 +257,7 @@ async def place_bet(
         probs = await model_probabilities(session, s.match_id)
         chosen.append((s, offer, probs.get(key(s.market, s.line, s.selection))))
 
-    total = Decimal(1)
-    for _, offer, _ in chosen:
-        total *= offer.odds
-    total = total.quantize(Decimal("0.001"))
+    total = combined_odds(offer.odds for _, offer, _ in chosen)
     bet = Bet(
         user_id=user.id,
         kind="single" if len(chosen) == 1 else "combo",

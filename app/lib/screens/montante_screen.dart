@@ -1244,6 +1244,7 @@ class SuggestionsScreen extends StatefulWidget {
 
 class _SuggestionsScreenState extends State<SuggestionsScreen> {
   int get montanteId => widget.montanteId;
+  bool showAnyway = false;
 
   /// Demandé une seule fois : le calcul étudie toute la période (plusieurs secondes).
   late final Future<(Json, Map<int, MatchInfo>)> _loading = _load(context.read<AppState>().api);
@@ -1338,6 +1339,7 @@ class _SuggestionsScreenState extends State<SuggestionsScreen> {
             final list = (data['suggestions'] as List).cast<Json>();
             final stake = data['stake'] as int;
             final lo = double.parse('${data['odds_min']}'), hi = double.parse('${data['odds_max']}');
+            final allBelow = list.isNotEmpty && list.every((s) => s['engine_below_odds'] == true);
             return ListView(
               padding: padding,
               children: [
@@ -1350,13 +1352,40 @@ class _SuggestionsScreenState extends State<SuggestionsScreen> {
                   'basse d\'abord',
                   style: Fp.body(13.5, color: Fp.muted, height: 1.4),
                 ),
+                // Rapport du 09/11/2026 (trêve internationale) : quand le moteur juge chaque
+                // suggestion moins probable que la cote ne le dit, le dire avant tout.
+                if (allBelow) ...[
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1F1709),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFF6B4F1D)),
+                    ),
+                    child: Text(
+                      'Rien de bon pour ce palier aujourd\'hui : pour chaque pari de la plage, le moteur '
+                      'est moins confiant que la cote. Un joueur prudent attend d\'autres matchs ; ta '
+                      'montante ne bouge pas tant que tu ne joues pas.',
+                      style: Fp.body(13.5, color: Fp.warning, height: 1.4),
+                    ),
+                  ),
+                  if (!showAnyway)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        onPressed: () => setState(() => showAnyway = true),
+                        child: Text('Voir quand même les ${list.length} paris ›'),
+                      ),
+                    ),
+                ],
                 if (list.isEmpty)
                   const EmptyState(
                     'Aucun pari avec une cote réelle dans cette plage pour l\'instant. Les matchs déjà pris '
                     'par tes autres montantes en cours sont écartés : ton risque reste réparti.',
                     icon: Icons.search_off_rounded,
                   )
-                else
+                else if (!allBelow || showAnyway)
                   MCard(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
                     child: Column(

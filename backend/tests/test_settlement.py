@@ -371,3 +371,38 @@ async def test_bet_settled_during_the_match_from_settled_snapshots(
         await session.execute(update(Match).where(Match.id == world["m1"]).values(api_status="ET"))
         await session.commit()
         assert await grade_selection(session, sel("OU", "3.5", "under"), later) is None
+
+
+def test_same_odds_rounding_everywhere() -> None:
+    """Rapport du 09/11/2026 : même coupon affiché 1,84 puis 1,83."""
+    from footprono.bookmaker.odds_math import combined_odds, shown_odds
+
+    total = combined_odds([Decimal("1.20"), Decimal("1.15"), Decimal("1.33")])
+    assert total == Decimal("1.835")
+    assert shown_odds(total) == Decimal("1.84")
+    assert shown_odds(combined_odds([Decimal("1.25"), Decimal("1.46")])) == Decimal("1.83")
+
+
+async def test_console_warns_about_bet_matches_without_live_follow(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    """Rapport du 09/11/2026 : un coupon réglé 24 h en retard. Un match de pari sans numéro
+    API-Football n'est pas suivi en direct : la console le signale."""
+    from footprono.console.dashboard import _unfollowed_matches
+
+    headers = await _login(client)
+    await client.post(
+        "/api/v1/bets",
+        json={"stake": 1_000, "selections": [_sel(world["m1"], "1X2", "home")]},
+        headers=headers,
+    )
+    async with db_factory() as session:
+        await session.execute(
+            update(Match).where(Match.id == world["m1"]).values(api_football_id=None)
+        )
+        await session.commit()
+        names = await _unfollowed_matches(session)
+    assert len(names) == 1
+    assert " - " in names[0]

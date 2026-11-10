@@ -306,7 +306,7 @@ class _AuthScreenState extends State<AuthScreen> {
       'Les vraies chances de chaque pari',
       'Un combiné de 8 matchs passe environ 1 fois sur 60. Tu le sais avant de miser.',
     ),
-    ('3 coupons prêts chaque matin', 'Sûr, Équilibré, Audacieux, avec le code 1xBet à coller.'),
+    ('3 coupons prêts chaque matin', 'Sûr, Équilibré, Audacieux, à reproduire dans 1xBet en un geste.'),
     ('Un bilan public, sans tri', 'Tous les coupons publiés, gagnés et perdus.'),
     ('Des outils pour garder le contrôle', 'Montante planifiée, bilan de tes paris, alertes.'),
   ];

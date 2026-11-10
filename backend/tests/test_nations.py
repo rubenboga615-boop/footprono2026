@@ -54,7 +54,9 @@ async def test_nations_loaded_apart_from_clubs(db_factory: Factory, client: Asyn
     async with db_factory() as session:
         await sync_reference(session)
         await nations.sync_nations(session)
-        session.add(Team(name="Brazil", country="Brazil"))  # club homonyme
+        session.add(Team(name="Brésil", country="Brazil"))  # club homonyme du nom français
+        # Sélection déjà en base sous son nom anglais (avant le 10/11/2026) : renommée.
+        session.add(Team(name="Scotland", country=nations.NATION_COUNTRY))
         await session.commit()
         before = len(await load_history(session))
 
@@ -75,8 +77,14 @@ async def test_nations_loaded_apart_from_clubs(db_factory: Factory, client: Asyn
         rows = {m.api_football_id: m for m in (await session.scalars(select(Match))).all()}
         assert rows[1].neutral is True  # Coupe du Monde 2022 au Qatar
         assert rows[3].neutral is False  # amical : le Brésil reçoit
-        club = await session.scalar(select(Team).where(Team.name == "Brazil"))
-        selection = await session.scalar(select(Team).where(Team.name == "Brazil (Sélections)"))
+        club = await session.scalar(select(Team).where(Team.name == "Brésil"))
+        # Nom français (rapport du 09/11/2026), distinct du club homonyme.
+        selection = await session.scalar(select(Team).where(Team.name == "Brésil (Sélections)"))
+        names = set((await session.scalars(select(Team.name))).all())
+        assert {"Argentine", "Côte d'Ivoire", "Nigeria"} <= names
+        assert "Argentina" not in names
+        await nations.sync_nations(session)
+        assert await session.scalar(select(func.count()).where(Team.name == "Écosse")) == 1
         assert club is not None
         assert selection is not None
         assert rows[1].home_team_id == selection.id  # jamais le club homonyme

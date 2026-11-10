@@ -649,3 +649,30 @@ def test_each_player_gets_a_near_best_coupon_and_not_all_the_same() -> None:
         smart_coupon.vary(lonely, 3, smart_coupon.player_rng(1, day, "equilibre", 0))[0]
         == lonely[:3]
     )
+
+
+async def test_history_says_which_days_had_no_coupon(
+    client: AsyncClient, db_factory: Factory
+) -> None:
+    """Rapport du 09/11/2026 : un jour sans coupon passait pour un oubli ; et le premier
+    jour de l'historique n'était pas indiqué."""
+    today = NOW.date()
+    async with db_factory() as session:
+        for back, profiles in ((1, ("sur",)), (3, ("sur", "equilibre", "audacieux"))):
+            for profile in profiles:
+                session.add(
+                    SmartCoupon(
+                        day=today - timedelta(days=back), profile=profile, size=0,
+                        selections=[], total_odds=Decimal("1.50"), probability=0.6,
+                        status="lost",
+                    )
+                )  # fmt: skip
+        await session.commit()
+    history = (await client.get("/api/v1/smart-coupons/history")).json()
+    assert history["first_day"] == str(today - timedelta(days=3))
+    assert history["days"] == [
+        {"day": str(today - timedelta(days=1)), "missing": ["Équilibré", "Audacieux"],
+         "none": False},
+        {"day": str(today - timedelta(days=2)), "missing": ["Sûr", "Équilibré", "Audacieux"],
+         "none": True},
+    ]  # fmt: skip

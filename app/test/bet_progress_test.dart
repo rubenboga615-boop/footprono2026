@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footprono/api/models.dart';
+import 'package:footprono/format.dart';
 import 'package:footprono/labels.dart';
 import 'package:footprono/screens/bookmaker_screen.dart';
 
@@ -57,5 +58,11 @@ void main() {
       fullLabel('TEAM_OU_AWAY', '1.5', 'under', home: 'Silkeborg', away: 'Lyngby'),
       'Buts de Lyngby · Moins de 1,5 but',
     );
+  });
+
+  test('cote arrondie au plus proche, comme le serveur', () {
+    expect(odds('1.835'), '1,84');
+    expect(odds(1.825), '1,83');
+    expect(odds('1.60'), '1,60');
   });
 }

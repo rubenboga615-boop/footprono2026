@@ -340,10 +340,16 @@ class _BetRow extends StatelessWidget {
         context: context,
         isScrollControlled: true,
         showDragHandle: true,
+        // Rapport du 09/11/2026 : un pari de 7 sélections ne tenait pas, sans signe qu'on
+        // pouvait faire défiler. Fiche jusqu'à 90 % de l'écran, barre de défilement visible.
+        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.9),
         builder: (_) => SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-            child: BetCard(bet: b, plain: true),
+          child: _ScrollHint(
+            child: (controller) => SingleChildScrollView(
+              controller: controller,
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+              child: BetCard(bet: b, plain: true),
+            ),
           ),
         ),
       ),
@@ -436,6 +442,73 @@ String scoreText(String market, List<int?>? score, List<int>? count, String? cou
 
 bool isCountMarket(String market) =>
     const ['CORNERS', 'CARDS', 'SHOTS', 'SOT', 'BOOKING'].contains(market.split('_').first);
+
+/// Défilement signalé : barre toujours visible et « Faire défiler ↓ » tant que le bas de la
+/// fiche n'est pas atteint.
+class _ScrollHint extends StatefulWidget {
+  const _ScrollHint({required this.child});
+  final Widget Function(ScrollController controller) child;
+
+  @override
+  State<_ScrollHint> createState() => _ScrollHintState();
+}
+
+class _ScrollHintState extends State<_ScrollHint> {
+  final controller = ScrollController();
+  bool more = false;
+
+  void _check() {
+    if (!controller.hasClients) return;
+    final position = controller.position;
+    final value = position.extentAfter > 24;
+    if (value != more) setState(() => more = value);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    controller.addListener(_check);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Scrollbar(controller: controller, thumbVisibility: true, child: widget.child(controller)),
+        if (more)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              child: Container(
+                padding: const EdgeInsets.only(top: 28, bottom: 8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Fp.card.withValues(alpha: 0), Fp.card],
+                  ),
+                ),
+                child: Text(
+                  'Faire défiler ↓',
+                  textAlign: TextAlign.center,
+                  style: Fp.body(12.5, color: Fp.lilac, weight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
 
 /// « Gagnante pour l'instant » : la sélection réglée sur le score actuel (maquette C7).
 String? nowLabel(BetSel s) => switch (s.now) {

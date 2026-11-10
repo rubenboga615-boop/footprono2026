@@ -1781,7 +1781,7 @@ void main() {
     expect(find.text('17 gagnés sur 30'), findsOneWidget);
     expect(find.text('Chance annoncée 27$nbsp% · réalisé 27$nbsp%'), findsOneWidget);
     // Coupon perdu sans code : plus de « bientôt disponible » (essai du 07/11/2026).
-    expect(find.text('Code bientôt disponible'), findsOneWidget);
+    expect(find.textContaining('Code bientôt disponible'), findsOneWidget);
     expect(find.text('Perdu'), findsOneWidget);
     expect(find.text('En cours'), findsOneWidget);
     expect(find.text('62$nbsp%'), findsOneWidget);

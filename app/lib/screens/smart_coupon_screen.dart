@@ -12,6 +12,7 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/maquette.dart';
+import 'bookmaker_screen.dart' as bookmaker;
 import 'daily_coupons_screen.dart';
 import 'premium_screen.dart' show PremiumCard;
 import 'share_coupon.dart';
@@ -868,6 +869,15 @@ class _SelectionRow extends StatelessWidget {
                 '${kickoff != null ? ' · ${shortDate(kickoff)} ${hourMinute(kickoff)}' : ''}',
                 style: Fp.body(12, color: Fp.text2),
               ),
+              // Score de la sélection réglée (rapport du 09/11/2026 : seulement « Gagné »).
+              if (result != null && result != 'pending' && s['score'] is List)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    'Score final${bookmaker.scoreText(s['market'] as String, (s['score'] as List).cast<int?>(), (s['count'] as List?)?.cast<int>(), s['count_label'] as String?).replaceFirst(' ·', ' :')}',
+                    style: Fp.body(12, color: Fp.muted),
+                  ),
+                ),
               if (explainSelection(
                     s['market'] as String,
                     (s['line'] ?? '') as String,
@@ -979,6 +989,8 @@ class SmartHistoryScreen extends StatefulWidget {
 
 class _SmartHistoryScreenState extends State<SmartHistoryScreen> {
   final List<Json> _older = [];
+  final List<Json> _olderDays = [];
+  Object? _firstDay;
   bool? _olderHasMore;
   bool _loading = false;
 
@@ -989,6 +1001,8 @@ class _SmartHistoryScreenState extends State<SmartHistoryScreen> {
       if (!mounted) return;
       setState(() {
         _older.addAll((page['coupons'] as List).cast<Json>());
+        _olderDays.addAll(((page['days'] as List?) ?? const []).cast<Json>());
+        _firstDay = page['first_day'];
         _olderHasMore = page['has_more'] as bool? ?? false;
       });
     } on ApiException catch (e) {
@@ -1007,6 +1021,7 @@ class _SmartHistoryScreenState extends State<SmartHistoryScreen> {
         child: Loader<Json>(
           load: () async {
             _older.clear();
+            _olderDays.clear();
             _olderHasMore = null;
             return await api.get('/smart-coupons/history') as Json;
           },
@@ -1015,6 +1030,22 @@ class _SmartHistoryScreenState extends State<SmartHistoryScreen> {
             final first = (data['coupons'] as List).cast<Json>();
             final coupons = [...first, ..._older];
             final hasMore = _olderHasMore ?? (data['has_more'] as bool? ?? false);
+            // Jours sans coupon pour un profil ou plus, rangés avec les coupons (rapport du
+            // 09/11/2026 : un jour manquant passait pour un oubli).
+            final gaps = {
+              for (final d in [...((data['days'] as List?) ?? const []).cast<Json>(), ..._olderDays])
+                d['day'] as String: d,
+            };
+            final firstDay = (_firstDay ?? data['first_day']) as String?;
+            final entries =
+                <(String, Json?, Json?)>[
+                  for (final c in coupons) (c['day'] as String, c, null),
+                  for (final g in gaps.values) (g['day'] as String, null, g),
+                ]..sort((a, b) {
+                  final byDay = b.$1.compareTo(a.$1);
+                  if (byDay != 0) return byDay;
+                  return (a.$3 == null ? 0 : 1) - (b.$3 == null ? 0 : 1);
+                });
             return RefreshIndicator(
               onRefresh: reload,
               child: ListView(
@@ -1032,47 +1063,70 @@ class _SmartHistoryScreenState extends State<SmartHistoryScreen> {
                   const SizedBox(height: 12),
                   if (coupons.isEmpty)
                     const EmptyState('Aucun coupon du jour pour l\'instant.', icon: Icons.history_rounded),
-                  for (final c in coupons)
-                    GlassCard.section(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  '${c['profile_label']} · ${shortDate(DateTime.parse(c['day'] as String))}',
-                                  style: Fp.title(14, weight: FontWeight.w600),
+                  for (final (_, c, gap) in entries)
+                    if (gap != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          gap['none'] == true
+                              ? '${shortDate(DateTime.parse(gap['day'] as String))} : pas de coupon ce '
+                                    'jour-là (aucun match ne respectait les règles des profils).'
+                              : '${shortDate(DateTime.parse(gap['day'] as String))} : pas de coupon '
+                                    '${(gap['missing'] as List).join(' ni ')} ce jour-là.',
+                          style: Fp.body(12.5, color: Fp.muted, height: 1.4),
+                        ),
+                      )
+                    else if (c != null)
+                      GlassCard.section(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${c['profile_label']} · ${shortDate(DateTime.parse(c['day'] as String))}',
+                                    style: Fp.title(14, weight: FontWeight.w600),
+                                  ),
                                 ),
-                              ),
-                              switch (c['status']) {
-                                'won' => const Tag.win('Gagné'),
-                                'lost' => const Tag.loss('Perdu'),
-                                'pending' => const Tag('En cours'),
-                                final s => Tag(resultLabel(s as String)),
-                              },
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          if (c['locked'] == true)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: Text(
-                                '${c['selection_count']} sélections : visibles avec Premium jusqu\'à la fin '
-                                'des matchs, puis par tous.',
-                                style: Fp.body(12.5, color: Fp.text2),
-                              ),
-                            )
-                          else
-                            for (final s in (c['selections'] as List).cast<Json>())
-                              Padding(padding: const EdgeInsets.only(bottom: 10), child: _SelectionRow(s)),
-                          Text(
-                            'Cote ${odds(c['total_odds'])} · probabilité annoncée '
-                            '${percent((c['probability'] as num).toDouble(), decimals: 1)}',
-                            style: Fp.body(12, color: Fp.text2),
-                          ),
-                        ],
+                                switch (c['status']) {
+                                  'won' => const Tag.win('Gagné'),
+                                  'lost' => const Tag.loss('Perdu'),
+                                  'pending' => const Tag('En cours'),
+                                  final s => Tag(resultLabel(s as String)),
+                                },
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            if (c['locked'] == true)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: Text(
+                                  '${c['selection_count']} sélections : visibles avec Premium jusqu\'à la fin '
+                                  'des matchs, puis par tous.',
+                                  style: Fp.body(12.5, color: Fp.text2),
+                                ),
+                              )
+                            else
+                              for (final s in (c['selections'] as List).cast<Json>())
+                                Padding(padding: const EdgeInsets.only(bottom: 10), child: _SelectionRow(s)),
+                            Text(
+                              '${c['selection_count'] == 1 ? 'Un seul pari ce jour-là · ' : ''}'
+                              'Cote ${odds(c['total_odds'])} · probabilité annoncée '
+                              '${percent((c['probability'] as num).toDouble(), decimals: 1)}',
+                              style: Fp.body(12, color: Fp.text2),
+                            ),
+                          ],
+                        ),
+                      ),
+                  if (!hasMore && firstDay != null && coupons.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'Premiers coupons : ${longDate(DateTime.parse(firstDay)).toLowerCase()}.',
+                        textAlign: TextAlign.center,
+                        style: Fp.body(12.5, color: Fp.muted),
                       ),
                     ),
                   if (hasMore)
