@@ -630,7 +630,25 @@ class _MatchViewState extends State<_MatchView> {
       'red_cards': 'Cartons rouges',
     };
 
+    // Résumé de 2 lignes en tête (rapport du 07/11/2026) : des faits, aucun avis.
+    final summary = [
+      if ((p.xgHome, p.xgAway) case (final double h, final double a))
+        'Buts attendus par le moteur : ${m.home.name} ${decimal(h)}, ${m.away.name} ${decimal(a)} '
+            '(${decimal(h + a)} au total).',
+      if (rank != null && points != null)
+        '${m.home.name} ${rank[0].round()}e (${points[0].round()} pts), '
+            '${m.away.name} ${rank[1].round()}e (${points[1].round()} pts)'
+            '${[stakes(0), stakes(1)].any((x) => x != 'rien de particulier') ? ' ; enjeu : ${m.home.name} ${stakes(0)}, ${m.away.name} ${stakes(1)}' : ''}.',
+    ];
+
     return [
+      if (summary.isNotEmpty) ...[
+        MCard(
+          margin: EdgeInsets.zero,
+          child: Text(summary.join('\n'), style: Fp.body(13.5, weight: FontWeight.w600, height: 1.45)),
+        ),
+        const SizedBox(height: 12),
+      ],
       ...facts,
       if (facts.isNotEmpty) const SizedBox(height: 12),
       GlassCard.section(

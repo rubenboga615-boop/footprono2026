@@ -1177,6 +1177,8 @@ void main() {
     await tester.tap(find.text('Analyse'));
     await tester.pumpAndSettle();
     expect(find.text('Forme · 5 derniers matchs'), findsOneWidget);
+    // Résumé en tête de l'analyse (rapport du 07/11/2026) : des faits, aucun avis.
+    expect(find.text('Buts attendus par le moteur : Lens 1,4, Lyon 1,1 (2,5 au total).'), findsOneWidget);
     expect(find.text('G'), findsNWidgets(5)); // 3 + 2 victoires
     expect(find.text('Moyennes cette saison'), findsOneWidget);
     expect(find.text('Lyon 1-2 Lens'), findsOneWidget);
