@@ -676,3 +676,27 @@ async def test_history_says_which_days_had_no_coupon(
         {"day": str(today - timedelta(days=2)), "missing": ["Sûr", "Équilibré", "Audacieux"],
          "none": True},
     ]  # fmt: skip
+
+
+def test_automatic_picks_skip_stale_and_tiny_odds() -> None:
+    """Rapport du 10/11/2026 : cotes de la CAN que la source n'avait pas mises à jour depuis
+    un mois, et une cote de 1,02, dans les coupons proposés."""
+    from footprono.bookmaker.service import Offer
+    from footprono.football.models import Match
+
+    now = NOW
+
+    def offer(odds: str, updated_days: float | None, selection: str) -> Offer:
+        return Offer(
+            "1X2", "", selection, Decimal(odds), "1xBet", 1, now, "Match Winner",
+            source_updated_at=None if updated_days is None else now - timedelta(days=updated_days),
+        )  # fmt: skip
+
+    offers = {
+        "1X2||home": offer("1.80", 0.5, "home"),  # récente : gardée
+        "1X2||draw": offer("3.40", 31, "draw"),  # un mois sans mise à jour : écartée
+        "1X2||away": offer("1.02", None, "away"),  # trop basse : écartée
+    }
+    probs = {"1X2||home": 0.55, "1X2||draw": 0.25, "1X2||away": 0.2}
+    picks = smart_coupon._picks(Match(id=1), "A", "B", "EPL", offers, probs, now)
+    assert [p.offer.selection for p in picks] == ["home"]

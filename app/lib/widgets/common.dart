@@ -22,14 +22,28 @@ class Loader<T> extends StatefulWidget {
 }
 
 class _LoaderState<T> extends State<Loader<T>> {
-  late Future<T> _future = widget.load();
+  late Future<T> _future = _load();
+
+  /// Coupure réseau (téléphone qui se réveille, réseau mobile) : un nouvel essai automatique
+  /// après 2 secondes avant d'afficher l'erreur (rapport du 10/11/2026, Montante : « Un
+  /// problème est survenu » une fois, sans suite).
+  Future<T> _load() async {
+    try {
+      return await widget.load();
+    } on ApiException catch (e) {
+      if (e.status != 0) rethrow;
+      await Future<void>.delayed(const Duration(seconds: 2));
+      return widget.load();
+    }
+  }
+
   // Dernières données reçues : gardées à l'écran pendant un rechargement (actualisation
   // automatique des paris en cours, tirer pour actualiser), au lieu d'une roue.
   T? _last;
   bool _hasLast = false;
 
   Future<void> _reload() async {
-    final f = widget.load();
+    final f = _load();
     // Bloc : une flèche renverrait le Future affecté, refusé par setState.
     setState(() {
       _future = f;

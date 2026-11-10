@@ -551,11 +551,11 @@ class _LiveSelection extends StatelessWidget {
                 if (goalMarkets.contains(s['market']))
                   Padding(
                     padding: const EdgeInsets.only(top: 3),
-                    child: Tooltip(
-                      message:
-                          'En conditions réelles, le moteur fait à peine mieux qu\'une prévision naïve '
-                          'sur les paris de buts : marché suivi de près (page Fiabilité).',
-                      child: Text('◔ marché en observation', style: Fp.body(11.5, color: Fp.warning)),
+                    // Rapport du 10/11/2026 : l'explication n'était que dans une bulle d'aide.
+                    child: Text(
+                      '◔ marché en observation : sur les buts, le moteur fait à peine mieux qu\'une '
+                      'prévision simple (page Fiabilité).',
+                      style: Fp.body(11.5, color: Fp.warning, height: 1.35),
                     ),
                   ),
               ],

@@ -107,12 +107,15 @@ class RecordScreen extends StatelessWidget {
               valueColor: profit >= 0 ? Fp.win : Fp.loss,
               bold: true,
             ),
-            if (yield_ != null)
+            // Même règle que Mes paris (rapport du 10/11/2026 : « −48,1 % » après 3 paris).
+            if (yield_ != null && (bets['settled'] as int) >= 20)
               KeyValue(
                 'Rendement',
                 '${yield_ >= 0 ? '+' : '−'}${percent(yield_.abs(), decimals: 1)}',
                 valueColor: yield_ >= 0 ? Fp.win : Fp.loss,
-              ),
+              )
+            else if (yield_ != null)
+              KeyValue('Rendement', 'trop peu de paris (${bets['settled']} sur 20)'),
             if ((bets['open'] as int) > 0)
               Text(
                 '${bets['open']} pari${(bets['open'] as int) > 1 ? 's' : ''} en cours non compté${(bets['open'] as int) > 1 ? 's' : ''}.',

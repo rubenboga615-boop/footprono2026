@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from footprono.bookmaker import playable, service, smart_coupon
 from footprono.bookmaker.odds_math import combined_odds
 from footprono.bookmaker.rules import automatic
+from footprono.bookmaker.smart_coupon import MIN_ODDS
 from footprono.football.models import Match, MatchStatus
 
 HORIZON = timedelta(days=3)
@@ -70,7 +71,11 @@ async def _candidates(
         offers, probs = all_offers.get(match.id, {}), all_probs.get(match.id, {})
         for k, offer in offers.items():
             p = probs.get(k)
-            if p is None or not automatic(offer.market) or not 1 < offer.odds <= high:
+            # Ni cote trop basse (1,02 vu le 10/11/2026), ni cote que la source n'a pas
+            # mise à jour depuis plus de 2 jours.
+            if p is None or not automatic(offer.market) or not MIN_ODDS <= offer.odds <= high:
+                continue
+            if not service.fresh(offer, now):
                 continue
             out.append(Candidate(match.id, match.kickoff_at, offer, p))
     return out

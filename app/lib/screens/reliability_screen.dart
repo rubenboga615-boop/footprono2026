@@ -626,9 +626,10 @@ class _View {
             );
       }
       return _View(
+        // Rapport du 10/11/2026 : le verdict réel d'abord, la simulation ensuite.
         verdict: liveN > 0
-            ? '$verdict\n\nRésultats réels depuis le lancement ($scope, ${thousands(liveN)} matchs) : '
-                  '${f['label']} — $liveStatus.'
+            ? 'Résultats réels depuis le lancement ($scope, ${thousands(liveN)} matchs) : '
+                  '${f['label']} — $liveStatus.\n\n$verdict'
             : verdict,
         verdictOk: allGood && liveOk && liveN >= minMatches,
         marketId: id,
@@ -701,8 +702,8 @@ class _View {
         : 'Pas encore de simulation pour ce championnat.';
     return _View(
       verdict: liveN > 0
-          ? '$simulation\n\nRésultats réels depuis le lancement (${thousands(liveN)} matchs) : '
-                '${_liveNames[key]} — $liveStatus.'
+          ? 'Résultats réels depuis le lancement (${thousands(liveN)} matchs) : '
+                '${_liveNames[key]} — $liveStatus.\n\n$simulation'
           : simulation,
       verdictOk: liveOk && liveN >= minMatches,
       marketId: key,

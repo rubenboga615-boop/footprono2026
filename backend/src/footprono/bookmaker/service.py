@@ -32,6 +32,17 @@ from footprono.predictions.models import MatchPrediction
 
 PLAYABLE_BOOKMAKERS = ("1xBet", "Bet365")  # par ordre de préférence
 ODDS_MAX_AGE = timedelta(hours=36)  # relevés toutes les 3 heures ; marge si l'API tombe
+# Cote que la source elle-même n'a pas mise à jour depuis plus de 2 jours (rapport du
+# 10/11/2026 : cotes de la CAN vieilles d'un mois) : montrée avec un avertissement, jamais
+# choisie automatiquement (Coupon intelligent, Coupons du jour, suggestions de montante).
+SOURCE_MAX_AGE = timedelta(days=2)
+
+
+def fresh(offer: "Offer", now: datetime) -> bool:
+    """Vrai si la source a mis la cote à jour récemment (ou ne dit pas quand)."""
+    return offer.source_updated_at is None or now - offer.source_updated_at <= SOURCE_MAX_AGE
+
+
 MIN_STAKE = 100
 MAX_SELECTIONS = 12
 

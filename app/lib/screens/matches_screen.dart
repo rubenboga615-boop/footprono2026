@@ -345,7 +345,7 @@ class _MatchCard extends StatelessWidget {
       final on = i == best;
       return Expanded(
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
           decoration: BoxDecoration(
             color: on ? Fp.cardHigh : Fp.fill,
             borderRadius: BorderRadius.circular(12),
@@ -374,62 +374,82 @@ class _MatchCard extends StatelessWidget {
           side: live ? const BorderSide(color: Color(0xFF1F5B3A)) : BorderSide.none,
         ),
         clipBehavior: Clip.antiAlias,
-        child: InkWell(
+        // Rapport du 10/11/2026 : pour un lecteur d'écran, la carte était un « groupe » et le
+        // match ne s'ouvrait plus. Un seul bouton, qui dit le match, l'heure et les chances.
+        child: Semantics(
+          button: true,
+          label: [
+            '${m.home.name} – ${m.away.name}',
+            live ? 'en direct ${m.clock}' : '${_dayLabel((m.kickoffAt ?? m.date).toLocal())} ${m.when}',
+            if (probs != null) '1 ${percent(probs[0])}, N ${percent(probs[1])}, 2 ${percent(probs[2])}',
+            'ouvrir le match',
+          ].join(', '),
+          excludeSemantics: true,
           onTap: () =>
               Navigator.of(context).push(MaterialPageRoute(builder: (_) => MatchScreen(matchId: m.id))),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        competitionName(m.competition),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Fp.body(12, color: Fp.muted),
-                      ),
-                    ),
-                    if (live)
-                      Text(
-                        '● En direct',
-                        style: Fp.body(12, color: Fp.win, weight: FontWeight.w700),
-                      )
-                    else
-                      Text(_dayLabel((m.kickoffAt ?? m.date).toLocal()), style: Fp.body(12, color: Fp.muted)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(children: [team(m.home), const SizedBox(height: 6), team(m.away)]),
-                    ),
-                    const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          live ? (m.liveHome == null ? '–' : '${m.liveHome} – ${m.liveAway}') : m.when,
-                          style: Fp.body(20, weight: FontWeight.w700),
+          child: InkWell(
+            onTap: () =>
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => MatchScreen(matchId: m.id))),
+            child: Padding(
+              // Rapport du 10/11/2026 : environ 3 matchs par écran ; cartes un peu moins hautes.
+              padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          competitionName(m.competition),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Fp.body(12, color: Fp.muted),
                         ),
-                        if (live)
+                      ),
+                      if (live)
+                        Text(
+                          '● En direct',
+                          style: Fp.body(12, color: Fp.win, weight: FontWeight.w700),
+                        )
+                      else
+                        Text(
+                          _dayLabel((m.kickoffAt ?? m.date).toLocal()),
+                          style: Fp.body(12, color: Fp.muted),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(children: [team(m.home), const SizedBox(height: 6), team(m.away)]),
+                      ),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
                           Text(
-                            m.clock,
-                            style: Fp.body(12, color: Fp.win, weight: FontWeight.w700),
+                            live ? (m.liveHome == null ? '–' : '${m.liveHome} – ${m.liveAway}') : m.when,
+                            style: Fp.body(20, weight: FontWeight.w700),
                           ),
-                      ],
+                          if (live)
+                            Text(
+                              m.clock,
+                              style: Fp.body(12, color: Fp.win, weight: FontWeight.w700),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  // En direct : le score et la minute ; les chances d'avant le match n'y ont plus de sens.
+                  if (!live) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [box(0), const SizedBox(width: 6), box(1), const SizedBox(width: 6), box(2)],
                     ),
                   ],
-                ),
-                // En direct : le score et la minute ; les chances d'avant le match n'y ont plus de sens.
-                if (!live) ...[
-                  const SizedBox(height: 10),
-                  Row(children: [box(0), const SizedBox(width: 6), box(1), const SizedBox(width: 6), box(2)]),
                 ],
-              ],
+              ),
             ),
           ),
         ),

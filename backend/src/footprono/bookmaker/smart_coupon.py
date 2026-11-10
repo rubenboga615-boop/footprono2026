@@ -222,13 +222,17 @@ class Filters:
 
 def _picks(
     match: Match, home: str, away: str, comp: str,
-    offers: dict[str, service.Offer], probs: dict[str, float],
+    offers: dict[str, service.Offer], probs: dict[str, float], now: datetime,
 ) -> list[Pick]:  # fmt: skip
-    """Sélections jouables d'un match : marché retenu, vraie cote, probabilité du moteur."""
+    """Sélections jouables d'un match : marché retenu, vraie cote récente, probabilité du
+    moteur."""
     return [
         Pick(match, home, away, comp, offer, p)
         for k, offer in offers.items()
-        if (p := probs.get(k)) is not None and automatic(offer.market) and offer.odds >= MIN_ODDS
+        if (p := probs.get(k)) is not None
+        and automatic(offer.market)
+        and offer.odds >= MIN_ODDS
+        and service.fresh(offer, now)
     ]
 
 
@@ -237,7 +241,7 @@ async def _candidates(
 ) -> list[Pick]:
     offers = await service.match_offer(session, match.id, now)
     probs = await service.model_probabilities(session, match.id)
-    return _picks(match, home, away, comp, offers, probs)
+    return _picks(match, home, away, comp, offers, probs, now)
 
 
 async def window_candidates(
@@ -257,7 +261,7 @@ async def window_candidates(
     ]
     offers, probs = await playable.load(session, [m.id for m, *_ in rows], now, redis)
     return [
-        _picks(m, home, away, comp, offers.get(m.id, {}), probs.get(m.id, {}))
+        _picks(m, home, away, comp, offers.get(m.id, {}), probs.get(m.id, {}), now)
         for m, home, away, comp in rows
     ]
 
