@@ -134,3 +134,12 @@ def test_publication_only_when_every_checkpoint_is_right() -> None:
     assert ok is False
     assert lines[-1] == "75' : 1 marchés vérifiés, à revoir : Résultat (1X2)"
     assert _live_verdict({"rows": good["rows"][:3]})[0] is False  # 75' : trop peu
+
+
+def test_backfill_offers_cups_and_national_teams() -> None:
+    from footprono.console.registry import get_action
+
+    param = next(p for p in get_action("details_backfill").params if p.name == "competition")
+    codes = [code for code, _ in param.choices()]
+    assert codes[0] == ""  # Tous : championnats, coupes et sélections
+    assert {"EPL", "ISR", "UCL", "UEL", "UECL", "UNL", "WCQ_EUR", "CAN"} <= set(codes)

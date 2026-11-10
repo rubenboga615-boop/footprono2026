@@ -28,7 +28,7 @@ from footprono.ingestion import cup_odds_check, cups, history, live, nations
 from footprono.ingestion.cli import parse_seasons
 from footprono.ingestion.coverage import coverage_report, format_coverage
 from footprono.ingestion.quality import run_quality_checks
-from footprono.ingestion.reference import COMPETITIONS, current_season
+from footprono.ingestion.reference import COMPETITIONS, CUPS, NATIONS, current_season
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.ingestion.sources import api_football
 from footprono.predictions import cups as cup_predictions
@@ -50,6 +50,16 @@ _STEP = re.compile(r"^\[(\d+)/(\d+)\]")
 
 def competition_options() -> list[tuple[str, str]]:
     return [(c.code, f"{c.name} ({c.country})") for c in COMPETITIONS]
+
+
+def match_competition_options() -> list[tuple[str, str]]:
+    """Championnats, coupes d'Europe et sélections : toutes les compétitions dont les matchs
+    sont suivis (« Compléter les matchs passés »)."""
+    return [
+        *competition_options(),
+        *((c.code, f"{c.name} (coupe d'Europe)") for c in CUPS),
+        *((n.code, f"{n.name} (sélections)") for n in NATIONS),
+    ]
 
 
 def _all_codes() -> list[str]:
@@ -1035,10 +1045,10 @@ register(
         params=(
             Param(
                 "competition",
-                "Championnat (vide : tous)",
+                "Compétition (vide : toutes)",
                 "choice",
                 default="",
-                options=lambda: [("", "Tous"), *competition_options()],
+                options=lambda: [("", "Tous"), *match_competition_options()],
             ),
             Param("max_requests", "Requêtes au plus", "int", default=100, minimum=1, maximum=2000),
         ),
