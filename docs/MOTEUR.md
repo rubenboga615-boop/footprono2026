@@ -1302,3 +1302,19 @@ le résultat et la double chance : l'équipe qui mène gagne moins souvent qu'an
 point). Les buts tardifs viennent davantage de l'équipe menée : **effet du score propre à
 chaque moment du match** (1re période, 46-60', 61-75', 76' à la fin), appris de la même façon.
 Modèle non gardé ; nouvel apprentissage à lancer.
+
+**Deuxième apprentissage (console, 11/11/2026)**, effet du score par moment du match : en fin
+de match l'équipe menée d'un but accélère (× 1,15 après 76'), mais la mi-temps, 60' et 75'
+restent à revoir (mi-temps : 74,7 % → 70,6 %). Reproduit ici sur l'archive (mi-temps 2025,
+70-80 % : 74,7 % → 70,9 %) ; l'écart touche l'équipe qui mène d'un but, favorite ou non (−2 à
+−4 points). Essais :
+- incertitude sur la force des équipes (facteur gamma mis à jour par les buts de 1re
+  période) : pire (3,7 → 4,3 à 5,2 points), abandonné ;
+- **effet du score de la 2e période affiné sur le score final** sachant le score à la
+  mi-temps (8 000 matchs 2019-2024, mêmes 4 valeurs pour toute la 2e période) : menée de 1
+  × 1,17, devant de 1 × 0,96 ; mi-temps 2025 juste partout (résultat et double chance
+  4,2 → 2,6 points ; les deux marquent 3,3 → 2,6 ; buts du match 2,8 → 1,7).
+
+`refine_second_half` : ajouté à « Apprendre et vérifier le direct » après l'apprentissage
+minute par minute, sur les scores à la mi-temps, à 60' et à 75' (8 000 matchs
+d'apprentissage) ; vérification inchangée sur la saison jamais vue.

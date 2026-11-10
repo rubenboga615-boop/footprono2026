@@ -1012,7 +1012,12 @@ def _fmt_rhythm(values: list[float] | tuple[float, ...]) -> str:
 
 async def live_fit(ctx: JobContext, params: dict[str, Any]) -> str:
     from footprono.engine.live import DEFAULT_MODEL
-    from footprono.engine.live_study import fit_live_model, minute_entries, report
+    from footprono.engine.live_study import (
+        fit_live_model,
+        minute_entries,
+        refine_second_half,
+        report,
+    )
 
     train = parse_seasons(params["train"])
     test = parse_seasons(params["test"])
@@ -1036,6 +1041,8 @@ async def live_fit(ctx: JobContext, params: dict[str, Any]) -> str:
             "matchs passés ») : rien n'est changé"
         )
     model = await asyncio.to_thread(fit_live_model, learn)
+    ctx.log("Effet du score de la 2e période affiné sur les scores finaux (quelques minutes)…")
+    model = await asyncio.to_thread(refine_second_half, model, learn)
     ctx.log(f"Rythme 1re période : {_fmt_rhythm(model.first)}")
     ctx.log(f"Rythme 2e période : {_fmt_rhythm(model.second)}")
     from footprono.engine.live import PHASE_NAMES

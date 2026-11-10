@@ -432,3 +432,70 @@ def half_time_angles(
             },
         }
     return out
+
+
+def refine_second_half(
+    model: LiveModel, matches: Sequence[PlayedMatch], sample: int = 8000, seed: int = 1
+) -> LiveModel:
+    """Effet du score de la 2e période affiné sur ce que l'on vérifie : la vraisemblance du
+    score final sachant le score à la mi-temps, à 60' et à 75' (apprentissage du 11/11/2026 :
+    appris minute par minute, l'équipe menée d'un but était sous-estimée, menée 1,03 à 1,15 ;
+    affiné sur le score final, 1,17, et la mi-temps 2025 devient juste). Mêmes 4 valeurs
+    (mené de 2+, mené de 1, devant de 1, devant de 2+) pour toute la 2e période ; la 1re
+    période et le rythme ne changent pas."""
+    rng = np.random.default_rng(seed)
+    keep = [m for m in matches if consistent(m) and max(m.final[0], m.final[1]) <= MAX_GOALS]
+    if len(keep) > sample:
+        keep = [keep[i] for i in rng.choice(len(keep), sample, replace=False)]
+    if not keep:
+        return model
+    length = HALF + ADDED[1]
+    groups = []
+    for played in (0, 15, 30):  # mi-temps, 60', 75'
+        rows = []
+        for m in keep:
+            clock = HALF + played
+            if any(minute <= clock for minute, _, _ in m.reds):
+                continue
+            scored = [s for minute, _, s in m.goals if minute <= clock]
+            lh, la, sh, sa = m.params
+            rows.append((
+                scored.count("home"), scored.count("away"), m.final[0], m.final[1],
+                (1 - sh) * lh / length, (1 - sa) * la / length,
+            ))  # fmt: skip
+        if not rows:
+            continue
+        arr = np.array(rows, dtype=np.float64)
+        n = len(rows)
+        start = np.zeros((n, GRID, GRID))
+        start[np.arange(n), arr[:, 0].astype(int), arr[:, 1].astype(int)] = 1.0
+        groups.append((played, start, arr))
+    base = list(model.effect if len(model.effect) == 5 * PHASES else model.effect * PHASES)
+    free = (0, 1, 3, 4)
+
+    def with_effect(theta: FloatArray) -> LiveModel:
+        e = list(base)
+        for ph in (1, 2, 3):
+            for i, t in zip(free, theta, strict=True):
+                e[5 * ph + i] = float(np.exp(t))
+        return LiveModel(first=model.first, second=model.second, effect=tuple(e))
+
+    def loss(theta: FloatArray) -> float:
+        m = with_effect(theta)
+        total = 0.0
+        for played, start, arr in groups:
+            profile, effects = m.steps(1, played, 0)
+            p = evolve(start, arr[:, 4], arr[:, 5], 0, profile=profile, effects=effects)
+            idx = np.arange(len(arr))
+            total -= float(np.log(p[idx, arr[:, 2].astype(int), arr[:, 3].astype(int)] + EPS).sum())
+        return total
+
+    x0 = np.log(np.array([base[5 * 3 + i] for i in free]))
+    res = minimize(loss, x0, method="L-BFGS-B", bounds=[(-0.7, 0.7)] * len(free),
+                   options={"maxiter": 30})  # fmt: skip
+    refined = with_effect(res.x)
+    return LiveModel(
+        first=refined.first,
+        second=refined.second,
+        effect=tuple(round(x, 4) for x in refined.effect),
+    )

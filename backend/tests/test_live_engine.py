@@ -191,3 +191,33 @@ def test_fit_live_model_finds_a_known_rhythm_and_effect() -> None:
     }
     assert learned[("75'", "Buts du match (plus/moins)")]["worst_gap"] < 0.03
     assert LiveModel.from_dict(fitted.as_dict()) == fitted
+
+
+def test_refine_second_half_keeps_the_rhythm_and_shares_one_effect() -> None:
+    import numpy as np
+
+    from footprono.engine.live_study import PlayedMatch, refine_second_half
+
+    rng = np.random.default_rng(4)
+    matches = []
+    for _ in range(300):
+        goals = tuple(
+            (int(rng.integers(1, 91)), 0, "home" if rng.random() < 0.55 else "away")
+            for _ in range(int(rng.poisson(2.6)))
+        )
+        goals = tuple(sorted(goals))
+        if len(goals) > 8:
+            continue
+        h = sum(g[2] == "home" for g in goals)
+        hht = sum(g[2] == "home" and g[0] <= 45 for g in goals)
+        aht = sum(g[2] == "away" and g[0] <= 45 for g in goals)
+        matches.append(
+            PlayedMatch((1.4, 1.2, 0.45, 0.45), goals, (), (h, len(goals) - h, hht, aht))
+        )
+    start = LiveModel()
+    refined = refine_second_half(start, matches, sample=200)
+    assert (refined.first, refined.second) == (start.first, start.second)
+    assert len(refined.effect) == 20
+    assert refined.effect_at(1) == refined.effect_at(2) == refined.effect_at(3)
+    assert refined.effect_at(0) == start.effect_at(0)
+    assert refined.effect_at(3)[2] == start.effect_at(3)[2]  # « égalité » inchangée
