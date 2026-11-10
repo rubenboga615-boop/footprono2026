@@ -259,3 +259,85 @@ def fit_score_effect(
 
     res = minimize(loss, np.zeros(5), method="L-BFGS-B", bounds=[(-1.0, 1.0)] * 5)
     return tuple(round(float(x), 4) for x in np.exp(res.x))
+
+
+# ------------------------------------------- coupons à la mi-temps (plan, étape 8)
+
+# Mêmes tranches que le Coupon intelligent (bookmaker/smart_coupon.py) : Sûr vise 83,5 %.
+HALF_TIME_PROFILES = {
+    "Sûr": (0.75, 0.92, 0.835),
+    "Équilibré": (0.60, 0.75, None),
+    "Audacieux": (0.45, 0.60, None),
+}
+
+
+def half_time_angles(
+    rows: Iterable[tuple[float, float, float, float, int, int, int, int]],
+    effect: Sequence[float] = SCORE_EFFECT,
+    coupon_size: int = 3,
+) -> dict[str, Any]:
+    """À la pause, la sélection de chaque match choisie comme le Coupon intelligent (la plus
+    probable de la tranche, ou la plus proche de la cible pour Sûr) : chance annoncée et
+    arrivée, par profil et par marché ; puis des coupons de ``coupon_size`` sélections de
+    matchs différents pris dans l'ordre (annoncé = produit des chances)."""
+    picks: dict[str, list[Entry]] = {name: [] for name in HALF_TIME_PROFILES}
+    for lh, la, sh, sa, hht, aht, hg, ag in rows:
+        if max(hg, ag) > MAX_GOALS or max(hht, aht) > MAX_HT_GOALS:
+            continue
+        entries = _entries(
+            "mi-temps",
+            (lh, la, sh, sa),
+            LiveState("HT", 45, 0, hht, aht),
+            (hg, ag, hht, aht),
+            effect,
+        )
+        entries = [e for e in entries if not e.family.startswith(("Buts de la 1re", "Mi-temps"))]
+        for name, (low, high, target) in HALF_TIME_PROFILES.items():
+            inside = [e for e in entries if low <= e.probability < high]
+            if not inside:
+                continue
+            if target is None:
+                best = max(inside, key=lambda e: e.probability)
+            else:
+                best = min(inside, key=lambda e: (abs(e.probability - target), -e.probability))
+            picks[name].append(best)
+
+    def summary(items: Sequence[Entry]) -> dict[str, Any]:
+        n = len(items)
+        if n == 0:
+            return {"n": 0}
+        p = np.array([e.probability for e in items])
+        w = np.array([e.won for e in items], dtype=np.float64)
+        return {
+            "n": n,
+            "announced": round(float(p.mean()), 4),
+            "observed": round(float(w.mean()), 4),
+            "two_se": round(float(2 * np.sqrt(np.sum(p * (1 - p))) / n), 4),
+        }
+
+    out: dict[str, Any] = {}
+    for name, items in picks.items():
+        by_family: dict[str, list[Entry]] = defaultdict(list)
+        for e in items:
+            by_family[e.family].append(e)
+        coupons = [
+            items[i : i + coupon_size] for i in range(0, len(items) - coupon_size + 1, coupon_size)
+        ]
+        cp = np.array([float(np.prod([e.probability for e in c])) for c in coupons])
+        cw = np.array([all(e.won for e in c) for c in coupons], dtype=np.float64)
+        out[name] = {
+            "selections": summary(items),
+            "families": {
+                fam: summary(v) for fam, v in sorted(by_family.items(), key=lambda kv: -len(kv[1]))
+            },
+            "coupons": {
+                "size": coupon_size,
+                "n": len(coupons),
+                "announced": round(float(cp.mean()), 4) if len(cp) else None,
+                "observed": round(float(cw.mean()), 4) if len(cw) else None,
+                "two_se": round(float(2 * np.sqrt(np.sum(cp * (1 - cp))) / len(cp)), 4)
+                if len(cp)
+                else None,
+            },
+        }
+    return out

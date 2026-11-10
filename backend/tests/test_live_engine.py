@@ -105,3 +105,29 @@ def test_fit_score_effect_finds_a_known_effect() -> None:
     fitted = fit_score_effect(rows)
     assert fitted[1] == pytest.approx(1.3, abs=0.2)
     assert fitted[3] == pytest.approx(0.8, abs=0.15)
+
+
+def test_half_time_angles_are_right_when_the_engine_is_right() -> None:
+    import numpy as np
+
+    from footprono.engine.live import ADDED, GRID, HALF, SCORE_EFFECT, evolve
+    from footprono.engine.live_study import half_time_angles
+
+    rng = np.random.default_rng(5)
+    rows = []
+    length = HALF + ADDED[1]
+    for _ in range(1500):
+        lh, la = float(rng.uniform(0.8, 2.2)), float(rng.uniform(0.6, 1.8))
+        hht, aht = int(rng.poisson(0.45 * lh)), int(rng.poisson(0.45 * la))
+        if max(hht, aht) > 6:
+            continue
+        start = np.zeros((GRID, GRID))
+        start[hht, aht] = 1.0
+        p = evolve(start, 0.55 * lh / length, 0.55 * la / length, length, SCORE_EFFECT)
+        k = rng.choice(GRID * GRID, p=p.ravel() / p.sum())
+        rows.append((lh, la, 0.45, 0.45, hht, aht, int(k // GRID), int(k % GRID)))
+    rep = half_time_angles(rows)
+    for name in ("Sûr", "Équilibré", "Audacieux"):
+        s = rep[name]["selections"]
+        assert abs(s["observed"] - s["announced"]) < 1.5 * s["two_se"] + 0.01, (name, s)
+        assert rep[name]["coupons"]["n"] > 100

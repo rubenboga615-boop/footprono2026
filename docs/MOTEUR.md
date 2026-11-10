@@ -1231,3 +1231,42 @@ comparer, « ce n'est pas un conseil de pari ») ; fiche d'un pari en cours, « 
 coupon : X % au départ → Y % maintenant » (sélections gagnées 1, à venir leur chance d'avant
 le match, en cours leur chance du moment ; rien si une chance manque ou si le coupon est
 perdu).
+
+## Coupons à la mi-temps : étude (plan du 10/11/2026, étape 8)
+
+`engine/live_study.half_time_angles`. Question : à la pause, si le moteur choisit dans
+chaque match la sélection de fin de match la plus probable de la tranche d'un profil (règle
+du Coupon intelligent ; Sûr : la plus proche de 83,5 %), la chance annoncée se vérifie-t-elle,
+sélection par sélection et en coupons ? Marchés : résultat, double chance, buts du match,
+buts d'une équipe, les deux marquent (sélections déjà jouées exclues). Prévisions d'avant-match
+hors échantillon, effet du score appris sur 2019-2022 ; vérification sur 18 536 matchs
+2023-2025.
+
+| Profil | Sélections : annoncé → arrivé | Coupons de 3 matchs : annoncé → arrivé |
+|---|---|---|
+| Sûr | 18 513 · 83,4 % → 83,6 % (± 0,5) | 6 171 · 58,1 % → 58,6 % (± 1,3) |
+| Équilibré | 17 418 · 71,6 % → 71,7 % (± 0,7) | 5 806 · 36,8 % → 37,0 % (± 1,3) |
+| Audacieux | 18 387 · 56,7 % → 56,2 % (± 0,7) | 6 129 · 18,2 % → 18,0 % (± 1,0) |
+
+Chaque saison (2023, 2024, 2025) : à 0,6 point au plus par profil pour les sélections, 2,2
+points au plus pour les coupons. Par marché, à 3 points près sauf : Équilibré · résultat
+70,1 % → 67,5 % sur l'ensemble (2023 : 66,3 % pour 70,2 %) et les deux marquent plus souvent
+gagnés qu'annoncé (Équilibré 72,3 % → 74,1 % ; Sûr 81,3 % → 74,6 % sur 130 sélections
+seulement).
+
+**Conclusion** : côté moteur, des coupons proposés **à la mi-temps** sont justes (même règle
+de choix que le Coupon intelligent). Le résultat du match en Équilibré reste « en
+observation » (exclu des propositions de mi-temps tant que l'écart de 2023 n'est pas expliqué).
+
+**Ce que l'étude ne dit pas encore** :
+- **en cours de match** (autres minutes que la pause) : attend « Vérifier les chances en
+  direct » (étape 6) ;
+- **statistiques de 1re mi-temps** (tirs, xG) : l'archive n'en a pas par mi-temps ; les
+  relevés pris à la pause depuis l'étape 1 permettront de mesurer si elles améliorent les
+  chances (sinon elles ne servent qu'à l'affichage) ;
+- **les cotes** : aucune cote en direct dans l'archive. L'étape 9 (coupons en direct)
+  demande que 1xBet soit présent dans les cotes en direct d'API-Football (« Tester le
+  direct », point 0.3 du plan) ; une cote en direct n'est jamais choisie pour sa valeur.
+
+**Suite proposée** : étape 9 limitée d'abord aux **coupons à la mi-temps** (seul moment
+vérifié), les autres minutes après une vérification juste à 15', 30', 60' et 75'.
