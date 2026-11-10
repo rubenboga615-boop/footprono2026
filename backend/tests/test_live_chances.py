@@ -185,5 +185,11 @@ async def test_live_tab_timeline_stats_by_half_and_lineups(
     assert [p["starter"] for p in home["players"]] == [True, False]
     assert second_half(now, None) is None
 
+    summary = (await client.get("/api/v1/live/summary", params={"match_ids": [mid]})).json()
+    assert summary[str(mid)]["goals"] == [
+        {"minute": 23, "extra": None, "side": "home", "player": None, "own_goal": False}
+    ]
+    assert summary[str(mid)]["reds"] == []
+
     missing = await client.get("/api/v1/matches/999999/live")
     assert missing.status_code == 404

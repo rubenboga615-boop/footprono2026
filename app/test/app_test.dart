@@ -51,6 +51,12 @@ class FakeServer {
 
   /// Onglet « En direct » du match 7 (étape 7) : vide sauf si un test le remplit.
   Map<String, dynamic>? matchLive;
+
+  /// Buts et cartons rouges des matchs en cours (liste des matchs, maquette D1).
+  Map<String, dynamic> liveSummary = {};
+
+  /// Paris renvoyés par /bets (vide sauf si un test en donne).
+  List<Map<String, dynamic>> bets = [];
   final notifications = <Map<String, dynamic>>[];
   bool paymentsConfigured = true;
   bool betaSharing = false;
@@ -280,6 +286,8 @@ class FakeServer {
         body = matchNow ?? match;
       case 'GET /matches/7/live':
         body = matchLive ?? {'status': null, 'events': [], 'stats': null, 'lineups': []};
+      case 'GET /live/summary':
+        body = liveSummary;
       case 'GET /live/chances':
         body = liveChances ?? {'published': false, 'matches': {}};
       case 'GET /matches/7/prediction':
@@ -828,7 +836,7 @@ class FakeServer {
       case 'GET /me/bets-summary' when betsSummary != null:
         body = betsSummary;
       case 'GET /bets':
-        body = [];
+        body = bets;
       case 'GET /me/wallet/entries':
         body = [];
       case 'GET /me/record':
@@ -2018,7 +2026,7 @@ void main() {
     await tester.fling(find.text('Lens').first, const Offset(0, 400), 1000);
     await tester.pumpAndSettle();
     expect(find.text('1 – 0'), findsOneWidget);
-    expect(find.text('90+4\''), findsOneWidget);
+    expect(find.text('● 90+4\''), findsOneWidget);
     expect(find.text('Lyon'), findsOneWidget); // une seule carte : plus dans la journée
     final m = MatchInfo(playing);
     expect(m.when, 'En direct 90+4\'');
@@ -2034,6 +2042,84 @@ void main() {
     expect(MatchInfo(FakeServer.match).started, isTrue);
     MatchInfo.now = () => DateTime.utc(2026, 10, 10, 18);
     expect(MatchInfo(FakeServer.match).started, isFalse);
+  });
+
+  testWidgets('en direct : pastille, buteurs et cartons rouges, chances, matchs de mes paris en haut', (
+    tester,
+  ) async {
+    final (_, server) = await startApp(tester, loggedIn: true);
+    MatchInfo.now = () => DateTime.utc(2026, 10, 10, 20, 40);
+    final playing = {
+      ...FakeServer.match,
+      'api_status': '2H',
+      'live_minute': 81,
+      'live_extra': null,
+      'live_home_goals': 1,
+      'live_away_goals': 1,
+    };
+    final other = {
+      ...playing,
+      'id': 8,
+      'home_team': {...FakeServer.team1, 'id': 11, 'name': 'Betis'},
+      'away_team': {...FakeServer.team2, 'id': 12, 'name': 'Elche'},
+      'api_status': 'HT',
+      'live_minute': 45,
+      'live_home_goals': 0,
+      'live_away_goals': 0,
+    };
+    server.live.addAll([other, playing]);
+    server.liveSummary = {
+      '7': {
+        'goals': [
+          {'minute': 12, 'side': 'home', 'player': 'Krstović'},
+          {'minute': 77, 'side': 'away', 'player': 'Lucca'},
+        ],
+        'reds': [
+          {'minute': 81, 'side': 'away', 'player': null},
+        ],
+      },
+    };
+    server.bets = [
+      {
+        'id': 57,
+        'kind': 'single',
+        'stake': 1000,
+        'currency': 'XOF',
+        'total_odds': '1.92',
+        'potential_payout': 1920,
+        'status': 'open',
+        'selections': [
+          {'match_id': 7, 'market': '1X2', 'selection': 'home', 'odds': '1.92'},
+        ],
+      },
+    ];
+    server.liveChances = {
+      'published': true,
+      'matches': {
+        '7': {
+          'minute': 81,
+          'markets': {'1X2||home': 0.38, '1X2||draw': 0.50, '1X2||away': 0.12},
+        },
+      },
+    };
+    await tester.fling(find.text('Lens').first, const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+    await tester.binding.setSurfaceSize(const Size(430, 2400));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('● En direct 2'));
+    await tester.pumpAndSettle();
+    expect(find.text('Matchs '), findsNothing);
+    expect(find.textContaining('★ en haut'), findsOneWidget);
+    // Le match de mon pari en premier, marqué ★, avec buteurs et carton rouge.
+    final cards = tester.widgetList<Text>(find.textContaining('★ ')).map((t) => t.data).toList();
+    expect(cards.where((t) => t != null && t.startsWith('★ ') && !t.contains('en haut')), hasLength(1));
+    expect(find.text('⚽ 12\' Krstović · ⚽ 77\' Lucca · 🟥 81\' Lyon'), findsOneWidget);
+    expect(find.text('50\u00a0%'), findsOneWidget);
+    expect(find.textContaining('Chances en direct · avant le match'), findsOneWidget);
+    expect(find.text('● MT'), findsOneWidget);
+    final top = tester.getTopLeft(find.text('● 81\'')).dy;
+    expect(top, lessThan(tester.getTopLeft(find.text('● MT')).dy));
+    MatchInfo.now = DateTime.now;
   });
 
   testWidgets('en direct : onglet du match (chronologie, statistiques, compositions), chances si publiées', (

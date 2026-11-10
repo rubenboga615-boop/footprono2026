@@ -213,6 +213,9 @@ class Upcoming {
 
   /// Match sans prédiction (en direct, version ordinateur).
   Upcoming.of(this.match) : summary = null;
+
+  /// Même prédiction, match du moment (score et minute du direct).
+  Upcoming.withMatch(Upcoming u, this.match) : summary = u.summary;
   final MatchInfo match;
   final Summary? summary;
 }

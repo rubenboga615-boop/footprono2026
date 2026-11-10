@@ -13,6 +13,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/live_chances.dart';
 import '../widgets/maquette.dart';
+import 'match_screen.dart';
 import 'record_screen.dart';
 
 class BookmakerScreen extends StatefulWidget {
@@ -720,6 +721,21 @@ class BetCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(selectionState(s), style: Fp.body(12, color: selectionColor(s))),
+                      // Maquette D7 : « Suivre › » ouvre le match sur son onglet « En direct ».
+                      if (s.state == 'live')
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () =>
+                              Navigator.of(context)
+                                  .push(MaterialPageRoute(builder: (_) => MatchScreen(matchId: s.matchId))),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Text(
+                              'Suivre ›',
+                              style: Fp.body(12.5, weight: FontWeight.w700, color: Fp.lilac),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),

@@ -13,7 +13,7 @@ from footprono.api.deps import OptionalUserDep, SessionDep, SettingsDep
 from footprono.core.errors import NotFoundError
 from footprono.football import logos
 from footprono.football.analysis import match_analysis
-from footprono.football.live_view import live_view
+from footprono.football.live_view import live_summaries, live_view
 from footprono.football.models import (
     BookmakerOdds,
     Competition,
@@ -260,6 +260,16 @@ async def match_live(match_id: int, session: SessionDep) -> dict[str, Any]:
     if await session.get(Match, match_id) is None:
         raise NotFoundError(f"match {match_id} introuvable")
     return await live_view(session, match_id)
+
+
+@router.get("/live/summary")
+async def live_summary(
+    session: SessionDep,
+    match_ids: Annotated[list[int], Query(max_length=40)],
+) -> dict[str, Any]:
+    """Buts et cartons rouges des matchs en cours, pour la liste des matchs (maquette D1)."""
+    found = await live_summaries(session, match_ids)
+    return {str(k): v for k, v in found.items()}
 
 
 @router.get("/live/chances")

@@ -138,3 +138,23 @@ async def live_view(session: AsyncSession, match_id: int) -> dict[str, Any]:
         "stats": stats,
         "lineups": lineups,
     }
+
+
+async def live_summaries(session: AsyncSession, match_ids: list[int]) -> dict[int, dict[str, Any]]:
+    """Cartes de la liste des matchs en direct (maquette D1) : buts et cartons rouges à la
+    minute, avec le buteur (ou le joueur exclu)."""
+    out: dict[int, dict[str, Any]] = {i: {"goals": [], "reds": []} for i in match_ids}
+    if not match_ids:
+        return out
+    for e in await session.scalars(
+        select(MatchEvent)
+        .where(MatchEvent.match_id.in_(match_ids), MatchEvent.kind.in_(("Goal", "Card")))
+        .order_by(MatchEvent.match_id, MatchEvent.seq)
+    ):
+        item = {"minute": e.minute, "extra": e.extra, "side": e.side, "player": e.player}
+        detail = (e.detail or "").lower()
+        if e.kind == "Goal" and detail != "missed penalty":
+            out[e.match_id]["goals"].append({**item, "own_goal": detail == "own goal"})
+        elif e.kind == "Card" and ("red" in detail or "second yellow" in detail):
+            out[e.match_id]["reds"].append(item)
+    return out

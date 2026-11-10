@@ -9,6 +9,7 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/install_tip.dart';
+import '../widgets/live_chances.dart';
 import '../widgets/maquette.dart';
 import 'match_screen.dart';
 import 'notifications_screen.dart';
@@ -24,6 +25,9 @@ class MatchesScreen extends StatefulWidget {
 class _MatchesScreenState extends State<MatchesScreen> {
   String competition = '';
   DateTime? day;
+
+  /// Pastille « ● En direct N » choisie : seulement les matchs en cours (maquette D1).
+  bool liveOnly = false;
 
   Future<(List<Upcoming>, List<MatchInfo>)> _load() async {
     final api = context.read<AppState>().api;
@@ -118,7 +122,15 @@ class _MatchesScreenState extends State<MatchesScreen> {
                     // Cloche des notifications (revue du 07/11/2026 : seulement dans le profil).
                     Row(
                       children: [
-                        Expanded(child: MTitle('Matchs', selectedDay == today ? 'du jour' : 'à venir', 26)),
+                        Expanded(
+                          child: MTitle(
+                            'Matchs',
+                            liveOnly && live.isNotEmpty
+                                ? 'en direct'
+                                : (selectedDay == today ? 'du jour' : 'à venir'),
+                            26,
+                          ),
+                        ),
                         _Bell(unread: context.watch<AppState>().unread),
                       ],
                     ),
@@ -131,11 +143,22 @@ class _MatchesScreenState extends State<MatchesScreen> {
                             scrollDirection: Axis.horizontal,
                             child: Row(
                               children: [
+                                if (live.isNotEmpty) ...[
+                                  MChip(
+                                    '● En direct ${live.length}',
+                                    selected: liveOnly,
+                                    onTap: () => setState(() => liveOnly = true),
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
                                 for (final d in days) ...[
                                   MChip(
                                     dayChip(d),
-                                    selected: d == selectedDay,
-                                    onTap: () => setState(() => day = d),
+                                    selected: !(liveOnly && live.isNotEmpty) && d == selectedDay,
+                                    onTap: () => setState(() {
+                                      day = d;
+                                      liveOnly = false;
+                                    }),
                                   ),
                                   const SizedBox(width: 6),
                                 ],
@@ -153,8 +176,10 @@ class _MatchesScreenState extends State<MatchesScreen> {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Encadré : l\'issue la plus probable selon le moteur, pas un conseil de pari. '
-                      'En dessous : la cote 1xBet.',
+                      liveOnly && live.isNotEmpty
+                          ? '★ en haut : les matchs de tes paris en cours.'
+                          : 'Encadré : l\'issue la plus probable selon le moteur, pas un conseil de pari. '
+                                'En dessous : la cote 1xBet.',
                       style: Fp.body(12, color: Fp.muted, height: 1.35),
                     ),
                   ],
@@ -177,8 +202,13 @@ class _MatchesScreenState extends State<MatchesScreen> {
                       icon: Icons.event_busy_rounded,
                     )
                   else
-                    // En direct d'abord (cartes vertes), puis les matchs du jour choisi.
-                    _CompactList([for (final m in live) Upcoming.of(m), ...shown]),
+                    // En direct d'abord (cartes vertes), puis les matchs du jour choisi ; la
+                    // pastille « En direct » ne garde que les matchs en cours.
+                    _CompactList([
+                      for (final m in live)
+                        if (competition.isEmpty || m.competition == competition) _withSummary(m, all),
+                      if (!(liveOnly && live.isNotEmpty)) ...shown,
+                    ]),
                 ],
               ),
             );
@@ -189,6 +219,12 @@ class _MatchesScreenState extends State<MatchesScreen> {
   }
 
   static DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  /// Match en cours avec ses chances d'avant le match (pour « avant le match : … »).
+  static Upcoming _withSummary(MatchInfo m, List<Upcoming> all) {
+    final u = all.where((u) => u.match.id == m.id).firstOrNull;
+    return u == null ? Upcoming.of(m) : Upcoming.withMatch(u, m);
+  }
 
   /// « Tous championnats ▾ » : liste des championnats du jour choisi.
   Future<void> _pickCompetition(BuildContext context, List<String> comps) async {
@@ -246,16 +282,58 @@ class _CompactListState extends State<_CompactList> {
   String _loaded = '';
   bool loading = true;
 
+  // Matchs en cours (maquette D1) : buts et cartons rouges, chances en direct (si publiées),
+  // matchs de mes paris en cours (★, en haut).
+  Map<int, Json> summaries = {};
+  Map<int, Json> chances = {};
+  Set<int> mine = {};
+  String _liveLoaded = '';
+
   @override
   void initState() {
     super.initState();
     _load();
+    _loadLive();
   }
 
   @override
   void didUpdateWidget(_CompactList old) {
     super.didUpdateWidget(old);
     _load();
+    _loadLive();
+  }
+
+  Future<void> _loadLive() async {
+    final ids = [
+      for (final u in widget.rows)
+        if (u.match.isLive) u.match.id,
+    ];
+    final sig = ids.join(',');
+    if (ids.isEmpty || sig == _liveLoaded) return;
+    _liveLoaded = sig;
+    final state = context.read<AppState>();
+    final api = state.api;
+    try {
+      final r = await api.get('/live/summary?${ids.map((i) => 'match_ids=$i').join('&')}') as Json;
+      final c = await loadLiveChances(api, ids);
+      var my = <int>{};
+      if (state.loggedIn) {
+        final bets = await api.get('/bets', {'limit': 100}) as List;
+        my = {
+          for (final b in bets.cast<Json>())
+            if (b['status'] == 'open')
+              for (final s in (b['selections'] as List).cast<Json>()) s['match_id'] as int,
+        };
+      }
+      if (!mounted || sig != _liveLoaded) return;
+      setState(() {
+        summaries = {for (final e in r.entries) int.parse(e.key): e.value as Json};
+        chances = c;
+        mine = my;
+      });
+    } on Object {
+      // Détails du direct indisponibles : la carte garde le score et la minute.
+    }
   }
 
   /// Cotes des matchs affichés, en un seul appel ; sans cotes, seules les chances s'affichent.
@@ -299,9 +377,43 @@ class _CompactListState extends State<_CompactList> {
           padding: const EdgeInsets.only(top: 8),
           child: Text('Chargement des cotes…', style: Fp.body(12, color: Fp.muted)),
         ),
-      for (final u in widget.rows) _MatchCard(u, offers[u.match.id] ?? const {}, loading: loading),
+      for (final u in _ordered())
+        _MatchCard(
+          u,
+          offers[u.match.id] ?? const {},
+          loading: loading,
+          summary: summaries[u.match.id],
+          chances: chances[u.match.id],
+          mine: mine.contains(u.match.id),
+        ),
     ],
   );
+
+  /// Matchs en cours de mes paris d'abord (★), l'ordre reçu sinon.
+  List<Upcoming> _ordered() {
+    final rows = widget.rows;
+    if (mine.isEmpty) return rows;
+    bool first(Upcoming u) => u.match.isLive && mine.contains(u.match.id);
+    return [...rows.where(first), ...rows.where((u) => !first(u))];
+  }
+}
+
+/// « ⚽ 23' Calvert-Lewin · ⚽ 51' Son · 🟥 81' Udinese » (maquette D1).
+String liveFacts(Json? summary, MatchInfo m) {
+  if (summary == null) return '';
+  String when(Json e) {
+    final extra = e['extra'] as int?;
+    return '${e['minute'] ?? ''}${extra != null && extra > 0 ? '+$extra' : ''}\'';
+  }
+
+  String who(Json e) => '${e['player'] ?? (e['side'] == 'away' ? m.away.name : m.home.name)}';
+  final items = [
+    for (final g in (summary['goals'] as List? ?? const []).cast<Json>())
+      (g['minute'] as int? ?? 0, '⚽ ${when(g)} ${who(g)}${g['own_goal'] == true ? ' (c.s.c.)' : ''}'),
+    for (final r in (summary['reds'] as List? ?? const []).cast<Json>())
+      (r['minute'] as int? ?? 0, '🟥 ${when(r)} ${who(r)}'),
+  ]..sort((a, b) => a.$1.compareTo(b.$1));
+  return items.map((i) => i.$2).join(' · ');
 }
 
 /// « Aujourd'hui », « Demain », « Lun. 9 ».
@@ -314,16 +426,37 @@ String _dayLabel(DateTime d) {
 }
 
 class _MatchCard extends StatelessWidget {
-  const _MatchCard(this.u, this.offers, {this.loading = false});
+  const _MatchCard(
+    this.u,
+    this.offers, {
+    this.loading = false,
+    this.summary,
+    this.chances,
+    this.mine = false,
+  });
   final Upcoming u;
   final Map<String, Offer> offers;
   final bool loading;
+
+  /// En direct : buts et cartons rouges (`/live/summary`), chances du moment (si publiées).
+  final Json? summary;
+  final Json? chances;
+
+  /// Match d'un de mes paris en cours (★).
+  final bool mine;
 
   @override
   Widget build(BuildContext context) {
     final m = u.match, s = u.summary;
     final live = m.isLive;
-    final probs = s == null ? null : [s.home.probability, s.draw.probability, s.away.probability];
+    final before = s == null ? null : [s.home.probability, s.draw.probability, s.away.probability];
+    final liveMarkets = chances?['markets'] as Map?;
+    final now = [
+      for (final k in const ['1X2||home', '1X2||draw', '1X2||away']) (liveMarkets?[k] as num?)?.toDouble(),
+    ];
+    // En direct : les chances du moment si elles sont publiées, sinon rien (celles d'avant le
+    // match n'y ont plus de sens).
+    final probs = live ? (now.contains(null) ? null : now.cast<double>()) : before;
     final best = probs == null ? -1 : probs.indexOf(probs.reduce((a, b) => a > b ? a : b));
     const keys = ['1X2||home', '1X2||draw', '1X2||away'];
     Widget team(Team t) => Row(
@@ -355,10 +488,11 @@ class _MatchCard extends StatelessWidget {
             children: [
               Text(const ['1', 'N', '2'][i], style: Fp.body(11, color: Fp.muted)),
               Text(probs == null ? '—' : percent(probs[i]), style: Fp.body(15, weight: FontWeight.w700)),
-              Text(
-                o != null ? odds(o.odds) : (loading && !m.started ? '…' : ' '),
-                style: Fp.body(11, color: Fp.textSoft),
-              ),
+              if (!live)
+                Text(
+                  o != null ? odds(o.odds) : (loading && !m.started ? '…' : ' '),
+                  style: Fp.body(11, color: Fp.textSoft),
+                ),
             ],
           ),
         ),
@@ -400,7 +534,7 @@ class _MatchCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          competitionName(m.competition),
+                          '${mine ? '★ ' : ''}${competitionName(m.competition)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Fp.body(12, color: Fp.muted),
@@ -408,7 +542,7 @@ class _MatchCard extends StatelessWidget {
                       ),
                       if (live)
                         Text(
-                          '● En direct',
+                          '● ${m.clock.isEmpty ? 'En direct' : m.clock}',
                           style: Fp.body(12, color: Fp.win, weight: FontWeight.w700),
                         )
                       else
@@ -432,20 +566,33 @@ class _MatchCard extends StatelessWidget {
                             live ? (m.liveHome == null ? '–' : '${m.liveHome} – ${m.liveAway}') : m.when,
                             style: Fp.body(20, weight: FontWeight.w700),
                           ),
-                          if (live)
-                            Text(
-                              m.clock,
-                              style: Fp.body(12, color: Fp.win, weight: FontWeight.w700),
-                            ),
                         ],
                       ),
                     ],
                   ),
-                  // En direct : le score et la minute ; les chances d'avant le match n'y ont plus de sens.
-                  if (!live) ...[
+                  if (live && liveFacts(summary, m).isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      liveFacts(summary, m),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Fp.body(12.5, color: Fp.text2),
+                    ),
+                  ],
+                  if (probs != null) ...[
                     const SizedBox(height: 10),
                     Row(
                       children: [box(0), const SizedBox(width: 6), box(1), const SizedBox(width: 6), box(2)],
+                    ),
+                  ],
+                  if (live && probs != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      [
+                        'Chances en direct',
+                        if (before != null) 'avant le match : ${before.map((p) => percent(p)).join(' · ')}',
+                      ].join(' · '),
+                      style: Fp.body(11.5, color: Fp.muted),
                     ),
                   ],
                 ],
