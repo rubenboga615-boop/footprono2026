@@ -1224,3 +1224,10 @@ les matchs passés ») et qui avaient une prévision d'avant-match (matchs compt
 si les buts des événements redonnent le score final). « Chances en direct publiées »
 refuse la publication tant qu'un repère n'est pas juste ; jusque-là, `/live/chances`
 répond vide et l'application ne montre rien.
+
+**Dans l'application** (cachées tant que non publiées) : écran d'un match en cours, carte
+« Chances en direct » (1, N, 2 du moment, plus de 3,5 buts, chances d'avant le match pour
+comparer, « ce n'est pas un conseil de pari ») ; fiche d'un pari en cours, « Chance de ton
+coupon : X % au départ → Y % maintenant » (sélections gagnées 1, à venir leur chance d'avant
+le match, en cours leur chance du moment ; rien si une chance manque ou si le coupon est
+perdu).

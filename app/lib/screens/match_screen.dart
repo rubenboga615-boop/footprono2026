@@ -14,6 +14,7 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/team_logo.dart';
+import '../widgets/live_chances.dart';
 import '../widgets/maquette.dart';
 import 'premium_screen.dart' show PremiumCard;
 import 'odds_history.dart';
@@ -279,6 +280,13 @@ class _MatchViewState extends State<_MatchView> {
     return [
       // Match commencé (essai du 07/11/2026 : « score le plus probable 0-2 » à 1-0, 78e) :
       // les chances sont celles d'avant le match, et le choix du moteur n'est plus jouable.
+      if (m.isLive)
+        LiveChancesCard(
+          match: m,
+          before: find('home') == null || find('draw') == null || find('away') == null
+              ? null
+              : (find('home')!.probability, find('draw')!.probability, find('away')!.probability),
+        ),
       if (m.started) ...[
         _BeforeKickoff(m),
         const SizedBox(height: 12),

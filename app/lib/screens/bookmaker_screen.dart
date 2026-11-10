@@ -11,6 +11,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/live_chances.dart';
 import '../widgets/maquette.dart';
 import 'record_screen.dart';
 
@@ -685,6 +686,7 @@ class BetCard extends StatelessWidget {
             betTag(b),
           ],
         ),
+        if (b.status == 'open' && b.selections.any((s) => s.state == 'live')) LiveCouponChance(b),
         const SizedBox(height: 4),
         for (final (i, s) in b.selections.indexed)
           Container(

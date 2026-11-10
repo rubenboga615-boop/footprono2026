@@ -42,6 +42,12 @@ class FakeServer {
   bool betaAvailable = false;
   final extraUpcoming = <Map<String, dynamic>>[];
   final live = <Map<String, dynamic>>[];
+
+  /// Chances en direct (étape 6) : non publiées sauf si un test les donne.
+  Map<String, dynamic>? liveChances;
+
+  /// Match 7 tel que renvoyé par /matches/7 (un test peut le mettre en direct).
+  Map<String, dynamic>? matchNow;
   final notifications = <Map<String, dynamic>>[];
   bool paymentsConfigured = true;
   bool betaSharing = false;
@@ -268,7 +274,9 @@ class FakeServer {
           ...extraUpcoming,
         ];
       case 'GET /matches/7':
-        body = match;
+        body = matchNow ?? match;
+      case 'GET /live/chances':
+        body = liveChances ?? {'published': false, 'matches': {}};
       case 'GET /matches/7/prediction':
         body = {
           'match_id': 7,
@@ -2021,6 +2029,48 @@ void main() {
     expect(MatchInfo(FakeServer.match).started, isTrue);
     MatchInfo.now = () => DateTime.utc(2026, 10, 10, 18);
     expect(MatchInfo(FakeServer.match).started, isFalse);
+  });
+
+  testWidgets('en direct : chances du moteur sur l\'écran du match, seulement si publiées', (tester) async {
+    final (_, server) = await startApp(tester, loggedIn: true);
+    await tester.binding.setSurfaceSize(const Size(430, 2400));
+    MatchInfo.now = () => DateTime.utc(2026, 10, 10, 20, 40);
+    server.matchNow = {
+      ...FakeServer.match,
+      'api_status': '2H',
+      'live_minute': 63,
+      'live_extra': null,
+      'live_home_goals': 2,
+      'live_away_goals': 1,
+    };
+    Future<void> open() async {
+      await tester.tap(find.text('Lens').first);
+      await tester.pumpAndSettle();
+    }
+
+    await open();
+    expect(find.text('Chances en direct'), findsNothing); // pas encore publiées
+    navigatorKey.currentState!.pop();
+    await tester.pumpAndSettle();
+
+    server.liveChances = {
+      'published': true,
+      'matches': {
+        '7': {
+          'status': '2H',
+          'minute': 63,
+          'extra': 0,
+          'markets': {'1X2||home': 0.78, '1X2||draw': 0.17, '1X2||away': 0.05, 'OU|3.5|over': 0.31},
+        },
+      },
+    };
+    await open();
+    expect(find.text('Chances en direct'), findsOneWidget);
+    expect(find.text('63\''), findsOneWidget);
+    expect(find.text('78\u00a0%'), findsOneWidget);
+    expect(find.text('Plus de 3,5 buts'), findsOneWidget);
+    expect(find.textContaining('ce n\'est pas un conseil de pari'), findsOneWidget);
+    MatchInfo.now = DateTime.now;
   });
 
   testWidgets('matchs : cloche des notifications, légende de l\'encadré, textes de Flutter en français', (
