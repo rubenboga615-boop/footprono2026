@@ -17,12 +17,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from footprono.console.models import AppSetting
 from footprono.engine.live import (
     DEFAULT_MODEL,
+    FIRST_HALF,
     LIVE_STATUSES,
     LiveModel,
     LiveState,
     live_markets,
 )
-from footprono.engine.live_study import PlayedMatch, consistent, minute_entries, report
+from footprono.engine.live_study import (
+    PlayedMatch,
+    consistent,
+    family_of_key,
+    minute_entries,
+    report,
+)
 from footprono.football.models import LiveSnapshot, Match, MatchEvent, MatchStatus
 from footprono.predictions.models import MatchPrediction, PredictionRun
 
@@ -156,7 +163,7 @@ async def current(session: AsyncSession, match_ids: Sequence[int]) -> dict[int, 
     d'avant-match. Un match absent : pas de chance calculable (carton rouge, prolongation…)."""
     if not match_ids:
         return {}
-    model, _ = await stored_model(session)
+    model, info = await stored_model(session)
     snaps = {
         s.match_id: s
         for s in await session.scalars(
@@ -188,6 +195,10 @@ async def current(session: AsyncSession, match_ids: Sequence[int]) -> dict[int, 
         markets = live_markets(*prematch[mid], state, model)
         if markets is None:
             continue
+        # Marchés faux à la vérification : pas de chiffre dans leur période (11/11/2026).
+        period = "first" if s.status in FIRST_HALF else "second"
+        banned = set(((info or {}).get("excluded") or {}).get(period, []))
+        markets = {k: v for k, v in markets.items() if family_of_key(k) not in banned}
         out[mid] = {
             "status": s.status,
             "minute": s.minute,

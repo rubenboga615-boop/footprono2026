@@ -916,6 +916,34 @@ def _live_verdict(rep: dict[str, Any]) -> tuple[bool, list[str]]:
     return ok, lines
 
 
+FIRST_CHECKPOINTS = ("15'", "30'")
+SECOND_CHECKPOINTS = ("mi-temps", "60'", "75'")
+CORE_FAMILY = "Résultat (1X2)"
+
+
+def _live_decision(rep: dict[str, Any]) -> tuple[bool, list[str], dict[str, list[str]]]:
+    """Publiable si chaque repère a des marchés vérifiés et que le résultat du match (1X2) est
+    juste partout ; un autre marché faux à un repère est retiré pour sa période (1re
+    période, ou mi-temps et 2e période) : aucun chiffre plutôt qu'un chiffre faux (décision
+    du 11/11/2026)."""
+    ok, lines = True, []
+    excluded: dict[str, set[str]] = {"first": set(), "second": set()}
+    for checkpoint in (*FIRST_CHECKPOINTS, *SECOND_CHECKPOINTS):
+        rows = [r for r in rep["rows"] if r["checkpoint"] == checkpoint]
+        checked = [r for r in rows if r["verdict"] != "trop peu"]
+        bad = [r["family"] for r in checked if r["verdict"] == "à revoir"]
+        if not checked or CORE_FAMILY in bad:
+            ok = False
+        period = "first" if checkpoint in FIRST_CHECKPOINTS else "second"
+        excluded[period].update(f for f in bad if f != CORE_FAMILY)
+        lines.append(
+            f"{checkpoint} : {len(checked)} marchés vérifiés"
+            + (f", faux : {', '.join(bad)}" if bad else "")
+            + ("" if checked else " (trop peu de matchs)")
+        )
+    return ok, lines, {k: sorted(v) for k, v in excluded.items()}
+
+
 def _log_live_report(ctx: JobContext, rep: dict[str, Any]) -> None:
     """Une ligne par repère et par marché, puis le détail des tranches de chaque marché « à
     revoir » (annoncé → arrivé), pour savoir dans quel sens le moteur se trompe."""
@@ -1065,10 +1093,10 @@ async def live_fit(ctx: JobContext, params: dict[str, Any]) -> str:
             f"{'—' if old is None else f'{100 * old:.1f}'} → {100 * r['worst_gap']:.1f} points, "
             f"{r['verdict']}"
         )
-    ok, lines = _live_verdict(rep)
+    ok, lines, excluded = _live_decision(rep)
     for line in lines:
         ctx.log(line)
-    ctx.result = {"model": model.as_dict(), "report": rep, "ok": ok}
+    ctx.result = {"model": model.as_dict(), "report": rep, "ok": ok, "excluded": excluded}
     if not ok:
         for r in rep["rows"]:
             if r["verdict"] == "à revoir":
@@ -1090,11 +1118,17 @@ async def live_fit(ctx: JobContext, params: dict[str, Any]) -> str:
                 "test": params["test"],
                 "matches": [len(learn), len(check)],
                 "validated": True,
+                "excluded": excluded,
             },
         )
+    for period, label in (("first", "1re période"), ("second", "mi-temps et 2e période")):
+        if excluded[period]:
+            ctx.log(
+                f"Sans chiffre en {label} (faux à la vérification) : {', '.join(excluded[period])}"
+            )
     return (
-        "juste à chaque repère sur la saison jamais vue : rythme gardé pour le direct ; "
-        "« Chances en direct publiées » est maintenant possible"
+        "résultat du match juste à chaque repère sur la saison jamais vue : modèle gardé pour "
+        "le direct ; « Chances en direct publiées » est maintenant possible"
     )
 
 
@@ -1106,8 +1140,9 @@ register(
         description=(
             "Apprend le rythme des buts minute par minute (tranches de 5 minutes, temps "
             "additionnel) et l'effet du score sur les saisons d'apprentissage, puis le "
-            "vérifie sur une saison jamais vue (règle des 3 points à 15', 30', mi-temps, 60' "
-            "et 75'). Gardé pour le direct seulement si tout est juste. Aucune requête."
+            "vérifie sur une saison jamais vue à 15', 30', mi-temps, 60' et 75' (3 points ou "
+            "marge du hasard). Gardé si le résultat du match est juste partout ; un autre "
+            "marché faux n'a pas de chiffre dans sa période. Aucune requête."
         ),
         risk="modifie",
         run=live_fit,

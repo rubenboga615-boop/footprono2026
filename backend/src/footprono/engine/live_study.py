@@ -146,16 +146,30 @@ def report(entries: Iterable[Entry]) -> dict[str, Any]:
         worst = max(
             (abs(float(b["observed"]) - float(b["announced"])) for b in checked), default=None
         )
+        # Règle validée le 06/11/2026 (sélections nationales), reprise le 11/11/2026 pour le
+        # direct : chaque tranche à 3 points près ou dans deux erreurs types (le hasard).
+        wrong = [b for b in checked if not _within(b)]
         loss = -np.mean(w * np.log(p + EPS) + (1 - w) * np.log(1 - p + EPS))
         rows.append({
             "checkpoint": checkpoint, "family": family, "selections": len(items),
             "log_loss": round(float(loss), 4),
             "worst_gap": None if worst is None else round(worst, 4),
-            "verdict": "trop peu" if worst is None
-            else "juste" if worst <= MAX_GAP else "à revoir",
+            "verdict": "trop peu" if worst is None else "à revoir" if wrong else "juste",
             "bins": bins,
         })  # fmt: skip
-    return {"rows": rows, "rule": {"min_bin": MIN_BIN, "max_gap": MAX_GAP}}
+    return {"rows": rows, "rule": {"min_bin": MIN_BIN, "max_gap": MAX_GAP, "two_se": True}}
+
+
+def _within(b: dict[str, Any]) -> bool:
+    """Tranche juste : à ``MAX_GAP`` près, ou dans deux erreurs types de l'annoncé."""
+    a, o, n = float(b["announced"]), float(b["observed"]), int(b["n"])
+    gap = abs(o - a)
+    return gap <= MAX_GAP or gap <= 2 * float(np.sqrt(a * (1 - a) / n))
+
+
+# Marché d'une clé « marché|ligne|sélection », pour retirer une famille fautive du direct.
+def family_of_key(key: str) -> str | None:
+    return FAMILIES.get(key.split("|", 1)[0])
 
 
 def format_report(rep: dict[str, Any]) -> str:

@@ -1318,3 +1318,16 @@ restent à revoir (mi-temps : 74,7 % → 70,6 %). Reproduit ici sur l'archive (m
 `refine_second_half` : ajouté à « Apprendre et vérifier le direct » après l'apprentissage
 minute par minute, sur les scores à la mi-temps, à 60' et à 75' (8 000 matchs
 d'apprentissage) ; vérification inchangée sur la saison jamais vue.
+
+**Troisième apprentissage (console, 11/11/2026)** avec l'affinage (mené de 1 × 1,16, devant
+de 1 × 0,97 en 2e période) : mi-temps et 30' justes partout ; restent 15' les deux marquent
+(3,3 points), 60' buts d'une équipe (4,3) et les deux marquent (5,7), 75' résultat et double
+chance (3,7). Écarts comparés au hasard (deux erreurs types) : 15' et 75' dans la marge ; 60'
+buts d'une équipe et les deux marquent au-delà.
+
+**Décision du fondateur (11/11/2026)** : règle des sélections nationales (06/11) pour le
+direct : chaque tranche à 3 points près **ou** dans deux erreurs types. Le modèle est gardé si
+le **résultat du match** est juste à chaque repère ; un autre marché faux à un repère n'a
+**aucun chiffre** dans sa période (1re période ; ou mi-temps et 2e période), enregistré avec
+le modèle (`excluded`) et appliqué par `/live/chances`. Dernière relance de « Apprendre et
+vérifier le direct » pour confirmer.

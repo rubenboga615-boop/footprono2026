@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from footprono.engine.live import LiveModel
 from footprono.football.models import LiveSnapshot, Match, MatchEvent, MatchStatus
 from footprono.predictions import live_chances
 from footprono.predictions.models import MatchPrediction, PredictionRun
@@ -123,6 +124,15 @@ async def test_current_chances_and_publication(
         assert chances["OU|0.5|over"] == 1.0
         assert chances["1X2||home"] > 0.7
         assert await live_published(session) is False
+        # Marché faux à la vérification : pas de chiffre dans sa période (11/11/2026).
+        await live_chances.save_model(
+            session, LiveModel(), {"learned_at": "11/11/2026", "train": "2021-2024",
+                                   "test": "2025", "validated": True,
+                                   "excluded": {"first": [], "second": ["Les deux marquent"]}},
+        )  # fmt: skip
+        again = (await live_chances.current(session, ids))[ids[0]]["markets"]
+        assert "BTTS||yes" not in again
+        assert "1X2||home" in again
 
     params = {"match_ids": [str(i) for i in ids]}
     hidden = (await client.get("/api/v1/live/chances", params=params)).json()
@@ -225,3 +235,35 @@ async def test_live_model_kept_only_after_validation(db_factory: Factory) -> Non
     assert model == learned
     assert info is not None
     assert info["test"] == "2025"
+
+
+def test_decision_core_market_everywhere_others_withdrawn_by_period() -> None:
+    from footprono.console.actions import _live_decision
+
+    def row(checkpoint: str, family: str, verdict: str) -> dict[str, str]:
+        return {"checkpoint": checkpoint, "family": family, "verdict": verdict}
+
+    points = ("15'", "30'", "mi-temps", "60'", "75'")
+    rows = [row(c, "Résultat (1X2)", "juste") for c in points]
+    rows += [
+        row("60'", "Les deux marquent", "à revoir"),
+        row("15'", "Buts d'une équipe", "à revoir"),
+    ]
+    ok, lines, excluded = _live_decision({"rows": rows})
+    assert ok is True
+    assert excluded == {"first": ["Buts d'une équipe"], "second": ["Les deux marquent"]}
+    assert lines[3] == "60' : 2 marchés vérifiés, faux : Les deux marquent"
+    rows[3] = row("60'", "Résultat (1X2)", "à revoir")
+    assert _live_decision({"rows": rows})[0] is False  # le résultat du match doit être juste
+
+
+def test_rule_three_points_or_chance() -> None:
+    from footprono.engine.live_study import Entry, report
+
+    # 400 sélections annoncées à 25 %, arrivées à 28,5 % : 3,5 points, mais dans deux
+    # erreurs types (4,3 points) : juste. À 31 % : 6 points, faux.
+    def entries(won: int) -> list[Entry]:
+        return [Entry("60'", "Les deux marquent", 0.25, i < won) for i in range(400)]
+
+    assert report(entries(114))["rows"][0]["verdict"] == "juste"
+    assert report(entries(124))["rows"][0]["verdict"] == "à revoir"
