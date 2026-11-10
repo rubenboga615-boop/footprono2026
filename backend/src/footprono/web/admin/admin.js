@@ -1008,6 +1008,14 @@ function percent(x, signed) {
 }
 function seconds(ms) { return ms === null || ms === undefined ? "—" : (ms / 1000).toFixed(1).replace(".", ",") + " s"; }
 const BETA_MIN_BETS = 200;
+// Rendement d'un testeur ou d'une tranche : sous 20 paris réglés, pas de chiffre (comme
+// « Mon bilan » dans l'application) ; « trop peu » à la place.
+const BETA_MIN_ROW_BETS = 20;
+function rowReturn(bets, ret) {
+  return bets < BETA_MIN_ROW_BETS
+    ? h("td", { class: "muted", text: bets ? `trop peu (${bets} sur ${BETA_MIN_ROW_BETS})` : "—" })
+    : h("td", { class: ret < 0 ? "badt" : ret > 0 ? "okt" : "", text: percent(ret, true) });
+}
 const BETA_KIND = { slow: "attente", error: "erreur" };
 
 async function betaPage() {
@@ -1037,7 +1045,7 @@ async function betaPage() {
       h("td", { style: "font-weight:600", text: "n° " + t.tester }),
       h("td", { text: number(t.bets) }),
       h("td", { text: percent(t.win_rate) }),
-      h("td", { class: t.return < 0 ? "badt" : t.return > 0 ? "okt" : "", text: percent(t.return, true) }),
+      rowReturn(t.bets, t.return),
       h("td", { class: "hide-sm", text: t.montantes ? `${t.montantes} (palier ${t.montante_best_step} au plus)` : "0" }),
       h("td", { class: t.last_problem ? "badt" : "", text: t.last_problem
         ? `${t.last_problem.screen} : ${BETA_KIND[t.last_problem.kind]}${t.last_problem.duration_ms ? " " + seconds(t.last_problem.duration_ms) : ""}`
@@ -1055,7 +1063,7 @@ async function betaPage() {
   const bands = table(["Cote du coupon", "Paris", "Annoncé", "Arrivé", "Rendement"],
     (d.odds_bands || []).map((b) => h("tr", {}, h("td", { text: b.band }), h("td", { text: number(b.bets) }),
       h("td", { text: percent(b.announced) }), h("td", { text: percent(b.observed) }),
-      h("td", { class: b.return < 0 ? "badt" : b.return > 0 ? "okt" : "", text: percent(b.return, true) }))),
+      rowReturn(b.bets, b.return))),
     "Aucun pari réglé.");
   const sc = d.smart_coupons;
   const lost = Object.entries(d.montantes_lost_at_step);
