@@ -31,12 +31,29 @@ def _red(detail: str | None) -> bool:
     return "red" in d or "second yellow" in d
 
 
+# Numéros de matchs par requête : PostgreSQL refuse plus de 32 767 paramètres (console du
+# 11/11/2026 : « Vérifier les chances en direct » sur 50 000 matchs).
+CHUNK = 5000
+
+
+def _chunks(ids: Sequence[int]) -> list[list[int]]:
+    ids = list(ids)
+    return [ids[i : i + CHUNK] for i in range(0, len(ids), CHUNK)]
+
+
 async def _prematch(
     session: AsyncSession, match_ids: Sequence[int]
 ) -> dict[int, tuple[float, float, float, float]]:
     """Dernière prévision d'avant-match (calculée avant le coup d'envoi) de chaque match."""
-    if not match_ids:
-        return {}
+    out: dict[int, tuple[float, float, float, float]] = {}
+    for chunk in _chunks(match_ids):
+        out.update(await _prematch_chunk(session, chunk))
+    return out
+
+
+async def _prematch_chunk(
+    session: AsyncSession, match_ids: list[int]
+) -> dict[int, tuple[float, float, float, float]]:
     rows = await session.execute(
         select(
             MatchPrediction.match_id,
@@ -48,7 +65,7 @@ async def _prematch(
         .join(PredictionRun, PredictionRun.id == MatchPrediction.run_id)
         .join(Match, Match.id == MatchPrediction.match_id)
         .where(
-            MatchPrediction.match_id.in_(list(match_ids)),
+            MatchPrediction.match_id.in_(match_ids),
             PredictionRun.as_of <= Match.match_date,
         )
         .order_by(MatchPrediction.match_id, MatchPrediction.run_id.desc())
@@ -59,14 +76,13 @@ async def _prematch(
 
 async def _events(session: AsyncSession, match_ids: Sequence[int]) -> dict[int, list[MatchEvent]]:
     out: dict[int, list[MatchEvent]] = defaultdict(list)
-    if not match_ids:
-        return out
-    for e in await session.scalars(
-        select(MatchEvent)
-        .where(MatchEvent.match_id.in_(list(match_ids)), MatchEvent.kind.in_(("Goal", "Card")))
-        .order_by(MatchEvent.match_id, MatchEvent.seq)
-    ):
-        out[e.match_id].append(e)
+    for chunk in _chunks(match_ids):
+        for e in await session.scalars(
+            select(MatchEvent)
+            .where(MatchEvent.match_id.in_(chunk), MatchEvent.kind.in_(("Goal", "Card")))
+            .order_by(MatchEvent.match_id, MatchEvent.seq)
+        ):
+            out[e.match_id].append(e)
     return out
 
 

@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import httpx
+import pytest
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -38,7 +39,12 @@ def _event(mid: int, seq: int, minute: int, side: str, kind: str, detail: str) -
     )
 
 
-async def test_study_of_played_matches(db_factory: Factory, tmp_path: Path) -> None:
+async def test_study_of_played_matches(
+    db_factory: Factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Paquets d'un seul match : la console demandait 50 000 numéros d'un coup (limite de
+    # PostgreSQL : 32 767 paramètres par requête).
+    monkeypatch.setattr(live_chances, "CHUNK", 1)
     ids = await _two_matches(db_factory, tmp_path)
     async with db_factory() as session:
         day = await session.scalar(select(Match.match_date).where(Match.id == ids[0]))
