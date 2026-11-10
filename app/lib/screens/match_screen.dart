@@ -14,9 +14,9 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/team_logo.dart';
-import '../widgets/live_chances.dart';
 import '../widgets/maquette.dart';
 import 'premium_screen.dart' show PremiumCard;
+import 'live_tab.dart';
 import 'odds_history.dart';
 import 'referee_screen.dart';
 import 'team_screen.dart';
@@ -105,17 +105,31 @@ class _MatchView extends StatefulWidget {
 }
 
 class _MatchViewState extends State<_MatchView> {
-  int tab = 0;
+  // Match commencé : onglet « En direct » (« Résumé » une fois fini) en premier, ouvert
+  // d'office pendant le match (maquette D2, plan du 10/11/2026, étape 7).
+  late int tab = widget.data.match.isLive ? 0 : (widget.data.match.started ? 1 : 0);
+
+  /// Chances d'avant le match (1, N, 2).
+  (double, double, double)? _before(MatchData d) {
+    double? p(String sel) =>
+        d.prediction?.markets.where((x) => x.market == '1X2' && x.selection == sel).firstOrNull?.probability;
+    final h = p('home'), n = p('draw'), a = p('away');
+    return h == null || n == null || a == null ? null : (h, n, a);
+  }
 
   @override
   Widget build(BuildContext context) {
     final d = widget.data;
     final m = d.match;
-    final content = switch (tab) {
-      0 => _probabilities(d),
-      1 => _odds(context, d),
-      _ => _analysis(d),
-    };
+    final live = m.started;
+    final index = live ? tab - 1 : tab;
+    final content = live && tab == 0
+        ? [LiveTab(match: m, before: _before(d))]
+        : switch (index) {
+            0 => _probabilities(d),
+            1 => _odds(context, d),
+            _ => _analysis(d),
+          };
     return RefreshIndicator(
       onRefresh: widget.reload,
       child: ListView(
@@ -175,7 +189,7 @@ class _MatchViewState extends State<_MatchView> {
           ),
           const SizedBox(height: 18),
           SegmentTabs(
-            labels: const ['Probabilités', 'Cotes', 'Analyse'],
+            labels: [if (live) m.isLive ? 'En direct' : 'Résumé', 'Probabilités', 'Cotes', 'Analyse'],
             selected: tab,
             onSelected: (i) => setState(() => tab = i),
           ),
@@ -280,13 +294,6 @@ class _MatchViewState extends State<_MatchView> {
     return [
       // Match commencé (essai du 07/11/2026 : « score le plus probable 0-2 » à 1-0, 78e) :
       // les chances sont celles d'avant le match, et le choix du moteur n'est plus jouable.
-      if (m.isLive)
-        LiveChancesCard(
-          match: m,
-          before: find('home') == null || find('draw') == null || find('away') == null
-              ? null
-              : (find('home')!.probability, find('draw')!.probability, find('away')!.probability),
-        ),
       if (m.started) ...[
         _BeforeKickoff(m),
         const SizedBox(height: 12),

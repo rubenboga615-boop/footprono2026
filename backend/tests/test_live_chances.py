@@ -143,3 +143,47 @@ def test_backfill_offers_cups_and_national_teams() -> None:
     codes = [code for code, _ in param.choices()]
     assert codes[0] == ""  # Tous : championnats, coupes et sélections
     assert {"EPL", "ISR", "UCL", "UEL", "UECL", "UNL", "WCQ_EUR", "CAN"} <= set(codes)
+
+
+async def test_live_tab_timeline_stats_by_half_and_lineups(
+    db_factory: Factory, tmp_path: Path, client: httpx.AsyncClient
+) -> None:
+    from footprono.football.live_view import second_half
+    from footprono.football.models import MatchLineup, MatchLineupPlayer
+
+    ids = await _two_matches(db_factory, tmp_path)
+    mid = ids[0]
+    half = {"Shots on Goal": 2, "Ball Possession": "60%", "expected_goals": "0.71", "Fouls": None}
+    now = {"Shots on Goal": 5, "Ball Possession": "55%", "expected_goals": "1.62", "Fouls": 7}
+    async with db_factory() as session:
+        session.add_all([
+            LiveSnapshot(match_id=mid, taken_at=NOW - timedelta(minutes=30), status="HT",
+                         minute=45, extra=0, home_goals=1, away_goals=0,
+                         home_stats=half, away_stats=half),
+            LiveSnapshot(match_id=mid, taken_at=NOW, status="2H", minute=63, extra=0,
+                         home_goals=2, away_goals=1, home_stats=now, away_stats=now),
+            _event(mid, 0, 23, "home", "Goal", "Normal Goal"),
+            _event(mid, 1, 46, "away", "subst", "Substitution 1"),
+            MatchLineup(match_id=mid, side="home", formation="4-3-3", coach="Farke"),
+            MatchLineupPlayer(match_id=mid, side="home", starter=True, name="Meslier",
+                              number=1, position="G", grid="1:1"),
+            MatchLineupPlayer(match_id=mid, side="home", starter=False, name="Piroe",
+                              number=19, position="F", grid=None),
+        ])  # fmt: skip
+        await session.commit()
+
+    body = (await client.get(f"/api/v1/matches/{mid}/live")).json()
+    assert (body["status"], body["minute"]) == ("2H", 63)
+    assert [e["minute"] for e in body["events"]] == [23, 46]
+    stats = body["stats"]
+    assert stats["match"]["home"]["Shots on Goal"] == 5
+    assert stats["first"]["home"]["Shots on Goal"] == 2
+    # 2e mi-temps : différence, sans les pourcentages.
+    assert stats["second"]["home"] == {"Shots on Goal": 3, "expected_goals": 0.91, "Fouls": 7}
+    (home,) = body["lineups"]
+    assert (home["formation"], home["coach"]) == ("4-3-3", "Farke")
+    assert [p["starter"] for p in home["players"]] == [True, False]
+    assert second_half(now, None) is None
+
+    missing = await client.get("/api/v1/matches/999999/live")
+    assert missing.status_code == 404

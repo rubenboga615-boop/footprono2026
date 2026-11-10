@@ -13,6 +13,7 @@ from footprono.api.deps import OptionalUserDep, SessionDep, SettingsDep
 from footprono.core.errors import NotFoundError
 from footprono.football import logos
 from footprono.football.analysis import match_analysis
+from footprono.football.live_view import live_view
 from footprono.football.models import (
     BookmakerOdds,
     Competition,
@@ -251,6 +252,14 @@ async def list_live(session: SessionDep) -> list[MatchOut]:
         .order_by(Match.kickoff_at, Match.id)
     )
     return [MatchOut(**_match_out(*row)) for row in rows.tuples()]
+
+
+@router.get("/matches/{match_id}/live")
+async def match_live(match_id: int, session: SessionDep) -> dict[str, Any]:
+    """Onglet « En direct » : chronologie, statistiques, compositions (étape 7)."""
+    if await session.get(Match, match_id) is None:
+        raise NotFoundError(f"match {match_id} introuvable")
+    return await live_view(session, match_id)
 
 
 @router.get("/live/chances")

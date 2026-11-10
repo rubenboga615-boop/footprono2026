@@ -48,6 +48,9 @@ class FakeServer {
 
   /// Match 7 tel que renvoyé par /matches/7 (un test peut le mettre en direct).
   Map<String, dynamic>? matchNow;
+
+  /// Onglet « En direct » du match 7 (étape 7) : vide sauf si un test le remplit.
+  Map<String, dynamic>? matchLive;
   final notifications = <Map<String, dynamic>>[];
   bool paymentsConfigured = true;
   bool betaSharing = false;
@@ -275,6 +278,8 @@ class FakeServer {
         ];
       case 'GET /matches/7':
         body = matchNow ?? match;
+      case 'GET /matches/7/live':
+        body = matchLive ?? {'status': null, 'events': [], 'stats': null, 'lineups': []};
       case 'GET /live/chances':
         body = liveChances ?? {'published': false, 'matches': {}};
       case 'GET /matches/7/prediction':
@@ -2031,7 +2036,9 @@ void main() {
     expect(MatchInfo(FakeServer.match).started, isFalse);
   });
 
-  testWidgets('en direct : chances du moteur sur l\'écran du match, seulement si publiées', (tester) async {
+  testWidgets('en direct : onglet du match (chronologie, statistiques, compositions), chances si publiées', (
+    tester,
+  ) async {
     final (_, server) = await startApp(tester, loggedIn: true);
     await tester.binding.setSurfaceSize(const Size(430, 2400));
     MatchInfo.now = () => DateTime.utc(2026, 10, 10, 20, 40);
@@ -2064,12 +2071,115 @@ void main() {
         },
       },
     };
+    server.matchLive = {
+      'status': '2H',
+      'minute': 63,
+      'extra': 0,
+      'events': [
+        {
+          'minute': 23,
+          'side': 'home',
+          'kind': 'Goal',
+          'detail': 'Normal Goal',
+          'player': 'Calvert-Lewin',
+          'assist': 'Gnonto',
+        },
+        {
+          'minute': 45,
+          'extra': 2,
+          'side': 'away',
+          'kind': 'Card',
+          'detail': 'Yellow Card',
+          'player': 'Ampadu',
+        },
+        {
+          'minute': 46,
+          'side': 'away',
+          'kind': 'subst',
+          'detail': 'Substitution 1',
+          'player': 'Maddison',
+          'assist': 'Bentancur',
+          'player_id': 10,
+          'assist_id': 30,
+        },
+        {'minute': 51, 'side': 'away', 'kind': 'Goal', 'detail': 'Penalty', 'player': 'Son'},
+        {
+          'minute': 60,
+          'side': 'home',
+          'kind': 'Goal',
+          'detail': 'Normal Goal',
+          'player': 'Gnonto',
+          'assist': 'Aaronson',
+        },
+      ],
+      'stats': {
+        'match': {
+          'home': {'Shots on Goal': 6, 'Ball Possession': '44%', 'expected_goals': '1.62', 'Red Cards': null},
+          'away': {'Shots on Goal': 3, 'Ball Possession': '56%', 'expected_goals': '1.05', 'Red Cards': null},
+        },
+        'first': {
+          'home': {'Shots on Goal': 2},
+          'away': {'Shots on Goal': 1},
+        },
+        'second': {
+          'home': {'Shots on Goal': 4},
+          'away': {'Shots on Goal': 2},
+        },
+      },
+      'lineups': [
+        {
+          'side': 'home',
+          'formation': '4-3-3',
+          'coach': 'Farke',
+          'players': [
+            {'name': 'Illan Meslier', 'number': 1, 'grid': '1:1', 'starter': true},
+            {'name': 'Joël Piroe', 'number': 7, 'grid': null, 'starter': false},
+          ],
+        },
+        {
+          'side': 'away',
+          'formation': '4-3-3',
+          'coach': 'Postecoglou',
+          'players': [
+            {'name': 'James Maddison', 'number': 10, 'grid': '4:2', 'starter': true},
+            {'name': 'Rodrigo Bentancur', 'id': 30, 'number': 30, 'grid': null, 'starter': false},
+          ],
+        },
+      ],
+    };
     await open();
+    // Onglet « En direct » ouvert d'office : chronologie, mi-temps, remplacement, chances.
+    expect(find.text('En direct'), findsOneWidget);
+    expect(find.text('MI-TEMPS · 1-0'), findsOneWidget);
+    expect(find.text('2-1'), findsOneWidget);
+    expect(find.textContaining('passe de Aaronson'), findsOneWidget);
+    expect(find.text('Maddison → Bentancur'), findsOneWidget);
+    expect(find.text('45+2\''), findsOneWidget);
     expect(find.text('Chances en direct'), findsOneWidget);
     expect(find.text('63\''), findsOneWidget);
     expect(find.text('78\u00a0%'), findsOneWidget);
     expect(find.text('Plus de 3,5 buts'), findsOneWidget);
     expect(find.textContaining('ce n\'est pas un conseil de pari'), findsOneWidget);
+
+    // Statistiques : match, puis 2e mi-temps ; possession à la française, pas de cartons
+    // rouges à zéro.
+    await tester.tap(find.text('Statistiques'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tirs cadrés'), findsOneWidget);
+    expect(find.text('44\u00a0%'), findsOneWidget);
+    expect(find.text('1,62'), findsOneWidget);
+    expect(find.text('Cartons rouges'), findsNothing);
+    await tester.tap(find.text('2e mi-temps'));
+    await tester.pumpAndSettle();
+    expect(find.text('4'), findsOneWidget);
+
+    // Compositions : systèmes, entraîneurs, remplaçant entré à la 46e.
+    await tester.tap(find.text('Compositions'));
+    await tester.pumpAndSettle();
+    expect(find.text('Farke'), findsOneWidget);
+    expect(find.text('Meslier'), findsOneWidget);
+    expect(find.text('Rodrigo Bentancur ✓ 46\'', skipOffstage: false), findsOneWidget);
+    expect(find.text('Joël Piroe'), findsOneWidget);
     MatchInfo.now = DateTime.now;
   });
 
