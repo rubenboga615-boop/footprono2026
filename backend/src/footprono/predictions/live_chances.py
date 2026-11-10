@@ -5,6 +5,7 @@ Rien n'est montré aux joueurs tant que la console n'a pas publié les chances e
 (Moteur → « Chances en direct publiées »), après une vérification juste.
 """
 
+import json
 from collections import defaultdict
 from collections.abc import Sequence
 from datetime import UTC
@@ -13,7 +14,14 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from footprono.engine.live import LIVE_STATUSES, LiveState, live_markets
+from footprono.console.models import AppSetting
+from footprono.engine.live import (
+    DEFAULT_MODEL,
+    LIVE_STATUSES,
+    LiveModel,
+    LiveState,
+    live_markets,
+)
 from footprono.engine.live_study import PlayedMatch, consistent, minute_entries, report
 from footprono.football.models import LiveSnapshot, Match, MatchEvent, MatchStatus
 from footprono.predictions.models import MatchPrediction, PredictionRun
@@ -136,7 +144,8 @@ async def study(session: AsyncSession) -> dict[str, Any]:
             skipped += 1
         else:
             matches.append(m)
-    out = report(minute_entries(matches))
+    model, _ = await stored_model(session)
+    out = report(minute_entries(matches, model))
     out["matches"] = len(matches)
     out["inconsistent"] = skipped
     return out
@@ -147,6 +156,7 @@ async def current(session: AsyncSession, match_ids: Sequence[int]) -> dict[int, 
     d'avant-match. Un match absent : pas de chance calculable (carton rouge, prolongation…)."""
     if not match_ids:
         return {}
+    model, _ = await stored_model(session)
     snaps = {
         s.match_id: s
         for s in await session.scalars(
@@ -175,7 +185,7 @@ async def current(session: AsyncSession, match_ids: Sequence[int]) -> dict[int, 
             red_home=sum(e.side == "home" for e in reds),
             red_away=sum(e.side == "away" for e in reds),
         )  # fmt: skip
-        markets = live_markets(*prematch[mid], state)
+        markets = live_markets(*prematch[mid], state, model)
         if markets is None:
             continue
         out[mid] = {
@@ -208,11 +218,12 @@ def goal_minutes(matches: Sequence[PlayedMatch]) -> dict[str, float]:
     return {k: round(v / (first if i < 3 else second), 4) for i, (k, v) in enumerate(bands.items())}
 
 
-async def history_study(
+async def played_matches(
     session: AsyncSession, played: Sequence[tuple[int, tuple[float, float, float, float]]]
-) -> tuple[dict[str, Any], list[PlayedMatch]]:
-    """Même étude que ``study`` sur des matchs passés dont la prévision a été rejouée hors
-    échantillon (``played`` : numéro du match, paramètres d'avant-match)."""
+) -> tuple[dict[int, PlayedMatch], int]:
+    """Matchs passés dont la prévision a été rejouée hors échantillon (``played`` : numéro du
+    match, paramètres d'avant-match), avec leurs buts et cartons rouges à la minute ; et le
+    nombre de matchs écartés (buts des événements ≠ score final)."""
     params = dict(played)
     with_details = select(LiveSnapshot.id).where(LiveSnapshot.match_id == Match.id).exists()
     finals: dict[int, tuple[int, int, int, int]] = {}
@@ -227,15 +238,54 @@ async def history_study(
             if hg is not None and ag is not None and hht is not None and aht is not None:
                 finals[mid] = (hg, ag, hht, aht)
     events = await _events(session, list(finals))
-    matches, skipped = [], 0
+    out: dict[int, PlayedMatch] = {}
+    skipped = 0
     for mid, final in finals.items():
         m = played_match(params[mid], events.get(mid, []), final)
         if m is None:
             skipped += 1
         else:
-            matches.append(m)
-    out = report(minute_entries(matches))
+            out[mid] = m
+    return out, skipped
+
+
+async def history_study(
+    session: AsyncSession,
+    played: Sequence[tuple[int, tuple[float, float, float, float]]],
+    model: LiveModel = DEFAULT_MODEL,
+) -> tuple[dict[str, Any], list[PlayedMatch]]:
+    """Même étude que ``study`` sur des matchs passés (prévisions rejouées)."""
+    found, skipped = await played_matches(session, played)
+    matches = list(found.values())
+    out = report(minute_entries(matches, model))
     out["matches"] = len(matches)
     out["inconsistent"] = skipped
     out["goal_minutes"] = goal_minutes(matches)
     return out, matches
+
+
+# ------------------------------------------ modèle du direct appris et vérifié (console)
+
+# Rythme des buts et effet du score appris sur les saisons passées, gardé seulement s'il est
+# juste sur une saison jamais vue (console : « Apprendre et vérifier le direct »).
+MODEL_KEY = "live.model"
+
+
+async def stored_model(session: AsyncSession) -> tuple[LiveModel, dict[str, Any] | None]:
+    """Modèle du direct en service et sa fiche (dates, saisons, verdict) ; le modèle de
+    départ (rythme régulier) s'il n'y en a pas."""
+    row = await session.get(AppSetting, MODEL_KEY)
+    if row is None:
+        return DEFAULT_MODEL, None
+    data = json.loads(row.value)
+    return LiveModel.from_dict(data["model"]), data
+
+
+async def save_model(session: AsyncSession, model: LiveModel, info: dict[str, Any]) -> None:
+    value = json.dumps({"model": model.as_dict(), **info}, ensure_ascii=False)
+    row = await session.get(AppSetting, MODEL_KEY)
+    if row is None:
+        session.add(AppSetting(key=MODEL_KEY, value=value))
+    else:
+        row.value = value
+    await session.commit()

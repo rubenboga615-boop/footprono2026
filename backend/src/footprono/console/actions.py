@@ -902,7 +902,7 @@ register(
 def _live_verdict(rep: dict[str, Any]) -> tuple[bool, list[str]]:
     """Juste si chaque repère a des marchés vérifiés et qu'aucun n'est « à revoir »."""
     lines, ok = [], True
-    for checkpoint in ("15'", "30'", "60'", "75'"):
+    for checkpoint in ("15'", "30'", "mi-temps", "60'", "75'"):
         rows = [r for r in rep["rows"] if r["checkpoint"] == checkpoint]
         checked = [r for r in rows if r["verdict"] != "trop peu"]
         bad = [r for r in checked if r["verdict"] == "à revoir"]
@@ -949,13 +949,16 @@ async def live_study(ctx: JobContext, params: dict[str, Any]) -> str:
     )
 
 
-async def live_history_study(ctx: JobContext, params: dict[str, Any]) -> str:
+async def _replayed(
+    ctx: JobContext, seasons: list[int]
+) -> list[tuple[int, tuple[float, float, float, float], int]]:
+    """Prévisions d'avant-match des saisons, rejouées hors échantillon (comme le backtest) :
+    (numéro du match, paramètres, saison)."""
     from footprono.engine.cli import predict as replay
     from footprono.engine.correction import DEFAULT_FEATURES
     from footprono.engine.goals import GoalsConfig
     from footprono.engine.history import load_history
 
-    seasons = parse_seasons(params["seasons"])
     ctx.log("Chargement de l'historique…")
     async with ctx.factory() as session:
         hist = await load_history(session)
@@ -963,13 +966,28 @@ async def live_history_study(ctx: JobContext, params: dict[str, Any]) -> str:
     pred = await asyncio.to_thread(
         replay, hist, [c.code for c in COMPETITIONS], seasons, GoalsConfig(), DEFAULT_FEATURES
     )
-    played = [
-        (int(pred.match_id[k]), (pred.lam_h[k], pred.lam_a[k], pred.share_h[k], pred.share_a[k]))
+    out = [
+        (
+            int(pred.match_id[k]),
+            (pred.lam_h[k], pred.lam_a[k], pred.share_h[k], pred.share_a[k]),
+            int(pred.season[k]),
+        )
         for k in range(len(pred.match_id))
     ]
-    ctx.log(f"{len(played)} matchs prévus ; minutes des buts et cartons rouges…")
+    ctx.log(f"{len(out)} matchs prévus ; minutes des buts et cartons rouges…")
+    return out
+
+
+async def live_history_study(ctx: JobContext, params: dict[str, Any]) -> str:
+    seasons = parse_seasons(params["seasons"])
+    played = [(mid, p) for mid, p, _ in await _replayed(ctx, seasons)]
     async with ctx.factory() as session:
-        rep, _ = await live_chances.history_study(session, played)
+        model, info = await live_chances.stored_model(session)
+        ctx.log(
+            "Modèle du direct : "
+            + ("rythme régulier (de départ)" if info is None else f"appris le {info['learned_at']}")
+        )
+        rep, _ = await live_chances.history_study(session, played, model)
     ctx.result = rep
     _log_live_report(ctx, rep)
     ok, lines = _live_verdict(rep)
@@ -983,6 +1001,127 @@ async def live_history_study(ctx: JobContext, params: dict[str, Any]) -> str:
     if rep["inconsistent"]:
         ctx.log(f"{rep['inconsistent']} matchs écartés (buts des événements ≠ score final)")
     return f"{rep['matches']} matchs étudiés : " + ("juste à chaque repère" if ok else "à revoir")
+
+
+def _fmt_rhythm(values: list[float] | tuple[float, ...]) -> str:
+    labels = [f"{5 * i + 1}-{5 * i + 5}" for i in range(len(values) - 1)] + ["add."]
+    return " · ".join(
+        f"{lbl} {v:.2f}".replace(".", ",") for lbl, v in zip(labels, values, strict=True)
+    )
+
+
+async def live_fit(ctx: JobContext, params: dict[str, Any]) -> str:
+    from footprono.engine.live import DEFAULT_MODEL
+    from footprono.engine.live_study import fit_live_model, minute_entries, report
+
+    train = parse_seasons(params["train"])
+    test = parse_seasons(params["test"])
+    if set(train) & set(test):
+        raise AppError("les saisons d'apprentissage et de vérification doivent être différentes")
+    replayed = await _replayed(ctx, sorted({*train, *test}))
+    season = {mid: s for mid, _, s in replayed}
+    async with ctx.factory() as session:
+        found, skipped = await live_chances.played_matches(
+            session, [(mid, p) for mid, p, _ in replayed]
+        )
+    learn = [m for mid, m in found.items() if season[mid] in train]
+    check = [m for mid, m in found.items() if season[mid] in test]
+    ctx.log(
+        f"Apprentissage : {len(learn)} matchs ({params['train']}) ; vérification : "
+        f"{len(check)} matchs ({params['test']}) ; {skipped} écartés"
+    )
+    if len(learn) < 1000 or len(check) < 500:
+        raise AppError(
+            "trop peu de matchs avec leurs minutes de buts (lancer d'abord « Compléter les "
+            "matchs passés ») : rien n'est changé"
+        )
+    model = await asyncio.to_thread(fit_live_model, learn)
+    ctx.log(f"Rythme 1re période : {_fmt_rhythm(model.first)}")
+    ctx.log(f"Rythme 2e période : {_fmt_rhythm(model.second)}")
+    ctx.log(
+        "Effet du score (mené de 2+, mené de 1, égalité, devant de 1, devant de 2+) : "
+        + " · ".join(f"{v:.2f}".replace(".", ",") for v in model.effect)
+    )
+    before = await asyncio.to_thread(lambda: report(minute_entries(check, DEFAULT_MODEL)))
+    rep = await asyncio.to_thread(lambda: report(minute_entries(check, model)))
+    worst_before = {(r["checkpoint"], r["family"]): r["worst_gap"] for r in before["rows"]}
+    ctx.log("Vérification sur la saison jamais vue (pire tranche : avant → avec le rythme appris)")
+    for r in rep["rows"]:
+        old = worst_before.get((r["checkpoint"], r["family"]))
+        if r["worst_gap"] is None:
+            continue
+        ctx.log(
+            f"{r['checkpoint']} {r['family']} : "
+            f"{'—' if old is None else f'{100 * old:.1f}'} → {100 * r['worst_gap']:.1f} points, "
+            f"{r['verdict']}"
+        )
+    ok, lines = _live_verdict(rep)
+    for line in lines:
+        ctx.log(line)
+    ctx.result = {"model": model.as_dict(), "report": rep, "ok": ok}
+    if not ok:
+        for r in rep["rows"]:
+            if r["verdict"] == "à revoir":
+                for b in r["bins"]:
+                    if b["n"] >= 200:
+                        ctx.log(
+                            f"    {r['checkpoint']} {r['family']} {b['range']} : annoncé "
+                            f"{100 * b['announced']:.1f} % → arrivé {100 * b['observed']:.1f} % "
+                            f"({b['n']})"
+                        )
+        return "pas encore juste : rien n'est changé dans le moteur du direct"
+    async with ctx.factory() as session:
+        await live_chances.save_model(
+            session,
+            model,
+            {
+                "learned_at": datetime.now(UTC).strftime("%d/%m/%Y"),
+                "train": params["train"],
+                "test": params["test"],
+                "matches": [len(learn), len(check)],
+                "validated": True,
+            },
+        )
+    return (
+        "juste à chaque repère sur la saison jamais vue : rythme gardé pour le direct ; "
+        "« Chances en direct publiées » est maintenant possible"
+    )
+
+
+register(
+    Action(
+        id="live_fit",
+        title="Apprendre et vérifier le direct",
+        family="Moteur",
+        description=(
+            "Apprend le rythme des buts minute par minute (tranches de 5 minutes, temps "
+            "additionnel) et l'effet du score sur les saisons d'apprentissage, puis le "
+            "vérifie sur une saison jamais vue (règle des 3 points à 15', 30', mi-temps, 60' "
+            "et 75'). Gardé pour le direct seulement si tout est juste. Aucune requête."
+        ),
+        risk="modifie",
+        run=live_fit,
+        exclusive=True,
+        cost="aucune requête",
+        duration="15 à 40 minutes",
+        params=(
+            Param(
+                "train",
+                "Saisons d'apprentissage (début)",
+                "text",
+                default="2021-2024",
+                pattern=r"\d{4}(-\d{4})?",
+            ),
+            Param(
+                "test",
+                "Saison de vérification (jamais vue)",
+                "text",
+                default="2025",
+                pattern=r"\d{4}(-\d{4})?",
+            ),
+        ),
+    )
+)
 
 
 register(
@@ -1039,14 +1178,16 @@ async def live_switch(ctx: JobContext, params: dict[str, Any]) -> str:
     async with ctx.factory() as session:
         before = await live_published(session)
         if choice == "on":
-            ok, lines = _live_verdict(await live_chances.study(session))
-            for line in lines:
-                ctx.log(line)
-            if not ok:
+            _, info = await live_chances.stored_model(session)
+            if info is None or not info.get("validated"):
                 raise AppError(
-                    "Vérification pas encore juste à chaque repère : chances en direct non "
-                    "publiées (lancer d'abord « Compléter les matchs passés »)."
+                    "Aucun modèle du direct vérifié : chances en direct non publiées (lancer "
+                    "d'abord « Apprendre et vérifier le direct »)."
                 )
+            ctx.log(
+                f"Modèle du direct appris le {info['learned_at']} sur {info['train']}, vérifié "
+                f"sur {info['test']}"
+            )
         if choice != "keep":
             await set_flag(session, LIVE_KEY, choice == "on")
         after = await live_published(session)
@@ -1062,8 +1203,8 @@ register(
         family="Moteur",
         description=(
             "Montre aux joueurs les chances pendant le match (écran du match, paris en cours, "
-            "coupons du jour). Publication refusée tant que « Vérifier les chances en direct » "
-            "n'est pas juste à chaque repère."
+            "coupons du jour). Publication refusée tant que « Apprendre et vérifier le "
+            "direct » n'a pas gardé un modèle juste à chaque repère."
         ),
         risk="modifie",
         run=live_switch,

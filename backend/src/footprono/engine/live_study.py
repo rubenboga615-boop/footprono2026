@@ -26,9 +26,12 @@ from footprono.engine.backtest import Predictions
 from footprono.engine.history import History
 from footprono.engine.live import (
     ADDED,
+    BUCKET,
+    BUCKETS,
+    DEFAULT_MODEL,
     GRID,
     HALF,
-    SCORE_EFFECT,
+    LiveModel,
     LiveState,
     evolve,
     live_markets,
@@ -69,9 +72,9 @@ def _entries(
     params: tuple[float, float, float, float],
     state: LiveState,
     final: tuple[int, int, int, int],
-    effect: Sequence[float] = SCORE_EFFECT,
+    model: LiveModel = DEFAULT_MODEL,
 ) -> list[Entry]:
-    markets = live_markets(*params, state, effect)
+    markets = live_markets(*params, state, model)
     if markets is None:
         return []
     hg, ag, hht, aht = final
@@ -105,7 +108,7 @@ def half_time_rows(
 
 def half_time_entries(
     rows: Iterable[tuple[float, float, float, float, int, int, int, int]],
-    effect: Sequence[float] = SCORE_EFFECT,
+    model: LiveModel = DEFAULT_MODEL,
 ) -> list[Entry]:
     """Repère « mi-temps » : chaque match avec son score à la pause."""
     out: list[Entry] = []
@@ -113,7 +116,7 @@ def half_time_entries(
         if max(hg, ag) > MAX_GOALS or max(hht, aht) > MAX_HT_GOALS:
             continue
         state = LiveState("HT", 45, 0, hht, aht)
-        out += _entries("mi-temps", (lh, la, sh, sa), state, (hg, ag, hht, aht), effect)
+        out += _entries("mi-temps", (lh, la, sh, sa), state, (hg, ag, hht, aht), model)
     return out
 
 
@@ -176,7 +179,7 @@ def summarize(entries: Sequence[Entry]) -> str:
 
 # ------------------------------------------------- repères 15', 30', 60', 75' (événements)
 
-CHECKPOINTS = (15, 30, 60, 75)
+CHECKPOINTS: tuple[int | str, ...] = (15, 30, "mi-temps", 60, 75)
 
 
 @dataclass(frozen=True)
@@ -190,10 +193,11 @@ class PlayedMatch:
 
 
 def _before(minute: int, extra: int, checkpoint: int) -> bool:
-    """L'événement a eu lieu avant le repère (temps additionnel de la 1re période compris
-    avant un repère de 2e période)."""
+    """L'événement a eu lieu avant la fin de la minute du repère (« 30' » : 30 minutes
+    jouées ; un but de la 30e minute est déjà marqué). Temps additionnel de la 1re période
+    compris avant un repère de 2e période."""
     del extra
-    return minute < checkpoint
+    return minute <= checkpoint
 
 
 def consistent(m: PlayedMatch) -> bool:
@@ -209,7 +213,7 @@ def consistent(m: PlayedMatch) -> bool:
     )
 
 
-def minute_entries(matches: Iterable[PlayedMatch]) -> list[Entry]:
+def minute_entries(matches: Iterable[PlayedMatch], model: LiveModel = DEFAULT_MODEL) -> list[Entry]:
     out: list[Entry] = []
     for m in matches:
         if not consistent(m):
@@ -218,16 +222,93 @@ def minute_entries(matches: Iterable[PlayedMatch]) -> list[Entry]:
         if max(hg, ag) > MAX_GOALS or max(hht, aht) > MAX_HT_GOALS:
             continue
         for checkpoint in CHECKPOINTS:
+            if checkpoint == "mi-temps":
+                if any(minute <= HALF for minute, _, _ in m.reds):
+                    continue
+                state = LiveState("HT", HALF, 0, hht, aht)
+                out += _entries("mi-temps", m.params, state, m.final, model)
+                continue
+            assert isinstance(checkpoint, int)
             if any(_before(minute, extra, checkpoint) for minute, extra, _ in m.reds):
                 continue  # carton rouge : pas de chance calculée
             scored = [s for minute, extra, s in m.goals if _before(minute, extra, checkpoint)]
-            status = "1H" if checkpoint <= 45 else "2H"
+            status = "1H" if checkpoint <= HALF else "2H"
             state = LiveState(
                 status, checkpoint, 0, scored.count("home"), scored.count("away"),
                 ht_home=hht, ht_away=aht,
             )  # fmt: skip
-            out += _entries(f"{checkpoint}'", m.params, state, m.final)
+            out += _entries(f"{checkpoint}'", m.params, state, m.final, model)
     return out
+
+
+# ---------------------------------- rythme des buts et effet du score (apprentissage)
+
+
+def _unit(minute: int, extra: int, half: int) -> int:
+    """Minute d'un but dans sa période : 1 à 45, puis 46 et suivantes pour le temps
+    additionnel (au plus le temps additionnel moyen arrondi)."""
+    added = int(np.ceil(ADDED[half]))
+    base = minute if half == 0 else minute - HALF
+    if extra > 0 or base > HALF:
+        return HALF + min(max(extra, base - HALF, 1), added)
+    return min(max(base, 1), HALF)
+
+
+def fit_live_model(matches: Iterable[PlayedMatch], rounds: int = 60) -> LiveModel:
+    """Rythme des buts par tranche de 5 minutes (et temps additionnel) de chaque période, et
+    effet du score, appris sur les minutes des buts : modèle de Poisson multiplicatif
+    (buts d'une équipe dans une minute = rythme de base, fois la tranche, fois l'effet du score du
+    moment), ajusté par itérations proportionnelles. Un match compte jusqu'à son premier
+    carton rouge."""
+    goals = np.zeros((2, BUCKETS + 1, 5))
+    exposure = np.zeros((2, BUCKETS + 1, 5))
+    for m in matches:
+        if not consistent(m):
+            continue
+        lh, la, sh, sa = m.params
+        red = min((minute for minute, _, _ in m.reds), default=10_000)
+        by_unit: dict[tuple[int, int], list[str]] = defaultdict(list)
+        for minute, extra, side in m.goals:
+            half = 0 if minute <= HALF else 1
+            by_unit[(half, _unit(minute, extra, half))].append(side)
+        home = away = 0
+        for half in (0, 1):
+            length = HALF + ADDED[half]
+            share_h, share_a = (sh, sa) if half == 0 else (1 - sh, 1 - sa)
+            base_h, base_a = share_h * lh / length, share_a * la / length
+            for unit in range(1, HALF + int(np.ceil(ADDED[half])) + 1):
+                clock = unit + (0 if half == 0 else HALF)
+                if clock >= red:
+                    break
+                bucket = BUCKETS if unit > HALF else (unit - 1) // BUCKET
+                dh = int(np.clip(home - away, -2, 2)) + 2
+                da = int(np.clip(away - home, -2, 2)) + 2
+                exposure[half, bucket, dh] += base_h
+                exposure[half, bucket, da] += base_a
+                for side in by_unit.get((half, unit), []):
+                    if side == "home":
+                        goals[half, bucket, dh] += 1
+                        home += 1
+                    else:
+                        goals[half, bucket, da] += 1
+                        away += 1
+            if any(minute <= HALF for minute, _, _ in m.reds) and half == 0:
+                break
+    rhythm = np.ones((2, BUCKETS + 1))
+    effect = np.ones(5)
+    for _ in range(rounds):
+        rhythm = goals.sum(axis=2) / np.maximum((exposure * effect).sum(axis=2), EPS)
+        effect = goals.sum(axis=(0, 1)) / np.maximum(
+            (exposure * rhythm[:, :, None]).sum(axis=(0, 1)), EPS
+        )
+        # Échelle portée par le rythme : effet 1 à égalité.
+        rhythm *= effect[2]
+        effect /= effect[2]
+    return LiveModel(
+        first=tuple(round(float(x), 4) for x in rhythm[0]),
+        second=tuple(round(float(x), 4) for x in rhythm[1]),
+        effect=tuple(round(float(x), 4) for x in effect),
+    )
 
 
 # ------------------------------------------------------- effet du score (apprentissage)
@@ -273,7 +354,7 @@ HALF_TIME_PROFILES = {
 
 def half_time_angles(
     rows: Iterable[tuple[float, float, float, float, int, int, int, int]],
-    effect: Sequence[float] = SCORE_EFFECT,
+    model: LiveModel = DEFAULT_MODEL,
     coupon_size: int = 3,
 ) -> dict[str, Any]:
     """À la pause, la sélection de chaque match choisie comme le Coupon intelligent (la plus
@@ -289,7 +370,7 @@ def half_time_angles(
             (lh, la, sh, sa),
             LiveState("HT", 45, 0, hht, aht),
             (hg, ag, hht, aht),
-            effect,
+            model,
         )
         entries = [e for e in entries if not e.family.startswith(("Buts de la 1re", "Mi-temps"))]
         for name, (low, high, target) in HALF_TIME_PROFILES.items():

@@ -1270,3 +1270,24 @@ observation » (exclu des propositions de mi-temps tant que l'écart de 2023 n'e
 
 **Suite proposée** : étape 9 limitée d'abord aux **coupons à la mi-temps** (seul moment
 vérifié), les autres minutes après une vérification juste à 15', 30', 60' et 75'.
+
+### Vérification minute par minute en production (11/11/2026)
+
+Console, « Vérifier les chances en direct sur les saisons passées » : 13 347 matchs 2023-2025
+(prévisions rejouées hors échantillon, minutes des buts récupérées par « Compléter les
+matchs passés »). Résultat avec le rythme régulier : juste à 15' et 30' sur le résultat, la
+double chance et les buts du match ; **à revoir** sur les buts de 1re mi-temps (30' : annoncé
+35 % → arrivé 41 %), et à 60' / 75' (75' : buts du match 38 % → 44 % ; résultat 76 % → 73 %).
+Cause : les buts de fin de période. Part des buts par quart d'heure : 1re période 29,2 % ·
+31,0 % · 39,8 % ; 2e période 29,4 % · 29,1 % · 41,4 % (temps additionnel compris dans le
+dernier) ; le rythme régulier sous-estimait les buts restants en fin de période, donc les
+retournements.
+
+**Correction : rythme appris** (`LiveModel`, `live_study.fit_live_model`) : multiplicateur
+du rythme par tranche de 5 minutes et pour le temps additionnel de chaque période, et effet
+du score, appris ensemble sur les minutes des buts (modèle de Poisson multiplicatif, un match
+compte jusqu'à son premier carton rouge). Console, « Apprendre et vérifier le direct » :
+apprentissage sur 2021-2024, vérification sur 2025 (jamais vue) à 15', 30', mi-temps, 60' et
+75' ; le modèle n'est gardé (`app_settings` « live.model ») que si tout est juste, et
+« Chances en direct publiées » le demande. Repères : « 30' » = 30 minutes jouées (un but de la
+30e minute est compté comme marqué).

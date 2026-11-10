@@ -92,7 +92,7 @@ async def test_study_of_played_matches(
     assert rep["matches"] == 1
     assert rep["inconsistent"] == 1
     checkpoints = {r["checkpoint"] for r in rep["rows"]}
-    assert checkpoints == {"15'", "30'", "60'", "75'"}
+    assert checkpoints == {"15'", "30'", "mi-temps", "60'", "75'"}
     assert all(r["verdict"] == "trop peu" for r in rep["rows"])
 
 
@@ -142,13 +142,13 @@ def test_publication_only_when_every_checkpoint_is_right() -> None:
     def row(checkpoint: str, verdict: str) -> dict[str, str]:
         return {"checkpoint": checkpoint, "family": "Résultat (1X2)", "verdict": verdict}
 
-    good = {"rows": [row(c, "juste") for c in ("15'", "30'", "60'", "75'")]}
+    good = {"rows": [row(c, "juste") for c in ("15'", "30'", "mi-temps", "60'", "75'")]}
     assert _live_verdict(good)[0] is True
-    bad = {"rows": [*good["rows"][:3], row("75'", "à revoir")]}
+    bad = {"rows": [*good["rows"][:4], row("75'", "à revoir")]}
     ok, lines = _live_verdict(bad)
     assert ok is False
     assert lines[-1] == "75' : 1 marchés vérifiés, à revoir : Résultat (1X2)"
-    assert _live_verdict({"rows": good["rows"][:3]})[0] is False  # 75' : trop peu
+    assert _live_verdict({"rows": good["rows"][:4]})[0] is False  # 75' : trop peu
 
 
 def test_backfill_offers_cups_and_national_teams() -> None:
@@ -208,3 +208,20 @@ async def test_live_tab_timeline_stats_by_half_and_lineups(
 
     missing = await client.get("/api/v1/matches/999999/live")
     assert missing.status_code == 404
+
+
+async def test_live_model_kept_only_after_validation(db_factory: Factory) -> None:
+    from footprono.engine.live import DEFAULT_MODEL, LiveModel
+
+    async with db_factory() as session:
+        model, info = await live_chances.stored_model(session)
+        assert (model, info) == (DEFAULT_MODEL, None)
+        learned = LiveModel(first=(1.1,) * 10, second=(0.9,) * 10, effect=(1.0, 1.2, 1.0, 0.9, 1.0))
+        await live_chances.save_model(
+            session, learned, {"learned_at": "11/11/2026", "train": "2021-2024", "test": "2025",
+                               "validated": True},
+        )  # fmt: skip
+        model, info = await live_chances.stored_model(session)
+    assert model == learned
+    assert info is not None
+    assert info["test"] == "2025"
