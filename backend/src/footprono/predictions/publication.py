@@ -14,6 +14,8 @@ from footprono.core.config import Settings
 
 CUPS_KEY = "publication.cups"
 NATIONS_KEY = "publication.nations"
+# Chances en direct (plan du 10/11/2026, étape 6) : jamais publiées d'office.
+LIVE_KEY = "publication.live"
 
 
 @dataclass(frozen=True)
@@ -32,6 +34,10 @@ async def publication(session: AsyncSession, settings: Settings) -> Publication:
         cups=await _flag(session, CUPS_KEY, settings.cups_predictions),
         nations=await _flag(session, NATIONS_KEY, settings.nations_predictions),
     )
+
+
+async def live_published(session: AsyncSession) -> bool:
+    return await _flag(session, LIVE_KEY, False)
 
 
 async def set_flag(session: AsyncSession, key: str, value: bool) -> None:

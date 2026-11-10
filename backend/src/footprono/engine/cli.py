@@ -26,6 +26,7 @@ from numpy.typing import NDArray
 
 from footprono.core.config import get_settings
 from footprono.db.session import create_engine, create_session_factory
+from footprono.engine import live_study
 from footprono.engine.angles import angles_study, format_report
 from footprono.engine.audit import (
     audit_report,
@@ -294,6 +295,18 @@ def audit_command(hist: History, args: argparse.Namespace) -> None:
         print(f"Détail complet écrit dans {args.output}")
 
 
+def live_command(hist: History, args: argparse.Namespace) -> None:
+    """Chances en direct : repère « mi-temps » vérifié sur l'archive."""
+    pred = predict(hist, args.competitions, args.seasons, GoalsConfig(), DEFAULT_FEATURES)
+    _progress("chances à la mi-temps…")
+    rep = live_study.report(live_study.half_time_entries(live_study.half_time_rows(hist, pred)))
+    print(live_study.format_report(rep))
+    if args.output:
+        with open(args.output, "w", encoding="utf-8") as f:
+            json.dump(rep, f, ensure_ascii=False, indent=1)
+        print(f"Détail complet écrit dans {args.output}")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="footprono-engine")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -355,6 +368,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--competitions", type=parse_competitions, default=[c.code for c in COMPETITIONS]
     )
     au.add_argument("--output", help="fichier JSON du détail (courbes par famille)")
+    lv = sub.add_parser("live", help="chances en direct : vérification à la mi-temps")
+    lv.add_argument("--seasons", type=parse_seasons, default=parse_seasons("2022-2025"))
+    lv.add_argument(
+        "--competitions", type=parse_competitions, default=[c.code for c in COMPETITIONS]
+    )
+    lv.add_argument("--output", help="fichier JSON du détail")
     pr = sub.add_parser("predict", help="prédit et enregistre les matchs à venir")
     pr.add_argument("--days", type=int, default=10, help="horizon en jours (défaut 10)")
     pr.add_argument("--as-of", type=date.fromisoformat, default=None, help="AAAA-MM-JJ")
@@ -380,6 +399,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "calibration":
         calibration_command(hist, args)
+        return 0
+    if args.command == "live":
+        live_command(hist, args)
         return 0
     if args.command == "audit":
         audit_command(hist, args)

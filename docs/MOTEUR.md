@@ -1186,3 +1186,41 @@ si l'écart dépasse deux erreurs types et se retrouve sur les saisons passées.
   publiée), affiché du côté de Chypre (`EH|-2|away`). Gagné si Arménie gagne par un but au
   plus, fait nul ou perd. Marché validé dans l'étude du 06/11 ; dans l'angle Sûr des sélections,
   128 · 89,9 % → 89,8 %.
+
+## Chances en direct (plan du 10/11/2026, étape 6)
+
+`engine/live.py`, `engine/live_study.py`, `predictions/live_chances.py`.
+
+**Le modèle** : la prévision d'avant-match du moteur (λ domicile, λ extérieur, part des buts
+en 1re période), puis le reste du match déroulé minute par minute : chaque équipe marque à
+son rythme de la période (temps additionnel moyen compris : 2 et 5 minutes), multiplié par
+l'**effet du score** du moment. Score déjà marqué acquis, sélections déjà jouées à 0 ou 1.
+Aucune chance après un carton rouge (effet non mesuré) ni en prolongation.
+
+**Effet du score** (appris sur 24 538 matchs 2019-2022 : vraisemblance des scores finaux
+sachant le score à la pause) : menée de 2 buts ou plus × 0,97 ; menée d'un but × 1,11 ; à
+égalité × 0,98 ; devant d'un but × 0,95 ; devant de 2 ou plus × 1,01. L'équipe menée d'un
+but pousse, celle qui mène d'un but gère.
+
+**Vérification au repère « mi-temps »** (`footprono-engine live`, 18 536 matchs 2023-2025
+jamais vus à l'apprentissage, sélections déjà jouées exclues ; règle : 3 points au plus par
+tranche de 10 % d'au moins 200 sélections) :
+
+| Marché | sans effet du score | avec |
+|---|---|---|
+| Résultat (1X2) | 5,7 points (à revoir) | **2,6 (juste)** |
+| Double chance | 5,7 (à revoir) | **2,6 (juste)** |
+| Les deux marquent | 5,9 (à revoir) | **1,7 (juste)** |
+| Buts du match | 1,3 (juste) | 1,3 (juste) |
+| Buts d'une équipe | 0,7 (juste) | 0,7 (juste) |
+
+Sans l'effet du score, l'équipe qui mène à la pause était annoncée gagnante à 75 % et
+gagnait 69 % des fois.
+
+**Pas encore vérifié** : les autres minutes (l'archive n'a que les scores à la pause, pas
+les minutes des buts). Console, Moteur → « Vérifier les chances en direct » : mêmes calculs
+à 15', 30', 60' et 75' sur les matchs terminés dont les événements sont gardés (« Compléter
+les matchs passés ») et qui avaient une prévision d'avant-match (matchs comptés seulement
+si les buts des événements redonnent le score final). « Chances en direct publiées »
+refuse la publication tant qu'un repère n'est pas juste ; jusque-là, `/live/chances`
+répond vide et l'application ne montre rien.

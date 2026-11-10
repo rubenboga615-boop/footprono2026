@@ -47,6 +47,8 @@ from footprono.ingestion.live import LIVE_STATUSES
 from footprono.ingestion.quality import run_quality_checks
 from footprono.ingestion.reference import CUPS_BY_CODE, NATIONS_BY_CODE
 from footprono.ingestion.sources.api_football_odds import REFERENCE_ONLY, map_bet
+from footprono.predictions import live_chances
+from footprono.predictions.publication import live_published
 
 router = APIRouter(tags=["données"])
 
@@ -249,6 +251,19 @@ async def list_live(session: SessionDep) -> list[MatchOut]:
         .order_by(Match.kickoff_at, Match.id)
     )
     return [MatchOut(**_match_out(*row)) for row in rows.tuples()]
+
+
+@router.get("/live/chances")
+async def live_chances_of(
+    session: SessionDep,
+    match_ids: Annotated[list[int], Query(max_length=40)],
+) -> dict[str, Any]:
+    """Chances du moteur pendant les matchs en cours (plan du 10/11/2026, étape 6). Vide tant
+    que la console ne les a pas publiées après une vérification juste."""
+    if not await live_published(session):
+        return {"published": False, "matches": {}}
+    found = await live_chances.current(session, match_ids)
+    return {"published": True, "matches": {str(k): v for k, v in found.items()}}
 
 
 @router.get("/matches/{match_id}", response_model=MatchDetailOut)

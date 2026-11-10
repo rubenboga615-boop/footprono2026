@@ -32,9 +32,17 @@ from footprono.ingestion.reference import COMPETITIONS, current_season
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 from footprono.ingestion.sources import api_football
 from footprono.predictions import cups as cup_predictions
+from footprono.predictions import live_chances
 from footprono.predictions import nations as nation_predictions
 from footprono.predictions import service as prediction_service
-from footprono.predictions.publication import CUPS_KEY, NATIONS_KEY, publication, set_flag
+from footprono.predictions.publication import (
+    CUPS_KEY,
+    LIVE_KEY,
+    NATIONS_KEY,
+    live_published,
+    publication,
+    set_flag,
+)
 from footprono.predictions.service import DEFAULT_DAYS_AHEAD
 
 _STEP = re.compile(r"^\[(\d+)/(\d+)\]")
@@ -877,6 +885,110 @@ register(
         exclusive=True,
         cost="aucune requête",
         duration="quelques minutes",
+    )
+)
+
+
+def _live_verdict(rep: dict[str, Any]) -> tuple[bool, list[str]]:
+    """Juste si chaque repère a des marchés vérifiés et qu'aucun n'est « à revoir »."""
+    lines, ok = [], True
+    for checkpoint in ("15'", "30'", "60'", "75'"):
+        rows = [r for r in rep["rows"] if r["checkpoint"] == checkpoint]
+        checked = [r for r in rows if r["verdict"] != "trop peu"]
+        bad = [r for r in checked if r["verdict"] == "à revoir"]
+        if not checked or bad:
+            ok = False
+        lines.append(
+            f"{checkpoint} : {len(checked)} marchés vérifiés"
+            + (f", à revoir : {', '.join(r['family'] for r in bad)}" if bad else "")
+            + ("" if checked else " (trop peu de matchs)")
+        )
+    return ok, lines
+
+
+async def live_study(ctx: JobContext, params: dict[str, Any]) -> str:
+    async with ctx.factory() as session:
+        rep = await live_chances.study(session)
+    ctx.result = rep
+    for r in rep["rows"]:
+        gap = "—" if r["worst_gap"] is None else f"{100 * r['worst_gap']:.1f} points"
+        ctx.log(
+            f"{r['checkpoint']} {r['family']} : {r['selections']} sélections, pire tranche "
+            f"{gap}, {r['verdict']}"
+        )
+    ok, lines = _live_verdict(rep)
+    for line in lines:
+        ctx.log(line)
+    if rep["inconsistent"]:
+        ctx.log(f"{rep['inconsistent']} matchs écartés (buts des événements ≠ score final)")
+    return f"{rep['matches']} matchs étudiés : " + (
+        "juste à chaque repère, publication possible" if ok else "pas encore publiable"
+    )
+
+
+register(
+    Action(
+        id="live_study",
+        title="Vérifier les chances en direct",
+        family="Moteur",
+        description=(
+            "Rejoue les matchs terminés dont les événements sont gardés (Compléter les matchs "
+            "passés) à 15, 30, 60 et 75 minutes, avec la prévision d'avant-match, et compare "
+            "les chances au résultat final (règle des 3 points par tranche de 10 %). Le repère "
+            "de la mi-temps est vérifié sur l'archive (docs/MOTEUR.md)."
+        ),
+        risk="lecture",
+        run=live_study,
+        cost="aucune requête",
+        duration="moins d'une minute",
+    )
+)
+
+
+async def live_switch(ctx: JobContext, params: dict[str, Any]) -> str:
+    choice = params["choice"]
+    async with ctx.factory() as session:
+        before = await live_published(session)
+        if choice == "on":
+            ok, lines = _live_verdict(await live_chances.study(session))
+            for line in lines:
+                ctx.log(line)
+            if not ok:
+                raise AppError(
+                    "Vérification pas encore juste à chaque repère : chances en direct non "
+                    "publiées (lancer d'abord « Compléter les matchs passés »)."
+                )
+        if choice != "keep":
+            await set_flag(session, LIVE_KEY, choice == "on")
+        after = await live_published(session)
+    ctx.result = {"live": after}
+    state = {True: "publiées", False: "non publiées"}
+    return f"chances en direct : {state[before]} → {state[after]}"
+
+
+register(
+    Action(
+        id="live_switch",
+        title="Chances en direct publiées",
+        family="Moteur",
+        description=(
+            "Montre aux joueurs les chances pendant le match (écran du match, paris en cours, "
+            "coupons du jour). Publication refusée tant que « Vérifier les chances en direct » "
+            "n'est pas juste à chaque repère."
+        ),
+        risk="modifie",
+        run=live_switch,
+        cost="aucune requête",
+        duration="quelques secondes",
+        params=(
+            Param(
+                "choice",
+                "Chances en direct",
+                "choice",
+                default="keep",
+                options=_SWITCH,
+            ),
+        ),
     )
 )
 
