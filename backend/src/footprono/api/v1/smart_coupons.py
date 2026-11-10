@@ -16,6 +16,20 @@ router = APIRouter(tags=["coupon intelligent"])
 FREE_PICKS = frozenset({"sur"})
 
 
+@router.get("/smart-coupon/competitions")
+async def competitions_of_period(
+    session: SessionDep,
+    period: str = "next",
+    day: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> dict[str, int]:
+    """Compétitions qui ont des matchs à venir dans la période (et combien)."""
+    return await smart_coupon.period_competitions(
+        session, period, day=day, date_from=date_from, date_to=date_to
+    )
+
+
 @router.get("/smart-coupon")
 async def generate(
     user: CurrentUserDep,

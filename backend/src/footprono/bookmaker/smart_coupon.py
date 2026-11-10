@@ -178,6 +178,32 @@ async def next_kickoff(
     return found[0][0].kickoff_at if found else None
 
 
+async def period_competitions(
+    session: AsyncSession,
+    period: str,
+    *,
+    day: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    now: datetime | None = None,
+) -> dict[str, int]:
+    """Compétitions qui ont au moins un match à venir dans la période, avec leur nombre de
+    matchs : le Coupon intelligent ne propose qu'elles (rapport du 07/11/2026)."""
+    now = now or datetime.now(UTC)
+    start, end = period_window(period, now, day, date_from, date_to)
+    if period == "next":
+        first = await next_kickoff(session, start)
+        if first is None:
+            return {}
+        end = datetime(first.year, first.month, first.day, tzinfo=UTC) + timedelta(
+            days=NEXT_ROUND_DAYS
+        )
+    counts: dict[str, int] = {}
+    for _, _, _, code in await _matches(session, start, end, None):
+        counts[code] = counts.get(code, 0) + 1
+    return counts
+
+
 _DAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
 _MONTHS = (
     "janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",

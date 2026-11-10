@@ -96,6 +96,11 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
   final Set<String> competitions = {};
   final Set<int> excludedMatches = {};
 
+  /// Championnats qui ont des matchs dans la période choisie (rapport du 07/11/2026 : tous
+  /// étaient proposés, même sans match) ; null tant que le serveur n'a pas répondu.
+  Map<String, int>? available;
+  String _availableFor = '';
+
   /// Championnats écartés (« Toujours exclure ce championnat »), pour ce coupon.
   final Set<String> excludedCompetitions = {};
   bool composing = false; // le moteur compose le coupon
@@ -118,6 +123,27 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
 
   static String _iso(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// Période demandée au serveur, sous forme de paramètres (même règle que le coupon).
+  Map<String, String> get _periodParams => {
+    'period': _period,
+    if (_period == 'day') 'day': _iso(day),
+    if (_period == 'range') ...{'date_from': _iso(day), 'date_to': _iso(rangeTo ?? day)},
+  };
+
+  Future<void> _loadAvailable() async {
+    final params = _periodParams;
+    final key = params.toString();
+    if (key == _availableFor) return;
+    _availableFor = key;
+    try {
+      final j = await context.read<AppState>().api.get('/smart-coupon/competitions', params) as Json;
+      if (!mounted || key != _availableFor) return;
+      setState(() => available = {for (final e in j.entries) e.key: (e.value as num).toInt()});
+    } on ApiException {
+      if (mounted && key == _availableFor) setState(() => available = null);
+    }
+  }
 
   Future<void> _generate({bool another = false}) async {
     final state = context.read<AppState>();
@@ -433,16 +459,33 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                     ],
                   ],
                   const SizedBox(height: 8),
+                  Builder(
+                    builder: (context) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) _loadAvailable();
+                      });
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                  if (available != null && available!.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(
+                        'Aucun match à venir dans cette période.',
+                        style: Fp.body(12.5, color: Fp.warning),
+                      ),
+                    ),
                   _Chips([
                     FpChip('Tous', selected: competitions.isEmpty, onTap: () => setState(competitions.clear)),
                     for (final c in SmartCouponScreen.leagues)
-                      FpChip(
-                        competitionName(c),
-                        selected: competitions.contains(c),
-                        onTap: () => setState(
-                          () => competitions.contains(c) ? competitions.remove(c) : competitions.add(c),
+                      if (available == null || available!.containsKey(c) || competitions.contains(c))
+                        FpChip(
+                          competitionName(c),
+                          selected: competitions.contains(c),
+                          onTap: () => setState(
+                            () => competitions.contains(c) ? competitions.remove(c) : competitions.add(c),
+                          ),
                         ),
-                      ),
                   ]),
                   const SizedBox(height: 6),
                   Align(

@@ -332,6 +332,16 @@ async def test_grosse_cote_filters_and_periods(
     late = await gen(profile="equilibre", period="tomorrow", size=2, after_hour=21)
     assert late["coupon"] is None  # matchs à 20 h : avant l'heure demandée
 
+    # Championnats proposés : seulement ceux qui ont des matchs dans la période.
+    async def comps(**params: Any) -> dict[str, int]:
+        r = await client.get("/api/v1/smart-coupon/competitions", params=params, headers=headers)
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    assert await comps(period="tomorrow") == {comp: 2}
+    assert await comps(period="next") == {comp: 2}
+    assert await comps(period="day", day=(DAY + timedelta(days=5)).isoformat()) == {}
+
     assert (await client.get("/api/v1/smart-coupon", params={"period": "day"},
                              headers=headers)).status_code == 400  # fmt: skip
 

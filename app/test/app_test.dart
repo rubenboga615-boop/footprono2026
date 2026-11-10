@@ -440,6 +440,8 @@ class FakeServer {
           'published_at': '2026-10-02T12:00:00Z',
           'download_path': '/api/v1/app/download',
         };
+      case 'GET /smart-coupon/competitions':
+        body = {'LIGUE_1': 1};
       case 'GET /smart-coupon':
         if (!premium) return _error(403, 'premium_required', 'réservé à Premium');
         smartQueries.add(r.url.queryParameters);
@@ -1758,6 +1760,10 @@ void main() {
     await tester.ensureVisible(find.text('Ce week-end'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ce week-end'));
+    await tester.pumpAndSettle();
+    // Seulement les championnats qui ont des matchs dans la période (rapport du 07/11/2026).
+    expect(find.text('Ligue 1'), findsOneWidget);
+    expect(find.text('Premier League'), findsNothing);
     // Le bouton est plus bas : la liste ne le construit qu'une fois atteint.
     await tester.scrollUntilVisible(
       find.text('Composer le coupon'),
