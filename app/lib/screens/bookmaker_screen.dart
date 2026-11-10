@@ -468,6 +468,11 @@ String selectionState(BetSel s) {
     },
     final r => '${resultLabel(r).toLowerCase()}$score',
   };
+  // Réglée pendant le match (mi-temps, 3e but…) : la minute plutôt que la date.
+  if (s.result != 'pending' && s.state == 'live') {
+    final minute = s.minute == null ? '' : ' ${s.minute}\'';
+    return '$state · en direct$minute';
+  }
   return when.isEmpty ? state : '$when · $state';
 }
 

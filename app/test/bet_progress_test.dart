@@ -47,6 +47,9 @@ void main() {
     expect(selectionState(bet.selections[0]), endsWith('gagné · 0-1'));
     expect(selectionState(bet.selections[3]), endsWith('à venir'));
     expect(selectionState(bet.selections[3]), contains('7 nov.'));
+    // Réglée pendant le match (plus de 0,5 but dès le 1er but) : la minute, pas la date.
+    final early = BetSel(_sel(5, 'win', 'live', minute: 34, score: [1, 0]));
+    expect(selectionState(early), "gagné · 1-0 · en direct 34'");
   });
 
   test('marché par équipe toujours nommé', () {

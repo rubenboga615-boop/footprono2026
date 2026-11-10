@@ -46,6 +46,24 @@ Argent **fictif**. Code : `backend/src/footprono/accounts/`, `bookmaker/`,
 - Gain = mise × produit des facteurs (gagné : cote ; demi-gagné :
   (1 + cote) / 2 ; remboursé : 1 ; demi-perdu : 0,5 ; perdu : 0), arrondi au
   franc inférieur. Un combiné est perdu dès la première sélection perdue.
+- **Pendant le match** (plan du 10/11/2026, étape 2 ; constat du fondateur du 09/11 : un
+  pari « moins de 3 buts en 1re mi-temps » attendait la fin du match) : une sélection est
+  réglée dès que **plus aucun but, corner, carton ou tir ne peut changer son résultat**.
+  Même calcul que le règlement final, essayé sur toutes les suites possibles du match
+  (jusqu'à 8 buts de plus par équipe, 15 corners, cartons ou tirs) : si toutes donnent le
+  même résultat, il est acquis. Exemples : « plus de 2,5 buts » gagné dès le 3e but,
+  « moins de 2,5 » perdu ; « les deux marquent » gagné dès que les deux ont marqué ;
+  « gagne sans encaisser » perdu dès le premier but encaissé ; marchés de la 1re mi-temps
+  dès la pause (score de la mi-temps enregistré à ce moment) ; « plus de 9,5 corners » au
+  10e corner. Le résultat du match (1X2), les handicaps, l'écart de buts attendent la fin.
+  - Seuls comptent les relevés pris **il y a au moins 4 minutes** : un but annulé par la
+    VAR dans ce délai ne règle rien ; un score plus bas depuis (but annulé) fait foi.
+  - Temps réglementaire seulement : en prolongation, on attend la fin du match (les paris
+    se jouent sur 90 minutes).
+  - Le contrôle par le score final reste : un résultat qui change (VAR tardive, score
+    corrigé) règle le pari à nouveau, écart crédité ou débité.
+  - Valable pour les paris, les combinés (perdus dès la première sélection perdue), les
+    montantes et les Coupons du jour.
 - Match reporté ou annulé : remboursé 48 h après le coup d'envoi prévu.
 - Score provisoire (API-Football) corrigé par football-data : paris des
   7 derniers jours **réglés à nouveau**, écart crédité ou débité avec une note

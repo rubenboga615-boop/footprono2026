@@ -261,3 +261,113 @@ def test_live_grade_same_rules_as_settlement() -> None:
     assert live_grade(m, "HT_1X2", "", "home") is None  # mi-temps : pas en direct
     assert live_grade(m, "CORNERS_OU", "9.5", "over") is None
     assert live_grade(Match(), "OU", "2.5", "over") is None
+
+
+def test_early_decisions_only_when_nothing_can_change_them() -> None:
+    """Plan du 10/11/2026, étape 2 : réglé dès que plus aucun but (corner) ne change rien."""
+    from footprono.bookmaker.settlement import _grade, early_counts, early_goals
+
+    def result(sel: Any) -> str | None:
+        return None if sel is None else _grade(sel, Decimal(2)).result
+
+    # 2-1 en cours de match.
+    assert result(early_goals("OU", "OU|2.5|over", (2, 1), None)) == "win"
+    assert result(early_goals("OU", "OU|2.5|under", (2, 1), None)) == "loss"
+    assert result(early_goals("OU", "OU|3.5|over", (2, 1), None)) is None  # peut encore
+    assert result(early_goals("1X2", "1X2||home", (3, 0), None)) is None  # jamais avant la fin
+    assert result(early_goals("BTTS", "BTTS||yes", (2, 1), None)) == "win"
+    assert result(early_goals("BTTS", "BTTS||no", (2, 1), None)) == "loss"
+    assert result(early_goals("TEAM_OU_HOME", "TEAM_OU_HOME|1.5|over", (2, 1), None)) == "win"
+    assert result(early_goals("WIN_TO_NIL", "WIN_TO_NIL||home", (2, 1), None)) == "loss"
+    # 1re mi-temps : rien tant que la pause n'est pas sifflée, tout dès la pause.
+    assert result(early_goals("HT_OU", "HT_OU|2.5|under", (1, 0), None)) is None
+    assert result(early_goals("HT_OU", "HT_OU|2.5|under", (1, 0), (1, 0))) == "win"
+    assert result(early_goals("HT_1X2", "HT_1X2||draw", (2, 1), (1, 1))) == "win"
+    assert result(early_goals("HT_BTTS", "HT_BTTS||yes", (1, 0), (1, 0))) == "loss"
+    # Corners : 10e corner, « plus de 9,5 » gagné ; « plus de 10,5 » attend.
+    assert result(early_counts("corners", "CORNERS_OU|9.5|over", (6, 4))) == "win"
+    assert result(early_counts("corners", "CORNERS_OU|9.5|under", (6, 4))) == "loss"
+    assert result(early_counts("corners", "CORNERS_OU|10.5|over", (6, 4))) is None
+
+
+async def test_bet_settled_during_the_match_from_settled_snapshots(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    """« Plus de 2,5 buts » payé pendant le match, une fois le 3e but vu sur un relevé d'au
+    moins 4 minutes ; un 3e but annulé (VAR) dans ce délai ne paie rien ; prolongation : on
+    attend la fin ; la 1re mi-temps réglée à la pause (constat du fondateur, 09/11/2026)."""
+    from footprono.bookmaker.models import BetSelection
+    from footprono.bookmaker.settlement import grade_selection, settle_bets
+    from footprono.football.models import LiveSnapshot
+
+    headers = await _login(client)
+    bet = (
+        await client.post(
+            "/api/v1/bets",
+            json={"stake": 1_000, "selections": [_sel(world["m1"], "OU", "over", "2.5")]},
+            headers=headers,
+        )
+    ).json()
+    now = datetime.now(UTC)
+
+    async def live(status: str, minute: int, score: tuple[int, int], ago: int) -> None:
+        async with db_factory() as session:
+            await session.execute(
+                update(Match)
+                .where(Match.id == world["m1"])
+                .values(
+                    api_status=status, live_minute=minute,
+                    live_home_goals=score[0], live_away_goals=score[1],
+                    home_goals_ht=1 if status != "1H" else None,
+                    away_goals_ht=0 if status != "1H" else None,
+                )
+            )  # fmt: skip
+            session.add(
+                LiveSnapshot(
+                    match_id=world["m1"], taken_at=now - timedelta(minutes=ago), status=status,
+                    minute=minute, extra=0, home_goals=score[0], away_goals=score[1],
+                    home_stats={"Corner Kicks": 4}, away_stats={"Corner Kicks": 3},
+                )
+            )  # fmt: skip
+            await session.commit()
+
+    # 3e but il y a 2 minutes seulement : pas encore réglé (la VAR peut l'annuler).
+    await live("2H", 60, (2, 1), ago=2)
+    async with db_factory() as session:
+        await settle_bets(session, now=now)
+        assert (await session.get(Bet, bet["id"])).status == "open"  # type: ignore[union-attr]
+
+    # Même relevé, 5 minutes plus tard : payé sans attendre la fin du match.
+    async with db_factory() as session:
+        report = await settle_bets(session, now=now + timedelta(minutes=3))
+        paid = await session.get(Bet, bet["id"])
+    assert report["settled"] == 1
+    assert paid is not None
+    assert (paid.status, paid.outcome) == ("settled", "won")
+
+    async with db_factory() as session:
+        probe = await session.get(Match, world["m1"])
+        assert probe is not None
+
+        def sel(market: str, line: str, choice: str) -> BetSelection:
+            return BetSelection(
+                match_id=world["m1"], market=market, line=line, selection=choice,
+                odds=Decimal("1.80"),
+            )  # fmt: skip
+
+        later = now + timedelta(minutes=3)
+        # 1re mi-temps finie 1-0 : « moins de 1,5 but en 1re mi-temps » gagné.
+        grade = await grade_selection(session, sel("HT_OU", "1.5", "under"), later)
+        assert grade is not None
+        assert grade.result == "win"
+        # Corners : 7 vus, « plus de 6,5 » gagné, « plus de 8,5 » attend.
+        grade = await grade_selection(session, sel("CORNERS_OU", "6.5", "over"), later)
+        assert grade is not None
+        assert grade.result == "win"
+        assert await grade_selection(session, sel("CORNERS_OU", "8.5", "over"), later) is None
+        # Prolongation : les buts ne comptent plus pour les paris, on attend la fin.
+        await session.execute(update(Match).where(Match.id == world["m1"]).values(api_status="ET"))
+        await session.commit()
+        assert await grade_selection(session, sel("OU", "3.5", "under"), later) is None

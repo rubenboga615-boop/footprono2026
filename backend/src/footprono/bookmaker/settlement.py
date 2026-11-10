@@ -14,7 +14,7 @@ sont **réglés à nouveau** (écart crédité ou débité, avec une note).
 
 import functools
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -35,6 +35,7 @@ from footprono.engine.markets import Selection, derive_markets
 from footprono.engine.scores import ScoreDistribution
 from footprono.football.models import (
     DataSource,
+    LiveSnapshot,
     Match,
     MatchStatus,
     MatchTeamStats,
@@ -53,6 +54,26 @@ COUNT_PREFIXES = {
     "CARDS": "cards",
     "SHOTS": "shots",
     "SOT": "shots_on_target",
+}
+# Règlement pendant le match (plan du 10/11/2026, étape 2) : une sélection est réglée dès
+# que plus aucun but (corner, carton) ne peut changer son résultat. Seuls comptent les
+# relevés pris il y a au moins EARLY_DELAY : un but annulé par la VAR dans ce délai n'est
+# jamais pris en compte (au-delà, le contrôle par le score final corrige le règlement).
+EARLY_DELAY = timedelta(minutes=4)
+# Temps réglementaire seulement : en prolongation, le score compte des buts qui ne valent pas
+# pour les paris (réglés sur 90 minutes) ; on attend alors la fin du match.
+EARLY_STATUSES = frozenset({"1H", "HT", "2H"})
+HALF_TIME_OVER = frozenset({"HT", "2H"})
+GOALS_AHEAD = 9  # buts possibles encore, par équipe, pour juger qu'un résultat est acquis
+COUNTS_AHEAD = 16  # corners, cartons ou tirs possibles encore, par équipe
+# Statistiques d'API-Football (noms des relevés) pour les marchés de comptage.
+LIVE_COUNT_TYPES = {
+    "corners": ("Corner Kicks",),
+    "cards": ("Yellow Cards", "Red Cards"),
+    "yellow_cards": ("Yellow Cards",),
+    "red_cards": ("Red Cards",),
+    "shots": ("Total Shots",),
+    "shots_on_target": ("Shots on Goal",),
 }
 # Match reporté ou annulé : sélection remboursée passé ce délai après le coup d'envoi prévu.
 VOID_AFTER = timedelta(hours=48)
@@ -117,6 +138,117 @@ def live_grade(match: Match, market: str, line: str, selection: str) -> str | No
         match.live_home_goals, match.live_away_goals, f"{market}|{line}|{selection}"
     )
     return None if outcome is None else _grade(outcome, Decimal(1)).result
+
+
+@functools.lru_cache(maxsize=1024)
+def _goal_markets(hh: int, ha: int, home: int, away: int) -> dict[str, Selection]:
+    joint = _point_mass((7, 7, 11, 11), (hh, ha, home, away))
+    return derive_markets(ScoreDistribution(joint=joint))
+
+
+@functools.lru_cache(maxsize=4096)
+def _count_markets(stat: str, home: int, away: int) -> dict[str, Selection]:
+    return count_markets(stat, _point_mass((31, 31), (home, away)))
+
+
+def _settled_whatever(
+    outcomes: Callable[[int, int], Selection | None], ahead: int
+) -> Selection | None:
+    """Le résultat d'une sélection s'il est le même quoi qu'il arrive d'ici la fin (x buts
+    de plus d'un côté, y de l'autre) ; None s'il peut encore changer."""
+    first: Selection | None = None
+    result: str | None = None
+    for x in range(ahead):
+        for y in range(ahead):
+            sel = outcomes(x, y)
+            if sel is None:
+                return None
+            grade = _grade(sel, Decimal(1)).result
+            if result is None:
+                first, result = sel, grade
+            elif grade != result:
+                return None
+    return first
+
+
+def early_goals(
+    market: str, key: str, score: tuple[int, int], half_time: tuple[int, int] | None
+) -> Selection | None:
+    """Marché de buts décidé avant la fin : « plus de 2,5 » gagné dès le 3e but, « moins de
+    2,5 » perdu, « les deux marquent » gagné dès que les deux ont marqué ; marchés de la
+    1re mi-temps dès la pause (``half_time`` connu)."""
+    needs_ht = market.startswith(HALF_TIME_MARKETS)
+    if needs_ht and half_time is None:
+        return None
+    hh, ha = half_time or (0, 0)
+    if hh > 6 or ha > 6:
+        return None
+    h, a = max(score[0], hh), max(score[1], ha)
+
+    def outcome(x: int, y: int) -> Selection | None:
+        if h + x > 10 or a + y > 10:
+            return _goal_markets(hh, ha, min(h + x, 10), min(a + y, 10)).get(key)
+        return _goal_markets(hh, ha, h + x, a + y).get(key)
+
+    return _settled_whatever(outcome, GOALS_AHEAD)
+
+
+def early_counts(stat: str, key: str, counts: tuple[int, int]) -> Selection | None:
+    """Marché de comptage décidé avant la fin : « plus de 9,5 corners » gagné au 10e."""
+    h, a = counts
+
+    def outcome(x: int, y: int) -> Selection | None:
+        return _count_markets(stat, min(h + x, 30), min(a + y, 30)).get(key)
+
+    return _settled_whatever(outcome, COUNTS_AHEAD)
+
+
+def _live_counts(snap: LiveSnapshot, stat: str) -> tuple[int, int] | None:
+    if snap.home_stats is None or snap.away_stats is None:
+        return None
+
+    def total(stats: dict[str, Any]) -> int:
+        # Compteur absent = 0 (convention d'API-Football, voir MatchTeamStats).
+        return sum(int(stats.get(t) or 0) for t in LIVE_COUNT_TYPES[stat])
+
+    try:
+        return total(snap.home_stats), total(snap.away_stats)
+    except (TypeError, ValueError):
+        return None
+
+
+async def _early_grade(
+    session: AsyncSession, match: Match, sel: BetSelection, now: datetime
+) -> Grade | None:
+    """Règlement d'une sélection pendant le match, sur le dernier relevé assez ancien."""
+    snap = await session.scalar(
+        select(LiveSnapshot)
+        .where(LiveSnapshot.match_id == match.id, LiveSnapshot.taken_at <= now - EARLY_DELAY)
+        .order_by(LiveSnapshot.taken_at.desc())
+        .limit(1)
+    )
+    if snap is None or snap.status not in EARLY_STATUSES or match.api_status not in EARLY_STATUSES:
+        return None
+    if snap.home_goals is None or snap.away_goals is None:
+        return None
+    # Un but annulé depuis le relevé : le score actuel, plus bas, fait foi.
+    score = (
+        min(snap.home_goals, match.live_home_goals if match.live_home_goals is not None else 99),
+        min(snap.away_goals, match.live_away_goals if match.live_away_goals is not None else 99),
+    )
+    half_time = None
+    if snap.status in HALF_TIME_OVER and match.home_goals_ht is not None:
+        half_time = (match.home_goals_ht, match.away_goals_ht or 0)
+    key = f"{sel.market}|{sel.line}|{sel.selection}"
+    if sel.market == "BOOKING_POINTS_OU":
+        return None
+    stat = COUNT_PREFIXES.get(sel.market.split("_")[0])
+    if stat is not None:
+        counts = _live_counts(snap, stat)
+        outcome = None if counts is None else early_counts(stat, key, counts)
+    else:
+        outcome = early_goals(sel.market, key, score, half_time)
+    return None if outcome is None else _grade(outcome, sel.odds)
 
 
 def _count_values(
@@ -229,7 +361,8 @@ async def grade_selection(session: AsyncSession, sel: BetSelection, now: datetim
         planned = match.kickoff_at or datetime.combine(match.match_date, datetime.min.time(), UTC)
         if match.api_status in UNPLAYED_STATUSES and now - planned > VOID_AFTER:
             return Grade("push", Decimal(1))  # reporté ou annulé : remboursé
-        return None
+        # Pendant le match : réglée dès que son résultat ne peut plus changer.
+        return await _early_grade(session, match, sel, now)
     key = f"{sel.market}|{sel.line}|{sel.selection}"
     if sel.market.split("_")[0] in COUNT_PREFIXES or sel.market == "BOOKING_POINTS_OU":
         outcome = counts_grade(match, await _match_stats(session, match.id), sel.market, key)
