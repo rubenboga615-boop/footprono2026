@@ -1291,3 +1291,14 @@ apprentissage sur 2021-2024, vérification sur 2025 (jamais vue) à 15', 30', mi
 75' ; le modèle n'est gardé (`app_settings` « live.model ») que si tout est juste, et
 « Chances en direct publiées » le demande. Repères : « 30' » = 30 minutes jouées (un but de la
 30e minute est compté comme marqué).
+
+**Premier apprentissage (console, 11/11/2026)** : 17 849 matchs 2021-2024, vérification sur
+4 447 matchs 2025. Rythme appris : 1re période 0,79 aux 5 premières minutes, 1,03 à 1,05 en
+fin de période, temps additionnel 1,39 ; 2e période 0,87 au début, temps additionnel 1,14.
+Effet du score unique (menée de 1 × 1,06, devant de 1 × 0,94). Résultat : tout juste à 30'
+(buts de 1re mi-temps 5,1 → 2,8 points) ; **encore à revoir à la mi-temps, 60' et 75'** sur
+le résultat et la double chance : l'équipe qui mène gagne moins souvent qu'annoncé (75' :
+76 % → 71 % ; mi-temps : 75 % → 70 %) alors que le nombre de buts est juste (75' : 1,8
+point). Les buts tardifs viennent davantage de l'équipe menée : **effet du score propre à
+chaque moment du match** (1re période, 46-60', 61-75', 76' à la fin), appris de la même façon.
+Modèle non gardé ; nouvel apprentissage à lancer.

@@ -31,10 +31,12 @@ from footprono.engine.live import (
     DEFAULT_MODEL,
     GRID,
     HALF,
+    PHASES,
     LiveModel,
     LiveState,
     evolve,
     live_markets,
+    phase_of,
 )
 from footprono.engine.markets import derive_markets
 from footprono.engine.scores import MAX_GOALS, MAX_HT_GOALS
@@ -256,10 +258,11 @@ def _unit(minute: int, extra: int, half: int) -> int:
 
 def fit_live_model(matches: Iterable[PlayedMatch], rounds: int = 60) -> LiveModel:
     """Rythme des buts par tranche de 5 minutes (et temps additionnel) de chaque période, et
-    effet du score, appris sur les minutes des buts : modèle de Poisson multiplicatif
-    (buts d'une équipe dans une minute = rythme de base, fois la tranche, fois l'effet du score du
-    moment), ajusté par itérations proportionnelles. Un match compte jusqu'à son premier
-    carton rouge."""
+    effet du score, appris sur les minutes des buts. Modèle de Poisson multiplicatif : buts
+    d'une équipe dans une minute = rythme de base, fois la tranche, fois l'effet du score du
+    moment, propre à chaque moment du match (1re période, 46-60', 61-75', 76' à la fin).
+    Ajusté par itérations proportionnelles ; un match compte jusqu'à son premier carton
+    rouge."""
     goals = np.zeros((2, BUCKETS + 1, 5))
     exposure = np.zeros((2, BUCKETS + 1, 5))
     for m in matches:
@@ -294,20 +297,27 @@ def fit_live_model(matches: Iterable[PlayedMatch], rounds: int = 60) -> LiveMode
                         away += 1
             if any(minute <= HALF for minute, _, _ in m.reds) and half == 0:
                 break
+    # Moment du match de chaque tranche (effet du score propre à chaque moment).
+    phase = np.array(
+        [[phase_of(half, min(5 * b + 1, HALF + 1)) for b in range(BUCKETS + 1)] for half in (0, 1)]
+    )
     rhythm = np.ones((2, BUCKETS + 1))
-    effect = np.ones(5)
+    effect = np.ones((PHASES, 5))
     for _ in range(rounds):
-        rhythm = goals.sum(axis=2) / np.maximum((exposure * effect).sum(axis=2), EPS)
-        effect = goals.sum(axis=(0, 1)) / np.maximum(
-            (exposure * rhythm[:, :, None]).sum(axis=(0, 1)), EPS
-        )
-        # Échelle portée par le rythme : effet 1 à égalité.
-        rhythm *= effect[2]
-        effect /= effect[2]
+        rhythm = goals.sum(axis=2) / np.maximum((exposure * effect[phase]).sum(axis=2), EPS)
+        for ph in range(PHASES):
+            cells = phase == ph
+            g = goals[cells].sum(axis=0)
+            e = (exposure[cells] * rhythm[cells][:, None]).sum(axis=0)
+            effect[ph] = np.where(e > 0, g / np.maximum(e, EPS), 1.0)
+            # Échelle portée par le rythme : effet 1 à égalité.
+            scale = effect[ph, 2] if effect[ph, 2] > 0 else 1.0
+            rhythm[cells] *= scale
+            effect[ph] /= scale
     return LiveModel(
         first=tuple(round(float(x), 4) for x in rhythm[0]),
         second=tuple(round(float(x), 4) for x in rhythm[1]),
-        effect=tuple(round(float(x), 4) for x in effect),
+        effect=tuple(round(float(x), 4) for x in effect.ravel()),
     )
 
 

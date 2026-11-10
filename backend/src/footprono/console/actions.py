@@ -1038,10 +1038,13 @@ async def live_fit(ctx: JobContext, params: dict[str, Any]) -> str:
     model = await asyncio.to_thread(fit_live_model, learn)
     ctx.log(f"Rythme 1re période : {_fmt_rhythm(model.first)}")
     ctx.log(f"Rythme 2e période : {_fmt_rhythm(model.second)}")
-    ctx.log(
-        "Effet du score (mené de 2+, mené de 1, égalité, devant de 1, devant de 2+) : "
-        + " · ".join(f"{v:.2f}".replace(".", ",") for v in model.effect)
-    )
+    from footprono.engine.live import PHASE_NAMES
+
+    ctx.log("Effet du score (mené de 2+, mené de 1, égalité, devant de 1, devant de 2+) :")
+    for ph, name in enumerate(PHASE_NAMES):
+        ctx.log(
+            f"  {name} : " + " · ".join(f"{v:.2f}".replace(".", ",") for v in model.effect_at(ph))
+        )
     before = await asyncio.to_thread(lambda: report(minute_entries(check, DEFAULT_MODEL)))
     rep = await asyncio.to_thread(lambda: report(minute_entries(check, model)))
     worst_before = {(r["checkpoint"], r["family"]): r["worst_gap"] for r in before["rows"]}

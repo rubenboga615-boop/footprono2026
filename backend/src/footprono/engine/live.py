@@ -80,6 +80,19 @@ BUCKET = 5  # minutes par tranche du rythme des buts
 BUCKETS = HALF // BUCKET  # 9 tranches de 5 minutes, puis le temps additionnel
 
 
+# Moments du match pour l'effet du score : 1re période, puis 46-60', 61-75', 76' à la fin
+# (l'équipe menée pousse surtout en fin de match : vérification du 11/11/2026).
+PHASES = 4
+PHASE_NAMES = ("1re période", "46-60'", "61-75'", "76' à la fin")
+
+
+def phase_of(half: int, unit: int) -> int:
+    """Moment du match d'une minute (``unit`` : 1 à 45 puis le temps additionnel)."""
+    if half == 0:
+        return 0
+    return 1 if unit <= 15 else 2 if unit <= 30 else 3
+
+
 @dataclass(frozen=True)
 class LiveModel:
     """Rythme des buts au fil du match et effet du score.
@@ -87,6 +100,8 @@ class LiveModel:
     ``first`` et ``second`` : multiplicateur du rythme de base (buts attendus de la période
     répartis sur 45 minutes et le temps additionnel moyen) pour chaque tranche de 5 minutes,
     puis pour le temps additionnel (10 valeurs par période). 1 partout : rythme régulier.
+    ``effect`` : effet du score (5 valeurs : mené de 2+, mené de 1, égalité, devant de 1,
+    devant de 2+), le même tout le match, ou 5 valeurs par moment du match (``PHASES``).
     Appris sur les minutes des buts gardées (``live_study.fit_live_model``)."""
 
     first: tuple[float, ...] = (1.0,) * (BUCKETS + 1)
@@ -104,20 +119,34 @@ class LiveModel:
             tuple(float(x) for x in d["effect"]),
         )
 
-    def profile(self, half: int, played: int, extra: int) -> FloatArray:
-        """Multiplicateurs des minutes qui restent dans la période ``half`` (0 ou 1) quand
-        ``played`` minutes sont jouées (``extra`` : minutes de temps additionnel jouées)."""
+    def effect_at(self, phase: int) -> tuple[float, ...]:
+        if len(self.effect) == 5:
+            return self.effect
+        return self.effect[5 * phase : 5 * phase + 5]
+
+    def steps(self, half: int, played: int, extra: int) -> tuple[FloatArray, FloatArray]:
+        """Pour chaque minute qui reste dans la période ``half`` (0 ou 1) quand ``played``
+        minutes sont jouées (``extra`` : minutes de temps additionnel jouées) : multiplicateur
+        du rythme, et effet du score du moment (une ligne de 5 valeurs par minute)."""
         weights = self.first if half == 0 else self.second
         added = int(np.ceil(ADDED[half]))
-        if extra > 0:
-            regular: list[float] = []
-            rest = max(added - extra, 0)
-        else:
-            regular = [
-                weights[min((k - 1) // BUCKET, BUCKETS - 1)] for k in range(played + 1, HALF + 1)
-            ]
-            rest = added
-        return np.array(regular + [weights[BUCKETS]] * rest, dtype=np.float64)
+        units = (
+            list(range(HALF + 1 + extra, HALF + added + 1))
+            if extra > 0
+            else list(range(played + 1, HALF + added + 1))
+        )
+        profile = [
+            weights[BUCKETS] if u > HALF else weights[min((u - 1) // BUCKET, BUCKETS - 1)]
+            for u in units
+        ]
+        effects = [self.effect_at(phase_of(half, u)) for u in units]
+        return (
+            np.array(profile, dtype=np.float64),
+            np.array(effects, dtype=np.float64).reshape(len(units), 5),
+        )
+
+    def profile(self, half: int, played: int, extra: int) -> FloatArray:
+        return self.steps(half, played, extra)[0]
 
 
 DEFAULT_MODEL = LiveModel()
@@ -130,11 +159,13 @@ def evolve(
     minutes: float,
     effect: Sequence[float] = SCORE_EFFECT,
     profile: FloatArray | None = None,
+    effects: FloatArray | None = None,
 ) -> FloatArray:
     """Loi du score après ``minutes`` minutes, minute par minute : ``start[..., h, a]`` est la
     loi de départ, ``rate`` les buts attendus par minute de chaque équipe (à égalité de
-    situation), multipliés à chaque minute par l'effet du score du moment et, si donné, par
-    ``profile`` (une valeur par minute : le rythme du moment du match)."""
+    situation), multipliés à chaque minute par l'effet du score du moment (``effects`` : une
+    ligne par minute ; sinon ``effect`` tout le temps) et, si donné, par ``profile`` (une
+    valeur par minute : le rythme du moment du match)."""
     if profile is not None:
         steps, dt = len(profile), 1.0
     else:
@@ -143,16 +174,16 @@ def evolve(
     if steps <= 0:
         return start
     h, a = np.indices((GRID, GRID))
-    eff = np.asarray(effect, dtype=np.float64)
-    mult_h = eff[np.clip(h - a, -2, 2) + 2]
-    mult_a = eff[np.clip(a - h, -2, 2) + 2]
+    idx_h = np.clip(h - a, -2, 2) + 2
+    idx_a = np.clip(a - h, -2, 2) + 2
     rh = np.asarray(rate_h, dtype=np.float64)[..., None, None]
     ra = np.asarray(rate_a, dtype=np.float64)[..., None, None]
     p = start
     for t in range(steps):
+        eff = np.asarray(effect if effects is None else effects[t], dtype=np.float64)
         m = 1.0 if profile is None else float(profile[t])
-        ph = 1 - np.exp(-rh * mult_h * dt * m)
-        pa = 1 - np.exp(-ra * mult_a * dt * m)
+        ph = 1 - np.exp(-rh * eff[idx_h] * dt * m)
+        pa = 1 - np.exp(-ra * eff[idx_a] * dt * m)
         new = p * ((1 - ph) * (1 - pa))
         new[..., 1:, :] += (p * ph * (1 - pa))[..., :-1, :]
         new[..., :, 1:] += (p * (1 - ph) * pa)[..., :, :-1]
@@ -185,18 +216,22 @@ def live_distribution(
     len1, len2 = HALF + ADDED[0], HALF + ADDED[1]
     first = (share_h * lam_h / len1, share_a * lam_a / len1)
     second = ((1 - share_h) * lam_h / len2, (1 - share_a) * lam_a / len2)
-    whole_second = model.profile(1, 0, 0)
+    whole_second, second_effects = model.steps(1, 0, 0)
     ht_n = MAX_HT_GOALS + 1
     joint = np.zeros((ht_n, ht_n, GRID, GRID))
 
     if state.status in FIRST_HALF:
-        rest = model.profile(0, min(max(state.minute, 0), HALF), max(state.extra, 0))
-        ht = evolve(_point(state.home, state.away), *first, 0, model.effect, rest)[:ht_n, :ht_n]
+        rest, rest_effects = model.steps(0, min(max(state.minute, 0), HALF), max(state.extra, 0))
+        ht = evolve(_point(state.home, state.away), *first, 0, profile=rest, effects=rest_effects)[
+            :ht_n, :ht_n
+        ]
         starts = np.zeros((ht_n, ht_n, GRID, GRID))
         for i in range(ht_n):
             for j in range(ht_n):
                 starts[i, j, i, j] = 1.0
-        joint = ht[:, :, None, None] * evolve(starts, *second, 0, model.effect, whole_second)
+        joint = ht[:, :, None, None] * evolve(
+            starts, *second, 0, profile=whole_second, effects=second_effects
+        )
     else:
         if state.status in HALF_TIME or state.ht_home is None or state.ht_away is None:
             hh, ha = state.home, state.away
@@ -204,12 +239,14 @@ def live_distribution(
             hh, ha = state.ht_home, state.ht_away
         if max(hh, ha) > MAX_HT_GOALS:
             return None
-        rest = (
-            whole_second
+        rest, rest_effects = (
+            (whole_second, second_effects)
             if state.status in HALF_TIME
-            else model.profile(1, min(max(state.minute - HALF, 0), HALF), max(state.extra, 0))
+            else model.steps(1, min(max(state.minute - HALF, 0), HALF), max(state.extra, 0))
         )
-        joint[hh, ha] = evolve(_point(state.home, state.away), *second, 0, model.effect, rest)
+        joint[hh, ha] = evolve(
+            _point(state.home, state.away), *second, 0, profile=rest, effects=rest_effects
+        )
     total = joint.sum()
     if total <= 0:
         return None

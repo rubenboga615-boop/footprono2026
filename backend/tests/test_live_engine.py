@@ -138,13 +138,18 @@ def test_half_time_angles_are_right_when_the_engine_is_right() -> None:
 def test_fit_live_model_finds_a_known_rhythm_and_effect() -> None:
     import numpy as np
 
-    from footprono.engine.live import ADDED, BUCKETS, HALF
+    from footprono.engine.live import ADDED, BUCKETS, HALF, phase_of
     from footprono.engine.live_study import PlayedMatch, fit_live_model, minute_entries, report
 
     rng = np.random.default_rng(11)
     first = tuple([0.8] * 6 + [1.0, 1.0, 1.3] + [1.4])
     second = tuple([0.9] * 6 + [1.0, 1.1, 1.3] + [1.5])
-    truth = LiveModel(first=first, second=second, effect=(1.0, 1.25, 1.0, 0.85, 1.0))
+    # Effet du score plus fort en fin de match (l'équipe menée pousse) : 4 moments du match.
+    truth = LiveModel(
+        first=first,
+        second=second,
+        effect=(1.0, 1.05, 1.0, 0.95, 1.0) * 2 + (1.0, 1.25, 1.0, 0.85, 1.0) * 2,
+    )
     matches = []
     for _ in range(4000):
         lh, la = float(rng.uniform(1.0, 2.0)), float(rng.uniform(0.8, 1.6))
@@ -157,7 +162,8 @@ def test_fit_live_model_finds_a_known_rhythm_and_effect() -> None:
             for unit in range(1, units + 1):
                 bucket = BUCKETS if unit > HALF else (unit - 1) // 5
                 for side, lam, mine, other in (("home", lh, h, a), ("away", la, a, h)):
-                    eff = truth.effect[int(np.clip(mine - other, -2, 2)) + 2]
+                    phase = phase_of(half, unit)
+                    eff = truth.effect_at(phase)[int(np.clip(mine - other, -2, 2)) + 2]
                     rate = 0.45 * lam / length * weights[bucket] * eff
                     if rng.random() < rate:
                         minute = unit if unit <= HALF else HALF
@@ -174,8 +180,10 @@ def test_fit_live_model_finds_a_known_rhythm_and_effect() -> None:
     # Fin de période plus riche en buts que le début, effet du score retrouvé.
     assert fitted.first[8] > fitted.first[0] + 0.25
     assert fitted.second[BUCKETS] > fitted.second[0] + 0.3
-    assert fitted.effect[1] == pytest.approx(1.25, abs=0.15)
-    assert fitted.effect[3] == pytest.approx(0.85, abs=0.12)
+    late, early = fitted.effect_at(3), fitted.effect_at(1)
+    assert late[1] == pytest.approx(1.25, abs=0.15)
+    assert late[3] == pytest.approx(0.85, abs=0.12)
+    assert late[1] > early[1]
     # Le modèle appris est juste sur ses propres matchs ; le rythme régulier moins.
     learned = {
         (r["checkpoint"], r["family"]): r
