@@ -113,7 +113,10 @@ famille de marché), des coupons du jour de 2 à 4 angles, et rendement aux
 cotes de clôture réelles (1X2 et plus/moins 2,5 : seules cotes historiques).
 Méthode vérifiée sur données simulées : moteur exact → angle juste ;
 moteur bruité → surestimation détectée (`tests/test_angles.py`).
-Résultats sur les vraies données : à compléter.
+Résultats sur les vraies données (10/11/2026, 20 617 matchs des 22 championnats,
+saisons 2023 à 2025) : l'angle reste juste dans les trois profils (Sûr 88,5 % annoncé,
+88,9 % arrivé ; Équilibré 73,5 % → 74,0 % ; Audacieux 57,6 % → 57,5 %). Détail par marché :
+section « Double chance et buts de 1re mi-temps » (10/11/2026).
 
 ## xG remis au niveau des vrais buts (vérifié le 02/10/2026)
 
@@ -1133,3 +1136,53 @@ correction prouvée). Nouveau point le 01/12/2026 avec ce critère fixé d'avanc
 correction « nul seul, 60 jours » passe en service si, sur 2026-27, elle gagne au moins
 0,1 % de log loss **et** ramène toutes les tranches de plus de 100 cas à moins de 3 points ;
 sinon on attend la fin de la phase aller.
+
+## Double chance et buts de 1re mi-temps : vérifiés, rien à retirer (10/11/2026)
+
+Plan du 10/11/2026, étape 5. Paris du fondateur et du compte de test (rapport du 09/11) :
+double chance 16 gagnées sur 33 (48 %) pour 71 % annoncé ; buts de 1re mi-temps 9 sur 17
+(53 %) pour 70 %. Règle fixée avant l'étude : retrait des profils Sûr et Équilibré si l'écart
+se retrouve sur les saisons passées.
+
+**Championnats, toutes les doubles chances** (1X2 rejoué, `hist4` 2023-2025 et rejeu
+2026-27 au 07/11) : à 3 points près dans chaque tranche et chaque saison. 70 à 80 % : 74,6 %
+annoncé, 73,8 / 74,2 / 73,6 % arrivé en 2023 / 2024 / 2025 ; 2026-27 : 74,7 % → 76,2 %
+(2 284 cas) ; depuis le 15/10 : 74,7 % → 78,9 % (574 cas, plus gagné qu'annoncé).
+
+**Championnats, sélection comme le Coupon intelligent** (`footprono-engine angles`, la
+sélection la plus probable du match dans la tranche du profil) :
+
+| Profil | Double chance | Marchés de mi-temps (tous) |
+|---|---|---|
+| Sûr | 639 · 88,5 % → 91,9 % | 5 237 · 87,8 % → 88,0 % |
+| Équilibré | 4 639 · 73,8 % → 73,2 % | 4 697 · 73,3 % → 74,8 % |
+| Audacieux | 1 427 · 58,4 % → 60,6 % | 1 261 · 58,9 % → 59,5 % |
+
+**Sélections nationales** (moteur des sélections, matchs officiels 2023-2026, chaque année
+prédite par le modèle de son 1er janvier, marchés publiés et automatiques seulement) :
+Équilibré, double chance 413 · 73,0 % → 72,9 % ; mi-temps plus de 0,5 but 177 · 72,3 % →
+72,3 % ; mi-temps moins de 1,5 but 254 · 73,2 % → 70,5 % ; Sûr, double chance 233 · 88,8 %
+→ 90,6 %. Toutes les doubles chances de 60 % et plus : à 3,3 points près, sauf « X2 » à 70-80 %
+(+7,4 points, plus gagné qu'annoncé). Les mi-temps des sélections sont en base pour environ
+90 % des matchs (2023 : 548 sur 574).
+
+**Conclusion** : l'écart des paris réels n'apparaît nulle part sur plus de 30 000 sélections
+passées (ni dans les championnats, ni dans les sélections, ni avec la règle de choix du
+coupon, ni cette saison). Avec 33 sélections liées entre elles (plusieurs dans les mêmes
+coupons, souvent la même semaine) et neuf marchés regardés, un tel écart reste possible par
+hasard. **Décision : rien n'est retiré.** Suivi dans l'Observatoire (« Réussite par marché ») ;
+nouvel examen à 100 sélections de double chance des testeurs, avec la même règle : retrait
+si l'écart dépasse deux erreurs types et se retrouve sur les saisons passées.
+
+### Sélections nationales : Türkiye – Belgique et « Chypre +2 »
+
+- **Türkiye – Belgique (12/11, Ligue des Nations)** : le testeur a lu 10 % / 16 % / 74 %. Le
+  pronostic enregistré (moteur des sélections, 06/11) est **24 % / 25 % / 51 %**, comme la
+  cote (26 / 25 / 52) ; notes Elo 1 619 (Türkiye, à domicile) et 1 788 (Belgique), terrain non
+  neutre, un seul match en base pour cette affiche (rien d'inversé). Recalculé au 05, 09 et
+  10/11 : identique. Le chiffre de 74 % n'est pas reproduit (la double chance « Belgique ou
+  nul » est à 76 %) : capture d'écran demandée au testeur pour savoir quel écran l'affichait.
+- **« Chypre +2 »** (Arménie – Chypre) : c'est le handicap européen −2 d'Arménie (ligne
+  publiée), affiché du côté de Chypre (`EH|-2|away`). Gagné si Arménie gagne par un but au
+  plus, fait nul ou perd. Marché validé dans l'étude du 06/11 ; dans l'angle Sûr des sélections,
+  128 · 89,9 % → 89,8 %.
