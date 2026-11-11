@@ -1331,3 +1331,12 @@ le **résultat du match** est juste à chaque repère ; un autre marché faux à
 **aucun chiffre** dans sa période (1re période ; ou mi-temps et 2e période), enregistré avec
 le modèle (`excluded`) et appliqué par `/live/chances`. Dernière relance de « Apprendre et
 vérifier le direct » pour confirmer.
+
+**Modèle gardé et publié (console, 11-12/11/2026)** : apprentissage 17 849 matchs 2021-2024,
+vérification 4 447 matchs 2025. Effet du score de la 2e période (affiné) : menée de 2+ ×
+1,04, menée de 1 × 1,22, devant de 1 × 0,97, devant de 2+ × 1,03. Résultat du match juste à
+chaque repère (15' 2,9 · 30' 1,7 · mi-temps 2,9 · 60' 1,5 · 75' 3,6 points, ce dernier dans
+la marge du hasard) ; double chance, buts du match, buts de la 1re mi-temps, résultat de la
+mi-temps : justes. **Sans chiffre** : « les deux marquent » (tout le match) et « buts d'une
+équipe » (mi-temps et 2e période). Chances en direct publiées le 12/11/2026 à 00:28.
+À suivre : comparer les chances affichées aux résultats réels des matchs suivis en direct.
