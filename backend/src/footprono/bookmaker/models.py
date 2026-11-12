@@ -54,3 +54,6 @@ class BetSelection(Base):
     model_probability: Mapped[float | None] = mapped_column(Float)
     # pending, win, half_win, push, half_loss, loss
     result: Mapped[str] = mapped_column(String(10), default="pending")
+    # Résultat si le match s'arrêtait sur le score actuel (« gagnante pour l'instant ») au
+    # dernier règlement : un but qui le change est notifié (bookmaker/live_alerts.py).
+    live_state: Mapped[str | None] = mapped_column(String(10))

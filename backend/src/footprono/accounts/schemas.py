@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -66,6 +67,8 @@ class MeOut(BaseModel):
     plan: PlanOut
     wallet: WalletOut
     daily_coupons_notifications: bool = True
+    # Pendant les matchs de mes coupons : « all », « results » (validé ou perdu), « none ».
+    match_notifications: str = "all"
     virtual_money: bool = True  # argent fictif : rappel pour l'application
     # Mode bêta : proposé pendant la période de test seulement ; partage choisi par le joueur.
     beta_available: bool = False
@@ -74,7 +77,10 @@ class MeOut(BaseModel):
 
 
 class PreferencesIn(BaseModel):
-    daily_coupons_notifications: bool
+    """Seuls les réglages envoyés changent."""
+
+    daily_coupons_notifications: bool | None = None
+    match_notifications: Literal["all", "results", "none"] | None = None
 
 
 class WalletEntryOut(BaseModel):

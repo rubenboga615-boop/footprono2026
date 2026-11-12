@@ -284,6 +284,12 @@ class ProfileScreen extends StatelessWidget {
                             ? null
                             : (on) => guard(context, () => state.setDailyCouponsNotifications(on)),
                       ),
+                      // Demande du fondateur du 12/11/2026 : validé, perdu, but, dernier match.
+                      _Item(
+                        title: 'Pendant mes matchs',
+                        trailing: matchNotificationLabels[me?.matchNotifications ?? 'all'],
+                        onTap: me == null ? null : () => _matchNotifications(context, state),
+                      ),
                       if (web != WebPushStatus.unavailable)
                         _Item(
                           title: 'Notifications sur cet appareil',
@@ -409,6 +415,69 @@ class ProfileScreen extends StatelessWidget {
 }
 
 /// Notifications web impossibles pour l'instant : ce qu'il faut faire.
+/// Réglage « Pendant mes matchs » (demande du fondateur du 12/11/2026).
+const matchNotificationLabels = {'all': 'Tout', 'results': 'Validé ou perdu', 'none': 'Rien'};
+
+void _matchNotifications(BuildContext context, AppState state) {
+  final current = state.me?.matchNotifications ?? 'all';
+  const help = {
+    'all': 'Sélection validée ou perdue, but qui change ton coupon, dernier match, match retardé.',
+    'results': 'Seulement quand une sélection est validée ou perdue.',
+    'none': 'Aucune notification pendant les matchs (le résultat du coupon reste notifié).',
+  };
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Fp.background,
+    builder: (sheet) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Pendant mes matchs', style: Fp.title(17)),
+            const SizedBox(height: 4),
+            Text(
+              'Rien sur le téléphone entre 23 h et 8 h : tu retrouves tout dans Notifications.',
+              style: Fp.body(12.5, color: Fp.muted, height: 1.4),
+            ),
+            const SizedBox(height: 8),
+            for (final e in matchNotificationLabels.entries)
+              InkWell(
+                onTap: () {
+                  Navigator.pop(sheet);
+                  if (e.key != current) guard(context, () => state.setMatchNotifications(e.key));
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(
+                        e.key == current ? Icons.radio_button_checked : Icons.radio_button_off,
+                        color: e.key == current ? Fp.accent : Fp.muted,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(e.value, style: Fp.body(15, weight: FontWeight.w700)),
+                            Text(help[e.key]!, style: Fp.body(12.5, color: Fp.text2, height: 1.35)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 void _webPushHelp(BuildContext context, WebPushStatus status) {
   showDialog<void>(
     context: context,

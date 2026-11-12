@@ -49,6 +49,9 @@ class User(Base):
     daily_coupons_notifications: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true()
     )
+    # Notifications pendant les matchs d'un coupon : « all » (tout), « results » (sélection
+    # validée ou perdue seulement), « none » (rien).
+    match_notifications: Mapped[str] = mapped_column(String(8), default="all", server_default="all")
     # Période de test (FP_BETA_SHARING) : partage anonyme accepté par le joueur, sous un
     # numéro de testeur (« Testeur n° 12 ») ; jamais son nom ni son numéro de téléphone.
     beta_sharing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())

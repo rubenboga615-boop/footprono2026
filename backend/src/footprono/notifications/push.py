@@ -226,6 +226,10 @@ class FcmSender:
     ) -> SendResult:
         total = SendResult()
         for note in notes:
+            # Silence de nuit (notifications pendant les matchs, 23 h à 8 h) : rien sur le
+            # téléphone, la notification reste dans l'application.
+            if note.data.get("silent"):
+                continue
             data = {**note.data, "notification_id": note.id, "kind": note.kind}
             try:
                 r = await self.send_to_user(session, note.user_id, note.title, note.body, data)

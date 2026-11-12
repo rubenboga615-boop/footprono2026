@@ -32,7 +32,8 @@ LIVE_CHANNEL = "live"
 LAST_KEY = "live:last"
 LAST_TTL = 600
 # Chances envoyées dans le message : celles que la liste des matchs affiche.
-SHOWN = ("1X2||home", "1X2||draw", "1X2||away", "OU|2.5|over", "OU|3.5|over")
+# Lignes de buts 0,5 à 5,5 : « encore au moins un but » suit le score (12/11/2026).
+SHOWN = ("1X2||home", "1X2||draw", "1X2||away", *(f"OU|{n}.5|over" for n in range(6)))
 
 
 async def live_message(session: AsyncSession, match_ids: Sequence[int]) -> dict[str, Any]:

@@ -520,6 +520,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await refreshMe();
   }
 
+  /// Notifications pendant les matchs de mes coupons : « all », « results », « none ».
+  Future<void> setMatchNotifications(String level) async {
+    await api.put('/me/preferences', {'match_notifications': level});
+    await refreshMe();
+  }
+
   /// Mode bêta proposé une seule fois sur ce téléphone, pendant la période de test (rapport
   /// du 07/11/2026 : sans cela, l'Observatoire n'a de données que si l'on va dans le profil).
   bool get shouldOfferBeta =>

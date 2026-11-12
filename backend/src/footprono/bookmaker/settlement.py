@@ -28,7 +28,7 @@ from sqlalchemy.orm import aliased
 
 from footprono.accounts import service as accounts
 from footprono.accounts.models import Wallet
-from footprono.bookmaker import montante
+from footprono.bookmaker import live_alerts, montante
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.engine.counts import booking_points_markets, count_markets
 from footprono.engine.markets import Selection, derive_markets
@@ -415,9 +415,13 @@ async def _bet_name(session: AsyncSession, selections: Sequence[BetSelection]) -
     return f"{row[0]} - {row[1]}" if row else "pari"
 
 
-def _notify_settled(session: AsyncSession, bet: Bet, name: str) -> None:
+def _notify_settled(session: AsyncSession, bet: Bet, name: str, detail: str | None = None) -> None:
     outcome = bet.outcome or "lost"
-    if outcome == "lost":
+    if outcome == "lost" and detail:
+        # La sélection qui a fait perdre, et rien d'autre (jamais de nouveau pari proposé).
+        stake = notifications.money(bet.stake, bet.currency)
+        body = f"❌ {detail} Ton coupon de {stake} est perdu."
+    elif outcome == "lost":
         body = f"{name} : mise de {notifications.money(bet.stake, bet.currency)} perdue."
     else:
         gain = notifications.money(bet.payout or 0, bet.currency)
@@ -453,6 +457,7 @@ async def settle_bets(
     # Un seul règlement à la fois (audit de sécurité du 12/11/2026, n° 1) : le suivant attend
     # la fin du premier, puis relit des paris déjà réglés ; payés une seule fois.
     await hold_lock(session, SETTLE_BETS_LOCK)
+    alerts = live_alerts.Alerts()
     open_bets = (await session.scalars(select(Bet).where(Bet.status == "open"))).all()
     recent = (
         await session.scalars(
@@ -468,9 +473,15 @@ async def settle_bets(
         if not lost and any(g is None for g in grades):
             # Pari pas encore réglé : chaque sélection est notée dès la fin de son match,
             # comme chez un vrai bookmaker (avant : « en attente » jusqu'au dernier match).
+            before = [s.result for s in selections]
             for s, g in zip(selections, grades, strict=True):
                 if g is not None:
                     s.result = g.result
+            if bet.status == "open":
+                # Notifications pendant les matchs (12/11/2026) : validée, but, dernier match.
+                await live_alerts.observe(
+                    alerts, session, bet, list(selections), grades, before, now
+                )
             report["pending"] += bet.status == "open"
             continue
         for s, g in zip(selections, grades, strict=True):
@@ -485,12 +496,20 @@ async def settle_bets(
                 await accounts.move(
                     session, bet.user_id, payout, "payout", bet_id=bet.id, note=f"pari {bet.id}"
                 )
-            _notify_settled(session, bet, await _bet_name(session, selections))
+            detail = (
+                await live_alerts.lost_detail(
+                    session, list(selections), [g.result if g else None for g in grades]
+                )
+                if outcome == "lost"
+                else None
+            )
+            _notify_settled(session, bet, await _bet_name(session, selections), detail)
             await montante.on_bet_settled(session, bet)
             report["settled"] += 1
         elif (outcome, payout) != (bet.outcome, bet.payout):
             await _correct(session, bet, outcome, payout, now, await _bet_name(session, selections))
             report["resettled"] += 1
+    report["live_alerts"] = await live_alerts.emit(alerts, session, now)
     await session.commit()
     report["notified"] = await notifications.publish_pending(session, redis, push)
     return report

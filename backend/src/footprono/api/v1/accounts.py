@@ -198,6 +198,7 @@ async def me(user: CurrentUserDep, session: SessionDep, settings: SettingsDep) -
         plan=PlanOut(**plan_info(user)),
         wallet=WalletOut.model_validate(wallet),
         daily_coupons_notifications=user.daily_coupons_notifications,
+        match_notifications=user.match_notifications,
         beta_available=settings.beta_sharing,
         beta_sharing=settings.beta_sharing and user.beta_sharing,
         beta_tester=user.beta_number if settings.beta_sharing and user.beta_sharing else None,
@@ -206,8 +207,12 @@ async def me(user: CurrentUserDep, session: SessionDep, settings: SettingsDep) -
 
 @router.put("/me/preferences", status_code=status.HTTP_204_NO_CONTENT)
 async def set_preferences(body: PreferencesIn, user: CurrentUserDep, session: SessionDep) -> None:
-    """Réglages du compte : notification quotidienne des coupons du jour."""
-    user.daily_coupons_notifications = body.daily_coupons_notifications
+    """Réglages du compte : notification quotidienne des coupons du jour, notifications
+    pendant les matchs de mes coupons."""
+    if body.daily_coupons_notifications is not None:
+        user.daily_coupons_notifications = body.daily_coupons_notifications
+    if body.match_notifications is not None:
+        user.match_notifications = body.match_notifications
     await session.commit()
 
 

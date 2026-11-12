@@ -9,7 +9,7 @@ from httpx import AsyncClient
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from footprono.accounts.models import Wallet, WalletEntry
+from footprono.accounts.models import User, Wallet, WalletEntry
 from footprono.bookmaker.models import Bet
 from footprono.bookmaker.settlement import (
     Grade,
@@ -447,3 +447,136 @@ async def test_two_settlements_at_once_pay_only_once(
     assert [e.amount for e in payouts] == [18_500]
     assert wallet is not None
     assert wallet.balance == 100_000 - 10_000 + 18_500
+
+
+async def test_notifications_during_the_matches_of_a_coupon(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    """Demande du fondateur du 12/11/2026 : sélection validée, « tout se joue sur le dernier
+    match », but qui change l'état d'une sélection, coupon perdu avec la sélection en cause ;
+    groupées en une notification par passage ; réglage du joueur respecté."""
+    from footprono.bookmaker import live_alerts
+    from footprono.bookmaker.settlement import settle_bets
+    from footprono.football.models import LiveSnapshot
+    from footprono.notifications import service as notifications
+    from footprono.notifications.models import Notification
+
+    headers = await _login(client)
+    bet = (
+        await client.post(
+            "/api/v1/bets",
+            json={
+                "stake": 1_500,
+                "selections": [
+                    _sel(world["m1"], "OU", "over", "2.5"),
+                    _sel(world["m2"], "1X2", "home"),
+                ],
+            },
+            headers=headers,
+        )
+    ).json()
+    now = datetime.now(UTC)
+    tick = [0]
+
+    async def live(match: int, status: str, minute: int, score: tuple[int, int]) -> None:
+        async with db_factory() as session:
+            await session.execute(
+                update(Match).where(Match.id == match).values(
+                    api_status=status, live_minute=minute,
+                    kickoff_at=now - timedelta(minutes=minute),
+                    live_home_goals=score[0], live_away_goals=score[1],
+                    home_goals_ht=0 if status != "1H" else None,
+                    away_goals_ht=0 if status != "1H" else None,
+                )
+            )  # fmt: skip
+            session.add(
+                LiveSnapshot(
+                    match_id=match,
+                    taken_at=now - timedelta(minutes=10) + timedelta(seconds=tick[0]),
+                    status=status, minute=minute, extra=0, home_goals=score[0], away_goals=score[1],
+                )
+            )  # fmt: skip
+            tick[0] += 1
+            await session.commit()
+
+    async def settle() -> list[Notification]:
+        async with db_factory() as session:
+            await settle_bets(session, now=now)
+            return list(
+                await session.scalars(
+                    select(Notification)
+                    .where(Notification.kind.in_(("bet_live", "bet_settled")))
+                    .order_by(Notification.id)
+                )
+            )
+
+    async with db_factory() as session:
+        await session.execute(
+            update(Match).where(Match.id == world["m2"]).values(kickoff_at=now + timedelta(hours=2))
+        )
+        await session.commit()
+    # Coup d'envoi du 1er match, 0-0 : état noté, rien d'envoyé.
+    await live(world["m1"], "1H", 10, (0, 0))
+    assert await settle() == []
+
+    # 3-0 : « plus de 2,5 buts » validé, et tout se joue sur le 2e match ; une seule
+    # notification.
+    await live(world["m1"], "2H", 60, (3, 0))
+    notes = await settle()
+    assert len(notes) == 1
+    assert notes[0].title == "Tes matchs en cours"
+    lines = notes[0].body.split("\n")
+    assert lines[0].startswith("✅ « plus de 2,5 buts » validé (")
+    assert " 3-0 " in lines[0]
+    assert "Ton coupon : 1 sur 2." in lines[0]
+    assert lines[1].startswith("1 sur 2 validées : tout se joue sur ")
+    assert notes[0].data["silent"] == live_alerts.quiet("TG", now)
+    assert "pari" not in notes[0].body.lower().replace("paris", "")  # rien à parier
+
+    # 2e match : 0-0 noté, puis 1-0 : « victoire » gagnante pour l'instant.
+    await live(world["m2"], "1H", 5, (0, 0))
+    assert len(await settle()) == 1  # rien de nouveau (« tout se joue » déjà envoyé)
+    await live(world["m2"], "2H", 70, (1, 0))
+    notes = await settle()
+    assert len(notes) == 2
+    assert notes[1].title == "⚽ But dans ton coupon"
+    assert notes[1].body.startswith("⚽ 70' ")
+    assert notes[1].body.endswith("» est gagnante pour l'instant.")
+
+    # Réglage « validé ou perdu seulement » : l'égalisation n'est pas envoyée.
+    async with db_factory() as session:
+        await session.execute(
+            update(User).where(User.id == world["user_id"]).values(match_notifications="results")
+        )
+        await session.commit()
+    await live(world["m2"], "2H", 80, (1, 1))
+    assert len(await settle()) == 2
+
+    # Fin : 1-2, coupon perdu ; la notification dit quelle sélection a perdu.
+    await _finish(db_factory, world["m2"], (1, 2), "api_football")
+    notes = await settle()
+    assert notes[-1].kind == "bet_settled"
+    assert notes[-1].body.startswith("❌ ")
+    assert "1-2" in notes[-1].body
+    assert "« victoire de " in notes[-1].body
+    stake = notifications.money(1_500, "XOF")
+    assert notes[-1].body.endswith(f" est perdu. Ton coupon de {stake} est perdu.")
+    assert bet["id"] in [n.data.get("bet_id") for n in notes]
+
+
+def test_live_alert_labels_and_quiet_hours() -> None:
+    from footprono.bookmaker.live_alerts import quiet, selection_label
+
+    assert selection_label("OU", "2.5", "under", "Bénin", "Togo") == "moins de 2,5 buts"
+    assert (
+        selection_label("TEAM_OU_HOME", "0.5", "over", "Bénin", "Togo")
+        == "plus de 0,5 but de Bénin"
+    )
+    assert selection_label("AH", "-2", "away", "Arménie", "Chypre") == "Chypre (+2)"
+    assert selection_label("CORNERS_OU", "9.5", "over", "A", "B") == "plus de 9,5 corners"
+    assert quiet("CI", datetime(2026, 11, 12, 23, 30, tzinfo=UTC)) is True
+    assert quiet("CI", datetime(2026, 11, 12, 7, 59, tzinfo=UTC)) is True
+    assert quiet("CI", datetime(2026, 11, 12, 8, 0, tzinfo=UTC)) is False
+    assert quiet("BJ", datetime(2026, 11, 12, 22, 30, tzinfo=UTC)) is True  # 23 h 30 à Cotonou

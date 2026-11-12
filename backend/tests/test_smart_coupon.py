@@ -502,6 +502,18 @@ async def test_daily_coupons_notification_once_all_codes_are_in(
     assert off.status_code == 204
     me = (await client.get("/api/v1/me", headers=headers)).json()
     assert me["daily_coupons_notifications"] is False
+    # Notifications pendant les matchs (12/11/2026) : réglage à part, l'autre est gardé.
+    assert me["match_notifications"] == "all"
+    put = await client.put(
+        "/api/v1/me/preferences", json={"match_notifications": "results"}, headers=headers
+    )
+    assert put.status_code == 204
+    me = (await client.get("/api/v1/me", headers=headers)).json()
+    assert (me["match_notifications"], me["daily_coupons_notifications"]) == ("results", False)
+    bad = await client.put(
+        "/api/v1/me/preferences", json={"match_notifications": "parfois"}, headers=headers
+    )
+    assert bad.status_code == 422
     async with db_factory() as session:
         await session.execute(
             update(smart_coupon.SmartCoupon).values(notified_at=None)

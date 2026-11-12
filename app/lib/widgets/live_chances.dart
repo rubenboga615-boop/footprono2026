@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../format.dart';
+import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 
@@ -143,10 +144,33 @@ class LiveChancesCard extends StatefulWidget {
 class _LiveChancesCardState extends State<LiveChancesCard> {
   Map<int, Json>? live;
 
+  /// Mes sélections « plus/moins de buts » en cours sur ce match (lues une fois).
+  List<BetSel> mine = const [];
+
   @override
   void initState() {
     super.initState();
     _load();
+    _loadMine();
+  }
+
+  Future<void> _loadMine() async {
+    final state = context.read<AppState>();
+    if (!state.loggedIn) return;
+    try {
+      final bets = [
+        for (final b in await state.api.get('/bets', {'limit': 100}) as List) Bet(b as Json),
+      ];
+      final found = [
+        for (final b in bets)
+          if (b.status == 'open')
+            for (final s in b.selections)
+              if (s.matchId == widget.match.id && s.market == 'OU' && s.result == 'pending') s,
+      ];
+      if (mounted) setState(() => mine = found);
+    } on Object {
+      // Paris indisponibles : la carte garde les chances du match.
+    }
   }
 
   // Chargées une fois ; ensuite, les relevés du direct portent les chances du moment (retour
@@ -190,7 +214,26 @@ class _LiveChancesCardState extends State<LiveChancesCard> {
           ),
         ),
       );
-      final over = p('OU|3.5|over');
+      // Ligne qui suit le score (demande du fondateur du 12/11/2026) : à 2-0, « encore au moins
+      // un but » = plus de 2,5 ; au-delà de 5,5, rien plutôt qu'un chiffre faux.
+      final goals = (m.liveHome ?? 0) + (m.liveAway ?? 0);
+      double? overLine(double line) => line > 5.5 ? null : p('OU|${line.toStringAsFixed(1)}|over');
+      final one = overLine(goals + 0.5), two = overLine(goals + 1.5);
+      final none = goals == 0;
+      final lines = <(String, double, bool)>[
+        for (final s in mine)
+          if ((double.tryParse(s.line) ?? 9) <= 5.5)
+            if (overLine(double.parse(s.line)) case final o?)
+              (
+                'Ta sélection : ${selectionLabel('OU', s.line, s.selection).toLowerCase()} — '
+                    '${chancePercent(s.selection == 'over' ? o : 1 - o)} de chances de tenir',
+                -1,
+                true,
+              ),
+        if (one != null) (none ? 'Au moins un but dans le match' : 'Encore au moins un but', one, false),
+        if (two != null)
+          (none ? 'Au moins deux buts dans le match' : 'Encore au moins deux buts', two, false),
+      ];
       final b = widget.before;
       return Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -224,16 +267,25 @@ class _LiveChancesCardState extends State<LiveChancesCard> {
                 cell(m.away.name, away),
               ],
             ),
-            if (over != null && over > 0.005 && over < 0.995) ...[
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text('Plus de 3,5 buts', style: Fp.body(14, color: Fp.muted)),
-                  ),
-                  Text(chancePercent(over), style: Fp.body(15, weight: FontWeight.w700)),
-                ],
-              ),
+            for (final (i, (label, v, isMine)) in lines.indexed) ...[
+              SizedBox(height: i == 0 ? 10 : 6),
+              if (isMine)
+                Text(
+                  label,
+                  style: Fp.body(14, weight: FontWeight.w700, color: Fp.win, height: 1.35),
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: Fp.body(i == lines.length - 1 && two != null ? 13 : 14, color: Fp.muted),
+                      ),
+                    ),
+                    Text(chancePercent(v), style: Fp.body(15, weight: FontWeight.w700)),
+                  ],
+                ),
             ],
             const SizedBox(height: 8),
             Text(

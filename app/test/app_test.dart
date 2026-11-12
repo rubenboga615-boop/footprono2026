@@ -1974,6 +1974,9 @@ void main() {
     await tester.pumpAndSettle();
     final row = find.text('Aider à améliorer FootProba');
     await tester.ensureVisible(row);
+    // Au-dessus de la barre de navigation flottante (une ligne de plus dans Profil).
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -300));
+    await tester.pumpAndSettle();
     expect(find.text('TEST'), findsOneWidget);
     expect(state.beta.enabled, isFalse);
 
@@ -2251,6 +2254,22 @@ void main() {
         },
       ],
     };
+    // Mon pari sur ce match : « moins de 2,5 buts », perdu pour l'instant (2-1) : 0 % de
+    // chances de tenir n'est jamais écrit (« < 1 % »).
+    server.bets = [
+      {
+        'id': 58,
+        'kind': 'single',
+        'stake': 1000,
+        'currency': 'XOF',
+        'total_odds': '1.90',
+        'potential_payout': 1900,
+        'status': 'open',
+        'selections': [
+          {'match_id': 7, 'market': 'OU', 'line': '3.5', 'selection': 'under', 'odds': '1.90'},
+        ],
+      },
+    ];
     await open();
     // Onglet « En direct » ouvert d'office : chronologie, mi-temps, remplacement, chances.
     expect(find.text('En direct'), findsOneWidget);
@@ -2262,7 +2281,13 @@ void main() {
     expect(find.text('Chances en direct'), findsOneWidget);
     expect(find.text('63\''), findsOneWidget);
     expect(find.text('78\u00a0%'), findsOneWidget);
-    expect(find.text('Plus de 3,5 buts'), findsOneWidget);
+    // 2-1 : la ligne suit le score (plus de 3,5 = encore au moins un but) ; plus de 4,5 n'est
+    // pas envoyée, donc pas de « deux buts » (12/11/2026).
+    expect(find.text('Encore au moins un but'), findsOneWidget);
+    expect(find.text('31\u00a0%'), findsOneWidget);
+    expect(find.text('Ta sélection : moins de 3,5 buts — 69\u00a0% de chances de tenir'), findsOneWidget);
+    expect(find.text('Plus de 3,5 buts'), findsNothing);
+    expect(find.textContaining('Encore au moins deux buts'), findsNothing);
     expect(find.textContaining('ce n\'est pas un conseil de pari'), findsOneWidget);
 
     // Statistiques : match, puis 2e mi-temps ; possession à la française, pas de cartons
