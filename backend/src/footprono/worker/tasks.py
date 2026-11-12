@@ -177,13 +177,31 @@ async def _daily_smart_coupons() -> dict[str, Any]:
 def follow_live() -> dict[str, Any]:
     """Score en direct, puis résultat et statistiques dès la fin des matchs.
 
-    Sans match en cours, ne fait aucune requête : planifiable toutes les 2 minutes.
+    Sans match en cours, ne fait aucune requête : planifié chaque minute.
     """
     return asyncio.run(_follow_live())
 
 
+# Un seul passage à la fois : chaque minute, un passage lent (fin de plusieurs matchs,
+# statistiques, règlements) ne doit pas en chevaucher un autre.
+FOLLOW_LOCK = "lock:follow_live"
+
+
 async def _follow_live() -> dict[str, Any]:
     settings = get_settings()
+    lock = create_redis(settings)
+    try:
+        if not await lock.set(FOLLOW_LOCK, "1", nx=True, ex=300):
+            return {"status": "idle", "requests": 0, "skipped": "passage précédent en cours"}
+        try:
+            return await _follow_live_once(settings)
+        finally:
+            await lock.delete(FOLLOW_LOCK)
+    finally:
+        await lock.aclose()
+
+
+async def _follow_live_once(settings: Settings) -> dict[str, Any]:
     engine = create_engine(settings)
     try:
         async with create_session_factory(engine)() as session:

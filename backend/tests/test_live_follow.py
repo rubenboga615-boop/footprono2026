@@ -239,3 +239,30 @@ async def test_follow_live_every_minute_only_when_quota_allows(
     async with db_factory() as session:
         assert (await follow_live(session, settings, now=NOW + timedelta(minutes=2)))["live"] == 1
     assert calls == ["/status", "/fixtures"]
+
+
+async def test_follow_live_task_runs_one_pass_at_a_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Passage chaque minute : un passage encore en cours fait sauter le suivant."""
+    from redis.asyncio import Redis
+
+    from footprono.worker import tasks
+
+    from .conftest import TEST_REDIS_URL
+
+    monkeypatch.setattr(tasks, "get_settings", make_settings)
+    ran: list[int] = []
+
+    async def once(_settings: Any) -> dict[str, Any]:
+        ran.append(1)
+        return {"status": "ok"}
+
+    monkeypatch.setattr(tasks, "_follow_live_once", once)
+    r = Redis.from_url(TEST_REDIS_URL)
+    await r.delete(tasks.FOLLOW_LOCK)
+    await r.set(tasks.FOLLOW_LOCK, "1")
+    assert (await tasks._follow_live())["skipped"] == "passage précédent en cours"
+    await r.delete(tasks.FOLLOW_LOCK)
+    assert await tasks._follow_live() == {"status": "ok"}
+    assert ran == [1]
+    assert await r.get(tasks.FOLLOW_LOCK) is None  # verrou rendu
+    await r.aclose()
