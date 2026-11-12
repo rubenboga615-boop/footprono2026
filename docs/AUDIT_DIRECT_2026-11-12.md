@@ -71,3 +71,24 @@ indique encore 16:00 (le serveur relit l'heure à chaque relevé). Si le match e
 17:00, FootProba affiche « Coup d'envoi imminent » et ferme les paris **une heure trop tôt**.
 **Piste** : 10 minutes après l'heure prévue sans coup d'envoi, afficher « Coup d'envoi
 retardé (heure à confirmer) » au lieu de « imminent » ; garder les paris fermés (prudent).
+
+## 16 h 17 – 16 h 25 — nouvelle version web (12/11, 16:16), serveur `4d22991`
+
+Essai : application ouverte, **jamais actualisée à la main** pendant 8 minutes ; captures du
+fondateur à 16 h 18 comparées à une autre application de scores.
+
+| Point | Constat |
+|---|---|
+| Mise à jour seule | **oui** : écran de Guinée équatoriale – Zimbabwe 17' → 18' → 19' → 20' sans rien toucher ; « Mis à jour il y a 30 s / 1 min » ; chances en direct recalculées (47 % → 46 %, plus de 3,5 buts 14 % → 12 %) |
+| WebSocket | un message `live` chaque minute (16:18:03, 16:19:03, 16:20:04, 16:21:03) avec minute, score et statut de chaque match |
+| Cartes de la liste (capture du fondateur) | minute, score, **buteur** (« ⚽ 4' Yoane Wissa », « ⚽ 45+2' Jonas Adjetey »), chances en direct (RD Congo 90 % après le but, Ghana 93 %), « Mis à jour il y a 57 s », ★ sur le match d'un pari |
+| Retard sur l'autre application (16 h 18) | Ghana 52' contre 54' ; RD Congo 15' contre 17' ; Guinée éq. 13' contre 14' : **1 à 2 minutes** (relevé chaque minute + retard de la source). Acceptable pour suivre un match ; à dire au joueur (« relevé chaque minute ») |
+
+**Nouveau défaut — trop de requêtes** : pendant ces 8 minutes, l'application a envoyé
+**158 requêtes** au serveur (environ 20 par minute), dont `/predictions/upcoming?limit=400`
+(tous les matchs) toutes les 45 secondes environ, et à chaque fois `prediction`, `offer`,
+`analysis`, `picks` de l'écran du match. Avec 1 000 joueurs devant un match, cela ferait
+environ **20 000 requêtes par minute**. **Piste** : le message `live` du WebSocket contient
+déjà minute, score et statut : mettre à jour l'écran à partir de ce message, et ne recharger
+que ce qui change (`/live/summary`, `/live/chances` des matchs en cours), pas toute la liste
+ni l'analyse.
