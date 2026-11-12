@@ -269,3 +269,31 @@ sont pas encore dans cette version.
 - Aucune nouvelle notification depuis le rappel de 16:30 (normal : rien de réglé).
 - Le règlement de la sélection de Guinée équatoriale – Zimbabwe sera vérifié au bilan de
   22 h (heure du règlement par rapport au coup de sifflet).
+
+## 20 h 13 — Après la mise à jour du serveur (`b05b0f4`, avec `70d90a5`)
+
+| Point | Constat |
+|---|---|
+| `/metrics` | **404** (corrigé) |
+| `X-Frame-Options`, `Permissions-Policy`, CSP | présents |
+| `openapi.json` | 404 |
+| Version web | **toujours celle de 17:20** : les corrections côté application de `70d90a5` (Mes paris caché sans minuteur, « > 99 % » / « < 1 % ») ne sont **pas encore en ligne** |
+
+### Règlement des paris de la soirée (vérifié avec les scores)
+
+| Sélection | Score | Résultat enregistré | Juste ? |
+|---|---|---|---|
+| Arménie – Chypre, Chypre +2 (pari 57) | 1-1 | gagnée | oui |
+| Turquie – Belgique, Turquie ou Belgique (pari 64) | 1-2 | gagnée | oui |
+| Guinée équatoriale – Zimbabwe, Zimbabwe +2 (pari 66) | 0-0 | gagnée | oui |
+| Côte d'Ivoire – Gambie, plus de 1,5 but (pari 64) | 2-1 **à la 51e** | gagnée **pendant le match** | oui |
+| Bénin – Centrafrique, buts du Bénin moins de 2,5 (pari 63) | 3-1 à la 50e | perdue **pendant le match** | oui |
+
+- **Pari n° 63 perdu à 19:41:02**, dès le 3e but du Bénin, sans attendre la fin des autres
+  matchs ; notification « Pari perdu — combiné de 3 matchs : mise de 1 500 F CFA perdue » à la
+  même seconde.
+- Rappels de coup d'envoi reçus à 18:30 (Bénin – Centrafrique) et 19:15 (Albanie – Finlande).
+  **Encore un seul match cité** alors que 3 de mes matchs commençaient à 19:00 (Bénin –
+  Centrafrique, Côte d'Ivoire – Gambie, Cameroun – Namibie) et 2 à 19:45 (Albanie – Finlande,
+  Monténégro – Lettonie) : le rappel groupé de `70d90a5` n'était peut-être pas encore en ligne
+  à ces heures-là ; à revérifier au prochain rappel.
