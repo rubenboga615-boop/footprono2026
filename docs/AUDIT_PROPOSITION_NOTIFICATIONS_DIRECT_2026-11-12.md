@@ -56,3 +56,36 @@ En dessous, en plus petit : « Encore au moins deux buts : X % » (ligne suivant
 avec sa chance de tenir : « Ta sélection : moins de 2,5 buts — 67 % de chances de tenir ».
 
 Au-delà de 5,5 (6 buts ou plus), ne rien afficher plutôt qu'un chiffre faux.
+
+## 5. Après la version 212 : ce qui manque encore (relecture du code, 12/11 22 h 30)
+
+### À corriger
+1. **But annulé par la VAR.** L'alerte « ⚽ … gagnante/perdante pour l'instant »
+   (`bookmaker/live_alerts.py`, `observe`) part dès que le score change, sans l'attente de
+   4 min du règlement. Si le but est annulé, le joueur reçoit une 2e alerte « ⚽ But dans ton
+   coupon » qui dit l'inverse, sans explication. Suggestion : quand le score **baisse**,
+   envoyer « ↩️ But annulé (Arménie 0-0 Chypre) : « … » redevient perdante pour l'instant ».
+2. **« victoire de Arménie »** → « victoire d'Arménie » (élision).
+3. **Titre du rappel groupé** : reprend le délai du premier match seulement.
+
+### À ajouter (utile, sans pousser à parier)
+4. **Mi-temps d'un coupon** (réglage « Tout » seulement) : « Mi-temps : 2 sur 3 gagnantes
+   pour l'instant ».
+5. **Compositions officielles** d'un match du coupon (environ 1 h avant) quand un joueur clé
+   est absent, si la source le permet.
+6. **Sécurité du compte** : « Nouvelle connexion sur un autre téléphone » et « Mot de passe
+   changé » (toujours envoyées, sans réglage).
+7. **Jeu responsable** : bilan de la semaine (« 5 paris, -2 000 F fictifs ») et alerte
+   quand les pertes dépassent un seuil choisi par le joueur.
+8. **Résultat des coupons du jour** le soir, pour la transparence (gagné / perdu, même si le
+   joueur ne l'a pas joué), avec le même réglage que « Coupons du jour ».
+
+### À réfléchir (décision du fondateur)
+- **Carton rouge** dans un match du coupon : exclu aujourd'hui, mais il change beaucoup les
+  chances. À envoyer seulement si la chance du coupon baisse fortement ?
+- **Heures de silence** fixes (23 h–8 h) : les rendre réglables ?
+- **Joueur sur le web (iPhone, ordinateur)** : les notifications sur le navigateur demandent
+  une autorisation ; vérifier que l'application la demande au bon moment (après le premier
+  pari plutôt qu'à l'ouverture).
+- **Limite par jour** : un joueur avec 10 coupons peut en recevoir beaucoup un soir de grand
+  match. Plafond, ou résumé à la place au-delà d'un certain nombre ?
