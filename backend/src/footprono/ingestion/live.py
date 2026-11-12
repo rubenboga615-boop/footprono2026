@@ -64,6 +64,10 @@ LIVE_AFTER = timedelta(hours=3, minutes=30)
 STATS_RETRY_UNTIL = timedelta(hours=8)
 IDS_PER_REQUEST = 20  # limite de /fixtures?ids=
 LINEUPS_BEFORE = timedelta(minutes=75)
+# Relevé chaque minute (retour du fondateur du 12/11/2026) : les minutes impaires ne suivent
+# que les matchs en cours, et seulement s'il reste au moins cette marge de requêtes du jour
+# au-dessus de la réserve ; sinon le suivi revient de lui-même à toutes les 2 minutes.
+EVERY_MINUTE_MARGIN = 1000
 # Statuts API-Football d'un match en cours (mi-temps et interruptions comprises).
 LIVE_STATUSES = frozenset({"1H", "HT", "2H", "ET", "BT", "P", "LIVE", "SUSP", "INT"})
 # Statuts où le score de la 1re mi-temps est définitif.
@@ -317,10 +321,12 @@ async def follow_live(
 ) -> dict[str, Any]:
     """Met à jour les matchs en cours ; termine ceux qui sont finis, avec leurs statistiques.
 
-    Sans match dans sa fenêtre, ne fait aucune requête (appelable toutes les
-    2 minutes).
+    Sans match dans sa fenêtre, ne fait aucune requête. Appelé chaque minute : les minutes
+    paires font tout (matchs en cours, statistiques, compositions), les minutes impaires
+    seulement les matchs en cours, si le quota du jour le permet (``EVERY_MINUTE_MARGIN``).
     """
     now = now or datetime.now(UTC)
+    extra_pass = now.minute % 2 == 1
     has_stats = (
         select(MatchTeamStats.id)
         .where(
@@ -338,12 +344,15 @@ async def follow_live(
     windows = [
         (Match.status == MatchStatus.SCHEDULED)
         & Match.kickoff_at.between(now - LIVE_AFTER, now + LIVE_BEFORE),
-        (Match.status == MatchStatus.FINISHED)
-        & (Match.result_source == "api_football")
-        & (Match.kickoff_at >= now - STATS_RETRY_UNTIL)
-        & ~has_stats,
     ]
-    if now.minute % 10 < 2:
+    if not extra_pass:
+        windows.append(
+            (Match.status == MatchStatus.FINISHED)
+            & (Match.result_source == "api_football")
+            & (Match.kickoff_at >= now - STATS_RETRY_UNTIL)
+            & ~has_stats
+        )
+    if now.minute % 10 == 0:
         # Compositions publiées ~1 h avant : matchs de l'heure qui vient, un passage
         # sur cinq (toutes les 10 minutes) tant qu'elles manquent.
         windows.append(
@@ -374,6 +383,9 @@ async def follow_live(
         transport=service.api_football_transport,
     ) as client:
         await client.status()
+        reserve = settings.api_football_min_remaining + EVERY_MINUTE_MARGIN
+        if extra_pass and client.day_remaining is not None and client.day_remaining < reserve:
+            return {"status": "idle", "requests": 0, "skipped": "quota : relevé toutes les 2 min"}
         ids = sorted(by_fixture)
         for start in range(0, len(ids), IDS_PER_REQUEST):
             chunk = ids[start : start + IDS_PER_REQUEST]
@@ -442,6 +454,8 @@ async def follow_live(
                         home_goals_ht=fixture.home_goals_ht, away_goals_ht=fixture.away_goals_ht
                     )
                 report["live"] += 0 if fixture.finished else 1
+                # Matchs à pousser à l'application ouverte (notifications/live_feed.py).
+                report.setdefault("updated", []).append(match.id)
             home_goals, away_goals = regulation_score(item)
             if fixture.finished and home_goals is not None and away_goals is not None:
                 values.update(

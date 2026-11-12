@@ -7,7 +7,8 @@ Lancement :
 Tâches planifiées (UTC) :
 - ``footprono.ingest_current_season`` chaque matin à 06:15 (football-data met
   à jour ses fichiers dans la nuit qui suit les matchs).
-- ``footprono.follow_live`` toutes les 2 minutes : score en direct, puis résultat
+- ``footprono.follow_live`` chaque minute (toutes les 2 minutes si le quota du jour
+  baisse) : score en direct, poussé aussitôt à l'application ouverte, puis résultat
   et statistiques dès la fin du match (aucune requête sans match en cours) ;
   règlement des paris et des coupons du jour, et notification « coupons du jour
   disponibles » dès que tous leurs codes 1xBet sont saisis.
@@ -52,9 +53,9 @@ def create_celery(settings: Settings | None = None) -> Celery:
             },
             "follow-live": {
                 "task": "footprono.follow_live",
-                "schedule": crontab(minute="*/2"),
+                "schedule": crontab(minute="*"),
                 # Une exécution manquée est remplacée par la suivante, pas rattrapée.
-                "options": {"expires": 110},
+                "options": {"expires": 55},
             },
             # 07:30 reste avant les prédictions (07:45) et les coupons du jour (08:05).
             "collect-odds": {

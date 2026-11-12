@@ -21,6 +21,7 @@ from footprono.football.models import DataSource
 from footprono.ingestion import cups, live, nations
 from footprono.ingestion.reference import COMPETITIONS, current_season
 from footprono.ingestion.service import IngestionRequest, run_ingestion
+from footprono.notifications import live_feed
 from footprono.notifications import service as notifications
 from footprono.notifications.push import sender_or_none as push_sender_or_none
 from footprono.payments import service as payment_service
@@ -189,6 +190,16 @@ async def _follow_live() -> dict[str, Any]:
             report = await live.follow_live(session, settings)
         # Règlement juste après : un pari est payé dès la fin de son match.
         report["bets"] = await _settle(engine, settings)
+        # Puis le relevé poussé à l'application ouverte, réglements compris (retour du
+        # fondateur du 12/11/2026 : il fallait actualiser sans arrêt).
+        updated = report.pop("updated", [])
+        if updated:
+            redis = create_redis(settings)
+            try:
+                async with create_session_factory(engine)() as session:
+                    report["pushed"] = await live_feed.publish_live(redis, session, updated)
+            finally:
+                await redis.aclose()
         return report
     finally:
         await engine.dispose()

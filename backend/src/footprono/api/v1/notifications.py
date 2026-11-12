@@ -21,6 +21,7 @@ from footprono.accounts.security import read_token, revoked
 from footprono.api.deps import CurrentUserDep, SessionDep
 from footprono.core.config import Settings
 from footprono.core.errors import NotFoundError
+from footprono.notifications.live_feed import LIVE_CHANNEL
 from footprono.notifications.models import Notification, PushDevice
 from footprono.notifications.service import channel
 
@@ -157,7 +158,8 @@ async def notifications_socket(websocket: WebSocket, token: str = "") -> None:
     # Connexion Redis dédiée, sans délai de lecture : elle attend les messages.
     redis = Redis.from_url(str(settings.redis_url), decode_responses=True)
     pubsub = redis.pubsub()
-    await pubsub.subscribe(channel(user_id))
+    # Ses notifications, et les relevés du direct pour tous (notifications/live_feed.py).
+    await pubsub.subscribe(channel(user_id), LIVE_CHANNEL)
 
     async def forward() -> None:
         async for message in pubsub.listen():

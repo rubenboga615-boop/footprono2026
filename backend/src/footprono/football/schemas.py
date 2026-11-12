@@ -67,6 +67,9 @@ class MatchOut(_Out):
     live_extra: int | None = Field(default=None, description="temps additionnel : 90+4 → 4")
     live_home_goals: int | None = None
     live_away_goals: int | None = None
+    live_updated_at: datetime | None = Field(
+        default=None, description="heure du dernier relevé du direct (« mis à jour il y a 40 s »)"
+    )
 
 
 class BookmakerOddsOut(BaseModel):

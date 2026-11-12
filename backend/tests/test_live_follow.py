@@ -187,3 +187,55 @@ def test_regulation_score_ignores_extra_time() -> None:
     pens["score"]["fulltime"] = {"home": 1, "away": 1}
     assert regulation_score(pens) == (1, 1)
     assert regulation_score(_item(3, "FT", 90, (3, 0), (1, 0))) == (3, 0)
+
+
+async def test_follow_live_every_minute_only_when_quota_allows(
+    db_factory: Factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Retour du fondateur du 12/11/2026 : relevé chaque minute ; les minutes impaires sont
+    sautées quand le quota du jour baisse (retour à toutes les 2 minutes)."""
+    from footprono.ingestion.live import EVERY_MINUTE_MARGIN
+
+    fd = IngestionRequest(DataSource.FOOTBALL_DATA, ["EPL"], [2024], FIXTURES / "football-data")
+    await run_ingestion(db_factory, make_settings(raw_data_dir=tmp_path / "raw"), [fd])
+    used = {"current": 1}
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path == "/status":
+            body: Any = {"response": {"requests": {**used, "limit_day": 7500}}}
+        else:
+            body = {"response": [_item(7000, "1H", 20, (0, 0), None)]}
+        return httpx.Response(200, json={**body, "errors": []})
+
+    monkeypatch.setattr(service, "api_football_transport", httpx.MockTransport(handler))
+    monkeypatch.setattr(api_football.ApiFootballClient, "__init__", _fast_init)
+    settings = make_settings(raw_data_dir=tmp_path / "raw", api_football_key="k" * 32)
+    async with db_factory() as session:
+        last_day = await session.scalar(select(func.max(Match.match_date)))
+        mid = await session.scalar(select(Match.id).where(Match.match_date == last_day).limit(1))
+        await session.execute(
+            update(Match).where(Match.id == mid).values(
+                status=MatchStatus.SCHEDULED, home_goals=None, away_goals=None,
+                result_source=None, api_football_id=7000, kickoff_at=NOW - timedelta(minutes=20),
+            )
+        )  # fmt: skip
+        await session.commit()
+
+    odd = NOW + timedelta(minutes=1)
+    async with db_factory() as session:
+        assert (await follow_live(session, settings, now=odd))["live"] == 1
+    assert calls == ["/status", "/fixtures"]
+
+    calls.clear()
+    used["current"] = 7500 - settings.api_football_min_remaining - EVERY_MINUTE_MARGIN + 1
+    async with db_factory() as session:
+        skipped = await follow_live(session, settings, now=odd)
+    assert skipped["requests"] == 0
+    assert calls == ["/status"]  # /status ne compte pas dans le quota
+
+    calls.clear()
+    async with db_factory() as session:
+        assert (await follow_live(session, settings, now=NOW + timedelta(minutes=2)))["live"] == 1
+    assert calls == ["/status", "/fixtures"]

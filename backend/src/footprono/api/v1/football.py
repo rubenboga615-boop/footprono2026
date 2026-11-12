@@ -86,6 +86,7 @@ def _match_out(match: Match, home: Team, away: Team, code: str, year: int) -> di
         "live_extra": match.live_extra,
         "live_home_goals": match.live_home_goals,
         "live_away_goals": match.live_away_goals,
+        "live_updated_at": match.live_updated_at,
     }
 
 

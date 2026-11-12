@@ -267,3 +267,59 @@ def test_rule_three_points_or_chance() -> None:
 
     assert report(entries(114))["rows"][0]["verdict"] == "juste"
     assert report(entries(124))["rows"][0]["verdict"] == "à revoir"
+
+
+async def test_live_feed_message_and_publication(db_factory: Factory, tmp_path: Path) -> None:
+    """Retour du fondateur du 12/11/2026 : chaque relevé part aussitôt vers l'application
+    ouverte (score, minute, buts, chances publiées), sans requête de plus."""
+    import json
+
+    from redis.asyncio import Redis
+
+    from footprono.notifications import live_feed
+
+    from .conftest import TEST_REDIS_URL
+
+    ids = await _two_matches(db_factory, tmp_path)
+    async with db_factory() as session:
+        day = await session.scalar(select(Match.match_date).where(Match.id == ids[0]))
+        assert day is not None
+        await _predict(session, ids, day - timedelta(days=1))
+        await session.execute(
+            update(Match).where(Match.id == ids[0]).values(
+                status=MatchStatus.SCHEDULED, api_status="2H", live_minute=70, live_extra=0,
+                live_home_goals=1, live_away_goals=0, home_goals=None, away_goals=None,
+                home_goals_ht=1, away_goals_ht=0,
+            )
+        )  # fmt: skip
+        session.add_all([
+            LiveSnapshot(match_id=ids[0], taken_at=NOW, status="2H", minute=70, extra=0,
+                         home_goals=1, away_goals=0),
+            _event(ids[0], 0, 12, "home", "Goal", "Normal Goal"),
+        ])  # fmt: skip
+        await session.commit()
+
+        hidden = await live_feed.live_message(session, [ids[0]])
+        (m,) = hidden["matches"]
+        assert (m["id"], m["minute"], m["home"], m["away"]) == (ids[0], 70, 1, 0)
+        assert (m["status"], m["api_status"]) == ("scheduled", "2H")
+        assert [g["minute"] for g in m["goals"]] == [12]
+        assert m["chances"] == {}  # chances en direct pas encore publiées
+
+        await set_flag(session, LIVE_KEY, True)
+        shown = (await live_feed.live_message(session, [ids[0]]))["matches"][0]["chances"]
+        assert set(shown) <= set(live_feed.SHOWN)
+        assert shown["1X2||home"] > 0.7
+
+        redis = Redis.from_url(TEST_REDIS_URL, decode_responses=True)
+        pubsub = redis.pubsub()
+        await pubsub.subscribe(live_feed.LIVE_CHANNEL)
+        await pubsub.get_message(timeout=1)  # confirmation de l'abonnement
+        assert await live_feed.publish_live(redis, session, []) == 0
+        assert await live_feed.publish_live(redis, session, [ids[0], ids[0]]) == 1
+        got = await pubsub.get_message(ignore_subscribe_messages=True, timeout=2)
+        await pubsub.aclose()
+        await redis.aclose()
+    assert got is not None
+    data = json.loads(got["data"])
+    assert (data["type"], data["matches"][0]["id"]) == ("live", ids[0])
