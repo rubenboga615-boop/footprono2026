@@ -151,3 +151,31 @@ marchés » ou « aucune », avec la liste des noms de marchés (40 au plus).
   source suit 1xBet ; sinon non.
 - Écrire au support d'API-Football : « De quel bookmaker viennent les cotes de
   `/odds/live` ? 1xBet est-il disponible en direct ? »
+
+## 16 h 55 — Résultat de « Tester le direct » (lancé par le fondateur)
+
+RD Congo – Sierra Leone, mi-temps (45') :
+- Blocs : events, fixture, goals, league, lineups, players, score, statistics, teams ;
+  3 événements (Card, Goal), 2 compositions, 46 joueurs, **17 statistiques** (dont
+  `expected_goals`).
+- **Cotes en direct : oui, 27 marchés**, dont ceux du Coupon intelligent : Fulltime Result
+  (1X2), Match Goals et Over/Under Line (plus/moins de buts), Both Teams to Score, Home /
+  Away Team Goals, Asian Handicap, 3-Way Handicap, corners ; et des marchés propres au
+  direct (« Which team will score the 3rd goal? », « Race to the 7th corner? », « Last
+  Corner »…).
+
+**Ce que ça établit** : la source **fournit des cotes en direct, y compris à la mi-temps**
+(le seul moment vérifié par l'étude de l'étape 8). L'étape 9 est donc possible côté
+données.
+
+**Ce que ça n'établit pas** : **de quel bookmaker** viennent ces cotes. Les noms des
+marchés (« Match Goals », « Asian Corners », « Race to the 7th corner? », « Last Team to
+Score (3 way) ») sont ceux qu'emploie **Bet365** en direct ; c'est un indice, pas une
+preuve. Si ce n'est pas 1xBet, un coupon en direct affichera des cotes **différentes** de
+celles que le joueur trouvera dans 1xBet.
+
+**Étape suivante** (avant tout développement du coupon en direct) : améliorer le test pour
+afficher les **valeurs** des cotes du 1X2 et du plus/moins de 2,5 buts et l'heure de mise
+à jour ; le lancer pendant un match et, à la même minute, noter les cotes de l'application
+1xBet. Mêmes cotes à 0,02 près : la source suit 1xBet. Sinon : coupon en direct affiché
+avec « cote indicative, à vérifier dans 1xBet », ou pas de coupon en direct.
