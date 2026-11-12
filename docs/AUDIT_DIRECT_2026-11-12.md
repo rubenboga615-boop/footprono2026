@@ -119,3 +119,35 @@ encore un but ? » (plus de 2,5 : 81 % au relevé de 16:39).
 **Piste** : afficher la ligne « **encore un but** » = buts déjà marqués + 0,5
 (« Encore au moins un but : 81 % »), et éventuellement la ligne suivante. Ce chiffre change
 après chaque but et parle à tout le monde.
+
+## 16 h 50 — Comment savoir si la source donne des cotes 1xBet en direct ?
+
+**Méthode prévue** : console → Diagnostic → **« Tester le direct »** (`console/actions.py`,
+`live_probe` ; `ingestion/live.py`, `probe_live`). Deux requêtes API-Football :
+`/fixtures?ids=<match>` et `/odds/live?fixture=<match>`, sur un match en cours (le plus
+récent si le champ est vide). Rien n'est enregistré. Résultat : « cotes en direct : N
+marchés » ou « aucune », avec la liste des noms de marchés (40 au plus).
+
+**Limites de ce test** (lecture du code) :
+
+1. **Il ne dit pas de quel bookmaker viennent les cotes.** Il ne garde que le nombre de
+   marchés et leurs noms. Or la question du plan (point 0.3) est « 1xBet est-il présent ? ».
+   D'après ce que je connais du format d'API-Football (à confirmer sur une vraie réponse),
+   `/odds/live` ne donne **pas** de bookmaker par cote, contrairement aux cotes d'avant-match :
+   la réponse seule ne permettra peut-être pas de répondre.
+2. Il ne montre **aucune valeur de cote**, ni l'état des marchés (suspendu, bloqué), ni
+   l'heure de mise à jour : impossible de comparer avec l'application 1xBet.
+3. Un seul match à la fois.
+4. L'exemple de réponse utilisé par les tests (`tests/test_live_details.py` l. 85) est
+   inventé (noms de marchés seulement) : le format réel n'a jamais été regardé.
+
+**Proposé** :
+
+- Enrichir le test : garder **la réponse brute** (fichier téléchargeable dans la console),
+  et afficher pour le résultat du match et le plus/moins de 2,5 buts les **valeurs des
+  cotes**, l'état « suspendu », l'heure de mise à jour et le champ bookmaker s'il existe.
+- Le lancer sur **deux ou trois matchs en cours**, et au même moment noter les cotes de
+  l'application 1xBet pour les mêmes marchés : si elles sont identiques (à 0,02 près), la
+  source suit 1xBet ; sinon non.
+- Écrire au support d'API-Football : « De quel bookmaker viennent les cotes de
+  `/odds/live` ? 1xBet est-il disponible en direct ? »
