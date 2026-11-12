@@ -235,3 +235,24 @@ Autres remarques :
   À la 66e, rien n'est certain : écrire « > 99 % » et « < 1 % », jamais 100 % ni 0 %.
 - Le coupon en direct reste suspendu à la comparaison des cotes avec 1xBet (« Tester le
   direct » enrichi, à lancer par le fondateur pendant un match).
+
+## 17 h 40 — Après la mise à jour du serveur (`f7d15ae`)
+
+- Serveur `f7d15ae` (« Tester le direct : score de la source et minute de chaque but »).
+  Version web inchangée (17:20). `openapi.json` : 404. CSP présente.
+- **`X-Frame-Options` et `Permissions-Policy` toujours absents** malgré le `caddy reload`
+  ajouté à `install-server.sh`.
+
+**Cause probable** : `docker-compose.yml` monte **un seul fichier**
+(`./Caddyfile:/etc/caddy/Caddyfile:ro`). Quand `git pull` remplace le Caddyfile, il crée un
+nouveau fichier ; le conteneur garde l'**ancien** (montage d'un fichier = lien vers l'ancien
+fichier sur le disque). `caddy reload` relit donc l'ancienne version **et réussit**, si bien
+que le `restart` de secours ne se lance jamais.
+
+**Correction** : remplacer le rechargement par une recréation du conteneur
+(`docker compose … up -d --force-recreate caddy`), ou monter le **dossier**
+(`./caddy:/etc/caddy:ro`) plutôt que le fichier. Contournement immédiat sur le serveur :
+`cd /opt/footprono/deploy && docker compose --env-file .env up -d --force-recreate caddy`.
+
+Les points 1, 3 et 4 de la section précédente (Mes paris caché, 100 %, notification) ne
+sont pas encore dans cette version.
