@@ -833,7 +833,8 @@ async def live_probe(ctx: JobContext, params: dict[str, Any]) -> str:
         raise AppError(out.get("error", "essai impossible"))
     if not out["found"]:
         return f"match API-Football n° {out['fixture']} introuvable"
-    ctx.log(f"{out['match']} · {out['state']} {out['minute'] or ''}'")
+    ctx.log(f"{out['match']} · {out['state']} {out['minute'] or ''}' · score {out['score']}")
+    ctx.log(f"Buts des événements : {', '.join(out['goal_minutes']) or 'aucun'}")
     ctx.log(f"Blocs reçus : {', '.join(out['blocks'])}")
     ctx.log(
         f"Événements : {out['events']} ({', '.join(out['event_kinds']) or 'aucun'}) ; "

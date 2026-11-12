@@ -291,6 +291,8 @@ async def test_backfill_finished_matches_then_probe(
     )
     assert probe["stat_types"] == sorted(s["type"] for s in STATS)
     assert (probe["events"], probe["lineups"], probe["players"]) == (3, 2, 1)
+    assert probe["score"] == "2-0"
+    assert len(probe["goal_minutes"]) == 2
     odds = probe["live_odds"]
     assert (odds["available"], odds["markets"]) == (True, 2)
     assert odds["names"] == ["Fulltime Result", "Over/Under Line"]
@@ -341,6 +343,7 @@ async def test_console_live_probe_shows_odds_and_keeps_raw_answer(
         )  # fmt: skip
         return {
             "status": "ok", "fixture": 8000, "found": True, "match": "A - B", "state": "HT",
+            "score": "1-1", "goal_minutes": ["12' A"],
             "minute": 45, "blocks": ["fixture"], "events": 0, "event_kinds": [], "lineups": 0,
             "players": 0, "stat_types": [],
             "live_odds": {"available": True, "markets": 2, "names": ["Fulltime Result"],
@@ -365,6 +368,8 @@ async def test_console_live_probe_shows_odds_and_keeps_raw_answer(
     text = "\n".join(logs)
     assert "Fulltime Result · Home : 1.45 (SUSPENDUE)" in text
     assert "bloqué oui" in text
+    assert "A - B · HT 45' · score 1-1" in text
+    assert "Buts des événements : 12' A" in text
     assert "2026-11-12T16:55:04+00:00" in text
     assert "Bookmaker : [].odds[].bookmaker = 'Bet365'" in text
     assert "Autres champs : marché.bookmaker" in text

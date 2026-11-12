@@ -779,6 +779,14 @@ async def probe_live(
             match=f"{item['teams']['home']['name']} - {item['teams']['away']['name']}",
             state=item["fixture"]["status"].get("short"),
             minute=item["fixture"]["status"].get("elapsed"),
+            # Score de la source et minute de chaque but des événements (12/11/2026 : 1-1
+            # selon les cotes, un seul but dans les événements).
+            score="-".join(str((item.get("goals") or {}).get(k)) for k in ("home", "away")),
+            goal_minutes=[
+                f"{(e.get('time') or {}).get('elapsed')}' {(e.get('team') or {}).get('name')}"
+                for e in item.get("events") or []
+                if e.get("type") == "Goal"
+            ],
             blocks=sorted(k for k, v in item.items() if v),
             events=len(item.get("events") or []),
             event_kinds=sorted({str(e.get("type")) for e in item.get("events") or []}),
