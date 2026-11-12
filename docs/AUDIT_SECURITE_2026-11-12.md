@@ -62,3 +62,38 @@ du bilan du 11/11, plusieurs passes) reste nécessaire avant un lancement public
 1. **Tout de suite** : n° 1 (verrou du règlement), n° 2 (openapi), n° 3 (redéployer Caddy + CSP), n° 4 (certifi).
 2. **Avant de vrais joueurs** : n° 5 (procédure WhatsApp écrite), n° 7, n° 8, n° 9.
 3. **Avant un lancement public** : n° 6, vérification du numéro, section 3.
+
+## 3. Contrôle après recréation de Caddy (12/11, 17 h 43)
+
+Le fondateur a recréé le conteneur Caddy (`docker compose … up -d --force-recreate caddy`).
+
+| Point | Constat |
+|---|---|
+| `X-Frame-Options` | **présent** : `SAMEORIGIN` sur le site et l'API, `DENY` sur la console |
+| `Permissions-Policy` | **présent** (caméra, micro, position, paiement interdits) |
+| HSTS, `nosniff`, `Referrer-Policy`, CSP | présents |
+| `openapi.json` | 404 |
+
+### Nouvelle faille : `/metrics` est public
+
+`https://footproba.duckdns.org/metrics` répond **200** avec les métriques Prometheus de
+l'API : chaque route appelée (console comprise), nombre de requêtes et d'erreurs par route,
+temps de réponse, mémoire, heure de démarrage du serveur. Au fil de la journée, cela révèle
+l'activité du site, les routes d'administration utilisées et les pannes.
+
+**Cause** (Caddyfile) : `respond @metrics 404` est écrit avant `handle { reverse_proxy api:8000 }`,
+mais Caddy **trie les directives dans son propre ordre**, où `handle` passe **avant**
+`respond` : le `handle` qui attrape tout envoie `/metrics` à l'API avant que le `respond`
+soit atteint. Le commentaire « Les métriques ne sont jamais exposées publiquement » est donc
+faux depuis le début.
+
+**Correction** : mettre la règle dans un `handle` à elle, placé avant le `handle` général :
+
+```
+handle /metrics {
+	respond 404
+}
+```
+
+(ou faire écouter les métriques sur un port interne seulement). Puis recréer Caddy comme
+ci-dessus, et vérifier que `/metrics` répond 404.
