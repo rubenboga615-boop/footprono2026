@@ -92,3 +92,16 @@ environ **20 000 requêtes par minute**. **Piste** : le message `live` du WebSoc
 déjà minute, score et statut : mettre à jour l'écran à partir de ce message, et ne recharger
 que ce qui change (`/live/summary`, `/live/chances` des matchs en cours), pas toute la liste
 ni l'analyse.
+
+## 16 h 37 — pari n° 66 pendant Guinée équatoriale – Zimbabwe (33', 0-0)
+
+| Écran | Constat |
+|---|---|
+| Fiche du pari | « **Chance de ton coupon : 41 % au départ → 46 % maintenant** · D'après le score et la minute de chaque match » ; sélection « En direct 33' · 0-0 · **gagnante pour l'instant** » avec un point vert ; « 0 sur 3 validée · 1 en cours · 2 à venir » ; « Pour l'instant d'après le score actuel ; le règlement se fait à la fin du match » |
+| « Suivre › » | ouvre directement l'onglet En direct du match |
+| Résumé | carton jaune « Kelvin Njabulo Moyo 🟨 24' » ; chances en direct 43 % · 37 % · 20 % (avant le match 50 · 28 · 21) ; plus de 3,5 buts 8 % |
+| Statistiques | tirs cadrés 1-0, tirs 1-0, corners 1-0, possession 61-39 %, xG 0,2-0, fautes 5-9, cartons 0-1, arrêts 0-1 |
+| Compositions | les deux équipes en 4-4-2 sur un terrain, numéros et noms, entraîneur (« V. Annese ») |
+
+Tout est conforme à la proposition du 7/11. Un seul détail : sous les statistiques, « Mis à
+jour toutes les 2 minutes (API-Football) » — c'est désormais chaque minute.
