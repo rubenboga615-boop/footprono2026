@@ -179,3 +179,31 @@ afficher les **valeurs** des cotes du 1X2 et du plus/moins de 2,5 buts et l'heur
 à jour ; le lancer pendant un match et, à la même minute, noter les cotes de l'application
 1xBet. Mêmes cotes à 0,02 près : la source suit 1xBet. Sinon : coupon en direct affiché
 avec « cote indicative, à vérifier dans 1xBet », ou pas de coupon en direct.
+
+## 17 h 04 — Guinée – Érythrée toujours « à venir », et règlement anticipé confirmé
+
+Capture du fondateur à 17 h 03 (pari n° 56 et montante « simple » sur ce match) et contrôle
+du serveur à 17:04.
+
+1. **Règlement pendant le match : confirmé.** Le pari n° 62 du fondateur affiche « **1 sur 5
+   validée** » : la sélection « RD Congo – Sierra Leone, plus de 1,5 but » (2-0 à la 35e) a été
+   validée avant la fin du match, environ 4 minutes après le but, comme prévu.
+2. **Guinée – Érythrée bloqué.** À 17:04, le serveur relit le match chaque minute (dernier
+   relevé 17:04:00) mais API-Football répond toujours **« NS » (pas commencé) avec un
+   coup d'envoi à 16:00**, alors qu'une autre application de scores l'annonçait à 17:00.
+   Deux explications possibles : le match a pris encore plus de retard, ou API-Football a
+   créé une **nouvelle fiche** pour le match déplacé et l'ancienne (n° 1545874), que suit
+   FootProba, ne bougera plus.
+   - Effet pour le joueur : « Jeu. 12 nov. 16:00 · à venir » une heure après l'heure
+     affichée, « Coup d'envoi imminent » sur l'écran du match, pari et montante bloqués.
+   - Si la fiche ne bouge plus, la sélection ne sera **remboursée qu'après 48 heures**
+     (`VOID_AFTER`, `bookmaker/settlement.py` l. 79) : le coupon et la montante du joueur
+     restent bloqués deux jours.
+
+**Pistes** :
+- **Alerte au fondateur** quand un match d'un pari ou d'un coupon en cours est encore « NS »
+  30 minutes après l'heure prévue.
+- Console : « **Rechercher le match chez API-Football** » (mêmes équipes, même semaine) pour
+  rattacher la nouvelle fiche si elle existe.
+- Écran du match et fiche du pari : « Coup d'envoi retardé, heure à confirmer » au lieu de
+  « imminent » / « à venir » quand l'heure prévue est dépassée.
