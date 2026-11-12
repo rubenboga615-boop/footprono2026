@@ -97,7 +97,7 @@ def create_celery(settings: Settings | None = None) -> Celery:
                 "schedule": crontab(minute="*/5"),
                 "options": {"expires": 280},
             },
-            # « Ton pari commence dans 25 min » : une fois par pari, 30 min avant au plus.
+            # « ⏰ Dans 25 min : … » : chaque match d'un pari en cours, 30 min avant au plus.
             "kickoff-reminders": {
                 "task": "footprono.kickoff_reminders",
                 "schedule": crontab(minute="*/5"),

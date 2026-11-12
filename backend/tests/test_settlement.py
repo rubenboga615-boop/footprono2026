@@ -519,14 +519,19 @@ async def test_notifications_during_the_matches_of_a_coupon(
             update(Match).where(Match.id == world["m2"]).values(kickoff_at=now + timedelta(hours=2))
         )
         await session.commit()
-    # Coup d'envoi du 1er match, 0-0 : état noté, rien d'envoyé.
+    # Coup d'envoi du 1er match, 0-0 : « C'est parti » (une fois), état noté.
     await live(world["m1"], "1H", 10, (0, 0))
-    assert await settle() == []
+    notes = await settle()
+    assert [n.title for n in notes] == ["🟢 C'est parti : " + notes[0].title.split(" : ")[1]]
+    assert notes[0].body == "Suis ton coupon en direct."
+    assert notes[0].data["bet_id"] == bet["id"]
+    await live(world["m1"], "1H", 11, (0, 0))
+    assert len(await settle()) == 1  # pas deux fois
 
     # 3-0 : « plus de 2,5 buts » validé, et tout se joue sur le 2e match ; une seule
     # notification.
     await live(world["m1"], "2H", 60, (3, 0))
-    notes = await settle()
+    notes = (await settle())[1:]
     assert len(notes) == 1
     assert notes[0].title == "Tes matchs en cours"
     lines = notes[0].body.split("\n")
@@ -537,15 +542,24 @@ async def test_notifications_during_the_matches_of_a_coupon(
     assert notes[0].data["silent"] == live_alerts.quiet("TG", now)
     assert "pari" not in notes[0].body.lower().replace("paris", "")  # rien à parier
 
-    # 2e match : 0-0 noté, puis 1-0 : « victoire » gagnante pour l'instant.
+    # 2e match : coup d'envoi (« C'est parti »), puis 1-0 : « victoire » gagnante pour
+    # l'instant ; le but est annulé (VAR) : « But annulé », pas une alerte contradictoire.
     await live(world["m2"], "1H", 5, (0, 0))
-    assert len(await settle()) == 1  # rien de nouveau (« tout se joue » déjà envoyé)
+    notes = await settle()
+    assert notes[-1].title.startswith("🟢 C'est parti : ")
     await live(world["m2"], "2H", 70, (1, 0))
     notes = await settle()
-    assert len(notes) == 2
-    assert notes[1].title == "⚽ But dans ton coupon"
-    assert notes[1].body.startswith("⚽ 70' ")
-    assert notes[1].body.endswith("» est gagnante pour l'instant.")
+    assert notes[-1].title == "⚽ But dans ton coupon"
+    assert notes[-1].body.startswith("⚽ 70' ")
+    assert notes[-1].body.endswith("» est gagnante pour l'instant.")
+    await live(world["m2"], "2H", 72, (0, 0))
+    notes = await settle()
+    assert notes[-1].title == "↩️ But annulé"
+    assert notes[-1].body.startswith("↩️ But annulé (")
+    assert " 0-0 " in notes[-1].body
+    assert notes[-1].body.endswith("» redevient perdante pour l'instant.")
+    await live(world["m2"], "2H", 74, (1, 0))
+    count = len(await settle())
 
     # Réglage « validé ou perdu seulement » : l'égalisation n'est pas envoyée.
     async with db_factory() as session:
@@ -554,7 +568,7 @@ async def test_notifications_during_the_matches_of_a_coupon(
         )
         await session.commit()
     await live(world["m2"], "2H", 80, (1, 1))
-    assert len(await settle()) == 2
+    assert len(await settle()) == count
 
     # Fin : 1-2, coupon perdu ; la notification dit quelle sélection a perdu.
     await _finish(db_factory, world["m2"], (1, 2), "api_football")
@@ -572,6 +586,17 @@ def test_live_alert_labels_and_quiet_hours() -> None:
     from footprono.bookmaker.live_alerts import quiet, selection_label
 
     assert selection_label("OU", "2.5", "under", "Bénin", "Togo") == "moins de 2,5 buts"
+    # Élision (retour du testeur du 12/11/2026) : « victoire d'Arménie », pas « de Arménie ».
+    assert selection_label("1X2", "", "home", "Arménie", "Chypre") == "victoire d'Arménie"
+    assert selection_label("1X2", "", "away", "Italie", "Écosse") == "victoire d'Écosse"
+    assert selection_label("1X2", "", "home", "Haïti", "Cuba") == "victoire d'Haïti"
+    assert selection_label("1X2", "", "home", "Hongrie", "Cuba") == "victoire de Hongrie"
+    assert selection_label("TEAM_OU_AWAY", "1.5", "over", "Bénin", "Ouganda") == (
+        "plus de 1,5 but d'Ouganda"
+    )
+    assert selection_label("CORNERS_TEAM_OU_HOME", "4.5", "over", "Égypte", "B") == (
+        "plus de 4,5 corners d'Égypte"
+    )
     assert (
         selection_label("TEAM_OU_HOME", "0.5", "over", "Bénin", "Togo")
         == "plus de 0,5 but de Bénin"

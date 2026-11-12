@@ -2842,4 +2842,23 @@ void main() {
     expect(chancePercent(0.004), '< 1 %');
     expect(chancePercent(0.42), '42 %');
   });
+
+  testWidgets('notification d\'un match de coupon touchée : Mes paris', (tester) async {
+    final (_, server) = await startApp(tester, loggedIn: true);
+    server.notifications.add({
+      'id': 9,
+      'kind': 'bet_live',
+      'title': '🟢 C\'est parti : Lens - Lyon',
+      'body': 'Suis ton coupon en direct.',
+      'data': <String, dynamic>{'bet_id': 57},
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+      'read_at': '2026-11-13T16:00:00Z',
+    });
+    await tester.tap(find.byTooltip('Notifications'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('🟢 C\'est parti : Lens - Lyon'));
+    await tester.pumpAndSettle();
+    expect(find.text('🟢 C\'est parti : Lens - Lyon'), findsNothing); // liste refermée
+    expect(find.textContaining('En cours ('), findsWidgets); // onglet Mes paris
+  });
 }

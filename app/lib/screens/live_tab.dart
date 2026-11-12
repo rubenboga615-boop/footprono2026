@@ -238,9 +238,7 @@ class _LiveTabState extends State<LiveTab> {
       ),
       const SizedBox(height: 10),
       Text(
-        widget.match.isLive
-            ? 'Mis à jour toutes les 2 minutes (API-Football).'
-            : 'Statistiques d\'API-Football.',
+        widget.match.isLive ? 'Relevé chaque minute (API-Football).' : 'Statistiques d\'API-Football.',
         style: Fp.body(12.5, color: Fp.text2),
       ),
     ];

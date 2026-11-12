@@ -1,4 +1,4 @@
-"""Rappel de coup d'envoi : une fois par pari, groupé par joueur, jamais pour un pari placé
+"""Rappel de coup d'envoi : chaque match d'un pari, groupé par joueur, jamais pour un pari placé
 juste avant le match."""
 
 from datetime import timedelta
@@ -35,10 +35,13 @@ async def _bet(session: AsyncSession, user_id: int, matches: list[int], placed: 
     return bet.id
 
 
-async def test_kickoff_reminder_once_per_bet_grouped_by_player(
+async def test_kickoff_reminder_for_each_match_grouped_by_player(
     world: dict[str, Any],  # noqa: F811
     db_factory: Factory,
 ) -> None:
+    """Retour du testeur du 12/11/2026 : un rappel 30 min avant **chaque** match d'un pari en
+    cours (avant : le premier seulement) ; matchs de la même fenêtre dans un seul message ;
+    rien pour un pari placé moins de 30 min avant le match."""
     m1, m2 = world["m1"], world["m2"]
     async with db_factory() as session:
         # m1 dans 25 min, m2 dans 3 h.
@@ -49,40 +52,59 @@ async def test_kickoff_reminder_once_per_bet_grouped_by_player(
             update(Match).where(Match.id == m2).values(kickoff_at=NOW + timedelta(hours=3))
         )
         user = world["user_id"]
-        combo = await _bet(session, user, [m2, m1], NOW - timedelta(hours=2))  # 1er match : m1
+        combo = await _bet(session, user, [m2, m1], NOW - timedelta(hours=2))
         single = await _bet(session, user, [m1], NOW - timedelta(hours=1))
-        later = await _bet(session, user, [m2], NOW - timedelta(hours=1))  # pas encore
-        await _bet(session, user, [m1], NOW - timedelta(minutes=2))  # placé juste avant
+        later = await _bet(session, user, [m2], NOW - timedelta(hours=1))
+        late = await _bet(session, user, [m1], NOW - timedelta(minutes=2))  # placé juste avant
         await session.commit()
 
-        assert await send_kickoff_reminders(session, NOW) == 1  # un seul message, groupé
+        assert await send_kickoff_reminders(session, NOW) == 1
         assert await send_kickoff_reminders(session, NOW + timedelta(minutes=5)) == 0
         notes = (await session.scalars(select(Notification).where(Notification.kind == KIND))).all()
     assert len(notes) == 1
-    assert notes[0].title == "2 de tes paris commencent bientôt"
-    assert notes[0].body.endswith("commence dans 25 min. Suivi en direct dans Mes paris.")
-    assert " - " in notes[0].body  # le match, pas un numéro
+    # Un match, deux coupons : un seul message, le match cité une fois.
+    assert notes[0].title == "⏰ Ton match commence bientôt"
+    assert notes[0].body.startswith("⏰ Dans 25 min : ")
+    assert f"(tes coupons n° {min(combo, single)} et {max(combo, single)})" in notes[0].body
     assert sorted(notes[0].data["bets"]) == sorted([combo, single])
-    assert later not in notes[0].data["bets"]
+    assert late not in notes[0].data["bets"]
+    assert notes[0].data["matches"] == [m1]
 
-    # Trois heures plus tard : le pari sur m2 seul.
+    # Trois heures plus tard : m2, pour le combiné (2e match) et le pari simple.
     async with db_factory() as session:
         assert await send_kickoff_reminders(session, NOW + timedelta(hours=2, minutes=40)) == 1
         last = await session.scalar(
             select(Notification).where(Notification.kind == KIND).order_by(Notification.id.desc())
         )
     assert last is not None
-    assert last.title == "Ton pari commence dans 20 min"
-    assert last.data["bets"] == [later]
+    assert last.title == "⏰ Ton match commence bientôt"
+    assert last.body.startswith("⏰ Dans 20 min : ")
+    assert sorted(last.data["bets"]) == sorted([combo, later])
+    assert last.data["matches"] == [m2]
 
 
-def test_kickoff_text_names_every_match() -> None:
-    """12/11/2026 : « 2 de tes paris commencent bientôt » ne citait que le premier match."""
-    from footprono.bookmaker.kickoff import _starts_text
-
-    assert _starts_text({"Arménie - Chypre": 30}) == "Arménie - Chypre commence dans 30 min."
-    assert _starts_text({"Arménie - Chypre": 29, "Türkiye - Belgium": 30}) == (
-        "Arménie - Chypre dans 29 min, Türkiye - Belgium dans 30 min."
-    )
-    many = {f"M{i} - N{i}": 30 for i in range(5)}
-    assert _starts_text(many).endswith("M2 - N2 dans 30 min et 2 autres matchs.")
+async def test_kickoff_reminder_names_every_match_of_the_window(
+    world: dict[str, Any],  # noqa: F811
+    db_factory: Factory,
+) -> None:
+    """Plusieurs matchs dans la même demi-heure : un message qui les cite tous, et un titre
+    sans le délai du seul premier match."""
+    m1, m2 = world["m1"], world["m2"]
+    async with db_factory() as session:
+        await session.execute(
+            update(Match).where(Match.id == m1).values(kickoff_at=NOW + timedelta(minutes=20))
+        )
+        await session.execute(
+            update(Match).where(Match.id == m2).values(kickoff_at=NOW + timedelta(minutes=28))
+        )
+        combo = await _bet(session, world["user_id"], [m1, m2], NOW - timedelta(hours=2))
+        await session.commit()
+        assert await send_kickoff_reminders(session, NOW) == 1
+        note = await session.scalar(select(Notification).where(Notification.kind == KIND))
+    assert note is not None
+    assert note.title == "⏰ 2 de tes matchs commencent bientôt"
+    lines = note.body.split("\n")
+    assert lines[0].startswith("⏰ Dans 20 min : ")
+    assert lines[1].startswith("⏰ Dans 28 min : ")
+    assert f"(ton coupon n° {combo}, 0 sur 2 validée)" in lines[0]
+    assert note.data["bet_id"] == combo

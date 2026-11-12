@@ -240,6 +240,13 @@ class HomeShellState extends State<HomeShell> {
     final n = _state.notificationOpened.value;
     if (!mounted || n == _openedSeen) return;
     _openedSeen = n;
+    // Notifications des matchs d'un coupon (rappel, « C'est parti », but, validée) : le
+    // suivi du coupon dans Mes paris (retour du testeur du 12/11/2026).
+    if (const {'bet_kickoff', 'bet_live', 'bet_settled'}.contains(_state.openedKind)) {
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      go(3);
+      return;
+    }
     final page = _state.openedKind == 'daily_coupons'
         ? const DailyCouponsScreen()
         : const NotificationsScreen();

@@ -62,6 +62,18 @@ class Alerts:
 # ------------------------------------------------------------------- libellés français
 
 
+# Noms qui commencent par un h muet (« d'Haïti ») ; les autres h sont aspirés.
+_H_MUET = ("haïti", "haiti")
+
+
+def de(name: str) -> str:
+    """« de Bénin », « d'Arménie », « d'Écosse », « d'Haïti » (élision devant une voyelle)."""
+    first = name[:1].lower()
+    if first in "aeiouyàâäéèêëîïôöùûü" or name.lower().startswith(_H_MUET):
+        return f"d'{name}"
+    return f"de {name}"
+
+
 def _line(line: str) -> str:
     return line.replace(".", ",")
 
@@ -76,10 +88,11 @@ def _ou(sel: str, line: str, one: str = "but", many: str = "buts") -> str:
 
 
 def selection_label(market: str, line: str, sel: str, home: str, away: str) -> str:
-    """« plus de 1,5 but », « victoire de Bénin », « Chypre (+2) »… (comme l'application)."""
+    """« plus de 1,5 but », « victoire de Bénin », « victoire d'Arménie », « Chypre (+2) »…
+    (comme l'application)."""
     side = {"home": home, "away": away, "draw": "nul"}
     if market == "1X2":
-        return "match nul" if sel == "draw" else f"victoire de {side.get(sel, sel)}"
+        return "match nul" if sel == "draw" else f"victoire {de(side.get(sel, sel))}"
     if market == "DC":
         return {"1X": f"{home} ou nul", "X2": f"nul ou {away}", "12": f"{home} ou {away}"}.get(
             sel, sel
@@ -89,7 +102,7 @@ def selection_label(market: str, line: str, sel: str, home: str, away: str) -> s
     if market in ("OU", "HT_OU"):
         return _ou(sel, line) + (" à la mi-temps" if market == "HT_OU" else "")
     if market in ("TEAM_OU_HOME", "TEAM_OU_AWAY"):
-        return f"{_ou(sel, line)} de {home if market.endswith('HOME') else away}"
+        return f"{_ou(sel, line)} {de(home if market.endswith('HOME') else away)}"
     if market in ("BTTS", "HT_BTTS"):
         text = "les deux équipes marquent" if sel == "yes" else "pas les deux équipes"
         return text + (" à la mi-temps" if market == "HT_BTTS" else "")
@@ -112,9 +125,9 @@ def selection_label(market: str, line: str, sel: str, home: str, away: str) -> s
     if prefix in stats and "_OU" in market and sel in ("over", "under"):
         one, many = stats[prefix]
         team = (
-            f" de {home}"
+            f" {de(home)}"
             if market.endswith("HOME")
-            else f" de {away}"
+            else f" {de(away)}"
             if market.endswith("AWAY")
             else ""
         )
@@ -163,6 +176,15 @@ async def lost_detail(
 # --------------------------------------------------------------------- détection
 
 
+def _goals(score: str) -> int:
+    """« 2-1 » → 3 ; 0 si le score n'est pas connu (état gardé avant le 13/11/2026)."""
+    try:
+        h, a = score.split("-")
+        return int(h) + int(a)
+    except ValueError:
+        return 0
+
+
 async def observe(
     alerts: Alerts,
     session: AsyncSession,
@@ -193,18 +215,35 @@ async def observe(
                 text = f"✅ « {label} » validé ({_scoreline(match, home, away)}).{progress}"
                 alerts.events.append(Event(bet.user_id, "validated", text, bet.id, match.id))
             continue
-        # Pas encore décidée : gagnante ou perdante si le match s'arrêtait maintenant.
+        # Coup d'envoi (retour du testeur du 12/11/2026) : « C'est parti », même pour un pari
+        # placé moins de 30 minutes avant (pas de rappel) ; une fois par match et par joueur.
+        if match.api_status == "1H" and (match.live_minute or 0) <= 10:
+            text = f"🟢 C'est parti : {home} - {away}."
+            alerts.events.append(Event(bet.user_id, "started", text, bet.id, match.id))
+        # Pas encore décidée : gagnante ou perdante si le match s'arrêtait maintenant ; état
+        # gardé avec le score (« win:1-0 ») pour reconnaître un but annulé.
         state = live_grade(match, s.market, s.line, s.selection) if match.api_status else None
         state = "win" if state in WON else "loss" if state in LOST else state
-        previous, s.live_state = s.live_state, state
+        h, a = match.live_home_goals, match.live_away_goals
+        previous, _, before_score = (s.live_state or "").partition(":")
+        s.live_state = None if state is None else f"{state}:{h}-{a}" if h is not None else state
         if previous and state in ("win", "loss") and state != previous:
-            minute = f"{match.live_minute}' " if match.live_minute else ""
             now_text = "gagnante" if state == "win" else "perdante"
-            text = (
-                f"⚽ {minute}{_scoreline(match, home, away)} : « {label} » est {now_text} "
-                "pour l'instant."
-            )
-            alerts.events.append(Event(bet.user_id, "changed", text, bet.id, match.id))
+            if _goals(before_score) > (h or 0) + (a or 0):
+                # But annulé (VAR) : le dire, plutôt qu'une alerte qui contredit la précédente.
+                text = (
+                    f"↩️ But annulé ({_scoreline(match, home, away)}) : « {label} » redevient "
+                    f"{now_text} pour l'instant."
+                )
+                kind = "cancelled"
+            else:
+                minute = f"{match.live_minute}' " if match.live_minute else ""
+                text = (
+                    f"⚽ {minute}{_scoreline(match, home, away)} : « {label} » est {now_text} "
+                    "pour l'instant."
+                )
+                kind = "changed"
+            alerts.events.append(Event(bet.user_id, kind, text, bet.id, match.id))
         late = match.kickoff_at is not None and now - match.kickoff_at > LATE_AFTER
         if match.api_status in UNPLAYED_STATUSES:
             what = {"PST": "reporté", "CANC": "annulé", "ABD": "arrêté"}.get(
@@ -239,10 +278,13 @@ async def observe(
 _TITLES = {
     "validated": "✅ Sélection validée",
     "changed": "⚽ But dans ton coupon",
+    "cancelled": "↩️ But annulé",
     "last_match": "Tout se joue sur le dernier match",
     "delayed": "Match pas encore commencé",
 }
-_ORDER = ("validated", "changed", "last_match", "delayed")
+_ORDER = ("validated", "changed", "cancelled", "last_match", "started", "delayed")
+# Une fois par match et par joueur (pas à chaque passage du règlement).
+_ONCE_PER_MATCH = ("delayed", "started")
 
 
 def quiet(country: str, now: datetime) -> bool:
@@ -280,32 +322,56 @@ async def emit(alerts: Alerts, session: AsyncSession, now: datetime) -> int:
             continue
         if e.type == "last_match" and (e.user_id, e.type, e.bet_id, e.match_id) in sent:
             continue
-        if e.type == "delayed" and any(
-            k[0] == e.user_id and k[1] == "delayed" and k[3] == e.match_id for k in sent
+        if e.type in _ONCE_PER_MATCH and any(
+            k[0] == e.user_id and k[1] == e.type and k[3] == e.match_id for k in sent
         ):
             continue
         mine = by_user.setdefault(e.user_id, [])
         # Même événement pour deux paris (même match) : une seule ligne.
         if all(other.text != e.text for other in mine):
             mine.append(e)
-        if e.type in ("last_match", "delayed"):
+        if e.type in ("last_match", *_ONCE_PER_MATCH):
             sent.add((e.user_id, e.type, e.bet_id, e.match_id))
     for user_id, events in by_user.items():
         events.sort(key=lambda e: _ORDER.index(e.type))
         types = {e.type for e in events}
         validated = sum(e.type == "validated" for e in events)
+        started = [e for e in events if e.type == "started"]
+        follow = (
+            "Suis ton coupon en direct."
+            if len({e.bet_id for e in started}) == 1
+            else "Suis tes coupons en direct."
+        )
         if types == {"validated"} and validated > 1:
             title = f"✅ {validated} sélections validées"
+        elif types == {"started"}:
+            # « 🟢 C'est parti : Écosse - Macédoine du Nord » ; plusieurs à la même heure : un
+            # seul message qui les cite tous.
+            title = (
+                started[0].text.rstrip(".")
+                if len(started) == 1
+                else f"🟢 {len(started)} de tes matchs commencent"
+            )
         elif len(types) == 1:
             title = _TITLES[events[0].type]
         else:
             title = "Tes matchs en cours"
+        lines = [e.text for e in events if e.type != "started"]
+        if started:
+            names = ", ".join(e.text.removeprefix("🟢 C'est parti : ").rstrip(".") for e in started)
+            if types == {"started"}:
+                lines.append(follow if len(started) == 1 else f"{names}. {follow}")
+            else:
+                lines.append(f"🟢 C'est parti : {names}. {follow}")
         user = users[user_id]
+        bet_ids = sorted({e.bet_id for e in events})
         notifications.add(
-            session, user_id, KIND, title, "\n".join(e.text for e in events),
+            session, user_id, KIND, title, "\n".join(lines),
             {
                 "screen": "bookmaker",
-                "bets": sorted({e.bet_id for e in events}),
+                "bets": bet_ids,
+                # Un seul coupon : la notification ouvre son suivi.
+                **({"bet_id": bet_ids[0]} if len(bet_ids) == 1 else {}),
                 "events": [
                     {"type": e.type, "bet_id": e.bet_id, "match_id": e.match_id} for e in events
                 ],

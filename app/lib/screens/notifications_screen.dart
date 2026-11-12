@@ -121,7 +121,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   },
                   child: GlassCard(
                     margin: const EdgeInsets.only(bottom: 12),
-                    onTap: !unread && n['kind'] != 'daily_coupons'
+                    onTap: !unread && n['kind'] != 'daily_coupons' && !_betKinds.contains(n['kind'])
                         ? null
                         : () async {
                             if (unread) {
@@ -133,6 +133,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             if (n['kind'] == 'daily_coupons' && context.mounted) {
                               await Navigator.of(context)
                                   .push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen()));
+                            }
+                            // Matchs d'un coupon : le suivi dans Mes paris.
+                            if (_betKinds.contains(n['kind']) && context.mounted) {
+                              Navigator.of(context).popUntil((r) => r.isFirst);
+                              state.openTab(3);
                             }
                           },
                     child: Row(
@@ -210,3 +215,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 }
+
+/// Notifications des matchs d'un coupon : touchées, elles ouvrent Mes paris.
+const _betKinds = {'bet_kickoff', 'bet_live', 'bet_settled'};

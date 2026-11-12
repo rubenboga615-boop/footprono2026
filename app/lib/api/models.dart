@@ -164,7 +164,7 @@ class MatchInfo {
   bool get isPostponed => _postponed.contains(apiStatus) || status == 'cancelled';
 
   /// Commencé (en cours ou fini) : plus de pari possible. L'heure suffit, le relevé du
-  /// direct passant toutes les 2 minutes (essai du 07/11/2026 : cote ajoutée à la 78e).
+  /// direct passant chaque minute (essai du 07/11/2026 : cote ajoutée à la 78e).
   bool get started =>
       isLive || isFinished || (kickoffAt != null && !isPostponed && !now().isBefore(kickoffAt!));
 
