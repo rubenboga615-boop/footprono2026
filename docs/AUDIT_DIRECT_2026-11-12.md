@@ -297,3 +297,17 @@ sont pas encore dans cette version.
   Centrafrique, Côte d'Ivoire – Gambie, Cameroun – Namibie) et 2 à 19:45 (Albanie – Finlande,
   Monténégro – Lettonie) : le rappel groupé de `70d90a5` n'était peut-être pas encore en ligne
   à ces heures-là ; à revérifier au prochain rappel.
+
+## 20 h 35 — Nouvelle version web (12/11, 20:35)
+
+| Point | Constat | Verdict |
+|---|---|---|
+| Mes paris caché ne se recharge plus | liste des matchs ouverte 3 minutes : **0 requête**, 3 messages `live` reçus par le WebSocket | **corrigé** |
+| Jamais 100 % ni 0 % | Cameroun – Namibie 2-0 à la 80e : « **> 99 % · < 1 % · < 1 %** » ; Côte d'Ivoire – Gambie 2-1 à la 77e : « 91 % · 8 % · < 1 % » | **corrigé** |
+| Cartes en direct | ★ sur les matchs de mes paris, buteurs à la minute, « Mis à jour il y a 27 s », puce « ● En direct 10 » | conforme |
+
+Bilan de la journée sur le direct : tous les défauts trouvés à 15 h (rechargement à la main,
+requêtes en trop, 100 %, en-têtes, `/metrics`) sont corrigés et vérifiés en ligne. Restent :
+« Encore au moins un but » à la place de « plus de 3,5 buts », le texte « toutes les 2
+minutes » sous les statistiques, et le rappel de coup d'envoi groupé (à revérifier au
+prochain rappel).
