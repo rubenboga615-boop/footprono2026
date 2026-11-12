@@ -64,16 +64,42 @@ class LiveCouponChance extends StatefulWidget {
 }
 
 class _LiveCouponChanceState extends State<LiveCouponChance> {
-  late final Future<Map<int, Json>> _live = loadLiveChances(context.read<AppState>().api, [
+  late final AppState _state = context.read<AppState>();
+  Map<int, Json>? live;
+
+  Set<int> get _ids => {
     for (final s in widget.bet.selections)
       if (s.state == 'live') s.matchId,
-  ]);
+  };
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<Map<int, Json>>(
-    future: _live,
-    builder: (context, snap) {
-      final live = snap.data;
+  void initState() {
+    super.initState();
+    _load();
+    // Relue à chaque relevé du direct d'un de ses matchs (retour du fondateur du 12/11/2026).
+    _state.liveFeed.addListener(_onFeed);
+  }
+
+  @override
+  void dispose() {
+    _state.liveFeed.removeListener(_onFeed);
+    super.dispose();
+  }
+
+  void _onFeed() {
+    final feed = _state.liveFeed.value;
+    if (feed != null && feed.matches.keys.any(_ids.contains)) _load();
+  }
+
+  Future<void> _load() async {
+    final r = await loadLiveChances(_state.api, _ids);
+    if (mounted) setState(() => live = r);
+  }
+
+  @override
+  Widget build(BuildContext context) => Builder(
+    builder: (context) {
+      final live = this.live;
       if (live == null || live.isEmpty) return const SizedBox.shrink();
       final c = couponChances(widget.bet, live);
       if (c == null) return const SizedBox.shrink();
@@ -115,13 +141,31 @@ class LiveChancesCard extends StatefulWidget {
 }
 
 class _LiveChancesCardState extends State<LiveChancesCard> {
-  late final Future<Map<int, Json>> _live = loadLiveChances(context.read<AppState>().api, [widget.match.id]);
+  Map<int, Json>? live;
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<Map<int, Json>>(
-    future: _live,
-    builder: (context, snap) {
-      final j = snap.data?[widget.match.id];
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  // Relue à chaque nouveau relevé du match ; les dernières chances restent affichées
+  // pendant le rechargement (retour du fondateur du 12/11/2026).
+  @override
+  void didUpdateWidget(LiveChancesCard old) {
+    super.didUpdateWidget(old);
+    if (old.match.liveKey != widget.match.liveKey) _load();
+  }
+
+  Future<void> _load() async {
+    final r = await loadLiveChances(context.read<AppState>().api, [widget.match.id]);
+    if (mounted) setState(() => live = r);
+  }
+
+  @override
+  Widget build(BuildContext context) => Builder(
+    builder: (context) {
+      final j = live?[widget.match.id];
       final markets = j?['markets'] as Map?;
       double? p(String k) => (markets?[k] as num?)?.toDouble();
       final home = p('1X2||home'), draw = p('1X2||draw'), away = p('1X2||away');

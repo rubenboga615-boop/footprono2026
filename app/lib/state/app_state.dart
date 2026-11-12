@@ -770,6 +770,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// s'arrêtent, puis se rechargent une fois au retour.
   final ValueNotifier<bool> foreground = ValueNotifier(true);
 
+  /// Dernier relevé du direct poussé par le serveur (chaque minute pendant les matchs) :
+  /// les écrans qui montrent un des matchs relevés se rechargent (widgets/live_refresh.dart).
+  final ValueNotifier<LiveFeed?> liveFeed = ValueNotifier(null);
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final front = state == AppLifecycleState.resumed || state == AppLifecycleState.inactive;
@@ -909,6 +913,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// Message du WebSocket reçu (tests).
+  @visibleForTesting
+  void receiveSocketMessage(dynamic raw) => _onSocketMessage(raw);
+
   void _onSocketMessage(dynamic raw) {
     Object? data;
     try {
@@ -916,7 +924,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     } catch (_) {
       return;
     }
-    if (data is! Map || data['type'] == 'pong' || data['title'] == null) return;
+    if (data is! Map || data['type'] == 'pong') return;
+    if (data['type'] == 'live') {
+      try {
+        liveFeed.value = LiveFeed(data.cast<String, dynamic>());
+      } catch (_) {}
+      return;
+    }
+    if (data['title'] == null) return;
     unread += 1;
     notifyListeners();
     showMessage('${data['title']} — ${data['body'] ?? ''}');

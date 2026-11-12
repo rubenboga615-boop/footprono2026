@@ -69,6 +69,15 @@ class Me {
   bool get isAdmin => role == 'admin';
 }
 
+/// Relevé du direct poussé par le serveur : heure et matchs relevés (numéro → données).
+class LiveFeed {
+  LiveFeed(Json j)
+    : at = DateTime.tryParse('${j['at']}'),
+      matches = {for (final m in (j['matches'] as List? ?? const []).cast<Json>()) m['id'] as int: m};
+  final DateTime? at;
+  final Map<int, Json> matches;
+}
+
 class Team {
   Team(Json j) : id = j['id'] as int, name = j['name'] as String;
   final int id;
@@ -92,6 +101,7 @@ class MatchInfo {
       liveExtra = j['live_extra'] as int?,
       liveHome = j['live_home_goals'] as int?,
       liveAway = j['live_away_goals'] as int?,
+      liveUpdatedAt = parseDate(j['live_updated_at']),
       referee = (j['api_referee'] ?? j['referee']) as String?;
   final int id;
   final String competition;
@@ -110,6 +120,9 @@ class MatchInfo {
   final int? liveHome;
   final int? liveAway;
 
+  /// Heure du dernier relevé du direct (« mis à jour il y a 40 s »).
+  final DateTime? liveUpdatedAt;
+
   /// Arbitre désigné (API-Football, sinon football-data) ; absent des listes de matchs.
   final String? referee;
 
@@ -123,6 +136,28 @@ class MatchInfo {
   /// direct passant toutes les 2 minutes (essai du 07/11/2026 : cote ajoutée à la 78e).
   bool get started =>
       isLive || isFinished || (kickoffAt != null && !isPostponed && !now().isBefore(kickoffAt!));
+
+  /// Heure du coup d'envoi passée, match pas encore commencé chez API-Football (retour du
+  /// fondateur du 12/11/2026) : « Coup d'envoi imminent » pendant 30 minutes au plus.
+  bool get awaitingKickoff {
+    final k = kickoffAt;
+    if (k == null || isLive || isFinished || isPostponed) return false;
+    final late = now().difference(k);
+    return !late.isNegative && late < const Duration(minutes: 30);
+  }
+
+  /// En cours, ou coup d'envoi dans les 10 minutes : l'écran se recharge tout seul.
+  bool get liveSoon {
+    final k = kickoffAt;
+    if (isLive || awaitingKickoff) return true;
+    if (k == null || isFinished || isPostponed) return false;
+    final wait = k.difference(now());
+    return !wait.isNegative && wait <= const Duration(minutes: 10);
+  }
+
+  /// Change à chaque relevé du direct : les parties de l'écran qui lisent leurs propres
+  /// données (onglet En direct, chances) se rechargent alors.
+  String get liveKey => '$apiStatus|$liveMinute|$liveExtra|$liveHome|$liveAway|$liveUpdatedAt|$status';
 
   /// Heure utilisée pour savoir si un match a commencé (fixée dans les tests).
   static DateTime Function() now = DateTime.now;
@@ -151,6 +186,7 @@ class MatchInfo {
     }
     if (isFinished) return 'Terminé';
     if (isPostponed) return 'Reporté';
+    if (awaitingKickoff) return 'Coup d\'envoi imminent';
     return kickoffAt != null ? hourMinute(kickoffAt!.toLocal()) : 'Heure à confirmer';
   }
 

@@ -13,6 +13,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/live_refresh.dart';
 import '../widgets/team_logo.dart';
 import '../widgets/maquette.dart';
 import 'premium_screen.dart' show PremiumCard;
@@ -88,7 +89,14 @@ class MatchScreen extends StatelessWidget {
       body: SafeArea(
         child: Loader<MatchData>(
           load: () => _load(state),
-          builder: (context, data, reload) => _MatchView(data: data, reload: reload),
+          // Pendant le match : rechargé à chaque relevé poussé, sinon toutes les 30 s
+          // (retour du fondateur du 12/11/2026).
+          builder: (context, data, reload) => LiveRefresh(
+            active: data.match.liveSoon,
+            matchIds: {matchId},
+            reload: reload,
+            child: _MatchView(data: data, reload: reload),
+          ),
         ),
       ),
     );
@@ -108,6 +116,22 @@ class _MatchViewState extends State<_MatchView> {
   // Match commencé : onglet « En direct » (« Résumé » une fois fini) en premier, ouvert
   // d'office pendant le match (maquette D2, plan du 10/11/2026, étape 7).
   late int tab = widget.data.match.isLive ? 0 : (widget.data.match.started ? 1 : 0);
+
+  @override
+  void didUpdateWidget(_MatchView old) {
+    super.didUpdateWidget(old);
+    // Coup d'envoi pendant que l'écran est ouvert : l'onglet « En direct » s'ajoute en tête
+    // et s'ouvre (retour du fondateur du 12/11/2026).
+    final was = old.data.match, now = widget.data.match;
+    if (!was.started && now.started) {
+      tab = now.isLive ? 0 : tab + 1;
+    } else if (!was.isLive && now.isLive && !_picked) {
+      tab = 0;
+    }
+  }
+
+  /// Onglet choisi par le joueur : plus de changement d'office.
+  bool _picked = false;
 
   /// Chances d'avant le match (1, N, 2).
   (double, double, double)? _before(MatchData d) {
@@ -158,14 +182,21 @@ class _MatchViewState extends State<_MatchView> {
                 Column(
                   children: [
                     Text(
-                      m.score?.replaceAll(' - ', ' – ') ?? m.when,
+                      m.score?.replaceAll(' - ', ' – ') ??
+                          (m.awaitingKickoff ? hourMinute(m.kickoffAt!.toLocal()) : m.when),
                       style: Fp.body(30, weight: FontWeight.w800),
                     ),
+                    if (m.awaitingKickoff)
+                      Text(
+                        '● Coup d\'envoi imminent',
+                        style: Fp.body(12.5, color: Fp.win, weight: FontWeight.w700),
+                      ),
                     if (m.score != null)
                       Text(
                         m.isLive ? '● ${m.when}' : m.when,
                         style: Fp.body(12.5, color: m.isLive ? Fp.win : Fp.muted, weight: FontWeight.w700),
                       ),
+                    if (m.isLive && m.liveUpdatedAt != null) UpdatedAgo(m.liveUpdatedAt),
                     if (m.referee != null)
                       InkWell(
                         borderRadius: BorderRadius.circular(8),
@@ -189,9 +220,17 @@ class _MatchViewState extends State<_MatchView> {
           ),
           const SizedBox(height: 18),
           SegmentTabs(
-            labels: [if (live) m.isLive ? 'En direct' : 'Résumé', 'Probabilités', 'Cotes', 'Analyse'],
+            labels: [
+              if (live) m.isLive || m.awaitingKickoff ? 'En direct' : 'Résumé',
+              'Probabilités',
+              'Cotes',
+              'Analyse',
+            ],
             selected: tab,
-            onSelected: (i) => setState(() => tab = i),
+            onSelected: (i) => setState(() {
+              tab = i;
+              _picked = true;
+            }),
           ),
           const SizedBox(height: 16),
           ...deskColumns(context, content),

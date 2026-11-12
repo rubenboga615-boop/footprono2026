@@ -2,8 +2,6 @@
 // D4) : Résumé (chronologie et chances en direct), Statistiques (match, 1re, 2e mi-temps),
 // Compositions (terrain, systèmes, entraîneurs, remplaçants). Après le match : « Résumé ».
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -44,20 +42,20 @@ class _LiveTabState extends State<LiveTab> {
   int half = 0;
   Json? data;
   Object? error;
-  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
     _load();
-    // Pendant le match : relu chaque minute (le serveur relève toutes les 2 minutes).
-    if (widget.match.isLive) _timer = Timer.periodic(const Duration(minutes: 1), (_) => _load());
   }
 
+  // Relu à chaque nouveau relevé du match (l'écran du match se recharge à chaque relevé
+  // poussé, ou toutes les 30 s) : avant, le minuteur ne partait pas si le match commençait
+  // après l'ouverture de l'écran (retour du fondateur du 12/11/2026).
   @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
+  void didUpdateWidget(LiveTab old) {
+    super.didUpdateWidget(old);
+    if (old.match.liveKey != widget.match.liveKey) _load();
   }
 
   Future<void> _load() async {

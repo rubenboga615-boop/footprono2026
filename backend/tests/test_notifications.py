@@ -117,6 +117,34 @@ async def test_websocket_relays_published_notifications(
     assert (await asyncio.to_thread(run)) == {"title": "Test"}
 
 
+async def test_websocket_relays_live_snapshots(
+    world: dict[str, Any],  # noqa: F811
+) -> None:
+    """Retour du fondateur du 12/11/2026 : les relevés du direct, communs à tous les joueurs,
+    passent par le même WebSocket que les notifications."""
+    from footprono.notifications.live_feed import LIVE_CHANNEL
+
+    settings = make_settings()
+    token = create_access_token(world["user_id"], settings)
+
+    def run() -> dict[str, Any]:
+        async def publish() -> None:
+            r = Redis.from_url(TEST_REDIS_URL, decode_responses=True)
+            await r.publish(LIVE_CHANNEL, json.dumps({"type": "live", "matches": [{"id": 7}]}))
+            await r.aclose()
+
+        with (
+            TestClient(create_app(settings)) as http,
+            http.websocket_connect(f"/api/v1/ws?token={token}") as ws,
+        ):
+            ws.send_text("ping")
+            assert json.loads(ws.receive_text()) == {"type": "pong"}
+            asyncio.run(publish())
+            return dict(json.loads(ws.receive_text()))
+
+    assert (await asyncio.to_thread(run)) == {"type": "live", "matches": [{"id": 7}]}
+
+
 def test_uvicorn_has_a_websocket_implementation() -> None:
     """Sans wsproto (ou websockets), uvicorn répond 404 au WebSocket /ws."""
     import importlib.util
