@@ -207,3 +207,11 @@ du serveur à 17:04.
   rattacher la nouvelle fiche si elle existe.
 - Écran du match et fiche du pari : « Coup d'envoi retardé, heure à confirmer » au lieu de
   « imminent » / « à venir » quand l'heure prévue est dépassée.
+
+**17 h 06 (mise à jour)** : Guinée – Érythrée est passé « En direct 2' · 0-0 · gagnante pour
+l'instant » dans le pari n° 56 du fondateur (« Chance de ton coupon : 7 % au départ → … »).
+C'était donc **un retard d'environ une heure, pas une fiche en double** : la même fiche
+API-Football s'est mise à jour au coup d'envoi réel (vers 17 h 04). Restent valables :
+l'affichage « Coup d'envoi retardé, heure à confirmer » quand l'heure prévue est dépassée
+(une heure de « Coup d'envoi imminent » et « à venir 16:00 » ici), et l'alerte au fondateur
+au-delà de 30 minutes. La recherche d'une nouvelle fiche devient secondaire.
