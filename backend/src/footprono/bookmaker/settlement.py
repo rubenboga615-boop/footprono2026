@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from redis.asyncio import Redis
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -428,6 +428,16 @@ def _notify_settled(session: AsyncSession, bet: Bet, name: str) -> None:
     )  # fmt: skip
 
 
+# Verrous PostgreSQL du règlement (rendus à la fin de la transaction, même en cas d'erreur).
+SETTLE_BETS_LOCK = 7_301_001
+SETTLE_COUPONS_LOCK = 7_301_002
+
+
+async def hold_lock(session: AsyncSession, key: int) -> None:
+    """Attend puis tient le verrou ``key`` jusqu'à la fin de la transaction en cours."""
+    await session.execute(select(func.pg_advisory_xact_lock(key)))
+
+
 async def settle_bets(
     session: AsyncSession,
     now: datetime | None = None,
@@ -440,6 +450,9 @@ async def settle_bets(
     """
     now = now or datetime.now(UTC)
     report: dict[str, Any] = {"settled": 0, "resettled": 0, "pending": 0}
+    # Un seul règlement à la fois (audit de sécurité du 12/11/2026, n° 1) : le suivant attend
+    # la fin du premier, puis relit des paris déjà réglés ; payés une seule fois.
+    await hold_lock(session, SETTLE_BETS_LOCK)
     open_bets = (await session.scalars(select(Bet).where(Bet.status == "open"))).all()
     recent = (
         await session.scalars(

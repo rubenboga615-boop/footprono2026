@@ -28,6 +28,7 @@
 		# son propre « DENY » (en-tête de l'API, gardé grâce au « ? »).
 		?X-Frame-Options "SAMEORIGIN"
 		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		# Content-Security-Policy : posée par l'API (version web /app/, console /admin/).
 		-Server
 	}
 }

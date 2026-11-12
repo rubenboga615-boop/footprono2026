@@ -125,6 +125,11 @@ log "Construction et démarrage (première fois : quelques minutes)"
 # Version en service, visible dans /api/v1/health (commit installé).
 export FP_COMMIT="$(git -C "$DIR" rev-parse --short HEAD)"
 docker compose -f docker-compose.yml --env-file .env up -d --build --remove-orphans </dev/null
+# Caddyfile modifié : « up -d » ne recrée pas Caddy (fichier monté), qui gardait l'ancienne
+# configuration (audit de sécurité du 12/11/2026 : en-têtes du dépôt absents du site).
+docker compose -f docker-compose.yml --env-file .env exec -T caddy \
+    caddy reload --config /etc/caddy/Caddyfile </dev/null \
+    || docker compose -f docker-compose.yml --env-file .env restart caddy </dev/null
 # Volumes créés avant que l'image ne prépare leurs dossiers : rendus à l'application.
 docker compose -f docker-compose.yml --env-file .env exec -T -u root api \
     chown app:app /data/app /data/history /data/files </dev/null || true

@@ -406,3 +406,44 @@ async def test_console_warns_about_bet_matches_without_live_follow(
         names = await _unfollowed_matches(session)
     assert len(names) == 1
     assert " - " in names[0]
+
+
+async def test_two_settlements_at_once_pay_only_once(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    """Audit de sécurité du 12/11/2026, n° 1 : deux règlements en même temps (relevé du
+    direct et ingestion du matin, worker à plusieurs tâches) ne paient qu'une fois."""
+    import asyncio
+
+    from footprono.bookmaker.settlement import settle_bets
+
+    headers = await _login(client)
+    bet = (
+        await client.post(
+            "/api/v1/bets",
+            json={"stake": 10_000, "selections": [_sel(world["m1"], "1X2", "home")]},
+            headers=headers,
+        )
+    ).json()
+    await _finish(db_factory, world["m1"], (2, 0), "api_football")
+
+    async def settle() -> dict[str, Any]:
+        async with db_factory() as session:
+            return await settle_bets(session)
+
+    reports = await asyncio.gather(*(settle() for _ in range(4)))
+    assert sum(r["settled"] for r in reports) == 1
+    async with db_factory() as session:
+        payouts = (
+            await session.scalars(
+                select(WalletEntry).where(
+                    WalletEntry.kind == "payout", WalletEntry.bet_id == bet["id"]
+                )
+            )
+        ).all()
+        wallet = await session.get(Wallet, world["user_id"])
+    assert [e.amount for e in payouts] == [18_500]
+    assert wallet is not None
+    assert wallet.balance == 100_000 - 10_000 + 18_500

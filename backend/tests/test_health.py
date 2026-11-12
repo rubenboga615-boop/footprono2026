@@ -99,3 +99,19 @@ def test_route_resolver_maps_templates_and_bounds_labels() -> None:
     assert resolver.resolve("/api/v1/matchs/42") == "/api/v1/matchs/{match_id}"
     assert resolver.resolve("/metrics") == "/metrics"
     assert resolver.resolve("/n/importe/quoi") == "unmatched"
+
+
+async def test_openapi_hidden_in_production() -> None:
+    """Audit de sécurité du 12/11/2026, n° 2 : pas de liste des routes en production."""
+    from footprono.core.config import Environment
+
+    app = create_app(
+        make_settings(
+            environment=Environment.PRODUCTION,
+            secret_key="x" * 40,
+            cors_origins=["https://footprono.example"],
+        )
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as http:
+        assert (await http.get("/api/v1/openapi.json")).status_code == 404
+        assert (await http.get("/docs")).status_code == 404

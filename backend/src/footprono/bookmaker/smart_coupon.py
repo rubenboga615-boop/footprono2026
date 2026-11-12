@@ -808,6 +808,8 @@ async def settle_pending(session: AsyncSession, now: datetime | None = None) -> 
     « en attente » pour toujours (essai réel du 04/11/2026)."""
     now = now or datetime.now(UTC)
     settled = {"won": 0, "lost": 0, "partial": 0, "void": 0}
+    # Un seul règlement des coupons à la fois (audit de sécurité du 12/11/2026, n° 1).
+    await settlement.hold_lock(session, settlement.SETTLE_COUPONS_LOCK)
     coupons = await session.scalars(
         select(SmartCoupon).where(
             or_(
