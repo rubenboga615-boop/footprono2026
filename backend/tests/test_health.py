@@ -115,3 +115,23 @@ async def test_openapi_hidden_in_production() -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as http:
         assert (await http.get("/api/v1/openapi.json")).status_code == 404
         assert (await http.get("/docs")).status_code == 404
+
+
+async def test_metrics_never_public_in_production() -> None:
+    """Audit de sécurité du 12/11/2026 : /metrics répondait à tout le monde (règle Caddy
+    jamais atteinte). En production, une requête passée par Caddy (X-Forwarded-For) est
+    refusée ; un accès interne lit toujours les métriques."""
+    from footprono.core.config import Environment
+
+    app = create_app(
+        make_settings(
+            environment=Environment.PRODUCTION,
+            secret_key="x" * 40,
+            cors_origins=["https://footprono.example"],
+        )
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as http:
+        public = await http.get("/metrics", headers={"x-forwarded-for": "203.0.113.9"})
+        assert public.status_code == 404
+        assert "footprono_http_requests_total" not in public.text
+        assert (await http.get("/metrics")).status_code == 200

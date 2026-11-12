@@ -249,7 +249,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return response
 
     @app.get("/metrics", include_in_schema=False)
-    async def metrics() -> Response:
+    async def metrics(request: Request) -> Response:
+        # Jamais depuis Internet (audit de sécurité du 12/11/2026) : une requête passée par
+        # Caddy porte X-Forwarded-For ; seul un accès interne (docker exec, réseau privé)
+        # lit les métriques. Caddy les refuse aussi de son côté.
+        if is_prod and "x-forwarded-for" in request.headers:
+            return Response(status_code=404)
         return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     return app

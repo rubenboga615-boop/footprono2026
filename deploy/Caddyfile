@@ -2,9 +2,13 @@
 {$FP_DOMAIN} {
 	encode zstd gzip
 
-	# Les métriques ne sont jamais exposées publiquement.
-	@metrics path /metrics
-	respond @metrics 404
+	# Les métriques ne sont jamais exposées publiquement. Dans un « handle » : Caddy trie
+	# « respond » après « handle », et « respond @metrics 404 » n'était jamais atteint
+	# (audit de sécurité du 12/11/2026, /metrics public). Les « handle » avec un chemin
+	# passent avant le « handle » général.
+	handle /metrics* {
+		respond 404
+	}
 
 	# Connexion Google de la version web : les pages de connexion de Firebase sont
 	# servies sous notre domaine (authDomain), sinon Safari sur iPhone perd la

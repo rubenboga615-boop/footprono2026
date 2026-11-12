@@ -74,3 +74,15 @@ async def test_kickoff_reminder_once_per_bet_grouped_by_player(
     assert last is not None
     assert last.title == "Ton pari commence dans 20 min"
     assert last.data["bets"] == [later]
+
+
+def test_kickoff_text_names_every_match() -> None:
+    """12/11/2026 : « 2 de tes paris commencent bientôt » ne citait que le premier match."""
+    from footprono.bookmaker.kickoff import _starts_text
+
+    assert _starts_text({"Arménie - Chypre": 30}) == "Arménie - Chypre commence dans 30 min."
+    assert _starts_text({"Arménie - Chypre": 29, "Türkiye - Belgium": 30}) == (
+        "Arménie - Chypre dans 29 min, Türkiye - Belgium dans 30 min."
+    )
+    many = {f"M{i} - N{i}": 30 for i in range(5)}
+    assert _starts_text(many).endswith("M2 - N2 dans 30 min et 2 autres matchs.")

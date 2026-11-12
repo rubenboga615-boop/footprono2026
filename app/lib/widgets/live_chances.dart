@@ -116,7 +116,7 @@ class _LiveCouponChanceState extends State<LiveCouponChance> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Chance de ton coupon : ${percent(start)} au départ → ${percent(now)} maintenant',
+              'Chance de ton coupon : ${percent(start)} au départ → ${chancePercent(now)} maintenant',
               style: Fp.body(14.5, weight: FontWeight.w700, color: Fp.win, height: 1.35),
             ),
             const SizedBox(height: 4),
@@ -185,7 +185,7 @@ class _LiveChancesCardState extends State<LiveChancesCard> {
                 overflow: TextOverflow.ellipsis,
                 style: Fp.body(13, color: Fp.muted),
               ),
-              Text(percent(v), style: Fp.body(17, weight: FontWeight.w800)),
+              Text(chancePercent(v), style: Fp.body(17, weight: FontWeight.w800)),
             ],
           ),
         ),
@@ -231,7 +231,7 @@ class _LiveChancesCardState extends State<LiveChancesCard> {
                   Expanded(
                     child: Text('Plus de 3,5 buts', style: Fp.body(14, color: Fp.muted)),
                   ),
-                  Text(percent(over), style: Fp.body(15, weight: FontWeight.w700)),
+                  Text(chancePercent(over), style: Fp.body(15, weight: FontWeight.w700)),
                 ],
               ),
             ],

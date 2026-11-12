@@ -32,6 +32,15 @@ String percent(double p, {int decimals = 0}) {
   return '${v.toStringAsFixed(decimals).replaceAll('.', ',')}$nbsp%';
 }
 
+/// Chance pendant un match : jamais « 100 % » ni « 0 % » tant que rien n'est joué
+/// (12/11/2026 : RD Congo – Sierra Leone 3-0 à la 66e affichait « 1 100 % · 2 0 % ») ;
+/// « > 99 % » et « < 1 % » à la place.
+String chancePercent(double p) {
+  if (p >= 0.995) return '>${nbsp}99$nbsp%';
+  if (p < 0.005) return '<${nbsp}1$nbsp%';
+  return percent(p);
+}
+
 /// Cote ou nombre décimal à la française : 1.850 → « 1,85 ».
 String decimal(Object? value, {int max = 2}) {
   final d = value is num ? value.toDouble() : double.tryParse('$value') ?? 0;

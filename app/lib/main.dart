@@ -282,8 +282,13 @@ class HomeShellState extends State<HomeShell> {
       body: IndexedStack(
         index: index,
         children: [
+          // Onglets cachés sans minuteurs (TickerMode) : « Mes paris » se rechargeait chaque
+          // minute même liste des matchs affichée (vérification du 12/11/2026, 17 h 20).
           for (var i = 0; i < pages.length; i++)
-            KeyedSubtree(key: ValueKey('$i-${_generation[i]}'), child: pages[i]),
+            TickerMode(
+              enabled: i == index,
+              child: KeyedSubtree(key: ValueKey('$i-${_generation[i]}'), child: pages[i]),
+            ),
         ],
       ),
       bottomNavigationBar: _FloatingNav(

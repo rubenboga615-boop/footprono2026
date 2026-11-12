@@ -65,21 +65,44 @@ async def send_kickoff_reminders(session: AsyncSession, now: datetime | None = N
             by_user[user_id].append((bet_id, kickoff))
     for user_id, bets in by_user.items():
         bets.sort(key=lambda b: b[1])
-        bet_id, kickoff = bets[0]
-        minutes = max(1, round((kickoff - now).total_seconds() / 60))
-        label = await _first_match(session, bet_id, kickoff)
+        # Chaque match qui commence, pas seulement le premier (12/11/2026 : « 2 de tes paris
+        # commencent bientôt — Arménie - Chypre… », Turquie - Belgique manquait).
+        starts: dict[str, int] = {}
+        for bet_id, kickoff in bets:
+            label = await _first_match(session, bet_id, kickoff)
+            starts.setdefault(label, max(1, round((kickoff - now).total_seconds() / 60)))
         title = (
-            f"Ton pari commence dans {minutes} min"
+            f"Ton pari commence dans {next(iter(starts.values()))} min"
             if len(bets) == 1
             else f"{len(bets)} de tes paris commencent bientôt"
         )
         notifications.add(
             session, user_id, KIND, title,
-            f"{label} commence dans {minutes} min. Suivi en direct dans Mes paris.",
+            f"{_starts_text(starts)} Suivi en direct dans Mes paris.",
             {"bets": [b for b, _ in bets], "screen": "bookmaker"},
         )  # fmt: skip
     await session.commit()
     return len(by_user)
+
+
+def _starts_text(starts: dict[str, int]) -> str:
+    """« Arménie - Chypre commence dans 30 min. » ; plusieurs matchs : « Arménie - Chypre dans
+    30 min, Turquie - Belgique dans 30 min. » (3 au plus, puis « et 2 autres matchs »)."""
+    items = list(starts.items())
+    if len(items) == 1:
+        label, minutes = items[0]
+        return f"{label} commence dans {minutes} min."
+    shown = ", ".join(f"{label} dans {m} min" for label, m in items[:3])
+    rest = len(items) - 3
+    return (
+        shown
+        + (
+            f" et {rest} autre{'s' if rest > 1 else ''} match{'s' if rest > 1 else ''}"
+            if rest > 0
+            else ""
+        )
+        + "."
+    )
 
 
 async def _first_match(session: AsyncSession, bet_id: int, kickoff: datetime) -> str:

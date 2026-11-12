@@ -534,7 +534,10 @@ class _MatchCard extends StatelessWidget {
           child: Column(
             children: [
               Text(const ['1', 'N', '2'][i], style: Fp.body(11, color: Fp.muted)),
-              Text(probs == null ? '—' : percent(probs[i]), style: Fp.body(15, weight: FontWeight.w700)),
+              Text(
+                probs == null ? '—' : chancePercent(probs[i]),
+                style: Fp.body(15, weight: FontWeight.w700),
+              ),
               if (!live)
                 Text(
                   o != null ? odds(o.odds) : (loading && !m.started ? '…' : ' '),
@@ -562,7 +565,8 @@ class _MatchCard extends StatelessWidget {
           label: [
             '${m.home.name} – ${m.away.name}',
             live ? 'en direct ${m.clock}' : '${_dayLabel((m.kickoffAt ?? m.date).toLocal())} ${m.when}',
-            if (probs != null) '1 ${percent(probs[0])}, N ${percent(probs[1])}, 2 ${percent(probs[2])}',
+            if (probs != null)
+              '1 ${chancePercent(probs[0])}, N ${chancePercent(probs[1])}, 2 ${chancePercent(probs[2])}',
             'ouvrir le match',
           ].join(', '),
           excludeSemantics: true,
@@ -830,7 +834,7 @@ class _MatchRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Column(
                   children: [
-                    Text(p == null ? '—' : percent(p), style: Fp.title(14, weight: FontWeight.w600)),
+                    Text(p == null ? '—' : chancePercent(p), style: Fp.title(14, weight: FontWeight.w600)),
                     Text(
                       o == null ? ' ' : odds(o.odds),
                       style: Fp.body(11.5, color: chosen ? Fp.text : Fp.text2, weight: FontWeight.w600),

@@ -125,11 +125,10 @@ log "Construction et démarrage (première fois : quelques minutes)"
 # Version en service, visible dans /api/v1/health (commit installé).
 export FP_COMMIT="$(git -C "$DIR" rev-parse --short HEAD)"
 docker compose -f docker-compose.yml --env-file .env up -d --build --remove-orphans </dev/null
-# Caddyfile modifié : « up -d » ne recrée pas Caddy (fichier monté), qui gardait l'ancienne
-# configuration (audit de sécurité du 12/11/2026 : en-têtes du dépôt absents du site).
-docker compose -f docker-compose.yml --env-file .env exec -T caddy \
-    caddy reload --config /etc/caddy/Caddyfile </dev/null \
-    || docker compose -f docker-compose.yml --env-file .env restart caddy </dev/null
+# Caddyfile modifié : « up -d » ne recrée pas Caddy, et un fichier monté seul reste
+# l'ancien dans le conteneur après « git pull » (« caddy reload » relisait l'ancien) :
+# conteneur recréé à chaque mise à jour (audit de sécurité du 12/11/2026).
+docker compose -f docker-compose.yml --env-file .env up -d --force-recreate caddy </dev/null
 # Volumes créés avant que l'image ne prépare leurs dossiers : rendus à l'application.
 docker compose -f docker-compose.yml --env-file .env exec -T -u root api \
     chown app:app /data/app /data/history /data/files </dev/null || true
@@ -138,6 +137,10 @@ log "Attente de https://$DOMAIN/api/v1/ready"
 for _ in $(seq 1 60); do
     if curl -fsS "https://$DOMAIN/api/v1/ready" >/dev/null 2>&1; then
         log "Serveur prêt : https://$DOMAIN"
+        # Vérification après déploiement : les métriques ne sont pas publiques.
+        code="$(curl -s -o /dev/null -w '%{http_code}' "https://$DOMAIN/metrics")"
+        if [ "$code" = "404" ]; then log "/metrics fermé au public (404)"
+        else warn "/metrics répond $code depuis Internet : vérifier le Caddyfile"; fi
         docker compose -f docker-compose.yml --env-file .env ps --format 'table {{.Service}}\t{{.Status}}'
         exit 0
     fi

@@ -2797,4 +2797,24 @@ void main() {
     expect((m.liveSoon, m.kickoffDelayed), (false, false));
     MatchInfo.now = DateTime.now;
   });
+
+  testWidgets('onglet caché : Mes paris ne se recharge pas pendant que la liste est affichée', (
+    tester,
+  ) async {
+    final (_, server) = await startApp(tester, loggedIn: true);
+    server.calls.clear();
+    for (var i = 0; i < 3; i += 1) {
+      await tester.pump(const Duration(seconds: 61));
+      await tester.pumpAndSettle();
+    }
+    expect(server.calls.where((c) => c.contains('/bets') || c.contains('/me/wallet')), isEmpty);
+  });
+
+  test('chances en direct : jamais 100 % ni 0 %', () {
+    expect(chancePercent(0.9996), '> 99 %');
+    expect(chancePercent(1.0), '> 99 %');
+    expect(chancePercent(0.0), '< 1 %');
+    expect(chancePercent(0.004), '< 1 %');
+    expect(chancePercent(0.42), '42 %');
+  });
 }
