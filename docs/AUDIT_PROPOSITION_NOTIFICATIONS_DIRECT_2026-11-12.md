@@ -89,3 +89,26 @@ Au-delà de 5,5 (6 buts ou plus), ne rien afficher plutôt qu'un chiffre faux.
   pari plutôt qu'à l'ouverture).
 - **Limite par jour** : un joueur avec 10 coupons peut en recevoir beaucoup un soir de grand
   match. Plafond, ou résumé à la place au-delà d'un certain nombre ?
+
+## 6. Rappel « dans 30 min » : le joueur peut oublier (question du fondateur, 12/11)
+
+**Constat dans le code** (`bookmaker/kickoff.py`, `send_kickoff_reminders`) :
+- un seul rappel par pari, 30 min avant le **premier** match du pari ;
+- aucun rappel si le pari a été placé moins de 30 min avant ce match ;
+- **rien au coup d'envoi** ;
+- **rien pour les matchs suivants du coupon**. Exemple réel : pari 57, avec Arménie – Chypre
+  (12/11), Écosse – Macédoine du Nord (13/11) et Belgique – Italie (15/11). Seul le 12/11 a
+  eu un rappel ; les matchs du 13 et du 15 n'en auront aucun.
+
+**Proposition :**
+
+| Moment | Notification | Réglage |
+|---|---|---|
+| 30 min avant | « ⏰ Dans 30 min : Écosse – Macédoine du Nord (ton coupon n° 57, 1 sur 3 validée). » | **chaque match** du coupon, pas seulement le premier |
+| **Coup d'envoi** | « 🟢 C'est parti : Écosse – Macédoine du Nord. Suis ton coupon en direct. » En touchant la notification, l'application ouvre le suivi du coupon. | « Pendant mes matchs : Tout » |
+| Plusieurs matchs à la même heure | une seule notification : « 🟢 3 de tes matchs commencent : Bénin – Centrafrique, Côte d'Ivoire – Gambie, Cameroun – Namibie. » | groupée |
+
+- Pari placé moins de 30 min avant : pas de rappel « dans 30 min », mais la notification
+  « C'est parti » reste envoyée.
+- Possible plus tard : laisser le joueur choisir son rappel (1 h, 30 min, 10 min, ou
+  seulement « C'est parti »).
