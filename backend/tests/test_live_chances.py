@@ -269,7 +269,9 @@ def test_rule_three_points_or_chance() -> None:
     assert report(entries(124))["rows"][0]["verdict"] == "à revoir"
 
 
-async def test_live_feed_message_and_publication(db_factory: Factory, tmp_path: Path) -> None:
+async def test_live_feed_message_and_publication(
+    db_factory: Factory, tmp_path: Path, client: httpx.AsyncClient
+) -> None:
     """Retour du fondateur du 12/11/2026 : chaque relevé part aussitôt vers l'application
     ouverte (score, minute, buts, chances publiées), sans requête de plus."""
     import json
@@ -323,3 +325,7 @@ async def test_live_feed_message_and_publication(db_factory: Factory, tmp_path: 
     assert got is not None
     data = json.loads(got["data"])
     assert (data["type"], data["matches"][0]["id"]) == ("live", ids[0])
+    assert "kickoff_at" in data["matches"][0]
+    # Sans WebSocket (invité) : le même relevé, relu sans toucher à la base.
+    again = (await client.get("/api/v1/live/feed")).json()
+    assert again == data

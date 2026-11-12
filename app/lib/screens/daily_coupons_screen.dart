@@ -62,15 +62,18 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
     // Matchs en cours : l'état se met à jour toute seule, une fois par minute.
     // Arrêté en arrière-plan (rapport du 09/11/2026), rechargé une fois au retour.
     _foreground = context.read<AppState>().foreground..addListener(_onForeground);
+    // Seulement écran affiché (retour du 12/11/2026 : écrans cachés rechargés aussi).
     _timer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (_foreground.value) _reload?.call();
+      if (_shown) _reload?.call();
     });
   }
 
   late final ValueNotifier<bool> _foreground;
 
+  bool get _shown => mounted && _foreground.value && TickerMode.valuesOf(context).enabled;
+
   void _onForeground() {
-    if (mounted && _foreground.value) _reload?.call();
+    if (_shown) _reload?.call();
   }
 
   @override

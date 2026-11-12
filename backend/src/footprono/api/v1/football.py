@@ -9,7 +9,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import aliased
 
 from footprono.accounts.plans import PremiumRequiredError, is_premium
-from footprono.api.deps import OptionalUserDep, SessionDep, SettingsDep
+from footprono.api.deps import OptionalUserDep, RedisDep, SessionDep, SettingsDep
 from footprono.core.errors import NotFoundError
 from footprono.football import logos
 from footprono.football.analysis import match_analysis
@@ -48,6 +48,7 @@ from footprono.ingestion.live import LIVE_STATUSES
 from footprono.ingestion.quality import run_quality_checks
 from footprono.ingestion.reference import CUPS_BY_CODE, NATIONS_BY_CODE
 from footprono.ingestion.sources.api_football_odds import REFERENCE_ONLY, map_bet
+from footprono.notifications import live_feed
 from footprono.predictions import live_chances
 from footprono.predictions.publication import live_published
 
@@ -271,6 +272,14 @@ async def live_summary(
     """Buts et cartons rouges des matchs en cours, pour la liste des matchs (maquette D1)."""
     found = await live_summaries(session, match_ids)
     return {str(k): v for k, v in found.items()}
+
+
+@router.get("/live/feed")
+async def live_feed_last(redis: RedisDep) -> dict[str, Any]:
+    """Dernier relevé du direct, le même que celui poussé par le WebSocket : statut, minute,
+    score, buts, cartons rouges et chances de chaque match relevé. Pour l'application sans
+    WebSocket (invité, connexion coupée) ; aucune lecture de la base."""
+    return await live_feed.last_message(redis)
 
 
 @router.get("/live/chances")

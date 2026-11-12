@@ -770,15 +770,84 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// s'arrêtent, puis se rechargent une fois au retour.
   final ValueNotifier<bool> foreground = ValueNotifier(true);
 
-  /// Dernier relevé du direct poussé par le serveur (chaque minute pendant les matchs) :
-  /// les écrans qui montrent un des matchs relevés se rechargent (widgets/live_refresh.dart).
+  /// Relevés du direct reçus (chaque minute pendant les matchs), cumulés par match : la
+  /// liste et l'écran d'un match se mettent à jour à partir d'eux, sans recharger
+  /// (retour du 12/11/2026 : 158 requêtes en 8 minutes pour un joueur).
   final ValueNotifier<LiveFeed?> liveFeed = ValueNotifier(null);
+
+  void _receiveFeed(Json j) {
+    final feed = LiveFeed(j);
+    final old = liveFeed.value;
+    liveFeed.value = old == null ? feed : old.merge(feed);
+  }
+
+  // Sans WebSocket (invité, connexion coupée) : GET /live/feed toutes les 30 s, tant qu'un
+  // écran montre un match en cours ou proche, application ouverte seulement.
+  int _liveWatchers = 0;
+  Timer? _liveTimer;
+  int _socketFeeds = 0;
+  int _seenSocketFeeds = 0;
+  int _quietTicks = 0;
+
+  /// Intervalle du secours (raccourci dans les tests).
+  static Duration liveEvery = const Duration(seconds: 30);
+
+  /// Un écran commence (true) ou cesse (false) de suivre le direct.
+  void watchLive(bool on) {
+    _liveWatchers += on ? 1 : -1;
+    _armLive(fetchNow: on && _liveWatchers == 1);
+  }
+
+  void _armLive({bool fetchNow = false}) {
+    final want = _liveWatchers > 0 && foreground.value;
+    if (!want) {
+      _liveTimer?.cancel();
+      _liveTimer = null;
+      return;
+    }
+    _liveTimer ??= Timer.periodic(liveEvery, (_) => _liveTick());
+    // Sans WebSocket, ou retour dans l'application : relevé lu tout de suite.
+    if (fetchNow && _socket == null) unawaited(pollLiveFeed());
+  }
+
+  void _liveTick() {
+    if (_socket == null) {
+      unawaited(pollLiveFeed());
+      return;
+    }
+    if (_socketFeeds != _seenSocketFeeds) {
+      _seenSocketFeeds = _socketFeeds;
+      _quietTicks = 0;
+      return;
+    }
+    _quietTicks += 1;
+    // WebSocket ouvert mais muet depuis 90 s : relevé lu par l'API en attendant.
+    if (_quietTicks >= 3) unawaited(pollLiveFeed());
+  }
+
+  bool _polling = false;
+
+  /// Dernier relevé du direct, lu par l'API (une requête, sans toucher à la base du serveur).
+  Future<void> pollLiveFeed() async {
+    if (_polling) return;
+    _polling = true;
+    try {
+      _receiveFeed(await api.get('/live/feed') as Json);
+    } catch (_) {
+    } finally {
+      _polling = false;
+    }
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final front = state == AppLifecycleState.resumed || state == AppLifecycleState.inactive;
     beta.background = !front;
+    final back = front && !foreground.value;
     foreground.value = front;
+    _armLive();
+    // Retour dans l'application pendant un match : relevé lu une fois.
+    if (back && _liveWatchers > 0) unawaited(pollLiveFeed());
     // Retour du guichet de paiement : vérification immédiate.
     if (state == AppLifecycleState.resumed && pendingPayment != null) {
       unawaited(_announcePayment());
@@ -927,7 +996,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (data is! Map || data['type'] == 'pong') return;
     if (data['type'] == 'live') {
       try {
-        liveFeed.value = LiveFeed(data.cast<String, dynamic>());
+        _socketFeeds += 1;
+        _receiveFeed(data.cast<String, dynamic>());
       } catch (_) {}
       return;
     }

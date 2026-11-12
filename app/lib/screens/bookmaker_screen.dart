@@ -35,15 +35,19 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
     // Paris en cours : résultats et scores des matchs mis à jour tout seuls, chaque minute.
     // Arrêté en arrière-plan (rapport du 09/11/2026), rechargé une fois au retour.
     _foreground = context.read<AppState>().foreground..addListener(_onForeground);
+    // Seulement onglet affiché : caché (autre onglet, écran d'un match par-dessus), il ne
+    // demandait pas moins paris, porte-monnaie et bilan chaque minute (retour du 12/11/2026).
     _timer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted && tab == 0 && _foreground.value) _reload?.call();
+      if (_shown && tab == 0) _reload?.call();
     });
   }
 
   late final ValueNotifier<bool> _foreground;
 
+  bool get _shown => mounted && _foreground.value && TickerMode.valuesOf(context).enabled;
+
   void _onForeground() {
-    if (mounted && tab == 0 && _foreground.value) _reload?.call();
+    if (_shown && tab == 0) _reload?.call();
   }
 
   @override

@@ -59,167 +59,186 @@ class _MatchesScreenState extends State<MatchesScreen> {
                     _Bell(unread: context.watch<AppState>().unread),
                   ],
                 ),
-          builder: (context, data, reload) {
-            final (all, live) = data;
-            // Un match en cours n'est que dans « En direct » (essai du 07/11/2026 : il apparaissait
-            // aussi dans la journée, avec ses chances d'avant le match).
-            final liveIds = {for (final m in live) m.id};
-            final upcoming = [
-              for (final u in all)
-                if (!liveIds.contains(u.match.id) && !u.match.isLive) u,
-            ];
-            final days = <DateTime>{for (final u in upcoming) _day(u.match.date)}.toList()..sort();
-            final selectedDay = day != null && days.contains(day) ? day : (days.isEmpty ? null : days.first);
-            // Filtres par importance (5 grands d'abord), matchs par heure de coup d'envoi : le
-            // prochain match en premier (essai réel du 06/11/2026 : rangés par championnat, les
-            // heures se mélangeaient). Le championnat reste écrit sur chaque match.
-            final comps = <String>{for (final u in upcoming) u.match.competition}.toList()
-              ..sort((a, b) => competitionRank(a).compareTo(competitionRank(b)));
-            final shown =
-                upcoming
-                    .where((u) => competition.isEmpty || u.match.competition == competition)
-                    .where((u) => selectedDay == null || _day(u.match.date) == selectedDay)
-                    .toList()
-                  ..sort((a, b) {
-                    // Heure du coup d'envoi (``date`` n'est que le jour : avec elle, les matchs
-                    // d'un même jour restaient rangés par championnat, essai du 08/11/2026).
-                    final t = (a.match.kickoffAt ?? a.match.date).compareTo(
-                      b.match.kickoffAt ?? b.match.date,
-                    );
-                    return t != 0
-                        ? t
-                        : competitionRank(a.match.competition)
-                              .compareTo(competitionRank(b.match.competition));
-                  });
-            final today = _day(DateTime.now());
-            final desk = DesktopScope.of(context);
-            // Pendant les matchs : rechargée à chaque relevé poussé, sinon toutes les 30 s
-            // (retour du fondateur du 12/11/2026).
-            return LiveRefresh(
-              active: live.isNotEmpty || all.any((u) => u.match.liveSoon),
-              reload: reload,
-              child: RefreshIndicator(
-                onRefresh: reload,
-                child: ListView(
-                  padding: pagePadding(context, 18, 120, maxWidth: 1040),
-                  children: [
-                    // Ordinateur : logo, classements et notifications sont dans le menu de gauche.
-                    // Téléphone (maquette validée le 07/11/2026) : le titre seul, puis une rangée de
-                    // petites pastilles (jours, puis « Tous championnats ▾ »).
-                    const InstallTip(margin: EdgeInsets.only(bottom: 14)),
-                    if (desk) ...[
-                      TwoToneTitle('Matchs', selectedDay == today ? 'du jour' : 'à venir'),
-                      const SizedBox(height: 16),
-                      if (days.isNotEmpty) ...[
-                        ChipRow(
-                          labels: [for (final d in days) shortDate(d)],
-                          selected: days.indexOf(selectedDay!),
-                          onSelected: (i) => setState(() => day = days[i]),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                      ChipRow(
-                        labels: ['Toutes', for (final c in comps) competitionName(c)],
-                        selected: competition.isEmpty ? 0 : comps.indexOf(competition) + 1,
-                        onSelected: (i) => setState(() => competition = i == 0 ? '' : comps[i - 1]),
-                      ),
-                      const SizedBox(height: 16),
-                    ] else ...[
-                      // Cloche des notifications (revue du 07/11/2026 : seulement dans le profil).
-                      Row(
-                        children: [
-                          Expanded(
-                            child: MTitle(
-                              'Matchs',
-                              liveOnly && live.isNotEmpty
-                                  ? 'en direct'
-                                  : (selectedDay == today ? 'du jour' : 'à venir'),
-                              26,
-                            ),
+          // Pendant les matchs : mise à jour à chaque relevé du direct (WebSocket, ou
+          // /live/feed sans WebSocket), sans recharger la liste (retour du 12/11/2026).
+          builder: (context, data, reload) => ValueListenableBuilder<LiveFeed?>(
+            valueListenable: context.read<AppState>().liveFeed,
+            builder: (context, feed, _) {
+              final (loaded, loadedLive) = data;
+              final all = [
+                for (final u in loaded)
+                  feed?.matches.containsKey(u.match.id) == true
+                      ? Upcoming.withMatch(u, u.match.withFeed(feed))
+                      : u,
+              ];
+              final loadedIds = {for (final m in loadedLive) m.id};
+              // Match commencé depuis le chargement : passe dans « En direct » ; match fini :
+              // en sort.
+              final live = [
+                for (final m in loadedLive)
+                  if (m.withFeed(feed).isLive) m.withFeed(feed),
+                for (final u in all)
+                  if (u.match.isLive && !loadedIds.contains(u.match.id)) u.match,
+              ];
+              // Un match en cours n'est que dans « En direct » (essai du 07/11/2026 : il apparaissait
+              // aussi dans la journée, avec ses chances d'avant le match).
+              final liveIds = {for (final m in live) m.id};
+              final upcoming = [
+                for (final u in all)
+                  if (!liveIds.contains(u.match.id) && !u.match.isLive) u,
+              ];
+              final days = <DateTime>{for (final u in upcoming) _day(u.match.date)}.toList()..sort();
+              final selectedDay = day != null && days.contains(day)
+                  ? day
+                  : (days.isEmpty ? null : days.first);
+              // Filtres par importance (5 grands d'abord), matchs par heure de coup d'envoi : le
+              // prochain match en premier (essai réel du 06/11/2026 : rangés par championnat, les
+              // heures se mélangeaient). Le championnat reste écrit sur chaque match.
+              final comps = <String>{for (final u in upcoming) u.match.competition}.toList()
+                ..sort((a, b) => competitionRank(a).compareTo(competitionRank(b)));
+              final shown =
+                  upcoming
+                      .where((u) => competition.isEmpty || u.match.competition == competition)
+                      .where((u) => selectedDay == null || _day(u.match.date) == selectedDay)
+                      .toList()
+                    ..sort((a, b) {
+                      // Heure du coup d'envoi (``date`` n'est que le jour : avec elle, les matchs
+                      // d'un même jour restaient rangés par championnat, essai du 08/11/2026).
+                      final t = (a.match.kickoffAt ?? a.match.date).compareTo(
+                        b.match.kickoffAt ?? b.match.date,
+                      );
+                      return t != 0
+                          ? t
+                          : competitionRank(a.match.competition)
+                                .compareTo(competitionRank(b.match.competition));
+                    });
+              final today = _day(DateTime.now());
+              final desk = DesktopScope.of(context);
+              return LiveWatch(
+                active: live.isNotEmpty || all.any((u) => u.match.liveSoon),
+                child: RefreshIndicator(
+                  onRefresh: reload,
+                  child: ListView(
+                    padding: pagePadding(context, 18, 120, maxWidth: 1040),
+                    children: [
+                      // Ordinateur : logo, classements et notifications sont dans le menu de gauche.
+                      // Téléphone (maquette validée le 07/11/2026) : le titre seul, puis une rangée de
+                      // petites pastilles (jours, puis « Tous championnats ▾ »).
+                      const InstallTip(margin: EdgeInsets.only(bottom: 14)),
+                      if (desk) ...[
+                        TwoToneTitle('Matchs', selectedDay == today ? 'du jour' : 'à venir'),
+                        const SizedBox(height: 16),
+                        if (days.isNotEmpty) ...[
+                          ChipRow(
+                            labels: [for (final d in days) shortDate(d)],
+                            selected: days.indexOf(selectedDay!),
+                            onSelected: (i) => setState(() => day = days[i]),
                           ),
-                          _Bell(unread: context.watch<AppState>().unread),
+                          const SizedBox(height: 8),
                         ],
-                      ),
-                      const SizedBox(height: 12),
-                      // Jours qui défilent ; « Championnats ▾ » toujours visible à droite.
-                      Row(
-                        children: [
-                          Expanded(
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: [
-                                  if (live.isNotEmpty) ...[
-                                    MChip(
-                                      '● En direct ${live.length}',
-                                      selected: liveOnly,
-                                      onTap: () => setState(() => liveOnly = true),
-                                    ),
-                                    const SizedBox(width: 6),
-                                  ],
-                                  for (final d in days) ...[
-                                    MChip(
-                                      dayChip(d),
-                                      selected: !(liveOnly && live.isNotEmpty) && d == selectedDay,
-                                      onTap: () => setState(() {
-                                        day = d;
-                                        liveOnly = false;
-                                      }),
-                                    ),
-                                    const SizedBox(width: 6),
-                                  ],
-                                ],
+                        ChipRow(
+                          labels: ['Toutes', for (final c in comps) competitionName(c)],
+                          selected: competition.isEmpty ? 0 : comps.indexOf(competition) + 1,
+                          onSelected: (i) => setState(() => competition = i == 0 ? '' : comps[i - 1]),
+                        ),
+                        const SizedBox(height: 16),
+                      ] else ...[
+                        // Cloche des notifications (revue du 07/11/2026 : seulement dans le profil).
+                        Row(
+                          children: [
+                            Expanded(
+                              child: MTitle(
+                                'Matchs',
+                                liveOnly && live.isNotEmpty
+                                    ? 'en direct'
+                                    : (selectedDay == today ? 'du jour' : 'à venir'),
+                                26,
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          MChip(
-                            '${competition.isEmpty ? 'Championnats' : competitionName(competition)} ▾',
-                            selected: competition.isNotEmpty,
-                            onTap: () => _pickCompetition(context, comps),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        liveOnly && live.isNotEmpty
-                            ? '★ en haut : les matchs de tes paris en cours.'
-                            : 'Encadré : l\'issue la plus probable selon le moteur, pas un conseil de pari. '
-                                  'En dessous : la cote 1xBet.',
-                        style: Fp.body(12, color: Fp.muted, height: 1.35),
-                      ),
+                            _Bell(unread: context.watch<AppState>().unread),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // Jours qui défilent ; « Championnats ▾ » toujours visible à droite.
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    if (live.isNotEmpty) ...[
+                                      MChip(
+                                        '● En direct ${live.length}',
+                                        selected: liveOnly,
+                                        onTap: () => setState(() => liveOnly = true),
+                                      ),
+                                      const SizedBox(width: 6),
+                                    ],
+                                    for (final d in days) ...[
+                                      MChip(
+                                        dayChip(d),
+                                        selected: !(liveOnly && live.isNotEmpty) && d == selectedDay,
+                                        onTap: () => setState(() {
+                                          day = d;
+                                          liveOnly = false;
+                                        }),
+                                      ),
+                                      const SizedBox(width: 6),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            MChip(
+                              '${competition.isEmpty ? 'Championnats' : competitionName(competition)} ▾',
+                              selected: competition.isNotEmpty,
+                              onTap: () => _pickCompetition(context, comps),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          liveOnly && live.isNotEmpty
+                              ? '★ en haut : les matchs de tes paris en cours.'
+                              : 'Encadré : l\'issue la plus probable selon le moteur, pas un conseil de pari. '
+                                    'En dessous : la cote 1xBet.',
+                          style: Fp.body(12, color: Fp.muted, height: 1.35),
+                        ),
+                      ],
+                      if (live.isNotEmpty && desk) ...[
+                        const SectionTitle('En direct'),
+                        _MatchTable([for (final m in live) Upcoming.of(m)]),
+                        const SectionTitle('À venir'),
+                      ],
+                      if (desk)
+                        shown.isEmpty
+                            ? const EmptyState(
+                                'Aucun match à venir pour ce filtre.',
+                                icon: Icons.event_busy_rounded,
+                              )
+                            : _MatchTable(shown)
+                      else if (shown.isEmpty && live.isEmpty)
+                        // Maquette N15.
+                        const EmptyState(
+                          'Pas de match pour ce filtre.\nAucun championnat choisi ne joue ce jour-là.',
+                          icon: Icons.event_busy_rounded,
+                        )
+                      else
+                        // En direct d'abord (cartes vertes), puis les matchs du jour choisi ; la
+                        // pastille « En direct » ne garde que les matchs en cours.
+                        _CompactList([
+                          for (final m in live)
+                            if (competition.isEmpty || m.competition == competition) _withSummary(m, all),
+                          if (!(liveOnly && live.isNotEmpty)) ...shown,
+                        ], feed: feed),
                     ],
-                    if (live.isNotEmpty && desk) ...[
-                      const SectionTitle('En direct'),
-                      _MatchTable([for (final m in live) Upcoming.of(m)]),
-                      const SectionTitle('À venir'),
-                    ],
-                    if (desk)
-                      shown.isEmpty
-                          ? const EmptyState(
-                              'Aucun match à venir pour ce filtre.',
-                              icon: Icons.event_busy_rounded,
-                            )
-                          : _MatchTable(shown)
-                    else if (shown.isEmpty && live.isEmpty)
-                      // Maquette N15.
-                      const EmptyState(
-                        'Pas de match pour ce filtre.\nAucun championnat choisi ne joue ce jour-là.',
-                        icon: Icons.event_busy_rounded,
-                      )
-                    else
-                      // En direct d'abord (cartes vertes), puis les matchs du jour choisi ; la
-                      // pastille « En direct » ne garde que les matchs en cours.
-                      _CompactList([
-                        for (final m in live)
-                          if (competition.isEmpty || m.competition == competition) _withSummary(m, all),
-                        if (!(liveOnly && live.isNotEmpty)) ...shown,
-                      ]),
-                  ],
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -277,8 +296,11 @@ class _MatchesScreenState extends State<MatchesScreen> {
 /// score et la minute en direct), puis les chances 1 / N / 2 du moteur avec la cote 1xBet en
 /// dessous ; l'issue la plus probable encadrée (pas un conseil de pari). Un appui ouvre le match.
 class _CompactList extends StatefulWidget {
-  const _CompactList(this.rows);
+  const _CompactList(this.rows, {this.feed});
   final List<Upcoming> rows;
+
+  /// Relevés du direct : buts, cartons rouges et chances des matchs en cours.
+  final LiveFeed? feed;
 
   @override
   State<_CompactList> createState() => _CompactListState();
@@ -315,18 +337,23 @@ class _CompactListState extends State<_CompactList> {
       for (final u in widget.rows)
         if (u.match.isLive) u.match.id,
     ];
-    // Nouveau relevé (minute, score, heure) : buts, cartons et chances relus.
-    final sig = [
-      for (final u in widget.rows)
-        if (u.match.isLive) u.match.liveKey,
-    ].join(',');
+    // Chargés une fois par ensemble de matchs en cours ; ensuite, les relevés du direct
+    // les tiennent à jour (retour du 12/11/2026 : pas de requête à chaque relevé).
+    final sig = ids.join(',');
     if (ids.isEmpty || sig == _liveLoaded) return;
     _liveLoaded = sig;
     final state = context.read<AppState>();
     final api = state.api;
     try {
-      final r = await api.get('/live/summary?${ids.map((i) => 'match_ids=$i').join('&')}') as Json;
-      final c = await loadLiveChances(api, ids);
+      // Matchs déjà relevés par le direct : buts et chances viennent du relevé.
+      final missing = [
+        for (final i in ids)
+          if (widget.feed?.matches.containsKey(i) != true) i,
+      ];
+      final r = missing.isEmpty
+          ? const <String, dynamic>{}
+          : await api.get('/live/summary?${missing.map((i) => 'match_ids=$i').join('&')}') as Json;
+      final c = await loadLiveChances(api, missing);
       var my = <int>{};
       if (state.loggedIn) {
         final bets = await api.get('/bets', {'limit': 100}) as List;
@@ -393,12 +420,21 @@ class _CompactListState extends State<_CompactList> {
           u,
           offers[u.match.id] ?? const {},
           loading: loading,
-          summary: summaries[u.match.id],
-          chances: chances[u.match.id],
+          summary: _summary(u.match.id),
+          chances: _chances(u.match.id),
           mine: mine.contains(u.match.id),
         ),
     ],
   );
+
+  // Dernier relevé du direct s'il y en a un, sinon ce qui a été chargé.
+  Json? _summary(int id) {
+    final f = widget.feed?.matches[id];
+    return f == null ? summaries[id] : {'goals': f['goals'] ?? const [], 'reds': f['reds'] ?? const []};
+  }
+
+  Json? _chances(int id) =>
+      widget.feed?.matches.containsKey(id) == true ? widget.feed!.chancesOf(id) : chances[id];
 
   /// Matchs en cours de mes paris d'abord (★), l'ordre reçu sinon.
   List<Upcoming> _ordered() {
@@ -556,12 +592,22 @@ class _MatchCard extends StatelessWidget {
                           '● ${m.clock.isEmpty ? 'En direct' : m.clock}',
                           style: Fp.body(12, color: Fp.win, weight: FontWeight.w700),
                         )
-                      else if (m.awaitingKickoff)
+                      else if (m.awaitingKickoff || m.kickoffDelayed)
                         // Heure passée, pas encore commencé chez la source (retour du
-                        // fondateur du 12/11/2026).
-                        Text(
-                          '● Coup d\'envoi imminent',
-                          style: Fp.body(12, color: Fp.win, weight: FontWeight.w700),
+                        // fondateur du 12/11/2026) ; après 10 minutes : retardé.
+                        Flexible(
+                          child: Text(
+                            m.awaitingKickoff
+                                ? '● Coup d\'envoi imminent'
+                                : 'Coup d\'envoi retardé (heure à confirmer)',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Fp.body(
+                              12,
+                              color: m.awaitingKickoff ? Fp.win : Fp.muted,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
                         )
                       else
                         Text(
@@ -583,7 +629,7 @@ class _MatchCard extends StatelessWidget {
                           Text(
                             live
                                 ? (m.liveHome == null ? '–' : '${m.liveHome} – ${m.liveAway}')
-                                : m.awaitingKickoff
+                                : m.awaitingKickoff || m.kickoffDelayed
                                 ? hourMinute(m.kickoffAt!.toLocal())
                                 : m.when,
                             style: Fp.body(20, weight: FontWeight.w700),

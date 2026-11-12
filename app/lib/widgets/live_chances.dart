@@ -149,23 +149,19 @@ class _LiveChancesCardState extends State<LiveChancesCard> {
     _load();
   }
 
-  // Relue à chaque nouveau relevé du match ; les dernières chances restent affichées
-  // pendant le rechargement (retour du fondateur du 12/11/2026).
-  @override
-  void didUpdateWidget(LiveChancesCard old) {
-    super.didUpdateWidget(old);
-    if (old.match.liveKey != widget.match.liveKey) _load();
-  }
-
+  // Chargées une fois ; ensuite, les relevés du direct portent les chances du moment (retour
+  // du 12/11/2026 : pas de requête à chaque relevé).
   Future<void> _load() async {
     final r = await loadLiveChances(context.read<AppState>().api, [widget.match.id]);
     if (mounted) setState(() => live = r);
   }
 
   @override
-  Widget build(BuildContext context) => Builder(
-    builder: (context) {
-      final j = live?[widget.match.id];
+  Widget build(BuildContext context) => ValueListenableBuilder<LiveFeed?>(
+    valueListenable: context.read<AppState>().liveFeed,
+    builder: (context, feed, _) {
+      final id = widget.match.id;
+      final j = feed?.matches.containsKey(id) == true ? feed!.chancesOf(id) : live?[id];
       final markets = j?['markets'] as Map?;
       double? p(String k) => (markets?[k] as num?)?.toDouble();
       final home = p('1X2||home'), draw = p('1X2||draw'), away = p('1X2||away');

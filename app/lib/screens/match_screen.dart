@@ -40,6 +40,10 @@ class MatchData {
   /// Le serveur a refusé l'analyse (Premium terminé ou retiré) : on montre le cadenas,
   /// pas « pas encore d'analyse ».
   final bool locked;
+
+  /// Même écran, le match mis à jour par un relevé du direct.
+  MatchData withMatch(MatchInfo m) =>
+      identical(m, match) ? this : MatchData(m, prediction, offers, analysis, picks, locked);
 }
 
 class MatchScreen extends StatelessWidget {
@@ -89,13 +93,18 @@ class MatchScreen extends StatelessWidget {
       body: SafeArea(
         child: Loader<MatchData>(
           load: () => _load(state),
-          // Pendant le match : rechargé à chaque relevé poussé, sinon toutes les 30 s
-          // (retour du fondateur du 12/11/2026).
-          builder: (context, data, reload) => LiveRefresh(
-            active: data.match.liveSoon,
-            matchIds: {matchId},
-            reload: reload,
-            child: _MatchView(data: data, reload: reload),
+          // Pendant le match : score, minute et statut mis à jour par chaque relevé du
+          // direct, sans recharger prévision, cotes, analyse ni choix du moteur (retour du
+          // 12/11/2026 : ces quatre requêtes partaient à chaque relevé).
+          builder: (context, data, reload) => ValueListenableBuilder<LiveFeed?>(
+            valueListenable: state.liveFeed,
+            builder: (context, feed, _) {
+              final d = data.withMatch(data.match.withFeed(feed));
+              return LiveWatch(
+                active: d.match.liveSoon,
+                child: _MatchView(data: d, reload: reload),
+              );
+            },
           ),
         ),
       ),
@@ -183,13 +192,24 @@ class _MatchViewState extends State<_MatchView> {
                   children: [
                     Text(
                       m.score?.replaceAll(' - ', ' – ') ??
-                          (m.awaitingKickoff ? hourMinute(m.kickoffAt!.toLocal()) : m.when),
+                          (m.awaitingKickoff || m.kickoffDelayed
+                              ? hourMinute(m.kickoffAt!.toLocal())
+                              : m.when),
                       style: Fp.body(30, weight: FontWeight.w800),
                     ),
                     if (m.awaitingKickoff)
                       Text(
                         '● Coup d\'envoi imminent',
                         style: Fp.body(12.5, color: Fp.win, weight: FontWeight.w700),
+                      ),
+                    if (m.kickoffDelayed)
+                      SizedBox(
+                        width: 130,
+                        child: Text(
+                          'Coup d\'envoi retardé (heure à confirmer)',
+                          textAlign: TextAlign.center,
+                          style: Fp.body(12.5, color: Fp.muted, weight: FontWeight.w700),
+                        ),
                       ),
                     if (m.score != null)
                       Text(
@@ -221,7 +241,7 @@ class _MatchViewState extends State<_MatchView> {
           const SizedBox(height: 18),
           SegmentTabs(
             labels: [
-              if (live) m.isLive || m.awaitingKickoff ? 'En direct' : 'Résumé',
+              if (live) m.isLive || m.awaitingKickoff || m.kickoffDelayed ? 'En direct' : 'Résumé',
               'Probabilités',
               'Cotes',
               'Analyse',

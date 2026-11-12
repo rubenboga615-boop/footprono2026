@@ -69,13 +69,36 @@ class Me {
   bool get isAdmin => role == 'admin';
 }
 
-/// Relevé du direct poussé par le serveur : heure et matchs relevés (numéro → données).
+/// Relevés du direct reçus (WebSocket, ou GET /live/feed sans WebSocket), cumulés : pour
+/// chaque match, son dernier relevé (statut, minute, score, buts, cartons rouges, chances).
+/// Les écrans se mettent à jour à partir d'eux, sans rien recharger (retour du 12/11/2026).
 class LiveFeed {
   LiveFeed(Json j)
     : at = DateTime.tryParse('${j['at']}'),
       matches = {for (final m in (j['matches'] as List? ?? const []).cast<Json>()) m['id'] as int: m};
+  LiveFeed._(this.at, this.matches);
   final DateTime? at;
   final Map<int, Json> matches;
+
+  /// Ce relevé ajouté aux précédents ; un match déjà relevé plus récemment est gardé.
+  LiveFeed merge(LiveFeed newer) {
+    final out = {...matches};
+    newer.matches.forEach((id, m) {
+      final old = out[id];
+      final a = parseDate(old?['updated_at']), b = parseDate(m['updated_at']);
+      if (old == null || a == null || b == null || !b.isBefore(a)) out[id] = m;
+    });
+    return LiveFeed._(newer.at ?? at, out);
+  }
+
+  /// Chances du moment d'un match relevé, au format de GET /live/chances ; null si aucune
+  /// (pas publiées, carton rouge…).
+  Json? chancesOf(int id) {
+    final m = matches[id];
+    final c = m?['chances'];
+    if (m == null || c is! Map || c.isEmpty) return null;
+    return {'minute': m['minute'], 'extra': m['extra'], 'markets': c};
+  }
 }
 
 class Team {
@@ -87,7 +110,8 @@ class Team {
 
 class MatchInfo {
   MatchInfo(Json j)
-    : id = j['id'] as int,
+    : json = j,
+      id = j['id'] as int,
       competition = j['competition'] as String,
       date = DateTime.parse(j['match_date'] as String),
       kickoffAt = parseDate(j['kickoff_at']),
@@ -103,6 +127,9 @@ class MatchInfo {
       liveAway = j['live_away_goals'] as int?,
       liveUpdatedAt = parseDate(j['live_updated_at']),
       referee = (j['api_referee'] ?? j['referee']) as String?;
+
+  /// Données reçues, pour en faire une copie mise à jour par un relevé (``withFeed``).
+  final Json json;
   final int id;
   final String competition;
   final DateTime date;
@@ -137,19 +164,57 @@ class MatchInfo {
   bool get started =>
       isLive || isFinished || (kickoffAt != null && !isPostponed && !now().isBefore(kickoffAt!));
 
-  /// Heure du coup d'envoi passée, match pas encore commencé chez API-Football (retour du
-  /// fondateur du 12/11/2026) : « Coup d'envoi imminent » pendant 30 minutes au plus.
-  bool get awaitingKickoff {
-    final k = kickoffAt;
-    if (k == null || isLive || isFinished || isPostponed) return false;
-    final late = now().difference(k);
-    return !late.isNegative && late < const Duration(minutes: 30);
+  /// Ce match avec son dernier relevé du direct, s'il est plus récent que les données
+  /// chargées : minute, score, statut et heure changent sans rien recharger.
+  MatchInfo withFeed(LiveFeed? feed) {
+    final f = feed?.matches[id];
+    if (f == null) return this;
+    final at = parseDate(f['updated_at']);
+    final mine = liveUpdatedAt;
+    if (at == null || (mine != null && at.isBefore(mine))) return this;
+    final finished = f['status'] == 'finished';
+    return MatchInfo({
+      ...json,
+      'status': f['status'] ?? status,
+      'api_status': f['api_status'],
+      'live_minute': f['minute'],
+      'live_extra': f['extra'],
+      'live_home_goals': f['home'],
+      'live_away_goals': f['away'],
+      'live_updated_at': f['updated_at'],
+      if (f['kickoff_at'] != null) 'kickoff_at': f['kickoff_at'],
+      if (finished) 'home_goals': f['home'],
+      if (finished) 'away_goals': f['away'],
+    });
   }
 
-  /// En cours, ou coup d'envoi dans les 10 minutes : l'écran se recharge tout seul.
+  Duration? get _late {
+    final k = kickoffAt;
+    if (k == null || isLive || isFinished || isPostponed) return null;
+    final late = now().difference(k);
+    return late.isNegative ? null : late;
+  }
+
+  /// Heure du coup d'envoi passée de moins de 10 minutes, pas encore commencé chez
+  /// API-Football : « Coup d'envoi imminent » (retour du fondateur du 12/11/2026).
+  bool get awaitingKickoff {
+    final late = _late;
+    return late != null && late < const Duration(minutes: 10);
+  }
+
+  /// Plus de 10 minutes après l'heure prévue, toujours pas commencé (Guinée – Érythrée le
+  /// 12/11/2026 : 16:00 selon API-Football, 17:00 ailleurs) : « Coup d'envoi retardé (heure à
+  /// confirmer) » pendant 3 heures au plus. Les paris restent fermés.
+  bool get kickoffDelayed {
+    final late = _late;
+    return late != null && late >= const Duration(minutes: 10) && late < const Duration(hours: 3);
+  }
+
+  /// En cours, ou coup d'envoi dans les 10 minutes (ou passé et attendu) : l'écran suit les
+  /// relevés du direct.
   bool get liveSoon {
     final k = kickoffAt;
-    if (isLive || awaitingKickoff) return true;
+    if (isLive || awaitingKickoff || kickoffDelayed) return true;
     if (k == null || isFinished || isPostponed) return false;
     final wait = k.difference(now());
     return !wait.isNegative && wait <= const Duration(minutes: 10);
@@ -187,6 +252,7 @@ class MatchInfo {
     if (isFinished) return 'Terminé';
     if (isPostponed) return 'Reporté';
     if (awaitingKickoff) return 'Coup d\'envoi imminent';
+    if (kickoffDelayed) return 'Coup d\'envoi retardé';
     return kickoffAt != null ? hourMinute(kickoffAt!.toLocal()) : 'Heure à confirmer';
   }
 

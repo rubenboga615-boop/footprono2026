@@ -26,6 +26,11 @@ from footprono.predictions.publication import live_published
 logger = logging.getLogger(__name__)
 
 LIVE_CHANNEL = "live"
+# Dernier relevé poussé, gardé pour l'application sans WebSocket (invité, connexion coupée) :
+# GET /api/v1/live/feed le relit sans toucher à la base (retour du 12/11/2026 : 158 requêtes
+# en 8 minutes pour un joueur).
+LAST_KEY = "live:last"
+LAST_TTL = 600
 # Chances envoyées dans le message : celles que la liste des matchs affiche.
 SHOWN = ("1X2||home", "1X2||draw", "1X2||away", "OU|2.5|over", "OU|3.5|over")
 
@@ -45,6 +50,7 @@ async def live_message(session: AsyncSession, match_ids: Sequence[int]) -> dict[
                 "api_status": m.api_status,
                 "minute": m.live_minute,
                 "extra": m.live_extra,
+                "kickoff_at": m.kickoff_at.isoformat() if m.kickoff_at else None,
                 "updated_at": m.live_updated_at.isoformat() if m.live_updated_at else None,
                 "home": m.live_home_goals if m.home_goals is None else m.home_goals,
                 "away": m.live_away_goals if m.away_goals is None else m.away_goals,
@@ -67,8 +73,18 @@ async def publish_live(redis: Redis, session: AsyncSession, match_ids: Sequence[
         return 0
     try:
         message = await live_message(session, match_ids)
-        await redis.publish(LIVE_CHANNEL, json.dumps(message, default=str))
+        text = json.dumps(message, default=str)
+        await redis.set(LAST_KEY, text, ex=LAST_TTL)
+        await redis.publish(LIVE_CHANNEL, text)
     except Exception:  # le direct ne doit jamais faire échouer le suivi
         logger.warning("live_publish_failed", exc_info=True)
         return 0
     return len(message["matches"])
+
+
+async def last_message(redis: Redis) -> dict[str, Any]:
+    """Dernier relevé poussé (moins de 10 minutes), sinon un relevé vide."""
+    text = await redis.get(LAST_KEY)
+    if not text:
+        return {"type": "live", "at": None, "matches": []}
+    return dict(json.loads(text))

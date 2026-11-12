@@ -149,8 +149,15 @@ class FakeServer {
     'beta_tester': betaAvailable && betaSharing ? 3 : null,
   };
 
+  /// Requêtes reçues (« GET /matches/7 »…), pour compter ce que l'application demande.
+  final calls = <String>[];
+
+  /// Dernier relevé du direct (GET /live/feed).
+  Map<String, dynamic>? liveFeed;
+
   Future<http.Response> handle(http.Request r) async {
     final path = r.url.path.replaceFirst('/api/v1', '');
+    calls.add('${r.method} $path');
     Object? body;
     switch ('${r.method} $path') {
       case 'POST /auth/login':
@@ -289,6 +296,8 @@ class FakeServer {
         body = matchLive ?? {'status': null, 'events': [], 'stats': null, 'lineups': []};
       case 'GET /live/summary':
         body = liveSummary;
+      case 'GET /live/feed':
+        body = liveFeed ?? {'type': 'live', 'at': null, 'matches': []};
       case 'GET /live/chances':
         body = liveChances ?? {'published': false, 'matches': {}};
       case 'GET /matches/7/prediction':
@@ -2591,70 +2600,110 @@ void main() {
     expect(opened.single.toString(), startsWith('https://wa.me/2250500649904?text='));
   });
 
-  testWidgets('direct : mis à jour seul, par le relevé poussé puis toutes les 30 s (retour du 12/11)', (
+  /// Relevé du direct du match 7 (message du WebSocket, ou GET /live/feed).
+  Map<String, dynamic> feedOf(int minute, int home, String at, {String status = '2H', Map? chances}) => {
+    'type': 'live',
+    'at': at,
+    'matches': [
+      {
+        'id': 7,
+        'status': 'scheduled',
+        'api_status': status,
+        'minute': minute,
+        'extra': 0,
+        'home': home,
+        'away': 1,
+        'updated_at': at,
+        'goals': [
+          {'minute': 23, 'side': 'home', 'player': 'Calvert-Lewin', 'own_goal': false},
+        ],
+        'reds': [],
+        'chances': chances ?? {},
+      },
+    ],
+  };
+
+  testWidgets('direct : mis à jour par le relevé, sans recharger l\'écran ; 3 requêtes par minute au plus', (
     tester,
   ) async {
     final (state, server) = await startApp(tester, loggedIn: true);
     MatchInfo.now = () => DateTime.utc(2026, 10, 10, 20, 40);
-    Map<String, dynamic> live(int minute, int home, String updated) => {
+    server.matchNow = {
       ...FakeServer.match,
       'api_status': '2H',
-      'live_minute': minute,
-      'live_home_goals': home,
+      'live_minute': 63,
+      'live_home_goals': 2,
       'live_away_goals': 1,
-      'live_updated_at': updated,
+      'live_updated_at': '2026-10-10T20:39:20Z',
     };
-    server.matchNow = live(63, 2, '2026-10-10T20:39:20Z');
     await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
     expect(find.text('2 – 1'), findsOneWidget);
     expect(find.text('Mis à jour il y a 40 s'), findsOneWidget);
 
-    // But : le relevé arrive par le WebSocket, l'écran se recharge aussitôt.
-    server.matchNow = live(70, 3, '2026-10-10T20:40:00Z');
+    // But : le relevé arrive par le WebSocket ; score, minute et chances changent sans
+    // recharger prévision, cotes, analyse ni choix du moteur.
+    server.calls.clear();
     state.receiveSocketMessage(
-      jsonEncode({
-        'type': 'live',
-        'at': '2026-10-10T20:40:00Z',
-        'matches': [
-          {'id': 7, 'minute': 70, 'home': 3, 'away': 1},
-        ],
-      }),
+      jsonEncode(
+        feedOf(
+          70,
+          3,
+          '2026-10-10T20:40:00Z',
+          chances: {'1X2||home': 0.91, '1X2||draw': 0.07, '1X2||away': 0.02, 'OU|3.5|over': 0.4},
+        ),
+      ),
     );
     await tester.pumpAndSettle();
     expect(find.text('3 – 1'), findsOneWidget);
+    expect(find.text('● En direct 70\''), findsOneWidget);
     expect(find.text('Mis à jour à l\'instant'), findsOneWidget);
+    expect(find.text('91 %'), findsOneWidget); // chances du relevé, sans requête
     expect(state.unread, 0); // un relevé n'est pas une notification
+    // L'onglet En direct (statistiques) ; sous l'écran, la liste voit le match commencer et
+    // lit une fois mes paris en cours (★).
+    expect(server.calls, unorderedEquals(['GET /matches/7/live', 'GET /bets']));
 
-    // Relevé d'un autre match : rien à recharger.
-    server.matchNow = live(72, 4, '2026-10-10T20:40:00Z');
-    state.receiveSocketMessage(
-      jsonEncode({
-        'type': 'live',
-        'matches': [
-          {'id': 99},
-        ],
-      }),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('3 – 1'), findsOneWidget);
-
-    // Sans relevé poussé (WebSocket coupé, invité) : rechargé toutes les 30 s ; le tour qui
-    // suit un relevé poussé est sauté.
+    // Sans WebSocket (ici, comme pour un invité) : GET /live/feed toutes les 30 s, rien
+    // d'autre ; jamais la liste des matchs ni l'analyse.
+    server.calls.clear();
+    server.liveFeed = feedOf(71, 4, '2026-10-10T20:41:00Z');
     await tester.pump(const Duration(seconds: 31));
     await tester.pumpAndSettle();
-    expect(find.text('3 – 1'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 30));
+    expect(find.text('4 – 1'), findsOneWidget);
+    for (var i = 0; i < 3; i += 1) {
+      await tester.pump(const Duration(seconds: 30));
+      await tester.pumpAndSettle();
+    }
+    // 2 minutes : 4 relevés lus, l'onglet En direct relu une fois (le relevé n'a changé
+    // qu'une fois) : au plus 3 requêtes par minute.
+    expect(server.calls.where((c) => c == 'GET /live/feed').length, 4);
+    expect(server.calls.length, lessThanOrEqualTo(6));
+    expect(
+      server.calls.where(
+        (c) =>
+            c.contains('/predictions/upcoming') ||
+            c.contains('/prediction') ||
+            c.contains('/offer') ||
+            c.contains('/analysis') ||
+            c.contains('/picks'),
+      ),
+      isEmpty,
+    );
+
+    // Un relevé plus ancien que l'écran ne fait pas revenir en arrière.
+    state.receiveSocketMessage(jsonEncode(feedOf(65, 2, '2026-10-10T20:35:00Z')));
     await tester.pumpAndSettle();
     expect(find.text('4 – 1'), findsOneWidget);
 
-    // Application en arrière-plan : plus de rechargement.
-    state.foreground.value = false;
-    server.matchNow = live(80, 5, '2026-10-10T20:40:00Z');
+    // Application en arrière-plan : plus aucune requête.
+    state.didChangeAppLifecycleState(AppLifecycleState.paused);
+    server.calls.clear();
     await tester.pump(const Duration(seconds: 61));
     await tester.pumpAndSettle();
-    expect(find.text('4 – 1'), findsOneWidget);
-    state.foreground.value = true; // retour : rechargé une fois
+    expect(server.calls, isEmpty);
+    server.liveFeed = feedOf(80, 5, '2026-10-10T20:50:00Z');
+    state.didChangeAppLifecycleState(AppLifecycleState.resumed); // retour : relevé lu une fois
     await tester.pumpAndSettle();
     expect(find.text('5 – 1'), findsOneWidget);
     navigatorKey.currentState!.pop();
@@ -2662,7 +2711,41 @@ void main() {
     MatchInfo.now = DateTime.now;
   });
 
-  testWidgets('direct : coup d\'envoi imminent, puis onglet En direct ouvert au coup d\'envoi', (
+  testWidgets('direct : liste des matchs mise à jour par le relevé, buteur et chances sans requête', (
+    tester,
+  ) async {
+    final (state, server) = await startApp(tester, loggedIn: true);
+    MatchInfo.now = () => DateTime.utc(2026, 10, 10, 19, 20);
+    server.calls.clear();
+    // Le match commence après le chargement de la liste : il passe « En direct » seul.
+    state.receiveSocketMessage(
+      jsonEncode(
+        feedOf(
+          20,
+          1,
+          '2026-10-10T19:20:00Z',
+          status: '1H',
+          chances: {'1X2||home': 0.62, '1X2||draw': 0.25, '1X2||away': 0.13},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('● 20\''), findsOneWidget);
+    expect(find.text('1 – 1'), findsOneWidget);
+    expect(find.textContaining('Calvert-Lewin'), findsOneWidget);
+    expect(find.text('62 %'), findsOneWidget);
+    // Chargés une fois pour ce nouveau match en cours (buts, chances, mes paris), jamais
+    // toute la liste.
+    expect(server.calls.where((c) => c.contains('/predictions/upcoming')), isEmpty);
+    server.calls.clear();
+    state.receiveSocketMessage(jsonEncode(feedOf(21, 2, '2026-10-10T19:21:00Z', status: '1H')));
+    await tester.pumpAndSettle();
+    expect(find.text('2 – 1'), findsOneWidget);
+    expect(server.calls, isEmpty);
+    MatchInfo.now = DateTime.now;
+  });
+
+  testWidgets('direct : coup d\'envoi imminent, puis retardé, puis onglet En direct au coup d\'envoi', (
     tester,
   ) async {
     final (state, server) = await startApp(tester, loggedIn: true);
@@ -2677,24 +2760,17 @@ void main() {
     expect(find.text('● Coup d\'envoi imminent'), findsOneWidget);
     expect(find.text('Probabilités'), findsOneWidget);
 
-    server.matchNow = {
-      ...FakeServer.match,
-      'api_status': '1H',
-      'live_minute': 4,
-      'live_home_goals': 0,
-      'live_away_goals': 0,
-    };
-    server.matchLive = {'status': '1H', 'minute': 4, 'extra': 0, 'events': [], 'stats': {}, 'lineups': []};
-    state.receiveSocketMessage(
-      jsonEncode({
-        'type': 'live',
-        'matches': [
-          {'id': 7},
-        ],
-      }),
-    );
+    // 19 h 15 : toujours pas commencé (heure à confirmer) ; paris toujours fermés.
+    MatchInfo.now = () => DateTime.utc(2026, 10, 10, 19, 15);
+    state.receiveSocketMessage(jsonEncode(feedOf(0, 0, '2026-10-10T19:15:00Z', status: 'NS')));
     await tester.pumpAndSettle();
-    expect(find.text('0 – 0'), findsOneWidget);
+    expect(find.text('Coup d\'envoi retardé (heure à confirmer)'), findsOneWidget);
+    expect(find.text('● Coup d\'envoi imminent'), findsNothing);
+
+    server.matchLive = {'status': '1H', 'minute': 4, 'extra': 0, 'events': [], 'stats': {}, 'lineups': []};
+    state.receiveSocketMessage(jsonEncode(feedOf(4, 0, '2026-10-10T19:19:00Z', status: '1H')));
+    await tester.pumpAndSettle();
+    expect(find.text('0 – 1'), findsOneWidget);
     expect(find.text('En direct'), findsOneWidget);
     expect(find.text('Résumé'), findsOneWidget); // onglet En direct ouvert
     navigatorKey.currentState!.pop();
@@ -2702,7 +2778,7 @@ void main() {
     MatchInfo.now = DateTime.now;
   });
 
-  test('mis à jour il y a… ; match proche ou en cours', () {
+  test('mis à jour il y a… ; match proche, imminent, retardé', () {
     final at = DateTime.utc(2026, 10, 10, 20);
     expect(UpdatedAgo.label(at, at.add(const Duration(seconds: 2))), 'Mis à jour à l\'instant');
     expect(UpdatedAgo.label(at, at.add(const Duration(seconds: 40))), 'Mis à jour il y a 40 s');
@@ -2713,10 +2789,12 @@ void main() {
     expect((m.liveSoon, m.awaitingKickoff), (false, false));
     MatchInfo.now = () => DateTime.utc(2026, 10, 10, 18, 51);
     expect((m.liveSoon, m.awaitingKickoff, m.when), (true, false, '19:00'));
-    MatchInfo.now = () => DateTime.utc(2026, 10, 10, 19, 10);
+    MatchInfo.now = () => DateTime.utc(2026, 10, 10, 19, 5);
     expect((m.liveSoon, m.awaitingKickoff, m.when), (true, true, 'Coup d\'envoi imminent'));
     MatchInfo.now = () => DateTime.utc(2026, 10, 10, 19, 40);
-    expect((m.liveSoon, m.awaitingKickoff), (false, false));
+    expect((m.liveSoon, m.kickoffDelayed, m.started, m.when), (true, true, true, 'Coup d\'envoi retardé'));
+    MatchInfo.now = () => DateTime.utc(2026, 10, 10, 22, 30);
+    expect((m.liveSoon, m.kickoffDelayed), (false, false));
     MatchInfo.now = DateTime.now;
   });
 }
