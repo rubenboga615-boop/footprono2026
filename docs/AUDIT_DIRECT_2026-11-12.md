@@ -48,3 +48,26 @@ match n'est passé « en direct » que vers **15 h 05** (coup d'envoi prévu à 
 4. Entre l'heure prévue et le vrai coup d'envoi : « Coup d'envoi imminent » sur la carte.
 5. Indiquer l'heure du dernier relevé (« mis à jour il y a 40 s ») pour que le joueur sache
    que c'est vivant.
+
+## 16 h 07 — comparaison avec une application de scores (captures du fondateur)
+
+Serveur `4d22991` (mis à jour pendant l'après-midi), version web inchangée (11/11, 00:32).
+
+| Match | Autre application (16:07) | Serveur FootProba (relevé de 16:08:00) |
+|---|---|---|
+| Ghana – Somalie | Mi-temps, 1-0 | HT, 45', 1-0 ; événements (penalty manqué 14', carton…) |
+| RD Congo – Sierra Leone | 6', 1-0 | 1H, 6', 1-0 ; but de Wissa à la 4e (passe de Mbuku) ; statistiques présentes |
+| Guinée équatoriale – Zimbabwe | 4', 0-0 | 1H, 4', 0-0 |
+| Madagascar – Guinée-Bissau | 7', 0-0 | 1H, 8', 0-0 |
+| **Guinée – Érythrée** | **17:00** (pas commencé) | **prévu 16:00**, NS ; l'application affiche « Coup d'envoi imminent » et « Paris fermés » |
+
+**Le serveur est à l'heure** : minute à 1 près, buts, buteurs, cartons et statistiques
+présents dans le relevé de 16:08. Le retard ressenti vient de l'**application, qui ne se
+recharge pas seule** (section précédente) : sur la capture, le fondateur tire l'écran pour
+actualiser.
+
+**Guinée – Érythrée** : l'heure diffère d'une heure entre les deux sources. API-Football
+indique encore 16:00 (le serveur relit l'heure à chaque relevé). Si le match est bien à
+17:00, FootProba affiche « Coup d'envoi imminent » et ferme les paris **une heure trop tôt**.
+**Piste** : 10 minutes après l'heure prévue sans coup d'envoi, afficher « Coup d'envoi
+retardé (heure à confirmer) » au lieu de « imminent » ; garder les paris fermés (prudent).
