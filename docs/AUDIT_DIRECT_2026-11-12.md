@@ -256,3 +256,16 @@ que le `restart` de secours ne se lance jamais.
 
 Les points 1, 3 et 4 de la section précédente (Mes paris caché, 100 %, notification) ne
 sont pas encore dans cette version.
+
+## 18 h 06 — Point sur mes paris
+
+| Pari | Sélection en cours | État à 18:06 |
+|---|---|---|
+| 66 | Guinée équatoriale – Zimbabwe, Zimbabwe +2 | **90+13'**, 0-0, « gagnante pour l'instant » ; pas encore réglée (match pas fini : 13 minutes de temps additionnel, bien relevées par le serveur) |
+| 64 | Turquie – Belgique, Turquie ou Belgique | 48', **1-2**, gagnante pour l'instant ; chances en direct Turquie 3 %, nul 13 %, Belgique 85 % |
+| 57 | Arménie – Chypre, Chypre +2 | 48', 0-1, gagnante pour l'instant ; Arménie 8 %, nul 25 %, Chypre 67 % |
+
+- Le temps additionnel est relevé (`extra` = 13) : l'écran doit afficher « 90+13' ».
+- Aucune nouvelle notification depuis le rappel de 16:30 (normal : rien de réglé).
+- Le règlement de la sélection de Guinée équatoriale – Zimbabwe sera vérifié au bilan de
+  22 h (heure du règlement par rapport au coup de sifflet).
