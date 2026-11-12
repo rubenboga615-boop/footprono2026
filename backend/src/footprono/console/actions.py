@@ -815,10 +815,19 @@ register(
 )
 
 
+def _yes(v: Any) -> str:
+    return "?" if v is None else ("oui" if v else "non")
+
+
 async def live_probe(ctx: JobContext, params: dict[str, Any]) -> str:
     fixture = params.get("fixture") or None
     async with ctx.factory() as session:
         out = await live.probe_live(session, ctx.settings, int(fixture) if fixture else None)
+    raw = out.pop("raw", None)
+    if raw is not None:
+        path = ctx.files_dir / f"direct-brut-{_today()}-{ctx.job_id}.json"
+        path.write_text(json.dumps(raw, ensure_ascii=False, indent=1))
+        out["file"] = path.name
     ctx.result = out
     if out["status"] != "ok":
         raise AppError(out.get("error", "essai impossible"))
@@ -836,6 +845,33 @@ async def live_probe(ctx: JobContext, params: dict[str, Any]) -> str:
         f"Cotes en direct : {odds['markets']} marchés"
         + (f" ({', '.join(odds['names'])})" if odds["names"] else " (aucune pour ce match)")
     )
+    if odds["available"]:
+        # Comparaison avec l'application 1xBet à la même minute (12/11/2026) : valeurs,
+        # état et heure ; heure d'Abidjan = UTC.
+        asked = datetime.now(UTC).strftime("%H:%M:%S")
+        ctx.log(f"Demandé à {asked} (heure d'Abidjan) ; cotes mises à jour par la source : "
+                f"{odds['update'] or 'non indiqué'}")  # fmt: skip
+        st = odds["state"] or {}
+        ctx.log(
+            f"État : arrêté {_yes(st.get('stopped'))}, bloqué {_yes(st.get('blocked'))}, "
+            f"terminé {_yes(st.get('finished'))} ; minute de la source "
+            f"{st.get('elapsed')}' {st.get('seconds') or ''}"
+        )
+        for c in odds["main"]:
+            line = f" {c['line']}" if c["line"] not in (None, "") else ""
+            flags = " (SUSPENDUE)" if c["suspended"] else ""
+            flags += " (ligne principale)" if c["main"] else ""
+            ctx.log(f"  {c['market']} · {c['value']}{line} : {c['odd']}{flags}")
+        if not odds["main"]:
+            ctx.log("  Résultat du match et plus/moins de 2,5 buts absents de la réponse")
+        ctx.log(
+            "Bookmaker : "
+            + ("; ".join(odds["bookmaker"]) if odds["bookmaker"] else "aucun champ ne le nomme")
+        )
+        if odds["unknown_fields"]:
+            ctx.log(f"Autres champs : {', '.join(odds['unknown_fields'])}")
+    if out.get("file"):
+        ctx.log(f"Réponse brute : {out['file']} (page Fichiers)")
     return (
         f"{out['match']} : {out['events']} événements, {len(out['stat_types'])} statistiques, "
         f"{out['players']} joueurs ; cotes en direct : "

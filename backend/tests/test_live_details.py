@@ -82,8 +82,29 @@ def _transport(calls: list[str], answer: dict[str, Any]) -> httpx.MockTransport:
         if request.url.path == "/status":
             body: Any = {"response": {"requests": {"current": 1, "limit_day": 7500}}}
         elif request.url.path == "/odds/live":
-            body = {"response": [{"odds": [{"id": 59, "name": "Fulltime Result"},
-                                           {"id": 36, "name": "Over/Under Line"}]}]}  # fmt: skip
+            body = {"response": [{
+                "fixture": {"id": 8000, "status": {"long": "Halftime", "elapsed": 45,
+                                                   "seconds": "45:00"}},
+                "status": {"stopped": False, "blocked": False, "finished": False},
+                "update": "2026-11-12T16:55:04+00:00",
+                "source": "exemple",
+                "odds": [
+                    {"id": 59, "name": "Fulltime Result", "values": [
+                        {"value": "Home", "odd": "1.45", "handicap": None, "main": None,
+                         "suspended": False},
+                        {"value": "Draw", "odd": "3.90", "handicap": None, "main": None,
+                         "suspended": False},
+                        {"value": "Away", "odd": "9.00", "handicap": None, "main": None,
+                         "suspended": True}]},
+                    {"id": 36, "name": "Over/Under Line", "values": [
+                        {"value": "Over", "odd": "1.80", "handicap": "2.5", "main": True,
+                         "suspended": False},
+                        {"value": "Under", "odd": "1.95", "handicap": "2.5", "main": True,
+                         "suspended": False},
+                        {"value": "Over", "odd": "3.10", "handicap": "3.5", "main": False,
+                         "suspended": False}]},
+                ],
+            }]}  # fmt: skip
         else:
             ids = request.url.params["ids"].split("-")
             body = {"response": [answer[i] for i in ids if i in answer]}
@@ -270,9 +291,86 @@ async def test_backfill_finished_matches_then_probe(
     )
     assert probe["stat_types"] == sorted(s["type"] for s in STATS)
     assert (probe["events"], probe["lineups"], probe["players"]) == (3, 2, 1)
-    assert probe["live_odds"] == {
-        "available": True,
-        "markets": 2,
-        "names": ["Fulltime Result", "Over/Under Line"],
-    }
+    odds = probe["live_odds"]
+    assert (odds["available"], odds["markets"]) == (True, 2)
+    assert odds["names"] == ["Fulltime Result", "Over/Under Line"]
+    # Comparaison avec 1xBet (12/11/2026) : valeurs, état, heure, champs inattendus.
+    assert [(c["value"], c["line"], c["odd"], c["suspended"]) for c in odds["main"]] == [
+        ("Home", None, "1.45", False),
+        ("Draw", None, "3.90", False),
+        ("Away", None, "9.00", True),
+        ("Over", "2.5", "1.80", False),
+        ("Under", "2.5", "1.95", False),
+    ]
+    assert odds["update"] == "2026-11-12T16:55:04+00:00"
+    assert odds["state"] == {
+        "stopped": False, "blocked": False, "finished": False, "elapsed": 45, "seconds": "45:00",
+    }  # fmt: skip
+    assert odds["unknown_fields"] == ["réponse.source"]
+    assert odds["bookmaker"] == []
+    assert probe["raw"]["odds_live"]["response"][0]["update"] == odds["update"]
     assert [c.split("?")[0] for c in calls] == ["/fixtures", "/odds/live"]
+
+
+async def test_console_live_probe_shows_odds_and_keeps_raw_answer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Comparaison avec 1xBet (12/11/2026) : la console montre les cotes, leur état, l'heure
+    et tout champ bookmaker ; la réponse brute est rangée dans les fichiers."""
+    import asyncio
+    import json
+    from types import SimpleNamespace
+
+    from footprono.console import actions
+    from footprono.ingestion import live
+
+    async def fake_probe(*_: Any) -> dict[str, Any]:
+        details = live.live_odds_details(
+            [
+                {
+                    "update": "2026-11-12T16:55:04+00:00",
+                    "status": {"stopped": False, "blocked": True, "finished": False},
+                    "fixture": {"status": {"elapsed": 45}},
+                    "odds": [
+                        {"id": 59, "name": "Fulltime Result", "values": [
+                            {"value": "Home", "odd": "1.45", "suspended": True}]},
+                        {"id": 1, "name": "Match Goals", "bookmaker": "Bet365", "values": []},
+                    ],
+                }
+            ]
+        )  # fmt: skip
+        return {
+            "status": "ok", "fixture": 8000, "found": True, "match": "A - B", "state": "HT",
+            "minute": 45, "blocks": ["fixture"], "events": 0, "event_kinds": [], "lineups": 0,
+            "players": 0, "stat_types": [],
+            "live_odds": {"available": True, "markets": 2, "names": ["Fulltime Result"],
+                          **details},
+            "raw": {"odds_live": {"response": ["brut"]}},
+        }  # fmt: skip
+
+    monkeypatch.setattr(live, "probe_live", fake_probe)
+
+    class Factory:
+        async def __aenter__(self) -> None:
+            return None
+
+        async def __aexit__(self, *_: Any) -> None:
+            return None
+
+    logs: list[str] = []
+    ctx = SimpleNamespace(
+        factory=Factory, settings=None, files_dir=tmp_path, job_id=7, log=logs.append, result=None
+    )
+    await actions.live_probe(ctx, {})  # type: ignore[arg-type]
+    text = "\n".join(logs)
+    assert "Fulltime Result · Home : 1.45 (SUSPENDUE)" in text
+    assert "bloqué oui" in text
+    assert "2026-11-12T16:55:04+00:00" in text
+    assert "Bookmaker : [].odds[].bookmaker = 'Bet365'" in text
+    assert "Autres champs : marché.bookmaker" in text
+    name = ctx.result["file"]
+    assert name.startswith("direct-brut-")
+    assert name.endswith("-7.json")
+    raw = await asyncio.to_thread((tmp_path / name).read_text)
+    assert json.loads(raw) == {"odds_live": {"response": ["brut"]}}
+    assert "raw" not in ctx.result

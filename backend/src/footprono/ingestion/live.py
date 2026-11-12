@@ -792,5 +792,74 @@ async def probe_live(
         "available": bool(live_odds),
         "markets": len(bets),
         "names": sorted({str(b.get("name")) for b in bets})[:40],
+        **live_odds_details(live_odds),
     }
+    # Réponses brutes, à télécharger (comparaison avec 1xBet, 12/11/2026) : aucune donnée
+    # personnelle, seulement le match et ses cotes.
+    out["raw"] = {"asked_at": datetime.now(UTC).isoformat(), "fixtures": body, "odds_live": odds}
     return out
+
+
+# Champs connus d'une réponse /odds/live ; tout autre champ est montré (un nom de bookmaker
+# éventuel, pour savoir d'où viennent les cotes).
+_ODDS_ENTRY_KEYS = {"fixture", "league", "teams", "status", "update", "odds"}
+_ODDS_BET_KEYS = {"id", "name", "values"}
+_ODDS_VALUE_KEYS = {"value", "odd", "handicap", "main", "suspended"}
+MAIN_LIVE_MARKETS = ("Fulltime Result", "Match Goals", "Over/Under Line")
+
+
+def _bookmaker_fields(node: Any, path: str = "") -> list[str]:
+    found: list[str] = []
+    if isinstance(node, dict):
+        for k, v in node.items():
+            here = f"{path}.{k}" if path else str(k)
+            if "book" in str(k).lower():
+                found.append(f"{here} = {v!r}"[:120])
+            found += _bookmaker_fields(v, here)
+    elif isinstance(node, list):
+        for item in node[:200]:
+            found += _bookmaker_fields(item, f"{path}[]")
+    return found
+
+
+def live_odds_details(live_odds: list[dict[str, Any]]) -> dict[str, Any]:
+    """Valeurs des cotes principales (résultat du match, plus/moins de 2,5 buts), état
+    (arrêté, bloqué, suspendu), heure de mise à jour et champs inattendus de /odds/live."""
+    if not live_odds:
+        return {"main": [], "update": None, "state": None, "unknown_fields": [], "bookmaker": []}
+    entry = live_odds[0]
+    main = []
+    for bet in entry.get("odds") or []:
+        if bet.get("name") not in MAIN_LIVE_MARKETS:
+            continue
+        for v in bet.get("values") or []:
+            line = v.get("handicap")
+            if bet.get("name") != "Fulltime Result" and str(line) not in ("2.5", "None", ""):
+                continue
+            main.append(
+                {
+                    "market": bet.get("name"),
+                    "value": v.get("value"),
+                    "line": line,
+                    "odd": v.get("odd"),
+                    "suspended": bool(v.get("suspended")),
+                    "main": v.get("main"),
+                }
+            )
+    unknown = sorted(f"réponse.{k}" for k in entry if k not in _ODDS_ENTRY_KEYS)
+    for bet in entry.get("odds") or []:
+        unknown += [f"marché.{k}" for k in bet if k not in _ODDS_BET_KEYS]
+        for v in bet.get("values") or []:
+            unknown += [f"cote.{k}" for k in v if k not in _ODDS_VALUE_KEYS]
+    fixture_status = (entry.get("fixture") or {}).get("status") or {}
+    return {
+        "main": main,
+        "update": entry.get("update"),
+        "state": {
+            **{k: entry.get("status", {}).get(k) for k in ("stopped", "blocked", "finished")},
+            "elapsed": fixture_status.get("elapsed"),
+            "seconds": fixture_status.get("seconds"),
+        },
+        "unknown_fields": sorted(set(unknown)),
+        "bookmaker": _bookmaker_fields(live_odds),
+    }
