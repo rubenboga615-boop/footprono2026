@@ -311,3 +311,59 @@ requêtes en trop, 100 %, en-têtes, `/metrics`) sont corrigés et vérifiés en
 « Encore au moins un but » à la place de « plus de 3,5 buts », le texte « toutes les 2
 minutes » sous les statistiques, et le rappel de coup d'envoi groupé (à revérifier au
 prochain rappel).
+
+## 22 h 01 — Bilan de la soirée : règlement des paris 57, 58, 63, 64, 66
+
+Vérifié par l'API (compte Premium de test) à 22:01 GMT, scores et buteurs relus dans
+`/matches/{id}/live`.
+
+| Sélection | Score final (mi-temps) | Résultat enregistré | Juste ? |
+|---|---|---|---|
+| Cameroun – Namibie, Cameroun gagne (pari 66) | 2-0 | gagnée | oui |
+| Cameroun – Namibie, buts du Cameroun moins de 3,5 (pari 64) | 2-0 | gagnée | oui |
+| Côte d'Ivoire – Gambie, plus de 1,5 but (pari 64) | 2-1 | gagnée | oui |
+| Monténégro – Lettonie, buts du Monténégro moins de 3,5 (pari 66) | 2-1 (buts 70', 72', 90+1') | gagnée | oui |
+| Monténégro – Lettonie, moins de 1,5 but en 1re mi-temps (pari 63) | 0-0 à la mi-temps | gagnée | oui |
+| Albanie – Finlande, Albanie gagne (pari 63) | 2-0 (35', 50') | gagnée | oui |
+| Albanie – Finlande, Albanie ou Finlande (pari 58) | 2-0 | gagnée | oui |
+| Bénin – Centrafrique, buts du Bénin moins de 2,5 (pari 63) | **4-1** (Bénin 7', 31', 36', 56') | perdue | oui |
+
+| Pari | État | Réglé à | Notification | Portefeuille |
+|---|---|---|---|---|
+| 63 (1 500 F, cote 3,49) | perdu | 19:41:02, dès le 3e but du Bénin (36' + attente de 4 min) | « Pari perdu » à 19:41:02 | — |
+| 64 (2 000 F, cote 1,634) | gagné | 20:55:03, fin de Côte d'Ivoire – Gambie | « Pari gagné … 3 268 F » à 20:55:03 | +3 268 → 94 324 F |
+| 66 (1 000 F, cote 1,709) | gagné | 21:39:02, fin de Monténégro – Lettonie | « Pari gagné … 1 709 F » à 21:39:02 | +1 709 → 96 033 F |
+| 57 | en cours | 1 sur 3 validée ; restent Écosse – Macédoine du Nord (13/11) et Belgique – Italie (15/11) | — | — |
+| 58 | en cours | 1 sur 3 validée ; restent Burkina Faso – Mauritanie et Moldavie – Kazakhstan (13/11) | — | — |
+
+**Toutes les sélections sont justes, les gains sont exacts (mise × cote), le solde suit
+(96 033 F), chaque notification est arrivée à la seconde du règlement.** Aucun défaut sur le
+règlement ce soir.
+
+**Rappel de coup d'envoi groupé — toujours un seul match cité.** À 16:30 : « **2 de tes
+paris** commencent bientôt — Arménie - Chypre commence dans 30 min. » Les deux paris étaient
+le 57 (Arménie – Chypre) et le 64 (Turquie – Belgique), mais seul le premier match est nommé.
+Aucun rappel n'a été envoyé après la mise à jour de 20:13, donc la correction n'a pas encore
+pu être vérifiée. Prochaine occasion : 13/11 à 15:30 (Burkina Faso – Mauritanie, pari 58).
+Suggestion : « 2 de tes paris commencent bientôt : Arménie – Chypre et Turquie – Belgique
+(17:00). »
+
+À noter aussi : le rappel ne part que pour le **premier** match de chaque pari. À 19:00, le
+Cameroun et la Côte d'Ivoire (paris 64 et 66, déjà commencés l'après-midi) n'ont pas eu de
+rappel. C'est logique, mais un joueur qui suit ses coupons apprécierait un rappel par match
+(voir `AUDIT_PROPOSITION_NOTIFICATIONS_DIRECT_2026-11-12.md`).
+
+**Temps additionnel** : les matchs étaient finis à 22:01, je n'ai donc pas pu voir l'affichage
+« 90+2' » à l'écran. Les données sont bonnes : buts et événements à 90+1 et 90+2 enregistrés
+(Monténégro – Lettonie, Albanie – Finlande). À vérifier au prochain match en direct.
+
+### Bilan de la journée
+
+- Direct : tous les défauts de 15 h sont corrigés en ligne.
+- Règlement : 13 sélections réglées aujourd'hui, toutes justes, dont 2 pendant le match.
+- Restent ouverts :
+  - « Encore au moins un but » ;
+  - le texte « toutes les 2 minutes » ;
+  - le rappel groupé qui ne nomme qu'un match ;
+  - les notifications pendant les matchs (proposition) ;
+  - la comparaison des cotes en direct avec 1xBet (par le fondateur).
