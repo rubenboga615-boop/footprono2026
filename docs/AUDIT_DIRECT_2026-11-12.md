@@ -105,3 +105,17 @@ ni l'analyse.
 
 Tout est conforme à la proposition du 7/11. Un seul détail : sous les statistiques, « Mis à
 jour toutes les 2 minutes (API-Football) » — c'est désormais chaque minute.
+
+## 16 h 40 — « Plus de 3,5 buts » affiché sur tous les matchs (question du fondateur)
+
+**Cause** : la ligne est **fixée dans l'application**, quel que soit le score :
+`app/lib/widgets/live_chances.dart` l. 197, `p('OU|3.5|over')`. Le serveur envoie pourtant
+toutes les lignes (0,5 à 5,5) pour chaque match.
+
+**Effet** : sur Madagascar – Guinée-Bissau, 0-0 à la 40e, « Plus de 3,5 buts : 8 % » ne dit
+rien d'utile ; sur RD Congo – Sierra Leone (2-0), la question intéressante est « y aura-t-il
+encore un but ? » (plus de 2,5 : 81 % au relevé de 16:39).
+
+**Piste** : afficher la ligne « **encore un but** » = buts déjà marqués + 0,5
+(« Encore au moins un but : 81 % »), et éventuellement la ligne suivante. Ce chiffre change
+après chaque but et parle à tout le monde.
