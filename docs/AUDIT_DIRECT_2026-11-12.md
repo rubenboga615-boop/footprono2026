@@ -360,7 +360,7 @@ rappel. C'est logique, mais un joueur qui suit ses coupons apprécierait un rapp
 ### Bilan de la journée
 
 - Direct : tous les défauts de 15 h sont corrigés en ligne.
-- Règlement : 13 sélections réglées aujourd'hui, toutes justes, dont 2 pendant le match.
+- Règlement : 11 sélections réglées aujourd'hui, toutes justes, dont 2 pendant le match.
 - Restent ouverts :
   - « Encore au moins un but » ;
   - le texte « toutes les 2 minutes » ;
