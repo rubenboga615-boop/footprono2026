@@ -215,3 +215,23 @@ API-Football s'est mise à jour au coup d'envoi réel (vers 17 h 04). Restent va
 l'affichage « Coup d'envoi retardé, heure à confirmer » quand l'heure prévue est dépassée
 (une heure de « Coup d'envoi imminent » et « à venir 16:00 » ici), et l'alerte au fondateur
 au-delà de 30 minutes. La recherche d'une nouvelle fiche devient secondaire.
+
+## 17 h 20 – 17 h 31 — Vérification de la version 209 (serveur avec `292a01b`, web du 12/11 à 17:20)
+
+| Point annoncé | Constat | Verdict |
+|---|---|---|
+| Serveur à jour | `/health` : commit `93e0e86`, qui contient `292a01b`, `5c25d89` et `df84829` | **oui** |
+| Écran d'un match : environ 1 requête par minute | Turquie – Belgique, 2 minutes : **2 requêtes** (`/matches/110474/live`), score passé de 1-0 à 1-1 **sans requête** (message `live` du WebSocket) | **oui** (158 en 8 min avant) |
+| Liste des matchs | 2 minutes : **6 requêtes**, toutes `/bets`, `/me/wallet/entries`, `/me/bets-summary` (une série par minute) | **non** : ce sont les données de **Mes paris**, onglet caché, qui se rechargent encore chaque minute alors que la liste est affichée |
+| `openapi.json` coupé | `/api/v1/openapi.json` : 404 | **oui** |
+| CSP sur `/app/` | présente (scripts du domaine, Firebase par empreinte, `frame-ancestors 'self'`) ; **aucun blocage** dans la console du navigateur pendant l'essai | **oui** (connexion Google non essayée) |
+| Caddy rechargé | **`X-Frame-Options` et `Permissions-Policy` toujours absents** (sur `/app/` et `/api/v1/health`) | **non** : Caddy garde l'ancienne configuration ; sans gravité immédiate (la CSP de l'application interdit déjà l'affichage dans un autre site) |
+| certifi | `requirements.lock` : 2026.10.23 | **oui** (dans le dépôt) |
+| Verrou du règlement | lu dans le commit `5c25d89` (verrou PostgreSQL, test 4 règlements → 1 paiement) | **oui** (lecture, pas d'essai) |
+| Rappel avant le coup d'envoi | notifications « Ton pari commence dans 30 min » (15:30) et « 2 de tes paris commencent bientôt — Arménie - Chypre commence dans 30 min » (16:30) | **oui** ; la seconde ne cite qu'un match sur deux (Turquie – Belgique manque) |
+
+Autres remarques :
+- **RD Congo – Sierra Leone 3-0 à la 66e : la carte affiche « 1 100 % · N < 1 % · 2 0 % ».**
+  À la 66e, rien n'est certain : écrire « > 99 % » et « < 1 % », jamais 100 % ni 0 %.
+- Le coupon en direct reste suspendu à la comparaison des cotes avec 1xBet (« Tester le
+  direct » enrichi, à lancer par le fondateur pendant un match).
