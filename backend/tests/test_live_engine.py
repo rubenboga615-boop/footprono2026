@@ -221,3 +221,113 @@ def test_refine_second_half_keeps_the_rhythm_and_shares_one_effect() -> None:
     assert refined.effect_at(1) == refined.effect_at(2) == refined.effect_at(3)
     assert refined.effect_at(0) == start.effect_at(0)
     assert refined.effect_at(3)[2] == start.effect_at(3)[2]  # « égalité » inchangée
+
+
+def _simulated_matches(n: int, truth: LiveModel, seed: int) -> list:
+    """Matchs tirés minute par minute selon ``truth`` (buts à la minute, sans carton)."""
+    import numpy as np
+
+    from footprono.engine.live import BUCKETS, HALF, phase_of
+    from footprono.engine.live_study import PlayedMatch
+
+    rng = np.random.default_rng(seed)
+    out = []
+    for _ in range(n):
+        lh, la = float(rng.uniform(0.9, 2.1)), float(rng.uniform(0.7, 1.7))
+        goals: list[tuple[int, int, str]] = []
+        h = a = 0
+        for half in (0, 1):
+            weights = truth.first if half == 0 else truth.second
+            length = HALF + ADDED[half]
+            for unit in range(1, HALF + int(np.ceil(ADDED[half])) + 1):
+                bucket = BUCKETS if unit > HALF else (unit - 1) // 5
+                for side, lam, mine, other in (("home", lh, h, a), ("away", la, a, h)):
+                    eff = truth.effect_at(phase_of(half, unit))[
+                        int(np.clip(mine - other, -2, 2)) + 2
+                    ]
+                    share = 0.45 if half == 0 else 0.55  # parts des buts par période
+                    if rng.random() < share * lam / length * weights[bucket] * eff:
+                        minute = min(unit, HALF) + (0 if half == 0 else HALF)
+                        extra = 0 if unit <= HALF else unit - HALF
+                        goals.append((minute, extra, side))
+                        h, a = (h + 1, a) if side == "home" else (h, a + 1)
+        first = [g for g in goals if g[0] <= HALF]
+        hht = sum(g[2] == "home" for g in first)
+        if max(h, a) > 10 or max(hht, len(first) - hht) > 6:
+            continue
+        out.append(
+            PlayedMatch((lh, la, 0.45, 0.45), tuple(goals), (), (h, a, hht, len(first) - hht))
+        )
+    return out
+
+
+def test_coupons_at_60_and_75_right_when_the_engine_is_right() -> None:
+    """Demande du fondateur du 13/11/2026 : coupons proposés aussi à la 60e et à la 75e.
+    Même vérification que la mi-temps ; un moteur faux (rythme des buts doublé) est vu."""
+    from footprono.engine.live_study import coupon_angles
+
+    truth = LiveModel()
+    matches = _simulated_matches(2500, truth, seed=21)
+    for moment in ("mi-temps", 60, 75):
+        rep = coupon_angles(matches, moment, truth)
+        assert rep["verdict"] == "juste", (moment, rep)
+        sure = rep["profiles"]["Sûr"]
+        assert sure["selections"]["n"] > 500
+        assert sure["combos"]["2"]["n"] > 200
+        assert (
+            "Les deux marquent"
+            not in coupon_angles(matches, moment, truth, banned=["Les deux marquent"])["profiles"][
+                "Sûr"
+            ]["families"]
+        )
+    # Moteur faux : forces des équipes surestimées de 60 % avant le match.
+    from dataclasses import replace
+
+    wrong = [
+        replace(m, params=(1.6 * m.params[0], 1.6 * m.params[1], *m.params[2:])) for m in matches
+    ]
+    assert coupon_angles(wrong, 60, truth)["verdict"] == "à revoir"
+
+
+async def test_console_live_coupon_study_logs_each_moment(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """L'action « Vérifier les coupons en direct » : verdict à la mi-temps, 60e et 75e."""
+    from types import SimpleNamespace
+
+    from footprono.console import actions
+    from footprono.predictions import live_chances
+
+    matches = _simulated_matches(300, LiveModel(), seed=5)
+
+    async def replayed(_ctx, _seasons):  # type: ignore[no-untyped-def]
+        return [(i, m.params, 2024) for i, m in enumerate(matches)]
+
+    async def played(_session, _played):  # type: ignore[no-untyped-def]
+        return dict(enumerate(matches)), 2
+
+    async def stored(_session):  # type: ignore[no-untyped-def]
+        return LiveModel(), {
+            "learned_at": "11/11/2026",
+            "excluded": {"second": ["Les deux marquent"]},
+        }
+
+    monkeypatch.setattr(actions, "_replayed", replayed)
+    monkeypatch.setattr(live_chances, "played_matches", played)
+    monkeypatch.setattr(live_chances, "stored_model", stored)
+
+    class Factory:
+        async def __aenter__(self) -> None:
+            return None
+
+        async def __aexit__(self, *_: object) -> None:
+            return None
+
+    logs: list[str] = []
+    ctx = SimpleNamespace(factory=Factory, log=logs.append, result=None, check_stop=lambda: None)
+    summary = await actions.live_coupon_study(ctx, {"seasons": "2024"})  # type: ignore[arg-type]
+    assert summary.startswith("300 matchs : mi-temps ")
+    assert " · 60' " in summary
+    assert " · 75' " in summary
+    text = "\n".join(logs)
+    assert "marchés retirés en 2e période : Les deux marquent" in text
+    assert "combinés de 2 matchs" in text
+    assert set(ctx.result["moments"]) == {"mi-temps", "60'", "75'"}

@@ -513,3 +513,121 @@ def refine_second_half(
         second=refined.second,
         effect=tuple(round(x, 4) for x in refined.effect),
     )
+
+
+# ------------------------------- coupons proposés pendant le match (mi-temps, 60', 75')
+
+COUPON_MOMENTS: tuple[int | str, ...] = ("mi-temps", 60, 75)
+
+
+def state_at(m: PlayedMatch, moment: int | str) -> LiveState | None:
+    """État du match au moment donné (« mi-temps », 60, 75) ; None après un carton rouge
+    (pas de chance calculée) ou pour un match écarté."""
+    if not consistent(m):
+        return None
+    hg, ag, hht, aht = m.final
+    if max(hg, ag) > MAX_GOALS or max(hht, aht) > MAX_HT_GOALS:
+        return None
+    if moment == "mi-temps":
+        if any(minute <= HALF for minute, _, _ in m.reds):
+            return None
+        return LiveState("HT", HALF, 0, hht, aht)
+    assert isinstance(moment, int)
+    if any(_before(minute, extra, moment) for minute, extra, _ in m.reds):
+        return None
+    scored = [s for minute, extra, s in m.goals if _before(minute, extra, moment)]
+    status = "1H" if moment <= HALF else "2H"
+    return LiveState(
+        status, moment, 0, scored.count("home"), scored.count("away"), ht_home=hht, ht_away=aht
+    )
+
+
+def _summary(probabilities: Sequence[float], won: Sequence[bool]) -> dict[str, Any]:
+    n = len(probabilities)
+    if n == 0:
+        return {"n": 0, "verdict": "trop peu"}
+    p = np.array(probabilities, dtype=np.float64)
+    w = np.array(won, dtype=np.float64)
+    announced, observed = float(p.mean()), float(w.mean())
+    two_se = float(2 * np.sqrt(np.sum(p * (1 - p))) / n)
+    gap = abs(observed - announced)
+    verdict = (
+        "trop peu" if n < MIN_BIN else "juste" if gap <= MAX_GAP or gap <= two_se else "à revoir"
+    )
+    return {
+        "n": n,
+        "announced": round(announced, 4),
+        "observed": round(observed, 4),
+        "two_se": round(two_se, 4),
+        "verdict": verdict,
+    }
+
+
+def coupon_angles(
+    matches: Iterable[PlayedMatch],
+    moment: int | str,
+    model: LiveModel = DEFAULT_MODEL,
+    banned: Iterable[str] = (),
+    sizes: Sequence[int] = (2, 3),
+) -> dict[str, Any]:
+    """Coupons proposés à un moment du match (« mi-temps », 60', 75'), choisis comme le
+    Coupon intelligent : pour chaque match, la sélection de chaque profil (Sûr, Équilibré,
+    Audacieux) ; chance annoncée contre arrivée, par profil et par marché ; puis des combinés
+    de ``sizes`` sélections de matchs différents (une sélection par match, annoncé = produit
+    des chances). Marchés de la 1re mi-temps et marchés retirés (``banned``) jamais proposés.
+    Règle : 3 points près ou deux erreurs types, comme les chances en direct."""
+    label = moment if isinstance(moment, str) else f"{moment}'"
+    banned = set(banned)
+    picks: dict[str, list[Entry]] = {name: [] for name in HALF_TIME_PROFILES}
+    for m in matches:
+        state = state_at(m, moment)
+        if state is None:
+            continue
+        entries = [
+            e
+            for e in _entries(label, m.params, state, m.final, model)
+            if not e.family.startswith(("Buts de la 1re", "Mi-temps")) and e.family not in banned
+        ]
+        for name, (low, high, target) in HALF_TIME_PROFILES.items():
+            inside = [e for e in entries if low <= e.probability < high]
+            if not inside:
+                continue
+            if target is None:
+                best = max(inside, key=lambda e: e.probability)
+            else:
+                best = min(inside, key=lambda e: (abs(e.probability - target), -e.probability))
+            picks[name].append(best)
+    out: dict[str, Any] = {"moment": label, "profiles": {}}
+    for name, items in picks.items():
+        by_family: dict[str, list[Entry]] = defaultdict(list)
+        for e in items:
+            by_family[e.family].append(e)
+        combos = {}
+        for size in sizes:
+            groups = [items[i : i + size] for i in range(0, len(items) - size + 1, size)]
+            combos[str(size)] = _summary(
+                [float(np.prod([e.probability for e in g])) for g in groups],
+                [all(e.won for e in g) for g in groups],
+            )
+        out["profiles"][name] = {
+            "selections": _summary([e.probability for e in items], [e.won for e in items]),
+            "families": {
+                fam: _summary([e.probability for e in v], [e.won for e in v])
+                for fam, v in sorted(by_family.items(), key=lambda kv: -len(kv[1]))
+            },
+            "combos": combos,
+        }
+    checked = [
+        s
+        for p in out["profiles"].values()
+        for s in (p["selections"], *p["combos"].values())
+        if s["verdict"] != "trop peu"
+    ]
+    out["verdict"] = (
+        "trop peu"
+        if not checked
+        else "à revoir"
+        if any(s["verdict"] == "à revoir" for s in checked)
+        else "juste"
+    )
+    return out

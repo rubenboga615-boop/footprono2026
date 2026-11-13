@@ -1206,6 +1206,87 @@ register(
 )
 
 
+def _pct(v: float | None) -> str:
+    return "—" if v is None else f"{100 * v:.1f} %".replace(".", ",")
+
+
+async def live_coupon_study(ctx: JobContext, params: dict[str, Any]) -> str:
+    """Coupons proposés pendant le match (demande du fondateur du 13/11/2026) : la mi-temps
+    était vérifiée ; la 60e et la 75e le sont ici, de la même façon."""
+    from footprono.engine.live_study import COUPON_MOMENTS, coupon_angles
+
+    seasons = parse_seasons(params["seasons"])
+    played = [(mid, p) for mid, p, _ in await _replayed(ctx, seasons)]
+    async with ctx.factory() as session:
+        model, info = await live_chances.stored_model(session)
+        found, skipped = await live_chances.played_matches(session, played)
+    matches = list(found.values())
+    banned = ((info or {}).get("excluded") or {}).get("second", [])
+    ctx.log(
+        "Modèle du direct : "
+        + ("rythme régulier (de départ)" if info is None else f"appris le {info['learned_at']}")
+        + (f" ; marchés retirés en 2e période : {', '.join(banned)}" if banned else "")
+    )
+    ctx.log(f"{len(matches)} matchs ({skipped} écartés : buts des événements ≠ score final)")
+    results = {}
+    verdicts = []
+    for moment in COUPON_MOMENTS:
+        ctx.check_stop()
+        rep = await asyncio.to_thread(coupon_angles, matches, moment, model, banned)
+        results[rep["moment"]] = rep
+        verdicts.append(f"{rep['moment']} {rep['verdict']}")
+        ctx.log(f"— {rep['moment']} : {rep['verdict']}")
+        for name, prof in rep["profiles"].items():
+            sel = prof["selections"]
+            ctx.log(
+                f"  {name} : {sel['n']} sélections, annoncé {_pct(sel.get('announced'))} → "
+                f"gagné {_pct(sel.get('observed'))} ({sel['verdict']})"
+            )
+            for size, c in prof["combos"].items():
+                ctx.log(
+                    f"    combinés de {size} matchs : {c['n']}, annoncé "
+                    f"{_pct(c.get('announced'))} → gagné {_pct(c.get('observed'))} ({c['verdict']})"
+                )
+            for fam, f in prof["families"].items():
+                if f["verdict"] == "à revoir":
+                    ctx.log(
+                        f"    à revoir · {fam} : {f['n']}, annoncé {_pct(f['announced'])} → "
+                        f"gagné {_pct(f['observed'])}"
+                    )
+    ctx.result = {"matches": len(matches), "skipped": skipped, "moments": results}
+    return f"{len(matches)} matchs : " + " · ".join(verdicts)
+
+
+register(
+    Action(
+        id="live_coupon_study",
+        title="Vérifier les coupons en direct (mi-temps, 60e, 75e)",
+        family="Moteur",
+        description=(
+            "Coupons que le moteur proposerait pendant le match, sur les saisons passées : à "
+            "la mi-temps, à la 60e et à la 75e minute, une sélection par profil (Sûr, "
+            "Équilibré, Audacieux) et des combinés de 2 et 3 matchs ; chance annoncée contre "
+            "réellement gagnée (3 points près ou deux erreurs types). Marchés retirés du direct "
+            "jamais proposés. Calcul seulement, rien n'est publié ni modifié."
+        ),
+        risk="lecture",
+        run=live_coupon_study,
+        exclusive=True,
+        cost="aucune requête",
+        duration="10 à 30 minutes",
+        params=(
+            Param(
+                "seasons",
+                "Saisons (début, par exemple 2023-2025)",
+                "text",
+                default="2023-2025",
+                pattern=r"\d{4}(-\d{4})?",
+            ),
+        ),
+    )
+)
+
+
 register(
     Action(
         id="live_history_study",
