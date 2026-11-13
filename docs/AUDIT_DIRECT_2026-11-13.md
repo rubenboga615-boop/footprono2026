@@ -28,3 +28,97 @@ Pas de match en cours à cette heure : les notifications pendant les matchs et l
   - « C'est parti » à 16:00 et 17:00 ;
   - pari placé moins de 30 min avant un match ;
   - réglage « Validé ou perdu » pendant Écosse – Macédoine du Nord (19:45).
+
+## 13/11, 15 h 51 – 18 h 55 GMT — Test des versions 212 et 213 pendant de vrais matchs
+
+Serveur `cbc6069`. Compte Premium de test, réglage « Pendant mes matchs : Tout » jusqu'à
+18:53. Notifications relevées toutes les 30 s (`/me/notifications`), buts et statuts relevés
+dans `/matches/{id}/live`.
+
+### Chronologie
+
+| Heure | Notification | Événement réel | Délai | Verdict |
+|---|---|---|---|---|
+| 12:30:00 | ⏰ Dans 30 min : Zambie - Burundi (ton coupon n° 68, 0 sur 2 validée) | coup d'envoi 13:00 | — | conforme |
+| 13:05:02 | 🟢 C'est parti : Zambie - Burundi | coup d'envoi vers 13:04 | ≤ 1 min | conforme |
+| 15:02:03 | « Tes matchs en cours » : ✅ « Burundi (+2) » validé (Zambie 1-1 Burundi), 1 sur 2 / tout se joue sur Moldavie - Kazakhstan (17:00) | fin du match vers 14:58 | ~4 min (attente VAR) | conforme, regroupement OK |
+| *15:30* | *aucun rappel* pour Burkina Faso – Mauritanie (pari 58) | — | — | **défaut 1** |
+| 16:02:02 | 🟢 C'est parti : Burkina Faso - Mauritanie | 1re minute vue à 16:02 | ≤ 1 min | conforme ; il couvre le **pari 74, placé à 15:52** (moins de 30 min avant, donc sans rappel) |
+| 16:30:00 | ⏰ Dans 30 min : Moldavie - Kazakhstan (ton coupon n° 68, 1 sur 2 validée) | — | — | conforme pour le n° 68 ; **le n° 58 n'est pas cité** (défaut 1) |
+| *16:48 → 17:07* | rien pendant la pause, puis « Pari perdu — ❌ Burkina Faso 0-0 Mauritanie : « plus de 0,5 but à la mi-temps » est perdu. Ton coupon de 1 000 F CFA est perdu. » à 17:07:02 | mi-temps 0-0 vers 16:48 | **~19 min** | texte conforme, **délai : défaut 2** |
+| 17:02:02 | 🟢 C'est parti : Moldavie - Kazakhstan | 1re minute vue à 17:02 | ≤ 1 min | conforme |
+| 17:41:02 | ⚽ 40' Moldavie 1-0 Kazakhstan : « nul ou Kazakhstan » est perdante pour l'instant | but à la 39e | ~1 min | conforme |
+| 17:52:02 | ⚽ 90' Burkina Faso 1-0 Mauritanie : « Burkina Faso ou Mauritanie » est gagnante pour l'instant | but à la **90+4e** | ~1 min | **minute affichée « 90' » au lieu de « 90+4' »** (défaut 3) |
+| 17:56:03 | Pari gagné — Burkina Faso - Mauritanie : 615 F CFA crédités | fin vers 17:55 | ~1 min | conforme (500 × 1,23) |
+| 18:09:01 | ⚽ 52' Moldavie 1-1 Kazakhstan : « nul ou Kazakhstan » est gagnante pour l'instant | but à la 51e | ~1 min | conforme |
+| 18:35:02 | ⚽ 78' Moldavie 2-1 Kazakhstan : … perdante pour l'instant | but à la 77e | ~1 min | conforme |
+| 18:52:02 | Pari perdu — ❌ Moldavie 2-1 Kazakhstan : « nul ou Kazakhstan » est perdu. Ton coupon de 1 500 F CFA est perdu. | fin vers 18:51 | ~1 min | conforme |
+
+**Toucher une notification** (version web, Profil → Notifications → « Tes matchs en
+cours ») : ouvre **Mes paris**. Conforme.
+
+**Jamais deux notifications dans la même minute** : conforme. À 15:02, les deux
+événements sont partis ensemble sous « Tes matchs en cours ».
+
+**Aucune notification ne propose de parier** : conforme.
+
+### Défauts
+
+1. **Les paris rappelés avant le 13/11 n'ont plus aucun rappel pendant 2 jours.**
+   `bookmaker/kickoff.py` met dans `old_bets` tout pari qui a reçu un rappel de l'ancien
+   modèle (par pari) depuis moins de 2 jours, et les écarte entièrement.
+   - Le pari 58 (rappelé le 12/11 à 19:15) n'a eu de rappel ni pour Burkina Faso –
+     Mauritanie (15:30) ni pour Moldavie – Kazakhstan (16:30, où seul le n° 68 est cité).
+   - Le pari 57 n'en aura pas non plus pour Écosse – Macédoine du Nord ce soir.
+
+   C'est exactement le cas que la version 213 devait corriger. Le défaut disparaît de
+   lui-même après le 14/11, mais il touche tous les joueurs qui avaient des combinés sur
+   plusieurs jours. **Suggestion** : n'écarter, pour un ancien rappel, que le match qu'il
+   citait (le premier match du pari), pas le pari entier.
+2. **Une sélection de 1re mi-temps n'est réglée qu'environ 3 minutes après la reprise**, au
+   lieu du coup de sifflet de la pause.
+   - Burkina Faso – Mauritanie était à 0-0 à la pause (16:48), mais la notification de
+     perte n'est arrivée qu'à 17:07.
+   - Pendant la pause, la sélection est restée « en attente » sans état « pour
+     l'instant » (`now: null`), alors que le pari 74 sur le même match affichait bien
+     « perdant pour l'instant ».
+
+   **Suggestion** : régler les marchés de 1re mi-temps au statut HT, avec la même attente
+   VAR de quelques minutes que les autres.
+3. **Minute d'un but dans le temps additionnel** : « 90' » au lieu de « 90+4' ». Le
+   but a été marqué à la 90+4e. Afficher la minute avec le temps additionnel
+   (`live_extra`), comme l'onglet du match.
+4. Détail : « ⏰ » apparaît deux fois, dans le titre et au début du texte.
+
+### Coupon en direct pendant ces matchs (relevé chaque minute, 16:48 → 18:35)
+
+- **Rien n'est proposé pendant la pause**, ni pour Burkina Faso – Mauritanie (16:48-17:03)
+  ni pour Zambie – Burundi (14:04-14:07). Les propositions n'apparaissent qu'à la reprise
+  (46e) : la fenêtre « mi-temps » dure donc de fait 4 à 5 minutes.
+- **Sur environ 100 propositions distinctes** (match × profil × sélection) :
+  - 38 seulement ont une chance du moteur supérieure d'au moins 3 points à celle de la cote ;
+  - 16 sont à égalité ;
+  - **46 sont sous la cote** : 19 en Équilibré, 16 en Sûr et 11 en Audacieux.
+  
+  Exemples :
+  - Burkina Faso – Mauritanie, Sûr à la 47e : « moins de 2,5 buts » à 1,083, moteur 79 %,
+    cote 92 % ;
+  - même match, Audacieux à la 50e : « moins de 1,5 but » à 1,333, moteur 56 %, cote 75 %.
+- **Proposition changeante** : le Sûr de Burkina Faso – Mauritanie est passé de « plus de
+  0,5 but » (79 % contre 71 %) à « moins de 2,5 buts » (79 % contre 92 %) en une minute.
+- **Score en retard sur la cote : Gabon – Lesotho.** Le Gabon a marqué à la 53e, d'après
+  les événements du match. Pourtant, de la 60e à la 63e, le coupon en direct affichait
+  encore **0-0**.
+  - À la 62e, les cotes ont bondi comme après un but : « moins de 2,5 buts » de 1,111 à 1,3,
+    « Gabon ou Lesotho » à 1,083.
+  - Le moteur, qui calculait encore sur 0-0, a proposé en Équilibré « moins de 1,5 but » à
+    **2,25** avec **70 %**, contre 44 % selon la cote.
+  - Cette « bonne affaire » est fausse : avec 1-0, la cote était juste. La protection de
+    `e0aceb4` (cote gardée seulement au score du relevé) ne l'a pas arrêtée.
+
+  **Suggestions** :
+  - appliquer le garde-fou « écart de plus de 20 points = rien » ;
+  - suspendre un match quand ses cotes bougent de plus de 15 points entre deux relevés sans
+    que notre score ait changé ;
+  - vérifier pourquoi le score du Gabon est resté à 0-0 au moins 7 minutes (but de la 53e
+    entré en retard par la source, ou relevé en retard chez nous).
