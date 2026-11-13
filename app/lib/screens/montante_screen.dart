@@ -13,6 +13,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/maquette.dart';
 import 'bookmaker_screen.dart' show selectionColor, selectionState;
+import 'montante_stats_screen.dart';
 
 String montanteStatus(String s) => switch (s) {
   'active' => 'En cours',
@@ -80,6 +81,8 @@ class _MontanteListScreenState extends State<MontanteListScreen> {
                 padding: pagePadding(context, 26, 120, maxWidth: 1000),
                 children: [
                   const OddsDownBanner(),
+                  // Maquette M1 : bilan de mes montantes, gagnées et perdues ensemble.
+                  const MontanteSummaryCard(),
                   if (current != null)
                     MontanteView(montante: current, onChanged: _refresh)
                   else
@@ -926,6 +929,9 @@ class _MontanteViewState extends State<MontanteView> {
             ],
           ),
         ),
+        // Maquette M3 : ce qui est en jeu au palier en cours, en clair. Le joueur décide :
+        // l'application ne dit jamais « continue » ni « arrête ».
+        if (active && current != null) _AtStake(montante: m, current: current, currency: currency),
         if (active) ...[
           const SizedBox(height: 12),
           GlassCard.section(
@@ -1328,6 +1334,7 @@ class _SuggestionsScreenState extends State<SuggestionsScreen> {
               'odds': '${s['odds']}',
             },
         ],
+        'from_suggestion': true, // suivi des montantes (M2)
       }),
     );
     if (done != null && context.mounted) {
@@ -1566,4 +1573,73 @@ String _outOf100(double p) {
   final n = (p * 100).round();
   if (p < 0.005) return 'Moins d\'une sur 100';
   return 'Environ ${n < 1 ? 1 : n} sur 100';
+}
+
+/// Maquette M3 : si ça passe, si ça perd, si j'arrête maintenant ; et, sans sécurisation, ce
+/// que 20 % sécurisés depuis le départ auraient déjà mis à l'abri.
+class _AtStake extends StatelessWidget {
+  const _AtStake({required this.montante, required this.current, required this.currency});
+  final Json montante;
+  final Json current;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = montante;
+    final placed = current['bet_id'] != null;
+    final cashable = (m['cashable'] as num? ?? 0).toInt();
+    final stake = (current['stake'] as num? ?? 0).toInt();
+    final kept = placed ? cashable : cashable - stake;
+    final win = current['potential_payout'] != null
+        ? money(current['potential_payout'] as num, currency)
+        : '${_range(current['payout_range'] as List?)} F';
+    // Simulation à 20 % sécurisés sur les paliers déjà gagnés (même calcul que le serveur).
+    int? safe;
+    if ((m['secure_pct'] as num? ?? 0) == 0) {
+      var rolling = (m['start_stake'] as num).toInt();
+      var total = 0;
+      for (final s in (m['steps'] as List).cast<Json>()) {
+        if (s['result'] != 'won' || s['odds'] == null) continue;
+        final payout = (rolling * double.parse('${s['odds']}')).floor();
+        final next = (payout * 0.8).floor();
+        total += payout - next;
+        rolling = next;
+      }
+      if (total > 0) safe = total;
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: GlassCard.section(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Ce qui est en jeu au palier ${current['number']}',
+              style: Fp.body(14, weight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            KeyValue('Si ça passe', win, valueColor: Fp.win, bold: true),
+            KeyValue('Si ça perd', money(kept, currency), valueColor: Fp.lossText, bold: true),
+            if (!placed) KeyValue('Si j\'arrête maintenant', money(cashable, currency), bold: true),
+            if (safe != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1F1709),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF6B4F1D)),
+                ),
+                child: Text(
+                  'Sécurisation à 0 % : rien n\'est gardé si ce palier perd. Avec 20 % sécurisés depuis le '
+                  'départ, ${money(safe, currency)} seraient déjà à l\'abri.',
+                  style: Fp.body(12.5, color: Fp.warning, height: 1.4),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }

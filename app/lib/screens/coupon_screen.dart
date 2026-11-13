@@ -196,6 +196,7 @@ class _CouponScreenState extends State<CouponScreen> {
         await state.api.post('/montantes/${useStep!.montanteId}/bet', {
           'selections': selections,
           'accept_out_of_range': acceptOutOfRange,
+          'from_suggestion': false, // composé par le joueur (suivi des montantes, M2)
         });
       } else {
         await state.api.post('/bets', {'stake': amount, 'selections': selections});

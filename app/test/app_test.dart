@@ -63,6 +63,10 @@ class FakeServer {
   /// GET /montantes et GET /bets/{id} (paris des paliers).
   List<Map<String, dynamic>> montantes = [];
   Map<int, Map<String, dynamic>> betsById = {};
+
+  /// Suivi des montantes (M1, M2) et Fiabilité des montantes (M4).
+  Map<String, dynamic> montanteSummary = {'montantes': 0};
+  Map<String, dynamic>? montanteReliability;
   final notifications = <Map<String, dynamic>>[];
   bool paymentsConfigured = true;
   bool betaSharing = false;
@@ -283,6 +287,12 @@ class FakeServer {
         body = live;
       case 'GET /montantes':
         body = montantes;
+      case 'GET /me/montantes/summary':
+        body = montanteSummary;
+      case 'GET /reliability/montantes':
+        body =
+            montanteReliability ??
+            {'steps': [], 'finished': 0, 'to_end': 0, 'enough': false, 'min_finished': 30};
       case 'GET /predictions/upcoming':
         body = [
           {
@@ -1585,11 +1595,96 @@ void main() {
         },
       ],
     };
+    server.montanteSummary = {
+      'montantes': 6,
+      'counts': {'completed': 1, 'lost': 2, 'cashed_out': 1, 'active': 2},
+      'finished': 4,
+      'staked': 26000,
+      'returned': 94143,
+      'net': 68143,
+      'survival': [
+        {'step': 1, 'montantes': 4, 'reached': 1.0, 'expected': 1.0},
+        {'step': 2, 'montantes': 4, 'reached': 0.75, 'expected': 0.6},
+      ],
+      'stops': {
+        'lost': [
+          {'step': 2, 'count': 1},
+          {'step': 4, 'count': 1},
+        ],
+        'cashed_out': [
+          {'step': 1, 'count': 1},
+        ],
+      },
+      'choices': {
+        'engine': {'steps': 14, 'won': 12},
+        'player': {'steps': 6, 'won': 4},
+        'unknown': {'steps': 0, 'won': 0},
+        'out_of_range': {'steps': 1, 'won': 1},
+      },
+      'out_of_range_cost': 22000,
+      'markets': [
+        {'market': 'OU', 'won': 7, 'lost': 2},
+      ],
+      'enough': false,
+      'min_finished': 30,
+    };
+    await tester.binding.setSurfaceSize(const Size(430, 2400));
     await tester.tap(find.text('Montante').last);
     await tester.pumpAndSettle();
     expect(find.text('Hull – Middlesbrough'), findsOneWidget);
     expect(find.textContaining('8 nov'), findsOneWidget);
     expect(find.textContaining('gagné'), findsWidgets);
+
+    // M1 : bilan, gagnées et perdues ensemble.
+    expect(find.textContaining('+68\u00A0143'), findsOneWidget);
+    expect(find.textContaining('misés au départ'), findsOneWidget);
+    // M3 : ce qui est en jeu au palier 2 (pas encore de pari) ; 20 % sécurisés : 1 570 F.
+    expect(find.text('Ce qui est en jeu au palier 2'), findsOneWidget);
+    expect(find.text('Si j\'arrête maintenant'), findsOneWidget);
+    expect(find.textContaining('1\u00A0570'), findsOneWidget);
+
+    // M2 : analyse.
+    await tester.tap(find.text('Voir l\'analyse ›'));
+    await tester.pumpAndSettle();
+    expect(find.text('Jusqu\'où vont mes montantes'), findsOneWidget);
+    expect(find.text('P2'), findsOneWidget);
+    expect(find.textContaining('trop peu pour conclure'), findsOneWidget);
+    expect(find.text('Proposés par le moteur'), findsOneWidget);
+    expect(find.text('86\u00A0%'), findsOneWidget); // 12 sur 14
+    expect(find.textContaining('de moins à'), findsOneWidget);
+    await tester.binding.setSurfaceSize(null);
+  });
+
+  testWidgets('fiabilité des montantes : annoncé contre gagné par palier, montantes terminées', (
+    tester,
+  ) async {
+    final (_, server) = await startApp(tester, loggedIn: true);
+    server.montanteReliability = {
+      'steps': [
+        {'steps': '1-2', 'count': 58, 'announced': 0.62, 'won': 0.64, 'fair': true},
+      ],
+      'finished': 27,
+      'to_end': 3,
+      'to_end_share': 0.111,
+      'expected_share': 0.09,
+      'yield': 0.41,
+      'enough': false,
+      'min_finished': 30,
+    };
+    final context = tester.element(find.byType(Scaffold).first);
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => const ReliabilityScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Montantes'), 200);
+    await tester.tap(find.text('Montantes'));
+    await tester.pumpAndSettle();
+    expect(find.text('62\u00A0%'), findsOneWidget);
+    expect(find.text('64\u00A0%'), findsOneWidget);
+    expect(find.text('3 (11\u00A0%)'), findsOneWidget);
+    expect(find.text('+41,0\u00A0%'), findsOneWidget);
+    expect(find.textContaining('Trop peu de montantes terminées'), findsOneWidget);
   });
 
   testWidgets('notifications push : téléphone enregistré, notification touchée, déconnexion', (tester) async {
