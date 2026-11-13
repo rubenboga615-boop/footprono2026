@@ -28,7 +28,7 @@ svg { width: 18px; height: 18px; flex: none; }
 
 /* Logo */
 .logo { display: flex; align-items: center; gap: 10px; padding: 2px 8px 18px; }
-.logo .mark { width: 34px; height: 34px; border-radius: 11px; background: var(--accent); display: grid; place-items: center; color: #fff; }
+.logo .mark { width: 34px; height: 34px; border-radius: 9px; display: block; }
 .logo .mark svg { width: 21px; height: 21px; }
 .logo b { font: 700 16px var(--display); display: block; } .logo b span { color: var(--accent2); }
 .logo small { display: block; font: 700 10px var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--text3); }

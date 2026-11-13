@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="fp_violet">#FF7C3AED</color>
+    <color name="fp_violet">#FF6D4AFF</color>
+    <color name="splash_background">#FF060509</color>
 </resources>
