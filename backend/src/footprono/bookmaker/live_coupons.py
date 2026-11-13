@@ -394,3 +394,109 @@ async def live_offer(
     if chance is None:
         return None  # marché retiré du direct, ou plus de chance calculée (carton rouge)
     return Decimal(quotes[key]), float(chance)
+
+
+# ------------------------------------------------- Fiabilité (maquette D15)
+
+
+async def record_proposals(session: AsyncSession, redis: Redis, now: datetime | None = None) -> int:
+    """Enregistre les sélections proposées en ce moment (tous profils, comme pour un joueur
+    Premium), la première fois seulement pour un match, un profil et un moment."""
+    from sqlalchemy.dialects.postgresql import insert
+
+    from footprono.bookmaker.smart_models import LiveCouponPick
+
+    now = now or datetime.now(UTC)
+    data = await proposals(session, redis, premium=True, now=now)
+    rows = [
+        {
+            "match_id": m["match_id"], "profile": profile, "moment": m["moment"],
+            "minute": m["minute"], "market": s["market"], "line": s["line"],
+            "selection": s["selection"], "probability": s["probability"],
+            "odds": Decimal(s["odds"]), "proposed_at": now,
+        }
+        for m in data["matches"]
+        for profile, s in m["picks"].items()
+        if "market" in s
+    ]  # fmt: skip
+    if not rows:
+        return 0
+    result = await session.execute(
+        insert(LiveCouponPick)
+        .values(rows)
+        .on_conflict_do_nothing(index_elements=["match_id", "profile", "moment"])
+        .returning(LiveCouponPick.id)
+    )
+    added = len(result.all())
+    await session.commit()
+    return added
+
+
+async def settle_picks(session: AsyncSession, now: datetime | None = None) -> int:
+    """Règle les propositions dont le match est terminé (mêmes règles que les paris)."""
+    from footprono.bookmaker import settlement
+    from footprono.bookmaker.models import BetSelection
+    from footprono.bookmaker.smart_models import LiveCouponPick
+
+    now = now or datetime.now(UTC)
+    picks = (
+        await session.scalars(
+            select(LiveCouponPick)
+            .join(Match, Match.id == LiveCouponPick.match_id)
+            .where(
+                LiveCouponPick.result.is_(None),
+                Match.status.in_((MatchStatus.FINISHED, MatchStatus.CANCELLED)),
+            )
+        )
+    ).all()
+    done = 0
+    for pick in picks:
+        probe = BetSelection(
+            match_id=pick.match_id, market=pick.market, line=pick.line,
+            selection=pick.selection, odds=pick.odds,
+        )  # fmt: skip
+        grade = await settlement.grade_selection(session, probe, now)
+        if grade is None:
+            continue
+        pick.result, pick.settled_at = grade.result, now
+        done += 1
+    await session.commit()
+    return done
+
+
+_SCORE = {"win": 1.0, "half_win": 0.5, "half_loss": 0.0, "loss": 0.0}
+
+
+async def reliability(session: AsyncSession) -> dict[str, Any]:
+    """Par profil et par moment : chance annoncée en moyenne, part gagnée, nombre de
+    sélections, et si l'écart tient dans deux erreurs types (sélections remboursées
+    écartées). Rien tant qu'aucune proposition n'est réglée."""
+    from footprono.bookmaker.smart_models import LiveCouponPick
+
+    rows = (
+        await session.execute(
+            select(
+                LiveCouponPick.profile, LiveCouponPick.moment,
+                LiveCouponPick.probability, LiveCouponPick.result,
+            ).where(LiveCouponPick.result.in_(tuple(_SCORE)))
+        )
+    ).tuples().all()  # fmt: skip
+    groups: dict[tuple[str, str], list[tuple[float, float]]] = {}
+    for profile, moment, p, result in rows:
+        groups.setdefault((profile, moment), []).append((p, _SCORE[result or "loss"]))
+    out: dict[str, list[dict[str, Any]]] = {}
+    for profile in HALF_TIME_PROFILES:
+        for moment, _, _ in WINDOWS:
+            items = groups.get((profile, moment))
+            if not items:
+                continue
+            n = len(items)
+            announced = sum(p for p, _ in items) / n
+            won = sum(w for _, w in items) / n
+            margin = 2 * math.sqrt(sum(p * (1 - p) for p, _ in items)) / n
+            out.setdefault(profile, []).append({
+                "moment": moment, "count": n, "announced": round(announced, 4),
+                "won": round(won, 4), "margin": round(margin, 4),
+                "fair": abs(won - announced) <= margin,
+            })  # fmt: skip
+    return {"profiles": out, "total": len(rows)}

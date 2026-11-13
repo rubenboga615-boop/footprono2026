@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.bookmaker import live_coupons
 from footprono.bookmaker.models import Bet, BetSelection
-from footprono.football.models import LiveSnapshot, Match, MatchEvent
+from footprono.football.models import LiveSnapshot, Match, MatchEvent, MatchStatus
 from footprono.predictions.publication import LIVE_KEY, set_flag
 
 from .conftest import TEST_REDIS_URL
@@ -277,3 +277,50 @@ async def test_odds_read_before_a_goal_or_a_red_card_are_refused(
     red = await client.post("/api/v1/bets", json=bet, headers=headers)
     assert red.status_code == 400
     await redis.aclose()
+
+
+async def test_proposals_recorded_once_settled_then_reliability(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    """Maquette D15 : propositions enregistrées une fois par match, profil et moment, réglées
+    après le match, puis annoncé contre gagné par profil et par moment."""
+    from footprono.bookmaker.smart_models import LiveCouponPick
+
+    m1, m2 = await _live_world(db_factory, world)
+    redis = Redis.from_url(TEST_REDIS_URL, decode_responses=True)
+    async with db_factory() as session:
+        first = await live_coupons.record_proposals(session, redis)
+    async with db_factory() as session:
+        again = await live_coupons.record_proposals(session, redis)
+    await redis.aclose()
+    assert first > 0
+    assert again == 0  # une seule fois par match, profil et moment
+    async with db_factory() as session:
+        picks = list(await session.scalars(select(LiveCouponPick)))
+    assert {p.match_id for p in picks} == {m1, m2}
+    assert {p.moment for p in picks if p.match_id == m2} == {"60'"}
+    assert all(p.result is None for p in picks)
+
+    empty = (await client.get("/api/v1/live/coupons/reliability")).json()
+    assert (empty["published"], empty["total"], empty["profiles"]) == (True, 0, {})
+
+    # Fin des deux matchs, 1-0 : propositions réglées comme des paris.
+    async with db_factory() as session:
+        await session.execute(
+            update(Match).where(Match.id.in_((m1, m2))).values(
+                status=MatchStatus.FINISHED, api_status="FT", home_goals=1, away_goals=0,
+            )
+        )  # fmt: skip
+        await session.commit()
+        assert await live_coupons.settle_picks(session) == len(picks)
+    data = (await client.get("/api/v1/live/coupons/reliability")).json()
+    assert data["total"] == len(picks)
+    sure = {r["moment"]: r for r in data["profiles"]["Sûr"]}
+    assert set(sure) == {"mi-temps", "60'"}
+    for row in sure.values():
+        assert row["count"] == 1
+        assert 0.75 <= row["announced"] < 0.92
+        assert row["won"] in (0.0, 1.0)
+        assert row["margin"] > 0

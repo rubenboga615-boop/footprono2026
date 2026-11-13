@@ -6,6 +6,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     Float,
+    ForeignKey,
     Numeric,
     SmallInteger,
     String,
@@ -50,4 +51,28 @@ class SmartCoupon(Base):
     # coupons du jour ont leur code).
     notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class LiveCouponPick(Base):
+    """Sélection proposée par le coupon en direct (maquette D15) : une par match, profil et
+    moment, enregistrée la première fois qu'elle est proposée, puis réglée après le match.
+    Sert à la Fiabilité des coupons en direct (annoncé contre gagné) ; rien n'est effacé."""
+
+    __tablename__ = "live_coupon_picks"
+    __table_args__ = (UniqueConstraint("match_id", "profile", "moment"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)
+    profile: Mapped[str] = mapped_column(String(16))
+    moment: Mapped[str] = mapped_column(String(16))  # mi-temps, 60', 75'
+    minute: Mapped[int | None] = mapped_column(SmallInteger)
+    market: Mapped[str] = mapped_column(String(32))
+    line: Mapped[str] = mapped_column(String(16))
+    selection: Mapped[str] = mapped_column(String(32))
+    probability: Mapped[float] = mapped_column(Float)
+    odds: Mapped[Decimal] = mapped_column(Numeric(10, 3))
+    proposed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # win, half_win, push, half_loss, loss ; null tant que le match n'est pas réglé.
+    result: Mapped[str | None] = mapped_column(String(10), index=True)
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

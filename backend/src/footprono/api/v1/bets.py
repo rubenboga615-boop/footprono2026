@@ -204,6 +204,17 @@ async def live_coupons_now(
     return await live_coupons.proposals(session, redis, premium=is_premium(user))
 
 
+@router.get("/live/coupons/reliability")
+async def live_coupons_reliability(session: SessionDep) -> dict[str, Any]:
+    """Fiabilité des coupons en direct (maquette D15) : par profil et par moment, chance
+    annoncée par le moteur et part gagnée des sélections proposées depuis la mise en
+    service."""
+    from footprono.bookmaker import live_coupons
+
+    published, _ = await live_coupons.settings_of(session)
+    return {"published": published, **await live_coupons.reliability(session)}
+
+
 @router.post("/bets", response_model=BetOut, status_code=status.HTTP_201_CREATED)
 async def place_bet(
     body: BetIn, user: CurrentUserDep, session: SessionDep, redis: RedisDep

@@ -10,6 +10,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'live_reliability_screen.dart';
 
 /// Page publique « Fiabilité du moteur » (GET /reliability), sur un seul écran
 /// (maquette du 06/11/2026) : le verdict d'abord, un marché à la fois, le détail sur demande.
@@ -222,6 +223,7 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                       ),
                     ],
                   ),
+                  const LiveReliabilityLink(),
                 ],
               ),
             );

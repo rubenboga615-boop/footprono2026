@@ -44,6 +44,8 @@ async def _settle(engine: AsyncEngine, settings: Settings) -> dict[str, Any]:
             report = await settlement.settle_bets(session, redis=redis, push=push)
         async with create_session_factory(engine)() as session:
             report["smart_coupons"] = await smart_coupon.settle_pending(session)
+        async with create_session_factory(engine)() as session:
+            report["live_picks"] = await live_coupons.settle_picks(session)
         # Tous les codes 1xBet du jour saisis : « coupons du jour disponibles » (une fois).
         async with create_session_factory(engine)() as session:
             report["daily_coupons_notified"] = await smart_coupon.notify_ready(session)
@@ -223,6 +225,10 @@ async def _follow_live_once(settings: Settings) -> dict[str, Any]:
                     for mid, data in odds.items():
                         data["state"] = states.get(mid)
                 await live_coupons.store_odds(redis, odds)
+                # Fiabilité (D15) : propositions du moment enregistrées une fois.
+                if odds:
+                    async with create_session_factory(engine)() as session:
+                        report["live_picks"] = await live_coupons.record_proposals(session, redis)
                 report["live_odds"] = len(odds)
                 if updated:
                     async with create_session_factory(engine)() as session:

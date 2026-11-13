@@ -158,6 +158,9 @@ class FakeServer {
   /// Coupon en direct (GET /live/coupons) ; non publié par défaut.
   Map<String, dynamic>? liveCoupons;
 
+  /// Fiabilité des coupons en direct (GET /live/coupons/reliability) ; non publié par défaut.
+  Map<String, dynamic>? liveReliability;
+
   Future<http.Response> handle(http.Request r) async {
     final path = r.url.path.replaceFirst('/api/v1', '');
     calls.add('${r.method} $path');
@@ -299,6 +302,8 @@ class FakeServer {
         body = matchLive ?? {'status': null, 'events': [], 'stats': null, 'lineups': []};
       case 'GET /live/summary':
         body = liveSummary;
+      case 'GET /live/coupons/reliability':
+        body = liveReliability ?? {'published': false, 'total': 0, 'profiles': {}};
       case 'GET /live/coupons':
         body = liveCoupons ?? {'published': false, 'odds_source': 'indicative', 'matches': [], 'combos': {}};
       case 'GET /live/feed':
@@ -2865,6 +2870,40 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('🟢 C\'est parti : Lens - Lyon'), findsNothing); // liste refermée
     expect(find.textContaining('En cours ('), findsWidgets); // onglet Mes paris
+  });
+
+  testWidgets('fiabilité des coupons en direct : entrée si publié, annoncé contre gagné par moment', (
+    tester,
+  ) async {
+    final (_, server) = await startApp(tester, loggedIn: true);
+    server.liveReliability = {
+      'published': true,
+      'total': 412,
+      'profiles': {
+        'Sûr': [
+          {'moment': 'mi-temps', 'count': 300, 'announced': 0.83, 'won': 0.84, 'margin': 0.043, 'fair': true},
+          {'moment': "60'", 'count': 112, 'announced': 0.82, 'won': 0.70, 'margin': 0.073, 'fair': false},
+        ],
+      },
+    };
+    final context = tester.element(find.byType(Scaffold).first);
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => const ReliabilityScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Coupons en direct'), 200);
+    await tester.tap(find.text('Coupons en direct'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mi-temps'), findsOneWidget);
+    expect(find.text('83\u00A0%'), findsOneWidget);
+    expect(find.text('84\u00A0%'), findsOneWidget);
+    expect(find.text('300'), findsOneWidget);
+    expect(find.text('juste'), findsOneWidget);
+    expect(find.text('à surveiller'), findsOneWidget); // 60e : 70 % gagnés pour 82 % annoncés
+    await tester.tap(find.text('Audacieux'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Pas encore de coupon en direct réglé'), findsOneWidget);
   });
 
   testWidgets('coupon en direct : carte, combiné Sûr ajouté, à placer avant la fermeture', (tester) async {
