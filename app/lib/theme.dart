@@ -449,7 +449,8 @@ class IconSquare extends StatelessWidget {
 }
 
 /// Marque « Ballon-jauge » B3 (validée le 13/11/2026) : carré au dégradé violet, ballon
-/// rempli aux trois quarts (quart restant en blanc à 30 %), pentagone central découpé.
+/// rempli aux trois quarts (quart restant en blanc à 40 %), pentagone central découpé ; ballon
+/// de 74 % du côté et pentagone de rayon 0,50 × celui du ballon (correction du 13/11, 11 h 30).
 class FpMark extends StatelessWidget {
   const FpMark({super.key, this.size = 32});
   final double size;
@@ -474,12 +475,12 @@ class _MarkPainter extends CustomPainter {
           colors: [Color(0xFF8B6BFF), Color(0xFF5A36E6)],
         ).createShader(rect),
     );
-    // Dessin du SVG (viewBox 100) réduit à 84 % autour du centre.
-    Offset p(double x, double y) => Offset((50 + (x - 50) * 0.84) * k, (50 + (y - 50) * 0.84) * k);
-    final r = 33 * 0.84 * k;
+    // Dessin de docs/maquettes/6-logo/footproba-logo.svg (viewBox 100).
+    Offset p(double x, double y) => Offset(x * k, y * k);
+    final r = 37 * k;
     final c = p(50, 50);
     final pentagon = Path()
-      ..addPolygon([p(50, 36.5), p(62.84, 45.83), p(57.94, 60.92), p(42.06, 60.92), p(37.16, 45.83)], true);
+      ..addPolygon([p(50, 31.5), p(67.59, 44.28), p(60.87, 64.97), p(39.13, 64.97), p(32.41, 44.28)], true);
     final ball = Path()..addOval(Rect.fromCircle(center: c, radius: r));
     final filled = Path()
       ..moveTo(c.dx, c.dy)
@@ -487,7 +488,7 @@ class _MarkPainter extends CustomPainter {
       ..close();
     canvas.drawPath(
       Path.combine(PathOperation.difference, ball, pentagon),
-      Paint()..color = const Color(0x4DFFFFFF),
+      Paint()..color = const Color(0x66FFFFFF),
     );
     canvas.drawPath(Path.combine(PathOperation.difference, filled, pentagon), Paint()..color = Colors.white);
   }
