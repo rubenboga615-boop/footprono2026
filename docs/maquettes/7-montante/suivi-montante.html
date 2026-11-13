@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suivi des montantes · maquettes M1 à M5</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#07050D;font-family:Inter,system-ui,sans-serif;color:#fff}
+header{max-width:1240px;margin:0 auto;padding:28px 16px 8px}
+header h1{margin:0 0 6px;font-size:24px}
+header p{margin:4px 0;color:#A9A3C2;font-size:14px;line-height:1.5;max-width:900px}
+.rules{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.rules span{font-size:12px;border:1px solid #3A3260;border-radius:14px;padding:6px 10px;color:#C9C3F0}
+.grid{display:flex;flex-wrap:wrap;gap:28px;justify-content:center;padding:20px 12px 60px;max-width:1300px;margin:0 auto}
+figure{margin:0;width:390px;max-width:100%}
+figcaption{font-size:13px;color:#C9C3F0;line-height:1.45;margin:0 0 10px}
+figcaption b{color:#fff;font-size:15px;display:block;margin-bottom:2px}
+.p{position:relative;width:390px;max-width:100%;height:844px;background:#0E0B1A;color:#fff;overflow:hidden;font-size:14px;line-height:1.35;border-radius:28px;box-shadow:0 0 0 1px #241E3D}
+.sc{padding:48px 16px 110px}
+.hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hd h2{margin:0;font-size:26px}.hd h2 span{color:#A78BFA}
+.bk{display:flex;align-items:center;gap:10px}.bk h2{font-size:22px;margin:0}.bk .chev{font-size:22px;color:#B9B2FF}
+.c{background:#1A1530;border-radius:18px;padding:14px;margin-top:12px}
+.mu{color:#A9A3C2;font-size:12px}.mu2{color:#A9A3C2;font-size:13px}
+.row{display:flex;align-items:center;gap:10px}.sp{flex:1;min-width:0}.b{font-weight:700}
+.tag{font-size:11px;font-weight:700;border-radius:8px;padding:4px 8px;background:#2B2060;color:#B9B2FF;white-space:nowrap}
+.gr{background:#12301F;color:#4ADE80}.rd{background:#3A1620;color:#FF8A9B}.yl{background:#1F1709;color:#E7C98A}
+.btn{height:52px;border-radius:26px;background:#6D4AFF;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;margin-top:14px}
+.btn2{height:46px;border-radius:23px;border:1px solid #3A3260;color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;margin-top:10px;font-size:14px}
+.lnk{color:#B9B2FF;font-weight:600}
+.li{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #241E3D}.li:last-child{border-bottom:0}
+.kv{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0}
+.warn{background:#1F1709;border:1px solid #6B4F1D;color:#E7C98A;border-radius:14px;padding:10px 12px;font-size:12.5px;margin-top:12px;line-height:1.45}
+.ok{background:#12301F;border:1px solid #1F5B3A;color:#C9F5D9;border-radius:14px;padding:10px 12px;font-size:13px;margin-top:12px}
+.info{background:#16122B;border:1px solid #2A2347;color:#C9C3F0;border-radius:14px;padding:10px 12px;font-size:12.5px;margin-top:12px;line-height:1.45}
+.seg{display:flex;background:#1A1530;border-radius:16px;padding:4px;margin-top:12px}
+.seg span{flex:1;height:40px;border-radius:12px;color:#A9A3C2;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:13.5px}
+.seg .on{background:#2B2060;color:#fff}
+.nav{position:absolute;left:12px;right:12px;bottom:16px;height:72px;border-radius:28px;background:#15112A;box-shadow:inset 0 0 0 1px #2A2347;display:flex;justify-content:space-around;align-items:center;z-index:5}
+.nav span{color:#A9A3C2;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:500;min-width:56px}
+.nav .on{color:#B9B2FF}
+.ld{width:7px;height:7px;border-radius:50%;background:#4ADE80;display:inline-block;margin-right:5px}
+.live{color:#4ADE80;font-weight:700}
+.ht{color:#E7C98A;font-weight:700}
+.score{display:flex;align-items:center;gap:10px;margin-top:6px}.score .n{flex:1;font-weight:700;font-size:15px}.score .s{font-weight:800;font-size:18px}
+.prof{display:flex;gap:6px;margin-top:10px}
+.prof span{flex:1;background:#0E0B1A;border-radius:12px;text-align:center;padding:8px 2px;font-size:12px;color:#A9A3C2;line-height:1.3}
+.prof b{display:block;color:#fff;font-size:15px}
+.prof .on{box-shadow:inset 0 0 0 1.5px #7C5CFF;background:#2B2060}
+.lock{color:#E7C98A;font-size:11px}
+.sel{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid #241E3D}.sel:last-of-type{border-bottom:0}
+.odd{font-weight:800;font-size:16px;min-width:44px;text-align:right}
+.ind{color:#E7C98A}
+.timer{display:flex;align-items:center;gap:8px;background:#1F1709;border:1px solid #6B4F1D;border-radius:14px;padding:9px 12px;font-size:13px;color:#E7C98A;margin-top:12px}
+.timer b{font-variant-numeric:tabular-nums}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#1A1530;border-radius:24px 24px 0 0;padding:10px 18px 24px;z-index:9}
+.sheet:before{content:'';display:block;width:40px;height:4px;border-radius:2px;background:#3A3260;margin:0 auto 14px}
+.scrim{position:absolute;inset:0;background:rgba(5,3,12,.72);z-index:8}
+.blur{filter:blur(3px);opacity:.5}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl td,.tbl th{padding:9px 4px;border-bottom:1px solid #241E3D;text-align:left}.tbl th{color:#A9A3C2;font-weight:600;font-size:12px}.tbl .r{text-align:right}
+.bar{height:8px;border-radius:4px;background:#241E3D;position:relative;margin-top:6px}
+.bar i{position:absolute;top:0;bottom:0;left:0;border-radius:4px;background:#6D4AFF}
+.bar u{position:absolute;top:-3px;width:2px;height:14px;background:#4ADE80}
+.chip{display:inline-block;font-size:11px;font-weight:700;border-radius:8px;padding:3px 7px;background:#12301F;color:#4ADE80}
+.legend{max-width:1240px;margin:0 auto;padding:0 16px 40px;color:#C9C3F0;font-size:14px;line-height:1.55}
+.legend h2{font-size:18px;color:#fff}
+.legend li{margin:4px 0}
+</style>
+<style>
+.surv{display:flex;align-items:flex-end;gap:8px;height:120px;margin-top:26px;padding:0 4px}
+.surv div{flex:1;position:relative;background:#6D4AFF;border-radius:6px 6px 0 0}
+.surv div i{position:absolute;left:-3px;right:-3px;height:2px;background:#4ADE80}
+.surv div b{position:absolute;top:-17px;left:0;right:0;text-align:center;font-size:11px;color:#C9C3F0}
+.lbl{display:flex;gap:8px;padding:4px 4px 0}.lbl span{flex:1;text-align:center;font-size:11px;color:#A9A3C2}
+.big{font-size:28px;font-weight:800}.pos{color:#4ADE80}.neg{color:#FF8A9B}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.grid2 div{background:#0E0B1A;border-radius:12px;padding:9px 10px}
+.grid2 b{display:block;font-size:17px}
+.alert{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #241E3D;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+<h1>Suivi et analyse des montantes — maquettes M1 à M5 (à valider)</h1>
+<p>Demande du fondateur (13/11/2026) : faire de la montante un produit phare, avec un vrai suivi et une vraie analyse. Les chiffres sont des exemples proches des montantes réelles du fondateur. Rien de nouveau n'est joué à la place du joueur : l'application montre, le joueur décide.</p>
+<div class="rules"><span>Argent fictif · pas un conseil de pari</span><span>Jamais « value » ni « bon plan »</span><span>Aucune notification qui pousse à jouer</span><span>Chiffres réels, gagnés et perdus ensemble</span></div>
+</header>
+<div class="grid">
+
+<figure>
+<figcaption><b>M1 · Montante : mon bilan en haut</b>Au-dessus de la montante en cours : tout ce que mes montantes ont rapporté, réussies et perdues ensemble. Touché : l'analyse (M2).</figcaption>
+<div class="p"><div class="sc">
+  <div class="hd"><h2>Ma <span>montante</span></h2><span class="tag">6 montantes</span></div>
+  <div class="c">
+    <div class="mu">Mon bilan des montantes</div>
+    <div class="big pos">+68 143 F</div>
+    <div class="mu2">26 000 F misés au départ · 94 143 F encaissés</div>
+    <div class="grid2">
+      <div><span class="mu">Réussies</span><b class="pos">1</b></div>
+      <div><span class="mu">Perdues</span><b class="neg">2</b></div>
+      <div><span class="mu">Encaissées avant la fin</span><b>1</b></div>
+      <div><span class="mu">En cours</span><b>2</b></div>
+    </div>
+    <div class="lnk" style="margin-top:12px">Voir l'analyse ›</div>
+  </div>
+  <div class="c">
+    <div class="row"><b class="sp">Montante n° 4</b><span class="tag">Palier 6 sur 6</span></div>
+    <div class="mu2" style="margin-top:4px">61 652 F en jeu · objectif 110 973 F</div>
+  </div>
+  <div class="btn2">+ Nouvelle montante</div>
+</div>
+<div class="nav"><span>Matchs</span><span>Coupon</span><span class="on">Montante</span><span>Mes paris</span><span>Profil</span></div></div>
+</figure>
+
+<figure>
+<figcaption><b>M2 · Analyse de mes montantes</b>Jusqu'où vont mes montantes, comparé à ce que disent les cotes ; où elles s'arrêtent ; ce qui marche le mieux pour moi.</figcaption>
+<div class="p"><div class="sc">
+  <div class="bk"><span class="chev">‹</span><h2>Mes montantes</h2></div>
+  <div class="c">
+    <b>Jusqu'où vont mes montantes</b>
+    <div class="mu">Barre : mes montantes arrivées à ce palier · trait vert : attendu selon les cotes</div>
+    <div class="surv">
+      <div style="height:100%"><b>100 %</b><i style="bottom:100%"></i></div>
+      <div style="height:75%"><b>75 %</b><i style="bottom:80%"></i></div>
+      <div style="height:50%"><b>50 %</b><i style="bottom:48%"></i></div>
+      <div style="height:50%"><b>50 %</b><i style="bottom:29%"></i></div>
+      <div style="height:25%"><b>25 %</b><i style="bottom:17%"></i></div>
+      <div style="height:25%"><b>25 %</b><i style="bottom:10%"></i></div>
+    </div>
+    <div class="lbl"><span>P1</span><span>P2</span><span>P3</span><span>P4</span><span>P5</span><span>P6</span></div>
+    <div class="mu" style="margin-top:8px">4 montantes terminées : trop peu pour conclure. Au-dessus du trait vert : mieux que ce que disent les cotes.</div>
+  </div>
+  <div class="c">
+    <b>Où elles s'arrêtent</b>
+    <div class="kv"><span class="mu2">Palier 2</span><span>1 perdue</span></div>
+    <div class="kv"><span class="mu2">Palier 4</span><span>1 perdue</span></div>
+    <div class="kv"><span class="mu2">Palier 1</span><span>1 encaissée</span></div>
+  </div>
+  <div class="c">
+    <b>Mes choix</b>
+    <table class="tbl">
+      <tr><th></th><th class="r">Paliers</th><th class="r">Gagnés</th></tr>
+      <tr><td>Proposés par le moteur</td><td class="r">14</td><td class="r">86 %</td></tr>
+      <tr><td>Composés moi-même</td><td class="r">6</td><td class="r">67 %</td></tr>
+      <tr><td>Cote hors de la plage</td><td class="r">1</td><td class="r">100 %</td></tr>
+    </table>
+    <div class="mu" style="margin-top:6px">Le palier joué à 1,30 au lieu de 1,55-1,65 : environ 22 000 F de moins à l'arrivée.</div>
+  </div>
+</div>
+<div class="nav"><span>Matchs</span><span>Coupon</span><span class="on">Montante</span><span>Mes paris</span><span>Profil</span></div></div>
+</figure>
+
+<figure>
+<figcaption><b>M3 · Montante en cours : avant chaque palier</b>Ce qui est en jeu, en clair, avant de choisir le pari du palier. Le joueur décide ; l'application ne dit jamais « continue » ni « arrête ».</figcaption>
+<div class="p"><div class="sc">
+  <div class="bk"><span class="chev">‹</span><h2>Ma montante</h2></div>
+  <div class="c">
+    <div class="mu">Palier 6 sur 6 · départ 5 000 F</div>
+    <div class="big">61 652 F</div>
+    <div class="bar"><i style="width:84%"></i></div>
+  </div>
+  <div class="c">
+    <b>Ce qui est en jeu au palier 6</b>
+    <div class="kv"><span class="mu2">Si ça passe</span><span class="pos b">110 973 F</span></div>
+    <div class="kv"><span class="mu2">Si ça perd</span><span class="neg b">0 F</span></div>
+    <div class="kv"><span class="mu2">Si j'arrête maintenant</span><span class="b">61 652 F</span></div>
+    <div class="kv"><span class="mu2">Chance d'aller au bout</span><span class="b">56 sur 100</span></div>
+  </div>
+  <div class="warn">Sécurisation à 0 % : rien n'est gardé si ce palier perd. Avec 20 % sécurisés depuis le départ, 14 889 F seraient déjà à l'abri (et l'objectif serait 36 358 F).</div>
+  <div class="btn">Choisir le pari du palier 6</div>
+  <div class="btn2">Arrêter et garder 61 652 F</div>
+</div>
+<div class="nav"><span>Matchs</span><span>Coupon</span><span class="on">Montante</span><span>Mes paris</span><span>Profil</span></div></div>
+</figure>
+
+<figure>
+<figcaption><b>M4 · Fiabilité : montantes</b>Pour tous les joueurs, sans nom : la chance d'aller au bout annoncée par l'application contre ce qui est arrivé, et le bilan en argent. Comme les autres pages de Fiabilité.</figcaption>
+<div class="p"><div class="sc">
+  <div class="bk"><span class="chev">‹</span><h2>Fiabilité</h2></div>
+  <div class="seg"><span>Matchs</span><span>Coupons</span><span class="on">Montantes</span></div>
+  <div class="c">
+    <b>Paliers proposés par le moteur</b>
+    <table class="tbl">
+      <tr><th>Palier</th><th class="r">Annoncé</th><th class="r">Gagnés</th><th class="r">Paris</th></tr>
+      <tr><td>1-2</td><td class="r">62 %</td><td class="r">64 %</td><td class="r">58</td></tr>
+      <tr><td>3-4</td><td class="r">58 %</td><td class="r">55 %</td><td class="r">31</td></tr>
+      <tr><td>5-6</td><td class="r">56 %</td><td class="r">57 %</td><td class="r">12</td></tr>
+    </table>
+    <div class="ok">Juste : écarts dans la marge attendue pour ce nombre de paris.</div>
+  </div>
+  <div class="c">
+    <b>Toutes les montantes terminées</b>
+    <div class="kv"><span class="mu2">Montantes</span><span>27</span></div>
+    <div class="kv"><span class="mu2">Allées au bout</span><span>3 (11 %)</span></div>
+    <div class="kv"><span class="mu2">Attendu selon les cotes</span><span>9 %</span></div>
+    <div class="kv"><span class="mu2">Bilan, mises de départ comprises</span><span class="pos b">+41 %</span></div>
+    <div class="mu" style="margin-top:6px">Peu de montantes : un seul succès change beaucoup le bilan.</div>
+  </div>
+</div>
+<div class="nav"><span>Matchs</span><span>Coupon</span><span>Montante</span><span>Mes paris</span><span class="on">Profil</span></div></div>
+</figure>
+
+<figure>
+<figcaption><b>M5 · Console : surveillance des montantes</b>Pour le fondateur : l'état de toutes les montantes et les anomalies à regarder. Aucune donnée personnelle dans les exports.</figcaption>
+<div class="p" style="background:#0B0915"><div class="sc">
+  <div class="hd"><h2>Montantes</h2><span class="tag gr">Tout va bien</span></div>
+  <div class="grid2">
+    <div><span class="mu">En cours</span><b>9</b></div>
+    <div><span class="mu">Terminées (30 j)</span><b>27</b></div>
+    <div><span class="mu">Allées au bout</span><b>11 %</b></div>
+    <div><span class="mu">Attendu</span><b>9 %</b></div>
+  </div>
+  <div class="c">
+    <b>Où les montantes s'arrêtent</b>
+    <div class="surv" style="height:80px">
+      <div style="height:90%"><b>9</b></div><div style="height:70%"><b>7</b></div><div style="height:40%"><b>4</b></div><div style="height:20%"><b>2</b></div><div style="height:10%"><b>1</b></div><div style="height:10%"><b>1</b></div>
+    </div>
+    <div class="lbl"><span>P1</span><span>P2</span><span>P3</span><span>P4</span><span>P5</span><span>P6</span></div>
+  </div>
+  <div class="c">
+    <b>À regarder</b>
+    <div class="alert"><span class="tag yl">!</span><div>2 paliers attendent leur règlement depuis plus de 24 h</div></div>
+    <div class="alert"><span class="tag yl">!</span><div>Montante sans pari depuis 7 jours : 3 (rappel au joueur, jamais pour l'inciter à jouer)</div></div>
+    <div class="alert"><span class="tag">i</span><div>Paliers hors plage ce mois : 4 sur 112</div></div>
+    <div class="alert" style="border:0"><span class="tag">i</span><div>Marchés qui perdent le plus en montante : buts en 1re mi-temps (3 sur 5 perdus)</div></div>
+  </div>
+</div></div>
+</figure>
+
+</div>
+<div class="legend">
+<b>Ce que ça apporte</b><br>
+1. Le joueur voit son vrai bilan (M1) : gagnées et perdues ensemble, jamais seulement les réussites.<br>
+2. Il comprend jusqu'où vont ses montantes comparé aux cotes, et quels choix lui réussissent (M2).<br>
+3. Avant chaque palier, ce qui est en jeu est écrit en clair, y compris ce que la sécurisation aurait gardé (M3).<br>
+4. La Fiabilité vérifie les chances annoncées pour les montantes, pour tous les joueurs (M4).<br>
+5. La console surveille toutes les montantes et signale les anomalies (M5).<br><br>
+<b>Données</b> : tout existe déjà en base (chaque palier garde sa plage, sa cote jouée, hors plage ou non, son pari et son résultat). Rien à collecter en plus.<br>
+<b>À décider</b> : valider M1 à M5, ou retirer/modifier des écrans ; seuil de « peu de montantes » (proposé : 30 terminées avant d'afficher un verdict).
+</div>
+</body>
+</html>
