@@ -22,6 +22,7 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from footprono.bookmaker import live_coupons
 from footprono.core.config import Settings
 from footprono.football import logos
 from footprono.football.models import (
@@ -391,6 +392,26 @@ async def follow_live(
             chunk = ids[start : start + IDS_PER_REQUEST]
             body = await client.get("/fixtures", {"ids": "-".join(map(str, chunk))})
             items.extend(body["response"])
+        # Coupon en direct (13/11/2026) : cotes en direct de tous les matchs en cours, une
+        # requête, seulement quand un match suivi est dans une fenêtre et le coupon publié.
+        wanted = {
+            int(it["fixture"]["id"])
+            for it in items
+            if live_coupons.odds_wanted(
+                it["fixture"]["status"].get("short"), it["fixture"]["status"].get("elapsed")
+            )
+        } & set(by_fixture)
+        if wanted and client.can_spend() and (await live_coupons.settings_of(session))[0]:
+            odds_body = await client.get("/odds/live", {})
+            report["live_odds"] = {
+                by_fixture[fid].id: {
+                    "at": now.isoformat(),
+                    "update": entry.get("update"),
+                    "odds": live_coupons.parse_live_odds(entry),
+                }
+                for entry in odds_body.get("response") or []
+                if (fid := int((entry.get("fixture") or {}).get("id") or 0)) in wanted
+            }
         for item in items:
             fixture = api_football.parse_fixture(item)
             match = by_fixture.get(fixture.fixture_id)

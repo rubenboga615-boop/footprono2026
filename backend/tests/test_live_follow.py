@@ -266,3 +266,60 @@ async def test_follow_live_task_runs_one_pass_at_a_time(monkeypatch: pytest.Monk
     assert ran == [1]
     assert await r.get(tasks.FOLLOW_LOCK) is None  # verrou rendu
     await r.aclose()
+
+
+async def test_follow_live_reads_live_odds_only_in_a_window_when_published(
+    db_factory: Factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Coupon en direct (13/11/2026) : /odds/live une fois par passage, seulement si un match
+    suivi est dans une fenêtre (ici la 61e) et que le coupon en direct est publié."""
+    from footprono.bookmaker import live_coupons
+
+    fd = IngestionRequest(DataSource.FOOTBALL_DATA, ["EPL"], [2024], FIXTURES / "football-data")
+    await run_ingestion(db_factory, make_settings(raw_data_dir=tmp_path / "raw"), [fd])
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path == "/status":
+            body: Any = {"response": {"requests": {"current": 1, "limit_day": 7500}}}
+        elif request.url.path == "/odds/live":
+            body = {"response": [
+                {"fixture": {"id": 7000}, "update": "2026-11-13T13:20:00+00:00", "odds": [
+                    {"name": "Fulltime Result", "values": [{"value": "Home", "odd": "1.5"}]}]},
+                {"fixture": {"id": 9999}, "odds": []},
+            ]}  # fmt: skip
+        else:
+            body = {"response": [_item(7000, "2H", 61, (1, 0), (1, 0))]}
+        return httpx.Response(200, json={**body, "errors": []})
+
+    monkeypatch.setattr(service, "api_football_transport", httpx.MockTransport(handler))
+    monkeypatch.setattr(api_football.ApiFootballClient, "__init__", _fast_init)
+    settings = make_settings(raw_data_dir=tmp_path / "raw", api_football_key="k" * 32)
+    async with db_factory() as session:
+        last_day = await session.scalar(select(func.max(Match.match_date)))
+        mid = await session.scalar(select(Match.id).where(Match.match_date == last_day).limit(1))
+        await session.execute(
+            update(Match).where(Match.id == mid).values(
+                status=MatchStatus.SCHEDULED, home_goals=None, away_goals=None,
+                result_source=None, api_football_id=7000, kickoff_at=NOW - timedelta(minutes=75),
+            )
+        )  # fmt: skip
+        await session.commit()
+
+    even = NOW + timedelta(minutes=2)
+    async with db_factory() as session:
+        report = await follow_live(session, settings, now=even)
+    assert "/odds/live" not in calls  # pas publié : aucune requête de plus
+    assert "live_odds" not in report
+
+    async with db_factory() as session:
+        await live_coupons.set_settings(session, True, "indicative")
+    calls.clear()
+    async with db_factory() as session:
+        report = await follow_live(session, settings, now=even)
+    assert calls.count("/odds/live") == 1
+    assert report["live_odds"] == {
+        mid: {"at": even.isoformat(), "update": "2026-11-13T13:20:00+00:00",
+              "odds": {"1X2||home": "1.5"}}
+    }  # fmt: skip

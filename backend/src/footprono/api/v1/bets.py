@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import aliased
 
 from footprono.accounts.plans import PremiumRequiredError, market_allowed
-from footprono.api.deps import CurrentUserDep, OptionalUserDep, SessionDep
+from footprono.api.deps import CurrentUserDep, OptionalUserDep, RedisDep, SessionDep
 from footprono.bookmaker import service, settlement, smart_coupon
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.bookmaker.record import player_record
@@ -190,8 +190,24 @@ async def _bet_out(session: SessionDep, bet: Bet) -> BetOut:
     )
 
 
+@router.get("/live/coupons")
+async def live_coupons_now(
+    session: SessionDep, redis: RedisDep, user: OptionalUserDep
+) -> dict[str, Any]:
+    """Coupon en direct (maquettes D8 à D15) : matchs dans une fenêtre (pause → 50e, 60e-63e,
+    75e-78e) et combinés du moteur par profil, avec les cotes en direct. Rien tant que la
+    console ne l'a pas publié. Sûr pour tous ; Équilibré et Audacieux Premium (sans
+    Premium : chance et cote seulement)."""
+    from footprono.accounts.plans import is_premium
+    from footprono.bookmaker import live_coupons
+
+    return await live_coupons.proposals(session, redis, premium=is_premium(user))
+
+
 @router.post("/bets", response_model=BetOut, status_code=status.HTTP_201_CREATED)
-async def place_bet(body: BetIn, user: CurrentUserDep, session: SessionDep) -> BetOut:
+async def place_bet(
+    body: BetIn, user: CurrentUserDep, session: SessionDep, redis: RedisDep
+) -> BetOut:
     bet = await service.place_bet(
         session,
         user,
@@ -200,6 +216,7 @@ async def place_bet(body: BetIn, user: CurrentUserDep, session: SessionDep) -> B
             for s in body.selections
         ],
         body.stake,
+        redis=redis,  # cotes en direct du coupon en direct
     )
     await session.commit()
     await session.refresh(bet)

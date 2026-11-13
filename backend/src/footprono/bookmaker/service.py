@@ -15,12 +15,14 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from fastapi import status
+from redis.asyncio import Redis
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.accounts import service as accounts
 from footprono.accounts.models import User
 from footprono.accounts.plans import require_market
+from footprono.bookmaker import live_coupons
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.bookmaker.odds_math import combined_odds
 from footprono.core.errors import AppError, NotFoundError
@@ -214,6 +216,12 @@ async def cached_offers_and_probabilities(
     )
 
 
+def _started(match: Match, now: datetime) -> bool:
+    return (
+        match.kickoff_at <= now if match.kickoff_at is not None else match.match_date < now.date()
+    ) or (match.api_status or "NS") not in ("NS", "TBD")
+
+
 def _check_open(match: Match, now: datetime) -> None:
     if match.status is not MatchStatus.SCHEDULED or match.api_status in UNPLAYED_STATUSES:
         raise AppError(f"match {match.id} fermé aux paris (terminé, reporté ou annulé)")
@@ -232,7 +240,10 @@ async def place_bet(
     *,
     now: datetime | None = None,
     montante_step_id: int | None = None,
+    redis: Redis | None = None,
 ) -> Bet:
+    """Pari sur des cotes réelles récentes. Pendant une fenêtre du coupon en direct (publié),
+    une sélection d'un match commencé se place sur sa cote en direct, relue ici (``redis``)."""
     now = now or datetime.now(UTC)
     if not 1 <= len(selections) <= MAX_SELECTIONS:
         raise AppError(f"un pari compte de 1 à {MAX_SELECTIONS} sélections")
@@ -246,15 +257,29 @@ async def place_bet(
         )
     for s in selections:
         require_market(user, s.market, now)
-    chosen: list[tuple[SelectionIn, Offer, float | None]] = []
+    # (sélection, cote, bookmaker, relevé de la cote, chance du moteur)
+    chosen: list[tuple[SelectionIn, Decimal, str, int | None, float | None]] = []
     for s in selections:
         match = await session.get(Match, s.match_id)
         if match is None:
             raise NotFoundError(f"match {s.match_id} introuvable")
-        _check_open(match, now)
-        offer = (await match_offer(session, s.match_id, now)).get(
-            key(s.market, s.line, s.selection)
+        k = key(s.market, s.line, s.selection)
+        live = (
+            await live_coupons.live_offer(session, redis, s.match_id, k, now)
+            if redis is not None and _started(match, now)
+            else None
         )
+        if live is not None:
+            odds, prob = live
+            if s.odds is not None and odds < s.odds:
+                raise OddsChangedError(
+                    f"la cote a baissé : {s.odds} → {odds} (en direct)",
+                    details={"match_id": s.match_id, "odds": str(odds)},
+                )
+            chosen.append((s, odds, live_coupons.SOURCE, None, prob))
+            continue
+        _check_open(match, now)
+        offer = (await match_offer(session, s.match_id, now)).get(k)
         if offer is None:
             raise AppError(
                 f"aucune cote réelle récente pour {s.market} {s.line} {s.selection} "
@@ -266,9 +291,9 @@ async def place_bet(
                 details={"match_id": s.match_id, "odds": str(offer.odds)},
             )
         probs = await model_probabilities(session, s.match_id)
-        chosen.append((s, offer, probs.get(key(s.market, s.line, s.selection))))
+        chosen.append((s, offer.odds, offer.bookmaker, offer.quote_id, probs.get(k)))
 
-    total = combined_odds(offer.odds for _, offer, _ in chosen)
+    total = combined_odds(odds for _, odds, _, _, _ in chosen)
     bet = Bet(
         user_id=user.id,
         kind="single" if len(chosen) == 1 else "combo",
@@ -282,7 +307,7 @@ async def place_bet(
     )
     session.add(bet)
     await session.flush()
-    for s, offer, prob in chosen:
+    for s, odds, bookmaker, quote_id, prob in chosen:
         session.add(
             BetSelection(
                 bet_id=bet.id,
@@ -290,9 +315,9 @@ async def place_bet(
                 market=s.market,
                 line=s.line,
                 selection=s.selection,
-                odds=offer.odds,
-                bookmaker=offer.bookmaker,
-                odds_quote_id=offer.quote_id,
+                odds=odds,
+                bookmaker=bookmaker,
+                odds_quote_id=quote_id,
                 model_probability=prob,
                 result="pending",
             )

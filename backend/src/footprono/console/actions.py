@@ -1386,6 +1386,60 @@ register(
 )
 
 
+async def live_coupons_switch(ctx: JobContext, params: dict[str, Any]) -> str:
+    """Coupon en direct (maquettes D8 à D15) : publication et source des cotes affichées."""
+    from footprono.bookmaker import live_coupons
+
+    async with ctx.factory() as session:
+        before, source = await live_coupons.settings_of(session)
+        choice = params["choice"]
+        if choice == "on" and not await live_published(session):
+            raise AppError(
+                "Chances en direct non publiées : le coupon en direct s'appuie sur elles "
+                "(publier d'abord « Chances en direct publiées »)."
+            )
+        after = before if choice == "keep" else choice == "on"
+        source = params.get("odds_source") or source
+        await live_coupons.set_settings(session, after, source)
+    ctx.result = {"published": after, "odds_source": source}
+    state = {True: "publié", False: "non publié"}
+    shown = {"1xbet": "cotes 1xBet", "indicative": "cotes indicatives"}[source]
+    return f"coupon en direct : {state[before]} → {state[after]} · {shown}"
+
+
+register(
+    Action(
+        id="live_coupons_switch",
+        title="Coupon en direct publié",
+        family="Moteur",
+        description=(
+            "Montre aux joueurs le coupon en direct : propositions du moteur à la pause, à la "
+            "60e et à la 75e minute (étude du 13/11/2026), avec les cotes en direct, relevées "
+            "seulement pendant ces fenêtres (une requête par passage). « Cotes 1xBet » si la "
+            "comparaison avec l'application 1xBet montre les mêmes cotes, sinon « cotes "
+            "indicatives » (à vérifier dans 1xBet). Les chances en direct doivent être publiées."
+        ),
+        risk="modifie",
+        run=live_coupons_switch,
+        cost="aucune requête ; publié : 1 requête par minute pendant les fenêtres",
+        duration="quelques secondes",
+        params=(
+            Param("choice", "Coupon en direct", "choice", default="keep", options=_SWITCH),
+            Param(
+                "odds_source",
+                "Cotes affichées",
+                "choice",
+                default="indicative",
+                options=(
+                    ("indicative", "Indicatives (à vérifier dans 1xBet)"),
+                    ("1xbet", "1xBet (comparaison faite)"),
+                ),
+            ),
+        ),
+    )
+)
+
+
 async def details_backfill(ctx: JobContext, params: dict[str, Any]) -> str:
     async with ctx.factory() as session:
         out = await live.backfill_details(

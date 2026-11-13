@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from footprono import __version__, alerts
 from footprono.accounts.reminders import send_premium_reminders
-from footprono.bookmaker import playable, settlement, smart_coupon
+from footprono.bookmaker import live_coupons, playable, settlement, smart_coupon
 from footprono.bookmaker.kickoff import send_kickoff_reminders
 from footprono.cache.redis import create_redis
 from footprono.console import jobs as console_jobs
@@ -211,11 +211,16 @@ async def _follow_live_once(settings: Settings) -> dict[str, Any]:
         # Puis le relevé poussé à l'application ouverte, réglements compris (retour du
         # fondateur du 12/11/2026 : il fallait actualiser sans arrêt).
         updated = report.pop("updated", [])
-        if updated:
+        odds = report.pop("live_odds", {})
+        if updated or odds:
             redis = create_redis(settings)
             try:
-                async with create_session_factory(engine)() as session:
-                    report["pushed"] = await live_feed.publish_live(redis, session, updated)
+                # Cotes en direct du coupon en direct (gardées 3 minutes).
+                await live_coupons.store_odds(redis, odds)
+                report["live_odds"] = len(odds)
+                if updated:
+                    async with create_session_factory(engine)() as session:
+                        report["pushed"] = await live_feed.publish_live(redis, session, updated)
             finally:
                 await redis.aclose()
         return report
