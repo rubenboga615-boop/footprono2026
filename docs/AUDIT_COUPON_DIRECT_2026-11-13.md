@@ -65,3 +65,40 @@ indicative » (D11), pas « cote 1xBet ».
   un but (ou un but annulé).
 - Test : relevé à 1-0, but à 2-0 → refusé ; nouvelle cote mais but récent → refusé ;
   2 minutes après → accepté ; carton rouge → refusé.
+
+## 14 h 07 GMT — Premier coupon en direct publié, vu en production
+
+`/live/coupons` → `published: true`, `odds_source: "indicative"` (décision après la
+comparaison avec 1xBet, `docs/COMPARAISON_COTES_DIRECT_2026-11-13.md`).
+
+**Ce qui marche** : à 14:07, Mozambique – Éthiopie (2e mi-temps, 47e, 0-0) est proposé dans la
+fenêtre « mi-temps » (fermeture à la 50e), avec une sélection et un combiné pour chaque profil.
+
+**Défaut 1 — les trois propositions sont moins sûres que leur cote, selon le moteur lui-même.**
+
+| Profil | Sélection | Cote | Moteur | Selon la cote |
+|---|---|---|---|---|
+| Sûr | moins de 2,5 buts | 1,111 | 84 % | 90 % |
+| Équilibré | plus de 0,5 but | 1,363 | 73 % | 73 % |
+| Audacieux | Mozambique ou Éthiopie | 1,50 | 59 % | **67 %** |
+
+Le moteur propose donc des paris qu'il juge lui-même plus mauvais que le prix offert : pour
+le Sûr, 84 % de chances à une cote qui en suppose 90 % ; pour l'Audacieux, 8 points sous la
+cote. Le profil choisit la sélection d'après sa chance (fourchette du profil), sans regarder
+la cote.
+
+**Suggestion** :
+- ne proposer en direct que des sélections où la chance du moteur est au moins égale à
+  la chance donnée par la cote (au besoin 2 points de marge pour les cotes indicatives) ;
+- sinon, afficher « aucune proposition intéressante pour l'instant », plutôt qu'un pari
+  perdant à long terme ;
+- à défaut, l'avertissement « le moteur est moins confiant que la cote » sur la
+  proposition.
+
+**Défaut 2 — Zambie – Burundi à la mi-temps (14:04-14:07, statut HT) n'est pas proposé.**
+Le match était bien dans la fenêtre « mi-temps », et les chances en direct étaient publiées.
+La cause probable : pas de cote en direct pour ce match à la pause (cote suspendue par la
+source, ou match absent de `/odds/live`). Ce n'est pas faux en soi : sans cote, il n'y a pas
+de proposition. Mais c'est à confirmer avec « Tester le direct » à la prochaine mi-temps. Si
+la source suspend toutes ses cotes pendant la pause, la fenêtre « mi-temps » ne s'ouvrira
+qu'à la reprise, et ne durera alors que 46e-50e.
