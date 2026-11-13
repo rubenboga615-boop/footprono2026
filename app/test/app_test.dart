@@ -59,6 +59,10 @@ class FakeServer {
 
   /// Paris renvoyés par /bets (vide sauf si un test en donne).
   List<Map<String, dynamic>> bets = [];
+
+  /// GET /montantes et GET /bets/{id} (paris des paliers).
+  List<Map<String, dynamic>> montantes = [];
+  Map<int, Map<String, dynamic>> betsById = {};
   final notifications = <Map<String, dynamic>>[];
   bool paymentsConfigured = true;
   bool betaSharing = false;
@@ -278,7 +282,7 @@ class FakeServer {
       case 'GET /live':
         body = live;
       case 'GET /montantes':
-        body = [];
+        body = montantes;
       case 'GET /predictions/upcoming':
         body = [
           {
@@ -899,6 +903,8 @@ class FakeServer {
         placedBets.add(b);
         return http.Response(jsonEncode({'id': 1}), 201, headers: _json);
       default:
+        final id = r.method == 'GET' && path.startsWith('/bets/') ? int.tryParse(path.substring(6)) : null;
+        if (betsById[id] case final b?) return http.Response(jsonEncode(b), 200, headers: _json);
         return _error(404, 'not_found', 'route inconnue ${r.method} $path');
     }
     return http.Response(jsonEncode(body), 200, headers: _json);
@@ -1511,6 +1517,79 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('PALIER 1'), findsOneWidget);
     expect(find.text('PALIER'), findsNothing); // en-tête du tableau du téléphone
+  });
+
+  testWidgets('montante : match, date et état du pari de chaque palier, comme dans Mes paris', (
+    tester,
+  ) async {
+    final (_, server) = await startApp(tester, loggedIn: true, premium: true);
+    server.montantes = [
+      {
+        'id': 4,
+        'status': 'active',
+        'currency': 'XOF',
+        'start_stake': 5000,
+        'secure_pct': 0,
+        'current_step': 2,
+        'steps': [
+          {
+            'number': 1,
+            'odds_min': '1.55',
+            'odds_max': '1.65',
+            'result': 'won',
+            'bet_id': 31,
+            'out_of_range': false,
+            'stake': 5000,
+            'odds': '1.57',
+            'payout': 7850,
+          },
+          {
+            'number': 2,
+            'odds_min': '1.60',
+            'odds_max': '1.70',
+            'result': 'pending',
+            'bet_id': null,
+            'out_of_range': false,
+            'stake': 7850,
+            'payout_range': [12560, 13345],
+          },
+        ],
+        'final_payout_range': [12560, 13345],
+        'chance_by_odds': 0.6,
+        'chance_by_model': null,
+        'cashable': 7850,
+        'net_result': 2850,
+      },
+    ];
+    server.betsById[31] = {
+      'id': 31,
+      'kind': 'single',
+      'stake': 5000,
+      'currency': 'XOF',
+      'total_odds': '1.57',
+      'potential_payout': 7850,
+      'payout': 7850,
+      'status': 'settled',
+      'selections': [
+        {
+          'match_id': 9,
+          'market': '1X2',
+          'selection': 'home',
+          'odds': '1.57',
+          'result': 'win',
+          'home_team': 'Hull',
+          'away_team': 'Middlesbrough',
+          'kickoff_at': '2026-11-08T16:00:00Z',
+          'state': 'settled',
+          'score': [2, 1],
+        },
+      ],
+    };
+    await tester.tap(find.text('Montante').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Hull – Middlesbrough'), findsOneWidget);
+    expect(find.textContaining('8 nov'), findsOneWidget);
+    expect(find.textContaining('gagné'), findsWidgets);
   });
 
   testWidgets('notifications push : téléphone enregistré, notification touchée, déconnexion', (tester) async {

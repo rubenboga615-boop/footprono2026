@@ -12,6 +12,7 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/maquette.dart';
+import 'bookmaker_screen.dart' show selectionColor, selectionState;
 
 String montanteStatus(String s) => switch (s) {
   'active' => 'En cours',
@@ -956,6 +957,9 @@ class _MontanteViewState extends State<MontanteView> {
                     final b? => '${betLabel(b)} · ${odds(b.totalOdds)}',
                     _ => s['odds'] != null ? 'Cote ${odds(s['odds'])}' : 'À choisir',
                   },
+                  // Retour du fondateur (13/11/2026) : le match, sa date et son état sur
+                  // chaque palier, comme dans Mes paris, sans aller les chercher ailleurs.
+                  selections: bets[s['bet_id']]?.selections ?? const [],
                   detail: s['stake'] != null
                       ? '${thousands(s['stake'] as int)} → '
                             '${s['payout'] != null
@@ -1102,11 +1106,15 @@ class _StepLine extends StatelessWidget {
     required this.title,
     required this.detail,
     required this.range,
+    this.selections = const [],
   });
   final int number;
   final _StepState state;
   final String title;
   final String detail;
+
+  /// Sélections du pari du palier : match, date et heure, état (à venir, en direct, gagné).
+  final List<BetSel> selections;
 
   /// Plage de cote du palier (« 1,55–1,65 »).
   final String range;
@@ -1153,7 +1161,38 @@ class _StepLine extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (selections.length == 1)
+                  Text(
+                    '${selections.single.homeTeam} – ${selections.single.awayTeam}',
+                    style: Fp.body(12, color: Fp.muted),
+                  ),
                 Text(title, style: Fp.body(14, weight: FontWeight.w700)),
+                if (selections.length == 1)
+                  Text(
+                    selectionState(selections.single),
+                    style: Fp.body(12, color: selectionColor(selections.single)),
+                  )
+                else
+                  for (final sel in selections)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text:
+                                  '${sel.homeTeam} – ${sel.awayTeam} · '
+                                  '${fullLabel(sel.market, sel.line, sel.selection, home: sel.homeTeam, away: sel.awayTeam)}\n',
+                              style: Fp.body(12, color: Fp.textSoft),
+                            ),
+                            TextSpan(
+                              text: selectionState(sel),
+                              style: Fp.body(12, color: selectionColor(sel)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 Text('$detail · plage $range', style: Fp.body(12, color: Fp.muted)),
               ],
             ),
