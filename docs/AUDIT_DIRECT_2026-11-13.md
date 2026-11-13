@@ -122,3 +122,59 @@ cours ») : ouvre **Mes paris**. Conforme.
     que notre score ait changé ;
   - vérifier pourquoi le score du Gabon est resté à 0-0 au moins 7 minutes (but de la 53e
     entré en retard par la source, ou relevé en retard chez nous).
+
+## 13/11, 18 h 53 – 21 h 38 GMT — Réglage « Validé ou perdu », matchs de 19:45
+
+Réglage passé sur « Validé ou perdu » à 18:53 (`/me` → `results`), remis sur « Tout » à
+21:38. Paris suivis :
+- n° 57 : Écosse – Macédoine du Nord ;
+- n° 69 : Pays-Bas – Grèce, « Pays-Bas mènent à la mi-temps » ;
+- n° 75 : montante n° 7, Slovénie – Suisse, « plus de 0,5 but en 1re mi-temps ».
+
+| Heure | Notification | Événement réel | Verdict |
+|---|---|---|---|
+| 19:15:00 | ⏰ Dans 30 min : Pays-Bas - Grèce (ton pari n° 69) | — | conforme (le rappel ne dépend pas du réglage) ; **Écosse – Macédoine du Nord absent** (pari 57, défaut 1) |
+| *19:47 →* | *aucun « C'est parti »* pour les trois matchs | coups d'envoi vers 19:47 | **conforme au réglage** |
+| *19:50 → 21:30* | *aucun « ⚽ »* pour 9 buts (Pays-Bas 5-0 à la pause ; Écosse 54e, 57e, 74e) | — | **conforme au réglage** |
+| 20:53:03 | Pari gagné — Pays-Bas - Grèce : 1 970 F CFA crédités | pause vers 20:33 (5-0) | juste ; **~20 min** (défaut 2) |
+| 21:00:05 | Pari perdu — ❌ Slovénie 0-0 Suisse : « plus de 0,5 but à la mi-temps » est perdu. Ton coupon de 5 000 F CFA est perdu. **+** Montante perdue — Palier 1 perdu : montante arrêtée. | pause 0-0 vers 20:35, reprise plus tardive | juste ; ~25 min (défaut 2) |
+| 21:38:03 | ✅ « Écosse ou Macédoine du Nord » validé (Écosse 2-1 Macédoine du Nord). Ton coupon : 2 sur 3. | fin vers 21:36 | conforme, ~2 min |
+
+**Le réglage « Validé ou perdu » est conforme** : ni « C'est parti » ni « ⚽ », mais les
+sélections validées et les résultats arrivent. « Tout se joue sur Belgique – Italie »
+(pari 57, dernier match) n'est pas envoyé, ce qui est cohérent avec le réglage.
+
+**Défaut 2 confirmé deux fois de plus.** Les paris 69 et 75 portaient sur la 1re
+mi-temps. Ils n'ont été réglés que 20 à 25 min après la pause, et sans état « pour
+l'instant » pendant tout le match : le pari 69 menait 4-0 à la 36e, avec `now: null`.
+
+**Défauts 5 et 6 (détails de texte)** :
+5. Montante : deux notifications à la même seconde (« Pari perdu » et « Montante perdue »).
+   Il vaudrait mieux une seule : « ❌ Palier 1 de ta montante perdu (Slovénie 0-0 Suisse) :
+   montante arrêtée. »
+6. « Ton coupon de 5 000 F » pour un pari simple : écrire « ton pari », comme le rappel
+   (« ton pari n° 69 »).
+
+**Points non vérifiés aujourd'hui** :
+- **élision** : aucun libellé « victoire d'… » n'est passé dans mes notifications. Le code
+  la gère (`live_alerts.py`, « d'Arménie », « d'Écosse ») ; à revoir à la prochaine
+  occasion ;
+- **« ↩️ But annulé »** : aucun but annulé dans mes matchs ;
+- **carte « Chances en direct »** dans l'écran du match : pas regardée pendant les matchs
+  (surveillance par l'API).
+
+### Bilan du test de la version 213
+
+| Point demandé | Résultat |
+|---|---|
+| 1. ⏰ pour chaque match, « ton coupon n° …, x sur y validée » | conforme pour les nouveaux paris (68, 69) ; **aucun rappel pour les paris rappelés avant le 13/11** (57, 58) |
+| 2. 🟢 C'est parti dans la minute du coup d'envoi, une fois | conforme (4 matchs, ≤ 1 min) |
+| 3. pari placé moins de 30 min avant : pas de rappel, « C'est parti » | conforme (pari 74) |
+| 4. toucher ouvre Mes paris | conforme |
+| 5. ✅, ⚽, « tout se joue sur », perte avec sélection et score, regroupement | conformes, ~1 min après le but ; 1re mi-temps réglée 20 min trop tard ; « 90' » au lieu de « 90+4' » |
+| 6. élision | non vu |
+| 7. réglage « Validé ou perdu » | conforme |
+| 8. carte Chances en direct | non vu |
+
+Paris du jour : 74 gagné (+615 F), 69 gagné (+1 970 F) ; 58, 68 et 75 perdus ; 57 : 2 sur 3,
+Belgique – Italie le 15/11.
