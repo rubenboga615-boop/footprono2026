@@ -18,17 +18,23 @@ Firebase), web (`web/icons/Icon-192`, `Icon-512`, `Icon-maskable-*`, `favicon.pn
 
 `pistes/` : les pistes comparées (A actuel, B à E) et les variantes de B, en situation.
 
-## Correction du 13/11 (11 h) : icône Android trop grande
+## Correction du 13/11 (11 h) : une seule taille de ballon partout
 
-Sur le téléphone du fondateur (capture `capture-telephone-fondateur-13-11.jpg`), le ballon
-remplit presque toute l'icône, sans marge, à la différence des autres applications. **Mon
-erreur** : dans `footproba-premier-plan.svg`, le ballon fait 66 sur 108, toute la zone sûre.
-Or le lanceur ne montre que les 72 du centre, et le ballon en occupe donc 92 %.
+Sur le téléphone du fondateur (`capture-telephone-fondateur-13-11.jpg`), le ballon
+remplissait presque toute l'icône Android. **Mon erreur** : il faisait 66 sur 108, alors que
+le lanceur ne montre que les 72 du centre. Sur le web, il faisait 55 % de l'icône : les
+tailles n'étaient pas les mêmes d'un support à l'autre.
 
-**Remplacer par `footproba-premier-plan-v2.svg` / `-v2-432.png`.** Le ballon y fait 52 sur
-108, soit environ 72 % de la partie visible, comme les autres icônes. Le quart restant passe
-de 30 à 40 % d'opacité, pour qu'il se voie mieux sur le fond violet. Avant / après :
-`avant-apres-android.png`.
+Sur demande du fondateur, **tous les fichiers sont refaits avec la même règle : le ballon
+occupe 62 % de la partie visible de l'icône**, quel que soit le support (aperçu :
+`apercu-unifie.png`). Le quart restant passe à 40 % d'opacité.
 
-Les icônes web, la console et l'icône complète 1024 ne changent pas : elles ont déjà la
-bonne marge.
+| Fichier | Canevas | Ballon |
+|---|---|---|
+| `footproba-logo.svg` / `-1024.png`, `footproba-play-store-512.png`, `web/Icon-192.png`, `web/Icon-512.png`, `web/favicon.png` | icône pleine | 62 % du côté |
+| `footproba-maskable.svg`, `web/Icon-maskable-192.png`, `-512.png` | partie visible = cercle de 80 % | 62 % de 80 % |
+| `footproba-premier-plan.svg` / `-432.png` (Android adaptatif, et `monochrome`) | 108, partie visible 72 | 62 % de 72 |
+| `footproba-fond.svg` / `-432.png` | fond en dégradé | — |
+| `footproba-notification.svg` / `-96.png` | petite icône des notifications | remplit l'icône (normal pour cette icône) |
+
+Fichiers prêts à copier tels quels : `web/` → `app/web/` (et `favicon.png`).
