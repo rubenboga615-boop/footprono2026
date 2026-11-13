@@ -16,3 +16,22 @@ téléphone) : chaque nouveauté va dans l'écran où le joueur la cherche déj�
 
 Après le match, l'onglet « En direct » devient « Résumé du match » (mêmes sous-onglets). Les
 onglets Probabilités, Cotes et Analyse restent ceux d'avant le match.
+
+## Coupon en direct (13 novembre 2026) — à valider
+
+`coupon-en-direct.html` : maquettes **D8 à D15**, dans l'hypothèse où le coupon en direct
+fonctionne. Elles remplacent D5 et D6, corrigés avec ce que l'on sait au 13/11 : coupons
+vérifiés justes **à la mi-temps seulement** (fermés à la 50e), marchés retirés par la
+vérification jamais proposés, **aucune notification qui propose un coupon**, cote 1xBet ou
+« cote indicative » selon la comparaison des cotes en direct.
+
+| Maquette | Écran |
+|---|---|
+| `D8` | Mon coupon : carte « Coupon à la mi-temps », seulement quand un match est à la pause |
+| `D9` | Coupon à la mi-temps : un bloc par match, profils Sûr / Équilibré / Audacieux, fermeture à la 50e |
+| `D10` | Détail d'une proposition : sélections, chance du moteur, cote 1xBet, chemin dans 1xBet |
+| `D11` | Variante « cote indicative » si la source n'est pas 1xBet |
+| `D12` | Mon coupon : compte à rebours, cote relue avant de placer |
+| `D13` | Écran du match à la pause : carte « Coupon à la mi-temps » sous les chances en direct |
+| `D14` | Mes paris : coupon placé à la mi-temps, chance de départ prise à la pause |
+| `D15` | Fiabilité : coupons à la mi-temps, annoncé contre gagné, par profil |

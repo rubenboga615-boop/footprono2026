@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coupon en direct · maquettes D8 à D15</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#07050D;font-family:Inter,system-ui,sans-serif;color:#fff}
+header{max-width:1240px;margin:0 auto;padding:28px 16px 8px}
+header h1{margin:0 0 6px;font-size:24px}
+header p{margin:4px 0;color:#A9A3C2;font-size:14px;line-height:1.5;max-width:900px}
+.rules{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.rules span{font-size:12px;border:1px solid #3A3260;border-radius:14px;padding:6px 10px;color:#C9C3F0}
+.grid{display:flex;flex-wrap:wrap;gap:28px;justify-content:center;padding:20px 12px 60px;max-width:1300px;margin:0 auto}
+figure{margin:0;width:390px;max-width:100%}
+figcaption{font-size:13px;color:#C9C3F0;line-height:1.45;margin:0 0 10px}
+figcaption b{color:#fff;font-size:15px;display:block;margin-bottom:2px}
+.p{position:relative;width:390px;max-width:100%;height:844px;background:#0E0B1A;color:#fff;overflow:hidden;font-size:14px;line-height:1.35;border-radius:28px;box-shadow:0 0 0 1px #241E3D}
+.sc{padding:48px 16px 110px}
+.hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hd h2{margin:0;font-size:26px}.hd h2 span{color:#A78BFA}
+.bk{display:flex;align-items:center;gap:10px}.bk h2{font-size:22px;margin:0}.bk .chev{font-size:22px;color:#B9B2FF}
+.c{background:#1A1530;border-radius:18px;padding:14px;margin-top:12px}
+.mu{color:#A9A3C2;font-size:12px}.mu2{color:#A9A3C2;font-size:13px}
+.row{display:flex;align-items:center;gap:10px}.sp{flex:1;min-width:0}.b{font-weight:700}
+.tag{font-size:11px;font-weight:700;border-radius:8px;padding:4px 8px;background:#2B2060;color:#B9B2FF;white-space:nowrap}
+.gr{background:#12301F;color:#4ADE80}.rd{background:#3A1620;color:#FF8A9B}.yl{background:#1F1709;color:#E7C98A}
+.btn{height:52px;border-radius:26px;background:#6D4AFF;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;margin-top:14px}
+.btn2{height:46px;border-radius:23px;border:1px solid #3A3260;color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;margin-top:10px;font-size:14px}
+.lnk{color:#B9B2FF;font-weight:600}
+.li{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #241E3D}.li:last-child{border-bottom:0}
+.kv{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0}
+.warn{background:#1F1709;border:1px solid #6B4F1D;color:#E7C98A;border-radius:14px;padding:10px 12px;font-size:12.5px;margin-top:12px;line-height:1.45}
+.ok{background:#12301F;border:1px solid #1F5B3A;color:#C9F5D9;border-radius:14px;padding:10px 12px;font-size:13px;margin-top:12px}
+.info{background:#16122B;border:1px solid #2A2347;color:#C9C3F0;border-radius:14px;padding:10px 12px;font-size:12.5px;margin-top:12px;line-height:1.45}
+.seg{display:flex;background:#1A1530;border-radius:16px;padding:4px;margin-top:12px}
+.seg span{flex:1;height:40px;border-radius:12px;color:#A9A3C2;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:13.5px}
+.seg .on{background:#2B2060;color:#fff}
+.nav{position:absolute;left:12px;right:12px;bottom:16px;height:72px;border-radius:28px;background:#15112A;box-shadow:inset 0 0 0 1px #2A2347;display:flex;justify-content:space-around;align-items:center;z-index:5}
+.nav span{color:#A9A3C2;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:500;min-width:56px}
+.nav .on{color:#B9B2FF}
+.ld{width:7px;height:7px;border-radius:50%;background:#4ADE80;display:inline-block;margin-right:5px}
+.live{color:#4ADE80;font-weight:700}
+.ht{color:#E7C98A;font-weight:700}
+.score{display:flex;align-items:center;gap:10px;margin-top:6px}.score .n{flex:1;font-weight:700;font-size:15px}.score .s{font-weight:800;font-size:18px}
+.prof{display:flex;gap:6px;margin-top:10px}
+.prof span{flex:1;background:#0E0B1A;border-radius:12px;text-align:center;padding:8px 2px;font-size:12px;color:#A9A3C2;line-height:1.3}
+.prof b{display:block;color:#fff;font-size:15px}
+.prof .on{box-shadow:inset 0 0 0 1.5px #7C5CFF;background:#2B2060}
+.lock{color:#E7C98A;font-size:11px}
+.sel{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid #241E3D}.sel:last-of-type{border-bottom:0}
+.odd{font-weight:800;font-size:16px;min-width:44px;text-align:right}
+.ind{color:#E7C98A}
+.timer{display:flex;align-items:center;gap:8px;background:#1F1709;border:1px solid #6B4F1D;border-radius:14px;padding:9px 12px;font-size:13px;color:#E7C98A;margin-top:12px}
+.timer b{font-variant-numeric:tabular-nums}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#1A1530;border-radius:24px 24px 0 0;padding:10px 18px 24px;z-index:9}
+.sheet:before{content:'';display:block;width:40px;height:4px;border-radius:2px;background:#3A3260;margin:0 auto 14px}
+.scrim{position:absolute;inset:0;background:rgba(5,3,12,.72);z-index:8}
+.blur{filter:blur(3px);opacity:.5}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl td,.tbl th{padding:9px 4px;border-bottom:1px solid #241E3D;text-align:left}.tbl th{color:#A9A3C2;font-weight:600;font-size:12px}.tbl .r{text-align:right}
+.bar{height:8px;border-radius:4px;background:#241E3D;position:relative;margin-top:6px}
+.bar i{position:absolute;top:0;bottom:0;left:0;border-radius:4px;background:#6D4AFF}
+.bar u{position:absolute;top:-3px;width:2px;height:14px;background:#4ADE80}
+.chip{display:inline-block;font-size:11px;font-weight:700;border-radius:8px;padding:3px 7px;background:#12301F;color:#4ADE80}
+.legend{max-width:1240px;margin:0 auto;padding:0 16px 40px;color:#C9C3F0;font-size:14px;line-height:1.55}
+.legend h2{font-size:18px;color:#fff}
+.legend li{margin:4px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Coupon en direct — maquettes D8 à D15 (à valider)</h1>
+  <p>Hypothèse : le coupon en direct fonctionne. Il remplace D5 et D6 du 10/11, corrigés avec ce que l'on sait au 13/11 : seuls les coupons <b>proposés à la mi-temps</b> ont été vérifiés justes, certains marchés ont été retirés par la vérification, et la source des cotes en direct n'est peut-être pas 1xBet. Même style que les maquettes validées ; les chiffres sont des exemples.</p>
+  <div class="rules">
+    <span>Mi-temps seulement (pause → 50e)</span>
+    <span>Chances du moteur vérifiées, jamais « value » ni « bon plan »</span>
+    <span>Aucune notification ne propose un coupon</span>
+    <span>Sûr gratuit · Équilibré et Audacieux Premium</span>
+    <span>Argent fictif · pas un conseil de pari</span>
+  </div>
+</header>
+
+<div class="grid">
+
+<!-- D8 -->
+<figure>
+<figcaption><b>D8 · Mon coupon</b>La 3e carte « Coupon en direct » n'apparaît que quand au moins un match est à la mi-temps. Sinon : rien (pas de carte vide qui attire).</figcaption>
+<div class="p"><div class="sc">
+  <div class="hd"><h2>Mon <span>coupon</span></h2><span class="tag">100 000 F CFA</span></div>
+  <div class="c row"><span style="font-size:22px">🎟</span><div class="sp"><b>Coupon intelligent</b><div class="mu">Le moteur compose un coupon pour toi</div></div><span class="lnk">›</span></div>
+  <div class="c row"><span style="font-size:22px">◎</span><div class="sp"><b>Coupons du jour</b><div class="mu">Un coupon par profil chaque matin, avec son code</div></div><span class="lnk">›</span></div>
+  <div class="c row" style="box-shadow:inset 0 0 0 1px #1F5B3A"><span style="font-size:22px;color:#4ADE80">●</span><div class="sp"><b>Coupon à la mi-temps</b> <span class="tag yl">2 matchs à la pause</span><div class="mu">Propositions du moteur pour la 2e mi-temps, jusqu'à la 50e minute</div></div><span class="lnk">›</span></div>
+  <div class="c mu2" style="text-align:center;padding:24px 14px">Coupon vide. Ouvre un match et touche une cote pour l'ajouter.</div>
+</div>
+<div class="nav"><span>Matchs</span><span class="on">Coupon</span><span>Montante</span><span>Mes paris</span><span>Profil</span></div></div>
+</figure>
+
+<!-- D9 -->
+<figure>
+<figcaption><b>D9 · Coupon à la mi-temps</b>Un bloc par match à la pause, trois profils. La chance du moteur d'abord, la cote ensuite. Après la 50e, les propositions ferment (le moteur n'est vérifié qu'à la mi-temps).</figcaption>
+<div class="p"><div class="sc">
+  <div class="bk"><span class="chev">‹</span><h2>Coupon à la mi-temps</h2></div>
+  <div class="info">Proposé à la pause, pour la 2e mi-temps. Cotes 1xBet en direct : elles bougent vite, vérifie-les avant de parier. Si tu viens de perdre, fais une pause.</div>
+  <div class="c">
+    <div class="row"><span class="mu sp">Qualif. Coupe du monde · Afrique</span><span class="ht">● Mi-temps</span></div>
+    <div class="score"><span class="n">RD Congo</span><span class="s">1</span></div>
+    <div class="score" style="margin-top:2px"><span class="n">Sierra Leone</span><span class="s">0</span></div>
+    <div class="mu" style="margin-top:6px">⚽ 4' Wissa · tirs cadrés 4 – 1</div>
+    <div class="prof">
+      <span class="on">Sûr<b>78 %</b>cote 1,22</span>
+      <span>Équilibré<b>52 %</b>cote 1,88<div class="lock">Premium</div></span>
+      <span>Audacieux<b>27 %</b>cote 3,40<div class="lock">Premium</div></span>
+    </div>
+    <div class="timer"><span>⏱</span><span class="sp">Ouvert jusqu'à la 50e minute</span><b>reprise dans 6 min</b></div>
+  </div>
+  <div class="c">
+    <div class="row"><span class="mu sp">Amical international</span><span class="ht">● Mi-temps</span></div>
+    <div class="score"><span class="n">Bénin</span><span class="s">0</span></div>
+    <div class="score" style="margin-top:2px"><span class="n">Togo</span><span class="s">0</span></div>
+    <div class="prof">
+      <span>Sûr<b>81 %</b>cote 1,19</span>
+      <span>Équilibré<b>49 %</b>cote 1,95<div class="lock">Premium</div></span>
+      <span>Audacieux<b>25 %</b>cote 3,70<div class="lock">Premium</div></span>
+    </div>
+  </div>
+  <div class="c" style="opacity:.6">
+    <div class="row"><span class="mu sp">Ghana – Somalie · 2-0</span><span class="live"><span class="ld"></span>58'</span></div>
+    <div class="mu2" style="margin-top:6px">Propositions fermées à la 50e.</div>
+  </div>
+</div>
+<div class="nav"><span>Matchs</span><span class="on">Coupon</span><span>Montante</span><span>Mes paris</span><span>Profil</span></div></div>
+</figure>
+
+<!-- D10 -->
+<figure>
+<figcaption><b>D10 · Détail d'une proposition</b>Sélections, chance de chacune et du coupon, cote 1xBet. « Ajouter à mon coupon » met tout dans le coupon (argent fictif). Pas de code de réservation en direct : le chemin dans 1xBet est écrit.</figcaption>
+<div class="p"><div class="sc blur">
+  <div class="bk"><span class="chev">‹</span><h2>Coupon à la mi-temps</h2></div>
+  <div class="c" style="height:520px"></div>
+</div>
+<div class="scrim"></div>
+<div class="sheet">
+  <div class="row"><b class="sp" style="font-size:17px">Sûr · RD Congo – Sierra Leone</b><span class="ht">● MT 1-0</span></div>
+  <div class="ok"><b>Chance selon le moteur : 78 %</b> · environ 8 sur 10<div style="font-size:12px;margin-top:2px">Calculée avec le score de la mi-temps. Vérifiée sur 13 347 matchs passés.</div></div>
+  <div class="sel"><div class="sp"><b>RD Congo ou nul</b><div class="mu">Résultat du match · moteur 89 %</div></div><span class="odd">1,10</span></div>
+  <div class="sel"><div class="sp"><b>Moins de 4,5 buts</b><div class="mu">Buts du match · moteur 88 %</div></div><span class="odd">1,11</span></div>
+  <div class="kv" style="margin-top:6px"><span class="mu2">Cote du coupon (1xBet, 19:47)</span><b>1,22</b></div>
+  <div class="kv"><span class="mu2">Mise</span><b>1 000 F CFA</b></div>
+  <div class="kv"><span class="mu2">Tu récupères si tout passe</span><b style="color:#4ADE80">1 220 F CFA</b></div>
+  <div class="btn">Ajouter à mon coupon</div>
+  <div class="mu" style="margin-top:10px;line-height:1.45">Dans 1xBet : Direct → Football → RD Congo – Sierra Leone, puis les deux sélections ci-dessus. Ce n'est pas un conseil de pari.</div>
+</div>
+</div>
+</figure>
+
+<!-- D11 -->
+<figure>
+<figcaption><b>D11 · Variante si la source n'est pas 1xBet</b>Si la comparaison avec 1xBet montre des cotes différentes : la cote est marquée « indicative », en ambre, avec « ≈ ». Le gain affiché est approximatif.</figcaption>
+<div class="p"><div class="sc blur">
+  <div class="bk"><span class="chev">‹</span><h2>Coupon à la mi-temps</h2></div>
+  <div class="c" style="height:520px"></div>
+</div>
+<div class="scrim"></div>
+<div class="sheet">
+  <div class="row"><b class="sp" style="font-size:17px">Sûr · RD Congo – Sierra Leone</b><span class="ht">● MT 1-0</span></div>
+  <div class="ok"><b>Chance selon le moteur : 78 %</b> · environ 8 sur 10</div>
+  <div class="sel"><div class="sp"><b>RD Congo ou nul</b><div class="mu">moteur 89 %</div></div><span class="odd ind">≈ 1,11</span></div>
+  <div class="sel"><div class="sp"><b>Moins de 4,5 buts</b><div class="mu">moteur 88 %</div></div><span class="odd ind">≈ 1,12</span></div>
+  <div class="warn"><b>Cotes indicatives</b> : relevées chez un autre bookmaker, elles peuvent différer de 1xBet de quelques centièmes. Vérifie la cote dans 1xBet avant de parier.</div>
+  <div class="kv" style="margin-top:6px"><span class="mu2">Cote indicative du coupon</span><b class="ind">≈ 1,24</b></div>
+  <div class="kv"><span class="mu2">Tu récupères si tout passe (environ)</span><b style="color:#4ADE80">≈ 1 240 F CFA</b></div>
+  <div class="btn">Ajouter à mon coupon</div>
+</div>
+</div>
+</figure>
+
+<!-- D12 -->
+<figure>
+<figcaption><b>D12 · Mon coupon avec des sélections en direct</b>Compte à rebours jusqu'à la fermeture. Avant de placer, la cote est relue : si elle a changé, le joueur accepte la nouvelle ou retire la sélection.</figcaption>
+<div class="p"><div class="sc">
+  <div class="hd"><h2>Mon <span>coupon</span></h2><span class="tag">100 000 F CFA</span></div>
+  <div class="timer"><span>⏱</span><span class="sp">Sélections en direct : à placer avant la 50e</span><b>4:12</b></div>
+  <div class="c">
+    <div class="sel"><div class="sp"><div class="mu">RD Congo – Sierra Leone · <span class="ht">MT 1-0</span></div><b>RD Congo ou nul</b></div><span class="odd">1,10</span></div>
+    <div class="sel"><div class="sp"><div class="mu">RD Congo – Sierra Leone · <span class="ht">MT 1-0</span></div><b>Moins de 4,5 buts</b><div style="font-size:12px;color:#E7C98A;margin-top:3px">Cote changée : 1,11 → 1,08</div></div><span class="odd">1,08</span></div>
+    <div class="row" style="gap:8px;margin-top:8px"><div class="btn2 sp" style="margin:0">Retirer</div><div class="btn2 sp" style="margin:0;border-color:#6D4AFF">Accepter 1,08</div></div>
+  </div>
+  <div class="c">
+    <div class="kv"><span class="mu2">Cote totale</span><b>1,19</b></div>
+    <div class="kv"><span class="mu2">Chance selon le moteur</span><b>78 %</b></div>
+    <div class="kv"><span class="mu2">Mise</span><b>1 000 F CFA</b></div>
+    <div class="kv"><span class="mu2">Tu récupères si tout passe</span><b style="color:#4ADE80">1 190 F CFA</b></div>
+  </div>
+  <div class="btn">Placer le pari · 1 000 F CFA</div>
+  <div class="mu" style="text-align:center;margin-top:8px">Argent fictif · ce n'est pas un conseil de pari</div>
+</div>
+<div class="nav"><span>Matchs</span><span class="on">Coupon</span><span>Montante</span><span>Mes paris</span><span>Profil</span></div></div>
+</figure>
+
+<!-- D13 -->
+<figure>
+<figcaption><b>D13 · Écran du match, onglet En direct, à la pause</b>Une carte discrète sous les chances en direct, seulement entre la pause et la 50e. C'est le joueur qui va la chercher : aucune notification ne la pousse.</figcaption>
+<div class="p"><div class="sc">
+  <div class="mu2"><span class="lnk">‹</span>&nbsp; Qualif. Coupe du monde · Mercredi 12 novembre</div>
+  <div class="c" style="text-align:center">
+    <div class="row" style="justify-content:center;gap:22px"><b>RD Congo</b><span style="font-size:30px;font-weight:800">1 – 0</span><b>Sierra Leone</b></div>
+    <div class="ht" style="font-size:12.5px">● Mi-temps</div>
+    <div class="mu">Mis à jour il y a 20 s</div>
+  </div>
+  <div class="seg"><span class="on">En direct</span><span>Probabilités</span><span>Cotes</span><span>Analyse</span></div>
+  <div class="c">
+    <div class="row"><b class="sp" style="font-size:16px">Chances en direct</b><span class="tag">MT</span></div>
+    <div class="prof"><span class="on">RD Congo<b>71 %</b></span><span>Nul<b>21 %</b></span><span>Sierra L.<b>8 %</b></span></div>
+    <div class="kv" style="margin-top:6px"><span class="mu2">Encore au moins un but</span><b>68 %</b></div>
+    <div class="kv" style="padding-top:0"><span class="mu" style="font-size:13px">Encore au moins deux buts</span><b>34 %</b></div>
+  </div>
+  <div class="c row" style="box-shadow:inset 0 0 0 1px #6B4F1D"><div class="sp"><b>Coupon à la mi-temps</b><div class="mu">3 propositions du moteur pour la 2e mi-temps · jusqu'à la 50e</div></div><span class="lnk">Voir ›</span></div>
+  <div class="mu2" style="margin-top:12px;font-weight:700">Chronologie</div>
+  <div class="li"><span class="mu" style="width:34px;font-weight:700">4'</span><span class="sp">⚽ Wissa (passe de Mbuku)</span><span class="mu">1-0</span></div>
+  <div class="li"><span class="mu" style="width:34px;font-weight:700">31'</span><span class="sp">🟨 Kamara</span></div>
+</div>
+<div class="nav"><span class="on">Matchs</span><span>Coupon</span><span>Montante</span><span>Mes paris</span><span>Profil</span></div></div>
+</figure>
+
+<!-- D14 -->
+<figure>
+<figcaption><b>D14 · Mes paris : coupon placé à la mi-temps</b>Même fiche que D7, avec le moment du pari (« placé à la mi-temps, 1-0 ») et la chance de départ calculée à ce moment-là, pas avant le match.</figcaption>
+<div class="p"><div class="sc blur">
+  <div class="hd"><h2>Mes <span>paris</span></h2></div><div class="c" style="height:520px"></div>
+</div>
+<div class="nav"><span>Matchs</span><span>Coupon</span><span>Montante</span><span class="on">Mes paris</span><span>Profil</span></div>
+<div class="scrim"></div>
+<div class="sheet">
+  <div class="row" style="justify-content:space-between"><b style="font-size:17px">Pari n° 72 · Mi-temps · 2 sélections</b><span class="tag yl">En cours</span></div>
+  <div class="mu" style="margin-top:4px">Placé à la mi-temps (RD Congo 1-0 Sierra Leone) · profil Sûr</div>
+  <div class="ok"><b>Chance de ton coupon : 78 % à la pause → 91 % maintenant</b><div style="font-size:12px;margin-top:2px">D'après le score et la minute.</div></div>
+  <div class="li" style="align-items:flex-start"><span style="width:8px;height:8px;border-radius:50%;background:#4ADE80;margin-top:6px"></span><div class="sp"><div class="mu">RD Congo – Sierra Leone</div><b>RD Congo ou nul</b><div style="font-size:12px;color:#4ADE80;margin-top:2px">En direct 74' · 2-0 · gagnante pour l'instant · Suivre ›</div></div><b>1,10</b></div>
+  <div class="li" style="align-items:flex-start"><span style="width:8px;height:8px;border-radius:50%;background:#4ADE80;margin-top:6px"></span><div class="sp"><div class="mu">RD Congo – Sierra Leone</div><b>Moins de 4,5 buts</b><div style="font-size:12px;color:#4ADE80;margin-top:2px">En direct 74' · 2 buts · gagnante pour l'instant</div></div><b>1,08</b></div>
+  <div class="kv"><span class="mu2">Mise · cote 1,19</span><b>1 000 F CFA</b></div>
+  <div class="kv"><span class="mu2">Gain possible</span><b style="color:#4ADE80">1 190 F CFA</b></div>
+</div>
+</div>
+</figure>
+
+<!-- D15 -->
+<figure>
+<figcaption><b>D15 · Fiabilité : coupons à la mi-temps</b>Comme pour les autres coupons : ce que le moteur annonçait, ce qui s'est passé, et le nombre de coupons. Rien n'est publié tant que la vérification n'est pas juste.</figcaption>
+<div class="p"><div class="sc">
+  <div class="bk"><span class="chev">‹</span><h2>Fiabilité</h2></div>
+  <div class="seg"><span>Matchs</span><span>Coupons</span><span class="on">Mi-temps</span></div>
+  <div class="info">Coupons proposés à la pause depuis le 15/11 : chance annoncée par le moteur et part réellement gagnée.</div>
+  <div class="c">
+    <table class="tbl">
+      <tr><th>Profil</th><th class="r">Annoncé</th><th class="r">Gagnés</th><th class="r">Coupons</th></tr>
+      <tr><td><b>Sûr</b></td><td class="r">79 %</td><td class="r">77 %</td><td class="r">412</td></tr>
+      <tr><td><b>Équilibré</b></td><td class="r">51 %</td><td class="r">53 %</td><td class="r">398</td></tr>
+      <tr><td><b>Audacieux</b></td><td class="r">26 %</td><td class="r">24 %</td><td class="r">377</td></tr>
+    </table>
+    <div class="mu" style="margin-top:8px">Écart dans la marge attendue pour ce nombre de coupons (deux erreurs types).</div>
+  </div>
+  <div class="c">
+    <div class="row"><b class="sp">Sûr · annoncé contre gagné</b><span class="chip">juste</span></div>
+    <div class="bar"><i style="width:77%"></i><u style="left:79%"></u></div>
+    <div class="mu" style="margin-top:6px">Barre : gagnés · trait vert : annoncé</div>
+  </div>
+  <div class="c">
+    <div class="row"><b class="sp">Avant la mise en service</b></div>
+    <div class="mu2" style="margin-top:4px;line-height:1.45">Vérifié sur 13 347 matchs des saisons passées, jamais vus par le moteur pendant l'apprentissage.</div>
+  </div>
+</div>
+<div class="nav"><span>Matchs</span><span>Coupon</span><span>Montante</span><span>Mes paris</span><span class="on">Profil</span></div></div>
+</figure>
+
+</div>
+
+<section class="legend">
+<h2>Ce qui change par rapport à D5 et D6 (10/11)</h2>
+<ul>
+<li><b>Mi-temps seulement</b> : l'étude du 11/11 a montré des chances justes à la pause ; en cours de 2e mi-temps, non vérifié. Les propositions ferment à la 50e (D9, D12).</li>
+<li><b>Plus de « une proposition toutes les 60 minutes »</b> (D6) : elle contredisait la règle « jamais de proposition de pari dans une notification ». Le joueur va chercher le coupon (D8, D13).</li>
+<li><b>Marchés</b> : ceux retirés par la vérification ne sont jamais proposés (les deux marquent sur tout le match, buts d'une équipe en 2e mi-temps) ; pas de cartons ni de corners tant qu'ils ne sont pas vérifiés en direct.</li>
+<li><b>Cotes</b> : 1xBet si la source est 1xBet (D10) ; sinon « cote indicative ≈ » en ambre (D11). Choix à faire après la comparaison.</li>
+<li><b>Pas de code de réservation</b> en direct (les codes 1xBet sont saisis à la main chaque matin) : le chemin dans 1xBet est écrit (D10).</li>
+<li><b>Cote relue avant de placer</b> (D12) ; <b>chance de départ prise à la pause</b> dans Mes paris (D14) ; <b>Fiabilité</b> par profil (D15).</li>
+</ul>
+<h2>À décider</h2>
+<ul>
+<li>Fenêtre : de la pause à la 50e, ou jusqu'à la reprise seulement ?</li>
+<li>Gratuit / Premium : Sûr gratuit et les autres Premium (comme les choix du moteur), ou tout Premium ?</li>
+<li>Cotes non 1xBet : « indicative » (D11) ou pas de coupon en direct ?</li>
+</ul>
+</section>
+</body>
+</html>
