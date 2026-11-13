@@ -17,3 +17,18 @@ Firebase), web (`web/icons/Icon-192`, `Icon-512`, `Icon-maskable-*`, `favicon.pn
 écran de démarrage, console (onglet), Play Store.
 
 `pistes/` : les pistes comparées (A actuel, B à E) et les variantes de B, en situation.
+
+## Correction du 13/11 (11 h) : icône Android trop grande
+
+Sur le téléphone du fondateur (capture `capture-telephone-fondateur-13-11.jpg`), le ballon
+remplit presque toute l'icône, sans marge, à la différence des autres applications. **Mon
+erreur** : dans `footproba-premier-plan.svg`, le ballon fait 66 sur 108, toute la zone sûre.
+Or le lanceur ne montre que les 72 du centre, et le ballon en occupe donc 92 %.
+
+**Remplacer par `footproba-premier-plan-v2.svg` / `-v2-432.png`.** Le ballon y fait 52 sur
+108, soit environ 72 % de la partie visible, comme les autres icônes. Le quart restant passe
+de 30 à 40 % d'opacité, pour qu'il se voie mieux sur le fond violet. Avant / après :
+`avant-apres-android.png`.
+
+Les icônes web, la console et l'icône complète 1024 ne changent pas : elles ont déjà la
+bonne marge.
