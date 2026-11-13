@@ -501,13 +501,17 @@ class LiveSel {
       line = j['line'] as String? ?? '',
       selection = j['selection'] as String,
       probability = _d(j['probability']),
-      odds = '${j['odds']}';
+      odds = '${j['odds']}',
+      belowOdds = j['below_odds'] == true;
   final int matchId;
   final String market;
   final String line;
   final String selection;
   final double probability;
   final String odds;
+
+  /// Le moteur est moins confiant que la cote (signalé, jamais écarté : docs/MOTEUR.md).
+  final bool belowOdds;
 }
 
 /// Match dans une fenêtre du coupon en direct.
@@ -557,11 +561,13 @@ class LiveCombo {
       probability = _d(j['probability']),
       odds = _d(j['odds']),
       locked = j['locked'] == true,
+      belowOdds = j['below_odds'] == true,
       selections = [for (final s in (j['selections'] as List? ?? const [])) LiveSel(s as Json)];
   final int size;
   final double probability;
   final double odds;
   final bool locked;
+  final bool belowOdds;
   final List<LiveSel> selections;
 }
 

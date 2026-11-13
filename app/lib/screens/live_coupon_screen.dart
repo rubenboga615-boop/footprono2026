@@ -204,6 +204,8 @@ class _ProfileTile extends StatelessWidget {
                 style: Fp.body(12, color: Fp.muted),
               ),
               if (c != null && c.locked) Text('Premium', style: Fp.body(11, color: Fp.warning)),
+              if (c != null && !c.locked && c.belowOdds)
+                Text('moteur < cote', style: Fp.body(11, color: Fp.warning)),
             ],
           ),
         ),
@@ -327,8 +329,9 @@ class _ComboSheet extends StatelessWidget {
                               style: Fp.body(14.5, weight: FontWeight.w700),
                             ),
                             Text(
-                              'moteur ${chancePercent(s.probability)}',
-                              style: Fp.body(12, color: Fp.muted),
+                              'moteur ${chancePercent(s.probability)} · selon la cote '
+                              '${chancePercent(1 / (double.tryParse(s.odds) ?? 1))}',
+                              style: Fp.body(12, color: s.belowOdds ? Fp.warning : Fp.muted),
                             ),
                           ],
                         ),
@@ -340,6 +343,22 @@ class _ComboSheet extends StatelessWidget {
                     ],
                   ),
                 ),
+            if (combo.belowOdds)
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1F1709),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF6B4F1D)),
+                ),
+                child: Text(
+                  'Le moteur est moins confiant que la cote : ${chancePercent(combo.probability)} contre '
+                  '${chancePercent(1 / combo.odds)} selon la cote. Un joueur prudent attend la prochaine '
+                  'proposition.',
+                  style: Fp.body(12.5, color: Fp.warning, height: 1.4),
+                ),
+              ),
             if (ind)
               Container(
                 margin: const EdgeInsets.only(top: 12),

@@ -132,3 +132,23 @@ cote. Le filtre de valeur (chance du moteur ≥ 1/cote + 3 points) devient indis
 pendant le match ; l'onglet Statistiques les affiche déjà). Mais l'archive n'a pas ces
 statistiques minute par minute. Il faudrait commencer à les **enregistrer à chaque fenêtre
 dès maintenant** (mi-temps, 60e, 75e) pour pouvoir le vérifier dans quelques semaines.
+### Suite donnée (13/11/2026)
+
+- **Défaut 1** : pas de filtre « chance du moteur ≥ 1/cote ». `docs/MOTEUR.md` (Grosse cote,
+  03/10 ; montante, 06/11) : choisir sur un désaccord avec la cote retient surtout les cas
+  où la cote a raison ; et 1/cote contient la marge du bookmaker, si bien que le filtre ne
+  laisserait presque que ces désaccords. Si le marché en sait plus que le moteur (section
+  précédente : tirs, xG du direct), une chance du moteur au-dessus de la cote signale
+  plutôt ce que le moteur ne voit pas : le filtre garderait justement ces cas-là. Le
+  remède à « le marché en sait plus » est d'ajouter ces données au moteur (piste
+  ci-dessus), pas de choisir sur le désaccord. Retenu : l'avertissement, comme pour la
+  montante.
+  Chaque sélection et chaque combiné portent `below_odds` ; l'application affiche « moteur
+  < cote » sur la tuile, les deux chances côte à côte sur chaque sélection, et « Le moteur
+  est moins confiant que la cote : X % contre Y % selon la cote ». Le filtre reste possible
+  si le fondateur le décide.
+- **Défaut 2** : à la mi-temps, des cotes « stopped » (jeu arrêté) ne sont plus écartées
+  (aucun but possible pendant la pause) ; « blocked » le reste. La raison de chaque match
+  écarté est notée dans le rapport du suivi du direct (`live_odds_dropped` : absent de
+  /odds/live, cotes bloquées, score différent, aucune cote ouverte). À confirmer à la
+  mi-temps de Burkina Faso – Mauritanie.

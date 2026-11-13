@@ -2954,6 +2954,7 @@ void main() {
           'probability': 0.712,
           'odds': '1.342',
           'locked': false,
+          'below_odds': true, // 71 % contre 75 % selon la cote
           'selections': [a, b],
         },
         'Équilibré': {'size': 2, 'probability': 0.36, 'odds': '2.6', 'locked': true, 'selections': []},
@@ -2975,6 +2976,7 @@ void main() {
     await tester.tap(find.text('Sûr · 2'));
     await tester.pumpAndSettle();
     expect(find.text('Sûr · combiné de 2 matchs'), findsOneWidget);
+    expect(find.textContaining('Le moteur est moins confiant que la cote : 71'), findsOneWidget);
     expect(find.textContaining('Cotes indicatives : relevées chez un autre bookmaker'), findsOneWidget);
     await tester.tap(find.text('Ajouter à mon coupon'));
     await tester.pumpAndSettle();

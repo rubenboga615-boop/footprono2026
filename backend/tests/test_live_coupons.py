@@ -60,12 +60,29 @@ def test_live_odds_read_in_our_keys_suspended_left_out() -> None:
 
 
 def test_odds_entry_kept_only_at_the_same_score_and_not_suspended() -> None:
-    entry = {"teams": {"home": {"goals": 1}, "away": {"goals": 0}}, "status": {}}
+    entry = {
+        "teams": {"home": {"goals": 1}, "away": {"goals": 0}},
+        "status": {},
+        "odds": [{"name": "Fulltime Result", "values": [{"value": "Home", "odd": "1.5"}]}],
+    }
     assert live_coupons.entry_current(entry, [1, 0])
     assert not live_coupons.entry_current(entry, [2, 0])  # cotes d'avant le but
     assert not live_coupons.entry_current(entry, None)
     assert not live_coupons.entry_current({**entry, "status": {"blocked": True}}, [1, 0])
     assert not live_coupons.entry_current({**entry, "status": {"stopped": True}}, [1, 0])
+    # Mi-temps : jeu arrêté, aucun but possible ; « stopped » seul n'écarte pas les cotes.
+    assert live_coupons.entry_current({**entry, "status": {"stopped": True}}, [1, 0], paused=True)
+    assert not live_coupons.entry_current(
+        {**entry, "status": {"blocked": True}}, [1, 0], paused=True
+    )
+    assert (
+        live_coupons.entry_problem(entry, [2, 0])
+        == "score des cotes [1, 0] différent du match [2, 0]"
+    )
+    assert (
+        live_coupons.entry_problem({**entry, "odds": []}, [1, 0])
+        == "aucune cote ouverte sur nos marchés"
+    )
 
 
 def test_pick_follows_the_profile_band_and_the_exclusions() -> None:
@@ -146,6 +163,9 @@ async def test_proposals_free_and_premium_then_live_bet(
     assert sure["size"] == 2
     assert {s["match_id"] for s in sure["selections"]} == {m1, m2}  # une sélection par match
     assert all(s["market"] in ("1X2", "OU", "BTTS") for s in sure["selections"])
+    for s in sure["selections"]:  # moteur moins confiant que la cote : signalé, pas écarté
+        assert s["below_odds"] == (s["probability"] < 1 / float(s["odds"]))
+    assert sure["below_odds"] == (sure["probability"] < 1 / float(sure["odds"]))
     probability = sure["selections"][0]["probability"] * sure["selections"][1]["probability"]
     assert abs(sure["probability"] - probability) < 1e-3
     for profile in ("Équilibré", "Audacieux"):

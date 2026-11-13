@@ -116,15 +116,28 @@ def parse_live_odds(entry: dict[str, Any]) -> dict[str, str]:
     return out
 
 
-def entry_current(entry: dict[str, Any], score: list[Any] | None) -> bool:
-    """Cotes d'une réponse ``/odds/live`` utilisables : pas suspendues par la source
-    (``blocked``, ``stopped``, ``finished``) et relevées au score du relevé des matchs."""
+def entry_problem(
+    entry: dict[str, Any], score: list[Any] | None, paused: bool = False
+) -> str | None:
+    """Pourquoi les cotes d'une réponse ``/odds/live`` ne sont pas gardées (None : gardées).
+    Écartées si la source les suspend (``blocked``, ``finished`` ; ``stopped`` aussi, sauf
+    à la mi-temps où le jeu est arrêté mais aucun but ne peut tomber) ou si elles ont été
+    relevées à un autre score que le relevé des matchs (cotes d'avant un but)."""
     status = entry.get("status") or {}
-    if any(status.get(k) for k in ("blocked", "stopped", "finished")):
-        return False
+    for key, why in (("blocked", "bloquées"), ("finished", "terminées"), ("stopped", "arrêtées")):
+        if status.get(key) and not (key == "stopped" and paused):
+            return f"cotes {why} par la source"
     teams = entry.get("teams") or {}
     goals = [(teams.get(s) or {}).get("goals") for s in ("home", "away")]
-    return score is not None and None not in goals and goals == score
+    if score is None or None in goals or goals != score:
+        return f"score des cotes {goals} différent du match {score}"
+    if not parse_live_odds(entry):
+        return "aucune cote ouverte sur nos marchés"
+    return None
+
+
+def entry_current(entry: dict[str, Any], score: list[Any] | None, paused: bool = False) -> bool:
+    return entry_problem(entry, score, paused) is None
 
 
 async def store_odds(redis: Redis, by_match: dict[int, dict[str, Any]]) -> None:
@@ -288,6 +301,10 @@ def _selection(key: str, p: float, odd: Decimal, match_id: int) -> dict[str, Any
     return {
         "match_id": match_id, "market": market, "line": line, "selection": selection,
         "probability": round(p, 4), "odds": str(odd),
+        # Relecture du 13/11 (14 h 07) : le moteur moins confiant que la cote est signalé,
+        # jamais écarté (docs/MOTEUR.md : choisir sur un désaccord avec la cote retient
+        # surtout les cas où la cote a raison).
+        "implied": round(1 / float(odd), 4), "below_odds": p < 1 / float(odd),
     }  # fmt: skip
 
 
@@ -358,6 +375,8 @@ async def proposals(
             "size": len(chosen),
             "probability": round(chance, 4),
             "odds": str(total),
+            "implied": round(1 / float(total), 4),
+            "below_odds": chance < 1 / float(total),
             "locked": locked,
             "selections": [] if locked else chosen,
         }

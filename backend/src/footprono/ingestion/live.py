@@ -404,21 +404,41 @@ async def follow_live(
         if wanted and client.can_spend() and (await live_coupons.settings_of(session))[0]:
             odds_body = await client.get("/odds/live", {})
             # Score du relevé des matchs : des cotes d'un autre score (relevées avant un but)
-            # ou suspendues par la source ne sont pas gardées.
-            scores = {
-                int(it["fixture"]["id"]): [(it.get("goals") or {}).get(s) for s in ("home", "away")]
+            # ou suspendues par la source ne sont pas gardées ; la raison est notée pour la
+            # console (Zambie - Burundi absent à la pause le 13/11/2026).
+            current = {
+                int(it["fixture"]["id"]): (
+                    [(it.get("goals") or {}).get(s) for s in ("home", "away")],
+                    it["fixture"]["status"].get("short") == "HT",
+                )
                 for it in items
             }
-            report["live_odds"] = {
-                by_fixture[fid].id: {
+            kept: dict[int, dict[str, Any]] = {}
+            dropped: dict[int, str] = {}
+            entries = {
+                int((e.get("fixture") or {}).get("id") or 0): e
+                for e in odds_body.get("response") or []
+            }
+            for fid in sorted(wanted):
+                entry = entries.get(fid)
+                score, paused = current.get(fid, (None, False))
+                problem = (
+                    "absent de /odds/live"
+                    if entry is None
+                    else live_coupons.entry_problem(entry, score, paused)
+                )
+                if problem is not None:
+                    dropped[by_fixture[fid].id] = problem
+                    continue
+                assert entry is not None
+                kept[by_fixture[fid].id] = {
                     "at": now.isoformat(),
                     "update": entry.get("update"),
                     "odds": live_coupons.parse_live_odds(entry),
                 }
-                for entry in odds_body.get("response") or []
-                if (fid := int((entry.get("fixture") or {}).get("id") or 0)) in wanted
-                and live_coupons.entry_current(entry, scores.get(fid))
-            }
+            report["live_odds"] = kept
+            if dropped:
+                report["live_odds_dropped"] = dropped
         for item in items:
             fixture = api_football.parse_fixture(item)
             match = by_fixture.get(fixture.fixture_id)
