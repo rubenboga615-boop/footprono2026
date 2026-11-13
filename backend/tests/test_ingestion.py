@@ -427,6 +427,43 @@ async def test_api_football_creates_fixtures_where_understat_is_absent(
     )  # fmt: skip
 
 
+async def test_api_football_known_fixture_under_another_pairing_is_not_recreated(
+    db_factory: Factory, tmp_path: Path
+) -> None:
+    """13/11/2026 : un match API-Football déjà en base sous une autre affiche (ici équipes
+    inversées par la source) faisait échouer l'ingestion du matin et chaque relevé de cotes
+    (contrainte unique). Il est signalé et ignoré, le reste du calendrier est chargé."""
+    from footprono.ingestion.sources.api_football import ApiFixture
+
+    await ingest(db_factory, tmp_path, fd("BEL", 2024))
+    kickoff = datetime(2030, 8, 10, 18, 30, tzinfo=UTC)
+
+    def fixture(fixture_id: int, home: str, away: str) -> ApiFixture:
+        return ApiFixture(
+            fixture_id=fixture_id, match_date=kickoff.date(), home_team=home, away_team=away,
+            home_goals=None, away_goals=None, home_goals_ht=None, away_goals_ht=None,
+            kickoff=kickoff, status="NS",
+        )  # fmt: skip
+
+    async with db_factory() as session, session.begin():
+        resolver = await loader.TeamResolver.load(session)
+        await loader.load_api_football(
+            session, "BEL", 2030, [fixture(999201, "Anderlecht", "Genk")], 0, resolver
+        )
+    swapped = fixture(999201, "Genk", "Anderlecht")
+    other = fixture(999202, "Gent", "Charleroi")
+    async with db_factory() as session, session.begin():
+        resolver = await loader.TeamResolver.load(session)
+        stats = await loader.load_api_football(session, "BEL", 2030, [swapped, other], 0, resolver)
+    assert stats.matches_inserted == 1  # Gent - Charleroi seulement
+    assert any("999201" in i and "déjà en base" in i for i in stats.issues)
+    async with db_factory() as session:
+        count = await session.scalar(
+            select(func.count()).select_from(Match).where(Match.api_football_id == 999201)
+        )
+    assert count == 1
+
+
 async def test_api_football_second_phase_fixtures_are_second_legs(
     db_factory: Factory, tmp_path: Path
 ) -> None:

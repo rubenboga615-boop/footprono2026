@@ -644,6 +644,20 @@ async def load_api_football(
     # calendrier (niveau 2) : elle prend le numéro suivant de l'affiche.
     pairs: list[tuple[ApiFixture, Match, int, int]] = []
     new_fixtures: list[dict[str, Any]] = []
+    # Matchs API-Football déjà en base sous une autre affiche (équipes inversées ou
+    # renommées, autre saison) : jamais recréés. Le 13/11/2026, le match 1548563 (Croatie)
+    # faisait échouer l'ingestion du matin et chaque relevé de cotes (contrainte unique).
+    already = {
+        int(aid): (mid, msid)
+        for aid, mid, msid in (
+            await session.execute(
+                select(Match.api_football_id, Match.id, Match.season_id).where(
+                    Match.api_football_id.in_(list(seen))
+                )
+            )
+        ).tuples()
+        if aid is not None
+    }
     for (home, away), group in by_pair.items():
         group.sort(key=lambda f: f.match_date)
         known_matches = existing.get((home, away), [])
@@ -669,8 +683,23 @@ async def load_api_football(
         next_leg = max((m.leg for m in known_matches), default=0) + 1
         for i, f in enumerate(group):
             match = partner.get(i)
-            if match is not None:
+            owner = already.get(f.fixture_id)
+            if match is not None and owner is not None and owner[0] != match.id:
+                # Le numéro est déjà pris par un autre match : ne pas le recopier ici.
+                stats.issues.append(
+                    f"match API-Football {f.fixture_id} {f.home_team}-{f.away_team} du "
+                    f"{f.match_date} déjà rattaché au match {owner[0]} : match {match.id} "
+                    "non mis à jour"
+                )
+            elif match is not None:
                 pairs.append((f, match, home, away))
+            elif f.fixture_id in already:
+                mid, msid = already[f.fixture_id]
+                stats.issues.append(
+                    f"match API-Football {f.fixture_id} {f.home_team}-{f.away_team} du "
+                    f"{f.match_date} déjà en base sous une autre affiche (match {mid}"
+                    f"{'' if msid == sid else f', saison {msid}'}) : ignoré"
+                )
             elif results_from_api and (f.finished or _awarded_with_score(f)):
                 # « AWD » : match donné sur tapis vert, score officiel enregistré et exclu
                 # de l'apprentissage (engine/history.py). Sans score officiel (Israël
