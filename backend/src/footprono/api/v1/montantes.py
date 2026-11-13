@@ -32,6 +32,8 @@ class MontanteIn(BaseModel):
 class StepBetIn(BaseModel):
     selections: list[SelectionIn] = Field(min_length=1, max_length=3)
     accept_out_of_range: bool = False
+    # Pari pris dans les suggestions du palier (true) ou composé par le joueur (false).
+    from_suggestion: bool | None = None
 
 
 @router.post("/montantes", status_code=status.HTTP_201_CREATED)
@@ -45,6 +47,22 @@ async def create_montante(body: MontanteIn, user: CurrentUserDep, session: Sessi
     )
     await session.commit()
     return await montante.plan(session, created)
+
+
+@router.get("/me/montantes/summary")
+async def my_montantes_summary(user: CurrentUserDep, session: SessionDep) -> dict[str, Any]:
+    """Suivi des montantes (maquettes M1 et M2) : bilan et analyse du joueur."""
+    from footprono.bookmaker import montante_stats
+
+    return await montante_stats.player_summary(session, user.id)
+
+
+@router.get("/reliability/montantes")
+async def montantes_reliability(session: SessionDep) -> dict[str, Any]:
+    """Fiabilité des montantes (maquette M4), pour tous les joueurs, sans nom."""
+    from footprono.bookmaker import montante_stats
+
+    return await montante_stats.reliability(session)
 
 
 @router.get("/montantes")
@@ -101,6 +119,7 @@ async def step_bet(
             for s in body.selections
         ],
         accept_out_of_range=body.accept_out_of_range,
+        suggested=body.from_suggestion,
     )
     await session.commit()
     await session.refresh(bet)

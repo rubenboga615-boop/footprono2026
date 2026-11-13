@@ -47,5 +47,8 @@ class MontanteStep(Base):
     bet_id: Mapped[int | None] = mapped_column(ForeignKey("bets.id"))
     # Cote totale hors plage acceptée par l'utilisateur après avertissement.
     out_of_range: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Pari proposé par le moteur (suggestions du palier) ou composé par le joueur ; inconnu
+    # (null) pour les paliers joués avant le 14/11/2026 (suivi des montantes, M2).
+    suggested: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     # pending, won, partial, push, lost
     result: Mapped[str] = mapped_column(String(8), default="pending")

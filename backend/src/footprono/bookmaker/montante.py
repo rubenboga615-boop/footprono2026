@@ -103,6 +103,7 @@ async def place_step_bet(
     selections: list[service.SelectionIn],
     *,
     accept_out_of_range: bool = False,
+    suggested: bool | None = None,
 ) -> Bet:
     """Pari du palier en cours (1 à 3 sélections), à la mise fixée par la montante."""
     montante = await _load(session, user, montante_id)
@@ -126,6 +127,7 @@ async def place_step_bet(
         )
     step.bet_id = bet.id
     step.out_of_range = not in_range
+    step.suggested = suggested
     return bet
 
 

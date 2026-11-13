@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono import __version__
 from footprono.accounts.models import User
+from footprono.bookmaker import montante_stats
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.bookmaker.smart_coupon import BOOKING_BOOKMAKERS
 from footprono.bookmaker.smart_models import SmartCoupon
@@ -347,4 +348,6 @@ async def dashboard(session: AsyncSession, redis: Redis, settings: Settings) -> 
         "runs": runs,
         "todo": todo,
         "jobs": await list_jobs(session, limit=8),
+        # Surveillance des montantes (maquette M5 validée le 13/11/2026).
+        "montantes": await montante_stats.console_overview(session, now),
     }

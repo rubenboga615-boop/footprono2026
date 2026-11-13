@@ -461,12 +461,28 @@ async function dashboardPage() {
   const recent = d.jobs.slice(0, 5).map((j) => h("div", { class: "row link", onclick: () => { location.hash = "#/jobs/" + j.id; } },
     h("span", { class: "lbl", text: j.title }), h("span", { class: "t", text: when(j.created_at) }), statusPill(j.status)));
 
+  // 5. Montantes (maquette M5) : état de toutes les montantes et anomalies à regarder.
+  const mt = d.montantes;
+  const pct = (v) => v == null ? "—" : String(Math.round(v * 1000) / 10).replace(".", ",") + " %";
+  const montantes = mt ? [
+    strip([
+      ["En cours", number(mt.active), "", null],
+      ["Terminées (30 j)", number(mt.finished_30d), "", null],
+      ["Allées au bout", pct(mt.to_end_share), "", "attendu selon les cotes : " + pct(mt.expected_share)],
+    ]),
+    ...(mt.stops.length ? [h("div", { class: "row" }, h("span", { class: "lbl", text: "Où elles s'arrêtent (30 j)" }),
+      h("span", { class: "t", text: mt.stops.map((x) => "P" + x.step + " : " + x.count).join(" · ") }))] : []),
+    ...mt.alerts.map((a) => h("div", { class: "todo" }, h("span", { class: "ic " + (a.level === "warning" ? "warn" : "inf") }, icon(a.level === "warning" ? "i-warn" : "i-card")), h("p", { text: a.text }))),
+  ] : [];
+
   view(state,
     h("div", { class: "grid-2" },
       h("div", {},
         card(["À faire", d.todo.length ? pill(String(d.todo.length), "warn") : null], ...todo),
         card(["Dernières actions", h("a", { href: "#/journal", class: "small", text: "Tout le journal" })], ...(recent.length ? recent : [h("div", { class: "empty", text: "Aucune action lancée depuis la console." })]))),
-      card("Tâches automatiques", ...(tasks.length ? tasks : [h("div", { class: "empty", text: "Aucune exécution enregistrée pour l'instant." })]))));
+      h("div", {},
+        card("Tâches automatiques", ...(tasks.length ? tasks : [h("div", { class: "empty", text: "Aucune exécution enregistrée pour l'instant." })])),
+        ...(mt ? [card(["Montantes", mt.alerts.some((a) => a.level === "warning") ? pill("à regarder", "warn") : pill("tout va bien", "ok")], ...montantes)] : []))));
   timer = setTimeout(route, 30000);
 }
 

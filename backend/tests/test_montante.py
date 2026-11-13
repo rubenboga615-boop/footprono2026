@@ -120,7 +120,7 @@ async def test_montante_end_to_end(
     # Palier 1 : victoire à domicile de m1 à 1,85, mise imposée (5 000).
     first = await client.post(
         f"/api/v1/montantes/{mid}/bet",
-        json={"selections": [_sel(world["m1"], "1X2", "home")]},
+        json={"selections": [_sel(world["m1"], "1X2", "home")], "from_suggestion": True},
         headers=headers,
     )
     assert first.status_code == 201, first.text
@@ -156,6 +156,32 @@ async def test_montante_end_to_end(
     assert plan["status"] == "lost"
     assert plan["steps"][1]["out_of_range"] is True
     assert plan["cashable"] == 1_850  # seule la part sécurisée reste acquise
+
+    # Suivi des montantes (M1, M2) : bilan, gagnées et perdues ensemble.
+    summary = (await client.get("/api/v1/me/montantes/summary", headers=headers)).json()
+    assert summary["counts"]["lost"] == 1
+    assert (summary["staked"], summary["returned"], summary["net"]) == (5000, 1850, -3150)
+    assert summary["stops"]["lost"] == [{"step": 2, "count": 1}]
+    assert summary["choices"]["engine"] == {"steps": 1, "won": 1}  # proposé par le moteur
+    assert summary["choices"]["unknown"] == {"steps": 1, "won": 0}  # origine non envoyée
+    assert summary["choices"]["out_of_range"] == {"steps": 1, "won": 0}
+    survival = {r["step"]: r for r in summary["survival"]}
+    assert (survival[1]["reached"], survival[2]["reached"], survival[3]["reached"]) == (1, 1, 0)
+    assert abs(survival[2]["expected"] - 1 / 1.85) < 1e-3
+    assert summary["enough"] is False  # moins de 30 montantes terminées
+
+    # Fiabilité (M4), pour tous les joueurs.
+    rel = (await client.get("/api/v1/reliability/montantes")).json()
+    assert (rel["finished"], rel["to_end"], rel["enough"]) == (1, 0, False)
+    assert (rel["steps"][0]["steps"], rel["steps"][0]["count"]) == ("1-2", 2)
+
+    # Console (M5) : état des montantes.
+    from footprono.bookmaker import montante_stats
+
+    async with db_factory() as session:
+        overview = await montante_stats.console_overview(session)
+    assert (overview["active"], overview["finished_30d"]) == (0, 1)
+    assert overview["stops"] == [{"step": 2, "count": 1}]
 
 
 def test_suggestions_never_ranked_on_disagreement_with_the_odds() -> None:
