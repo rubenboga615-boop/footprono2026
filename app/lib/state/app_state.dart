@@ -637,6 +637,71 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return 'Ajouté au coupon';
   }
 
+  /// Coupon en direct : propositions du moment (GET /live/coupons), gardées pour la carte
+  /// de Mon coupon et de l'écran du match.
+  final ValueNotifier<LiveCoupons?> liveCoupons = ValueNotifier(null);
+
+  Future<LiveCoupons?> loadLiveCoupons() async {
+    try {
+      final r = LiveCoupons(await api.get('/live/coupons') as Json);
+      liveCoupons.value = r;
+      return r;
+    } on ApiException {
+      return liveCoupons.value;
+    }
+  }
+
+  /// Ajoute les sélections d'une proposition du coupon en direct (une par match ; une autre
+  /// sélection du même match est remplacée).
+  String addLiveSelections(List<LiveSel> sels, Map<int, LiveCouponMatch> matches) {
+    var added = 0;
+    for (final s in sels) {
+      final m = matches[s.matchId];
+      if (m == null) continue;
+      final offer = Offer({
+        'market': s.market,
+        'line': s.line,
+        'selection': s.selection,
+        'odds': s.odds,
+        'bookmaker': 'direct',
+        'model_probability': s.probability,
+      });
+      final item = CouponItem(match: m.toMatch(), offer: offer, closesAt: m.closesAt);
+      final existing = coupon.indexWhere((c) => c.match.id == s.matchId);
+      if (existing >= 0) {
+        coupon[existing] = item;
+      } else if (coupon.length < maxCoupon) {
+        coupon.add(item);
+      } else {
+        continue;
+      }
+      added++;
+    }
+    notifyListeners();
+    return added == 0 ? 'Coupon plein ($maxCoupon sélections au maximum)' : 'Ajouté au coupon';
+  }
+
+  /// Cote en direct baissée au moment de placer : la nouvelle cote remplace l'ancienne,
+  /// le joueur décide de placer de nouveau ou de retirer la sélection (maquette D12).
+  void updateLiveOdds(int matchId, String odds) {
+    final i = coupon.indexWhere((c) => c.match.id == matchId && c.live);
+    if (i < 0) return;
+    final c = coupon[i];
+    coupon[i] = CouponItem(
+      match: c.match,
+      offer: Offer({
+        'market': c.offer.market,
+        'line': c.offer.line,
+        'selection': c.offer.selection,
+        'odds': odds,
+        'bookmaker': 'direct',
+        'model_probability': c.offer.modelProbability,
+      }),
+      closesAt: c.closesAt,
+    );
+    notifyListeners();
+  }
+
   void removeFromCoupon(CouponItem item) {
     coupon.remove(item);
     if (coupon.isEmpty) couponBig = false;

@@ -14,6 +14,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/maquette.dart';
 import 'daily_coupons_screen.dart';
+import 'live_coupon_screen.dart';
 import 'smart_coupon_screen.dart';
 
 /// Montante active dont le palier en cours attend son pari.
@@ -66,6 +67,8 @@ class _CouponScreenState extends State<CouponScreen> {
   void initState() {
     super.initState();
     _loadSteps();
+    // Coupon en direct (D8) : la carte n'apparaît que pendant une fenêtre.
+    context.read<AppState>().loadLiveCoupons();
   }
 
   Future<void> _loadSteps() async {
@@ -99,7 +102,7 @@ class _CouponScreenState extends State<CouponScreen> {
   Future<void> _confirmPlace() async {
     final state = context.read<AppState>();
     final items = [...state.coupon];
-    if (useStep != null || items.any((c) => c.match.started)) return _place();
+    if (useStep != null || items.any((c) => c.blocked)) return _place();
     final amount = int.tryParse(stake.text.replaceAll(RegExp(r'\D'), '')) ?? 0;
     final total = totalOdds(items);
     final probs = items.map((c) => c.offer.modelProbability).toList();
@@ -167,7 +170,7 @@ class _CouponScreenState extends State<CouponScreen> {
     // « match 106064 déjà commencé »). Le dire avec le nom du match, et proposer de le retirer.
     final started = [
       for (final c in items)
-        if (c.match.started) c,
+        if (c.blocked) c,
     ];
     if (started.isNotEmpty) {
       final names = [for (final c in started) '${c.match.home.name} – ${c.match.away.name}'].join(', ');
@@ -220,7 +223,20 @@ class _CouponScreenState extends State<CouponScreen> {
         );
         if (ok == true) return _place(acceptOutOfRange: true);
       } else if (e.oddsChanged) {
-        showMessage('${e.message}. Mets à jour les cotes du coupon.', error: true);
+        // Coupon en direct (D12) : la nouvelle cote remplace l'ancienne ; le joueur place de
+        // nouveau ou retire la sélection.
+        final d = e.details is Map ? e.details as Map : const {};
+        final live = items.where((c) => c.live && c.match.id == d['match_id']).firstOrNull;
+        if (live != null && d['odds'] != null) {
+          state.updateLiveOdds(live.match.id, '${d['odds']}');
+          showMessage(
+            'Cote en direct changée : ${decimal(live.offer.odds)} → ${decimal(d['odds'])}. '
+            'Place de nouveau pour l\'accepter, ou retire la sélection.',
+            error: true,
+          );
+        } else {
+          showMessage('${e.message}. Mets à jour les cotes du coupon.', error: true);
+        }
       } else {
         showMessage(e.message, error: true);
       }
@@ -345,8 +361,44 @@ class _CouponScreenState extends State<CouponScreen> {
                       Navigator.of(context)
                           .push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen())),
                 ),
+                // Coupon en direct (maquette D8) : seulement pendant une fenêtre.
+                ValueListenableBuilder<LiveCoupons?>(
+                  valueListenable: state.liveCoupons,
+                  builder: (context, lc, _) => lc == null || !lc.open
+                      ? const SizedBox.shrink()
+                      : Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: _Banner(
+                            icon: Icons.sensors_rounded,
+                            title:
+                                'Coupon en direct · ${lc.matches.length} '
+                                'match${lc.matches.length > 1 ? 's' : ''}',
+                            subtitle: 'Propositions du moteur à la pause, à la 60e et à la 75e · Sûr gratuit',
+                            onTap: () =>
+                                Navigator.of(context)
+                                    .push(MaterialPageRoute(builder: (_) => const LiveCouponScreen())),
+                          ),
+                        ),
+                ),
                 const SizedBox(height: 12),
               ],
+              // Sélections en direct (maquette D12) : à placer avant la fermeture.
+              if (items.any((c) => c.live))
+                Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1F1709),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF6B4F1D)),
+                  ),
+                  child: Text(
+                    '⏱ Sélections en direct : à placer avant la '
+                    '${items.where((c) => c.live).map((c) => c.closesAt ?? 50).reduce(math.min)}e minute. '
+                    'La cote est relue au moment de placer.',
+                    style: Fp.body(13, color: Fp.warning, height: 1.35),
+                  ),
+                ),
               if (items.isEmpty)
                 const EmptyState(
                   'Coupon vide. Ouvre un match et touche une cote pour l\'ajouter.\n'
@@ -358,7 +410,7 @@ class _CouponScreenState extends State<CouponScreen> {
                   context,
                   [
                     // Maquette N6 : match commencé, dit en haut avec son nom, et « Retirer ce match ».
-                    for (final c in items.where((c) => c.match.started))
+                    for (final c in items.where((c) => c.blocked))
                       _StartedWarning(item: c, onRemove: busy ? null : () => state.removeFromCoupon(c)),
                     GlassCard.section(
                       padding: const EdgeInsets.fromLTRB(14, 0, 6, 0),
@@ -639,7 +691,7 @@ class _SelectionRow extends StatelessWidget {
                   ].join(' · '),
                   style: Fp.body(12, color: Fp.text2),
                 ),
-                if (c.match.started)
+                if (c.blocked)
                   Padding(
                     padding: const EdgeInsets.only(top: 3),
                     child: Text(
@@ -691,7 +743,14 @@ class _Line extends StatelessWidget {
           Expanded(
             child: Text(label, style: Fp.body(14, color: Fp.text2)),
           ),
-          Text(value, style: valueStyle ?? Fp.body(14, weight: FontWeight.w700)),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: valueStyle ?? Fp.body(14, weight: FontWeight.w700),
+            ),
+          ),
         ],
       ),
     );

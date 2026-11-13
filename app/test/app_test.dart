@@ -155,6 +155,9 @@ class FakeServer {
   /// Dernier relevé du direct (GET /live/feed).
   Map<String, dynamic>? liveFeed;
 
+  /// Coupon en direct (GET /live/coupons) ; non publié par défaut.
+  Map<String, dynamic>? liveCoupons;
+
   Future<http.Response> handle(http.Request r) async {
     final path = r.url.path.replaceFirst('/api/v1', '');
     calls.add('${r.method} $path');
@@ -296,6 +299,8 @@ class FakeServer {
         body = matchLive ?? {'status': null, 'events': [], 'stats': null, 'lineups': []};
       case 'GET /live/summary':
         body = liveSummary;
+      case 'GET /live/coupons':
+        body = liveCoupons ?? {'published': false, 'odds_source': 'indicative', 'matches': [], 'combos': {}};
       case 'GET /live/feed':
         body = liveFeed ?? {'type': 'live', 'at': null, 'matches': []};
       case 'GET /live/chances':
@@ -2860,5 +2865,92 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('🟢 C\'est parti : Lens - Lyon'), findsNothing); // liste refermée
     expect(find.textContaining('En cours ('), findsWidgets); // onglet Mes paris
+  });
+
+  testWidgets('coupon en direct : carte, combiné Sûr ajouté, à placer avant la fermeture', (tester) async {
+    final (_, server) = await startApp(tester, loggedIn: true);
+    Map<String, dynamic> sel(int id, String market, String line, String pick, double p, String odds) => {
+      'match_id': id,
+      'market': market,
+      'line': line,
+      'selection': pick,
+      'probability': p,
+      'odds': odds,
+    };
+    final a = sel(11, 'DC', '', '1X', 0.89, '1.10');
+    final b = sel(12, 'OU', '2.5', 'under', 0.80, '1.22');
+    server.liveCoupons = {
+      'published': true,
+      'odds_source': 'indicative',
+      'matches': [
+        {
+          'match_id': 11,
+          'home': 'RD Congo',
+          'away': 'Sierra Leone',
+          'status': 'HT',
+          'minute': 45,
+          'score': [1, 0],
+          'moment': 'mi-temps',
+          'closes_at': 50,
+          'picks': {
+            'Sûr': a,
+            'Équilibré': {'locked': true},
+          },
+        },
+        {
+          'match_id': 12,
+          'home': 'Bénin',
+          'away': 'Togo',
+          'status': '2H',
+          'minute': 61,
+          'score': [0, 0],
+          'moment': "60'",
+          'closes_at': 63,
+          'picks': {'Sûr': b},
+        },
+      ],
+      'combos': {
+        'Sûr': {
+          'size': 2,
+          'probability': 0.712,
+          'odds': '1.342',
+          'locked': false,
+          'selections': [a, b],
+        },
+        'Équilibré': {'size': 2, 'probability': 0.36, 'odds': '2.6', 'locked': true, 'selections': []},
+      },
+    };
+    await tester.tap(find.text('Coupon').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Coupon en direct · 2 matchs'), findsOneWidget);
+    await tester.tap(find.text('Coupon en direct · 2 matchs'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sûr · 2'), findsOneWidget);
+    expect(find.text('71 %'), findsOneWidget);
+    expect(find.text('cote ≈ 1,34'), findsOneWidget); // cote indicative
+    expect(find.text('Premium'), findsOneWidget); // Équilibré réservé
+    expect(find.textContaining('Sûr : moins de 2,5 buts'), findsOneWidget);
+    expect(find.text('encore 2 min'), findsOneWidget);
+    expect(find.text('jusqu\'à la 50e'), findsOneWidget);
+
+    await tester.tap(find.text('Sûr · 2'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sûr · combiné de 2 matchs'), findsOneWidget);
+    expect(find.textContaining('Cotes indicatives : relevées chez un autre bookmaker'), findsOneWidget);
+    await tester.tap(find.text('Ajouter à mon coupon'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('à placer avant la 50e minute'), findsOneWidget);
+    expect(find.textContaining('a commencé'), findsNothing); // pas « paris fermés »
+
+    await tester.ensureVisible(find.textContaining('Placer le pari').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Placer le pari').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Confirmer').last);
+    await tester.pumpAndSettle();
+    expect(server.placedBets.single['selections'], [
+      {'match_id': 11, 'market': 'DC', 'line': '', 'selection': '1X', 'odds': '1.10'},
+      {'match_id': 12, 'market': 'OU', 'line': '2.5', 'selection': 'under', 'odds': '1.22'},
+    ]);
   });
 }

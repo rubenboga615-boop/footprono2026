@@ -691,6 +691,17 @@ class BetCard extends StatelessWidget {
             betTag(b),
           ],
         ),
+        // Coupon en direct (maquette D14) : pari placé pendant le match, chance de départ
+        // prise à ce moment-là (score et minute).
+        if (b.selections.any((s) => s.bookmaker == 'direct'))
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              'Placé en direct${b.placedAt == null ? '' : ' à ${hourMinute(b.placedAt!.toLocal())}'} · '
+              'cotes du direct',
+              style: Fp.body(12.5, color: Fp.muted),
+            ),
+          ),
         if (b.status == 'open' && b.selections.any((s) => s.state == 'live')) LiveCouponChance(b),
         const SizedBox(height: 4),
         for (final (i, s) in b.selections.indexed)

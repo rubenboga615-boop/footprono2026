@@ -461,9 +461,18 @@ class Bet {
 
 /// Une ligne du coupon (sélection choisie par l'utilisateur, pas encore jouée).
 class CouponItem {
-  CouponItem({required this.match, required this.offer});
+  CouponItem({required this.match, required this.offer, this.closesAt});
   final MatchInfo match;
   final Offer offer;
+
+  /// Coupon en direct : minute de fermeture de la fenêtre (50, 63 ou 78).
+  final int? closesAt;
+
+  /// Sélection du coupon en direct, sur sa cote en direct.
+  bool get live => offer.bookmaker == 'direct';
+
+  /// Match commencé hors coupon en direct : paris fermés.
+  bool get blocked => match.started && !live;
   Json toJson() => {
     'match_id': match.id,
     'market': offer.market,
@@ -471,4 +480,104 @@ class CouponItem {
     'selection': offer.selection,
     'odds': offer.oddsText,
   };
+}
+
+/// Coupon en direct (maquettes D8 à D15, 13/11/2026) : fenêtre d'un match, ou null.
+/// Pause → 50e, 60e-63e, 75e-78e (même règle que le serveur).
+(String, int)? liveWindow(String? apiStatus, int? minute) {
+  if (apiStatus == 'HT') return ('mi-temps', 50);
+  if (apiStatus != '2H' || minute == null) return null;
+  if (minute >= 46 && minute <= 50) return ('mi-temps', 50);
+  if (minute >= 60 && minute <= 63) return ('60e', 63);
+  if (minute >= 75 && minute <= 78) return ('75e', 78);
+  return null;
+}
+
+/// Une sélection proposée en direct (GET /live/coupons).
+class LiveSel {
+  LiveSel(Json j)
+    : matchId = j['match_id'] as int,
+      market = j['market'] as String,
+      line = j['line'] as String? ?? '',
+      selection = j['selection'] as String,
+      probability = _d(j['probability']),
+      odds = '${j['odds']}';
+  final int matchId;
+  final String market;
+  final String line;
+  final String selection;
+  final double probability;
+  final String odds;
+}
+
+/// Match dans une fenêtre du coupon en direct.
+class LiveCouponMatch {
+  LiveCouponMatch(Json j)
+    : id = j['match_id'] as int,
+      home = j['home'] as String,
+      away = j['away'] as String,
+      apiStatus = j['status'] as String?,
+      minute = j['minute'] as int?,
+      score = (j['score'] as List? ?? const []).cast<int?>(),
+      closesAt = j['closes_at'] as int,
+      picks = {
+        for (final e in (j['picks'] as Map? ?? const {}).entries)
+          '${e.key}': (e.value as Map)['locked'] == true ? null : LiveSel(e.value as Json),
+      };
+  final int id;
+  final String home;
+  final String away;
+  final String? apiStatus;
+  final int? minute;
+  final List<int?> score;
+  final int closesAt;
+
+  /// Sélection de chaque profil ; null : réservée à Premium.
+  final Map<String, LiveSel?> picks;
+
+  /// Match minimal pour le coupon (score et minute du direct).
+  MatchInfo toMatch() => MatchInfo({
+    'id': id,
+    'competition': '',
+    'match_date': DateTime.now().toIso8601String().substring(0, 10),
+    'status': 'scheduled',
+    'api_status': apiStatus,
+    'home_team': {'id': 0, 'name': home},
+    'away_team': {'id': 0, 'name': away},
+    'live_minute': minute,
+    'live_home_goals': score.isNotEmpty ? score[0] : null,
+    'live_away_goals': score.length > 1 ? score[1] : null,
+  });
+}
+
+/// Combiné du moteur pour un profil.
+class LiveCombo {
+  LiveCombo(Json j)
+    : size = j['size'] as int,
+      probability = _d(j['probability']),
+      odds = _d(j['odds']),
+      locked = j['locked'] == true,
+      selections = [for (final s in (j['selections'] as List? ?? const [])) LiveSel(s as Json)];
+  final int size;
+  final double probability;
+  final double odds;
+  final bool locked;
+  final List<LiveSel> selections;
+}
+
+class LiveCoupons {
+  LiveCoupons(Json j)
+    : published = j['published'] == true,
+      indicative = j['odds_source'] != '1xbet',
+      matches = [for (final m in (j['matches'] as List? ?? const [])) LiveCouponMatch(m as Json)],
+      combos = {
+        for (final e in (j['combos'] as Map? ?? const {}).entries) '${e.key}': LiveCombo(e.value as Json),
+      };
+  final bool published;
+
+  /// Cotes relevées chez un autre bookmaker que 1xBet : « cote indicative ≈ » (D11).
+  final bool indicative;
+  final List<LiveCouponMatch> matches;
+  final Map<String, LiveCombo> combos;
+  bool get open => published && matches.isNotEmpty;
 }

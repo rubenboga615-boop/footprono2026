@@ -11,6 +11,7 @@ import '../format.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/live_chances.dart';
+import 'live_coupon_screen.dart';
 
 /// Statistiques montrées, dans l'ordre de la maquette D3 (nom chez API-Football → libellé).
 const liveStatLabels = [
@@ -47,6 +48,15 @@ class _LiveTabState extends State<LiveTab> {
   void initState() {
     super.initState();
     _load();
+    _loadCoupons(null);
+  }
+
+  // Coupon en direct (maquette D13) : propositions relues quand le match entre dans une
+  // fenêtre (pause, 60e, 75e) ; une requête à chaque ouverture de fenêtre.
+  void _loadCoupons(LiveTab? old) {
+    final now = liveWindow(widget.match.apiStatus, widget.match.liveMinute);
+    final before = old == null ? null : liveWindow(old.match.apiStatus, old.match.liveMinute);
+    if (now != null && now != before) context.read<AppState>().loadLiveCoupons();
   }
 
   // Relu à chaque nouveau relevé du match (l'écran du match se recharge à chaque relevé
@@ -56,6 +66,7 @@ class _LiveTabState extends State<LiveTab> {
   void didUpdateWidget(LiveTab old) {
     super.didUpdateWidget(old);
     if (old.match.liveKey != widget.match.liveKey) _load();
+    _loadCoupons(old);
   }
 
   Future<void> _load() async {
@@ -141,6 +152,49 @@ class _LiveTabState extends State<LiveTab> {
         ),
       const SizedBox(height: 12),
       if (m.isLive) LiveChancesCard(match: m, before: widget.before),
+      if (liveWindow(m.apiStatus, m.liveMinute) case (_, final closes))
+        ValueListenableBuilder<LiveCoupons?>(
+          valueListenable: context.read<AppState>().liveCoupons,
+          builder: (context, lc, _) => lc == null || !lc.matches.any((x) => x.id == m.id)
+              ? const SizedBox.shrink()
+              : Material(
+                  color: Fp.card,
+                  borderRadius: BorderRadius.circular(18),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () =>
+                        Navigator.of(context)
+                            .push(MaterialPageRoute(builder: (_) => const LiveCouponScreen())),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: const Color(0xFF6B4F1D)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Coupon en direct', style: Fp.body(15, weight: FontWeight.w700)),
+                                Text(
+                                  'Propositions du moteur avec ce match · jusqu\'à la ${closes}e',
+                                  style: Fp.body(12.5, color: Fp.muted),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            'Voir ›',
+                            style: Fp.body(13, color: Fp.lilac, weight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+        ),
     ];
   }
 
