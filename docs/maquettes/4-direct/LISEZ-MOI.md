@@ -17,21 +17,23 @@ téléphone) : chaque nouveauté va dans l'écran où le joueur la cherche déj�
 Après le match, l'onglet « En direct » devient « Résumé du match » (mêmes sous-onglets). Les
 onglets Probabilités, Cotes et Analyse restent ceux d'avant le match.
 
-## Coupon en direct (13 novembre 2026) — à valider
+## Coupon en direct (13 novembre 2026, version 2) — à valider
 
 `coupon-en-direct.html` : maquettes **D8 à D15**, dans l'hypothèse où le coupon en direct
-fonctionne. Elles remplacent D5 et D6, corrigés avec ce que l'on sait au 13/11 : coupons
-vérifiés justes **à la mi-temps seulement** (fermés à la 50e), marchés retirés par la
-vérification jamais proposés, **aucune notification qui propose un coupon**, cote 1xBet ou
-« cote indicative » selon la comparaison des cotes en direct.
+fonctionne ; remplacent D5 et D6. Après l'étude sur 13 347 matchs
+(`docs/ETUDE_COUPONS_DIRECT_2026-11-13.md`) : trois fenêtres (pause → 50e, 60e-63e,
+75e-78e), une sélection par match et combinés de plusieurs matchs, deux exclusions
+(« plus ou moins de buts » en Audacieux à la 60e et en Équilibré à la 75e), Sûr gratuit,
+aucune notification qui propose un coupon, cote 1xBet ou « indicative » selon la
+comparaison des cotes.
 
 | Maquette | Écran |
 |---|---|
-| `D8` | Mon coupon : carte « Coupon à la mi-temps », seulement quand un match est à la pause |
-| `D9` | Coupon à la mi-temps : un bloc par match, profils Sûr / Équilibré / Audacieux, fermeture à la 50e |
-| `D10` | Détail d'une proposition : sélections, chance du moteur, cote 1xBet, chemin dans 1xBet |
+| `D8` | Mon coupon : carte « Coupon en direct », seulement pendant une fenêtre |
+| `D9` | Coupon en direct : combinés du moteur (Sûr, Équilibré, Audacieux), puis match par match avec sa fenêtre |
+| `D10` | Détail d'un combiné : une sélection par match, chances, cote 1xBet, chemin dans 1xBet |
 | `D11` | Variante « cote indicative » si la source n'est pas 1xBet |
-| `D12` | Mon coupon : compte à rebours, cote relue avant de placer |
-| `D13` | Écran du match à la pause : carte « Coupon à la mi-temps » sous les chances en direct |
-| `D14` | Mes paris : coupon placé à la mi-temps, chance de départ prise à la pause |
-| `D15` | Fiabilité : coupons à la mi-temps, annoncé contre gagné, par profil |
+| `D12` | Mon coupon : compte à rebours de la fenêtre qui ferme la première, cote relue avant de placer |
+| `D13` | Écran du match : carte « Coupon en direct » sous les chances en direct |
+| `D14` | Mes paris : coupon placé en direct, chance de départ prise à ce moment |
+| `D15` | Fiabilité : coupons en direct par moment, annoncé contre gagné |
