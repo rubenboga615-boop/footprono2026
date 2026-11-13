@@ -215,7 +215,13 @@ async def _follow_live_once(settings: Settings) -> dict[str, Any]:
         if updated or odds:
             redis = create_redis(settings)
             try:
-                # Cotes en direct du coupon en direct (gardées 3 minutes).
+                # Cotes en direct du coupon en direct (gardées 3 minutes), avec le score et
+                # les cartons rouges du moment : une cote d'avant un but n'est plus jouable.
+                if odds:
+                    async with create_session_factory(engine)() as session:
+                        states = await live_coupons.match_states(session, list(odds))
+                    for mid, data in odds.items():
+                        data["state"] = states.get(mid)
                 await live_coupons.store_odds(redis, odds)
                 report["live_odds"] = len(odds)
                 if updated:

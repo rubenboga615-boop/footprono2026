@@ -285,7 +285,8 @@ async def test_follow_live_reads_live_odds_only_in_a_window_when_published(
             body: Any = {"response": {"requests": {"current": 1, "limit_day": 7500}}}
         elif request.url.path == "/odds/live":
             body = {"response": [
-                {"fixture": {"id": 7000}, "update": "2026-11-13T13:20:00+00:00", "odds": [
+                {"fixture": {"id": 7000}, "update": "2026-11-13T13:20:00+00:00",
+                 "teams": {"home": {"goals": 1}, "away": {"goals": 0}}, "odds": [
                     {"name": "Fulltime Result", "values": [{"value": "Home", "odd": "1.5"}]}]},
                 {"fixture": {"id": 9999}, "odds": []},
             ]}  # fmt: skip

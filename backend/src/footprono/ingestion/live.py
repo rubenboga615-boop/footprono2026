@@ -403,6 +403,12 @@ async def follow_live(
         } & set(by_fixture)
         if wanted and client.can_spend() and (await live_coupons.settings_of(session))[0]:
             odds_body = await client.get("/odds/live", {})
+            # Score du relevé des matchs : des cotes d'un autre score (relevées avant un but)
+            # ou suspendues par la source ne sont pas gardées.
+            scores = {
+                int(it["fixture"]["id"]): [(it.get("goals") or {}).get(s) for s in ("home", "away")]
+                for it in items
+            }
             report["live_odds"] = {
                 by_fixture[fid].id: {
                     "at": now.isoformat(),
@@ -411,6 +417,7 @@ async def follow_live(
                 }
                 for entry in odds_body.get("response") or []
                 if (fid := int((entry.get("fixture") or {}).get("id") or 0)) in wanted
+                and live_coupons.entry_current(entry, scores.get(fid))
             }
         for item in items:
             fixture = api_football.parse_fixture(item)

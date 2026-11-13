@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.bookmaker import live_coupons
 from footprono.bookmaker.models import Bet, BetSelection
-from footprono.football.models import LiveSnapshot, Match
+from footprono.football.models import LiveSnapshot, Match, MatchEvent
 from footprono.predictions.publication import LIVE_KEY, set_flag
 
 from .conftest import TEST_REDIS_URL
@@ -57,6 +57,15 @@ def test_live_odds_read_in_our_keys_suspended_left_out() -> None:
         "1X2||home": "1.285", "1X2||draw": "5.5", "DC||1X": "1.05",
         "OU|2.5|over": "1.8", "OU|2.5|under": "1.909", "BTTS||yes": "1.444",
     }  # fmt: skip
+
+
+def test_odds_entry_kept_only_at_the_same_score_and_not_suspended() -> None:
+    entry = {"teams": {"home": {"goals": 1}, "away": {"goals": 0}}, "status": {}}
+    assert live_coupons.entry_current(entry, [1, 0])
+    assert not live_coupons.entry_current(entry, [2, 0])  # cotes d'avant le but
+    assert not live_coupons.entry_current(entry, None)
+    assert not live_coupons.entry_current({**entry, "status": {"blocked": True}}, [1, 0])
+    assert not live_coupons.entry_current({**entry, "status": {"stopped": True}}, [1, 0])
 
 
 def test_pick_follows_the_profile_band_and_the_exclusions() -> None:
@@ -106,7 +115,11 @@ async def _live_world(db_factory: Factory, world: dict[str, Any]) -> tuple[int, 
         "OU|2.5|over": "3.6", "OU|2.5|under": "1.25", "OU|3.5|under": "1.08",
     }  # fmt: skip
     await live_coupons.store_odds(
-        redis, {m: {"at": now.isoformat(), "update": None, "odds": quotes} for m in (m1, m2)}
+        redis,
+        {
+            m: {"at": now.isoformat(), "update": None, "odds": quotes, "state": [1, 0, 0]}
+            for m in (m1, m2)
+        },
     )
     await redis.aclose()
     return m1, m2
@@ -204,3 +217,63 @@ async def test_proposals_without_recent_odds_are_not_shown(
     await redis.aclose()
     data = (await client.get("/api/v1/live/coupons")).json()
     assert (data["matches"], data["combos"]) == ([], {})
+
+
+async def test_odds_read_before_a_goal_or_a_red_card_are_refused(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    """Relecture du 13/11/2026 : cotes relevées à 1-0, but à 2-0 → pari refusé, match plus
+    proposé ; refusé aussi dans les 2 minutes après un but, et après un carton rouge."""
+    _, m2 = await _live_world(db_factory, world)
+    headers = await _login(client)
+    sure = (await client.get("/api/v1/live/coupons", headers=headers)).json()["combos"]["Sûr"]
+    s2 = next(s for s in sure["selections"] if s["match_id"] == m2)
+    sel = _sel(s2["match_id"], s2["market"], s2["selection"], s2["line"], odds=s2["odds"])
+    bet = {"stake": 1_000, "selections": [sel]}
+
+    # But à la 62e : 2-0 ; la cote gardée a été relevée à 1-0.
+    now = datetime.now(UTC)
+    async with db_factory() as session:
+        await session.execute(
+            update(Match).where(Match.id == m2).values(live_minute=62, live_home_goals=2)
+        )
+        session.add(
+            LiveSnapshot(match_id=m2, taken_at=now - timedelta(seconds=10), status="2H",
+                         minute=62, extra=0, home_goals=2, away_goals=0)
+        )  # fmt: skip
+        await session.commit()
+    refused = await client.post("/api/v1/bets", json=bet, headers=headers)
+    assert refused.status_code == 400
+    assert "après un but" in refused.json()["error"]["message"]
+    data = (await client.get("/api/v1/live/coupons", headers=headers)).json()
+    assert m2 not in {m["match_id"] for m in data["matches"]}
+
+    # Nouvelle cote relevée à 2-0, mais but il y a moins de 2 minutes : toujours refusé.
+    redis = Redis.from_url(TEST_REDIS_URL, decode_responses=True)
+    text = await redis.get(live_coupons.ODDS_KEY.format(m2))
+    assert text is not None
+    fresh = {**json.loads(text), "at": now.isoformat(), "state": [2, 0, 0]}
+    await live_coupons.store_odds(redis, {m2: fresh})
+    assert (await client.post("/api/v1/bets", json=bet, headers=headers)).status_code == 400
+
+    # Deux minutes plus tard : jouable à nouveau (relevés reculés de 3 minutes).
+    async with db_factory() as session:
+        await session.execute(
+            update(LiveSnapshot)
+            .where(LiveSnapshot.match_id == m2)
+            .values(taken_at=LiveSnapshot.taken_at - timedelta(minutes=3))
+        )
+        await session.commit()
+    ok = await client.post("/api/v1/bets", json=bet, headers=headers)
+    assert ok.status_code == 201, ok.text
+
+    # Carton rouge après le relevé : refusé.
+    async with db_factory() as session:
+        session.add(MatchEvent(match_id=m2, seq=1, minute=62, side="away", kind="Card",
+                               detail="Red Card"))  # fmt: skip
+        await session.commit()
+    red = await client.post("/api/v1/bets", json=bet, headers=headers)
+    assert red.status_code == 400
+    await redis.aclose()

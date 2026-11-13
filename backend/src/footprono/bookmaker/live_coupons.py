@@ -14,6 +14,9 @@ pas deux sélections du même match dans un combiné).
 - Cotes : relevées par le suivi du direct (``/odds/live``, une requête par passage, et
   seulement quand un match est dans une fenêtre), gardées 3 minutes dans Redis ; une
   sélection sans cote récente n'est pas proposée.
+- But ou carton rouge (relecture du 13/11/2026) : chaque relevé de cotes garde le score et
+  les cartons rouges du moment ; une cote relevée avant un changement n'est plus proposée
+  ni jouable, et rien n'est jouable dans les 2 minutes qui suivent un but (VAR).
 - Publication : rien n'est montré tant que la console ne l'a pas publié ; la console dit
   aussi si les cotes sont celles de 1xBet ou « indicatives » (comparaison des cotes avec
   l'application 1xBet, à la même minute).
@@ -34,8 +37,9 @@ from sqlalchemy.orm import aliased
 from footprono.accounts.plans import FREE_MARKETS
 from footprono.bookmaker.odds_math import combined_odds
 from footprono.console.models import AppSetting
+from footprono.core.errors import AppError
 from footprono.engine.live_study import HALF_TIME_PROFILES, family_of_key
-from footprono.football.models import Match, MatchStatus, Team
+from footprono.football.models import LiveSnapshot, Match, MatchEvent, MatchStatus, Team
 
 PUBLISHED_KEY = "publication.live_coupons"
 ODDS_SOURCE_KEY = "live_coupons.odds_source"  # « 1xbet » ou « indicative »
@@ -43,6 +47,8 @@ ODDS_KEY = "live:odds:{}"
 ODDS_TTL = 180
 ODDS_MAX_AGE = timedelta(seconds=150)
 SOURCE = "direct"  # bookmaker inscrit sur une sélection placée en direct
+GOAL_PAUSE = timedelta(minutes=2)  # rien de jouable juste après un but (VAR)
+AFTER_GOAL = "la cote a changé après un but ou un carton rouge : attends la prochaine cote"
 
 # Fenêtres : (moment de l'étude, ouverture, fermeture) en minutes de jeu.
 WINDOWS = (("mi-temps", 45, 50), ("60'", 60, 63), ("75'", 75, 78))
@@ -110,6 +116,17 @@ def parse_live_odds(entry: dict[str, Any]) -> dict[str, str]:
     return out
 
 
+def entry_current(entry: dict[str, Any], score: list[Any] | None) -> bool:
+    """Cotes d'une réponse ``/odds/live`` utilisables : pas suspendues par la source
+    (``blocked``, ``stopped``, ``finished``) et relevées au score du relevé des matchs."""
+    status = entry.get("status") or {}
+    if any(status.get(k) for k in ("blocked", "stopped", "finished")):
+        return False
+    teams = entry.get("teams") or {}
+    goals = [(teams.get(s) or {}).get("goals") for s in ("home", "away")]
+    return score is not None and None not in goals and goals == score
+
+
 async def store_odds(redis: Redis, by_match: dict[int, dict[str, Any]]) -> None:
     for match_id, data in by_match.items():
         await redis.set(ODDS_KEY.format(match_id), json.dumps(data), ex=ODDS_TTL)
@@ -127,6 +144,83 @@ async def load_odds(redis: Redis, match_ids: list[int], now: datetime) -> dict[i
         if now - at <= ODDS_MAX_AGE:
             out[mid] = data
     return out
+
+
+def _red(detail: str | None) -> bool:
+    d = (detail or "").lower()
+    return "red" in d or "second yellow" in d
+
+
+async def match_states(session: AsyncSession, match_ids: list[int]) -> dict[int, list[int]]:
+    """État de chaque match : [buts domicile, buts extérieur, cartons rouges]."""
+    if not match_ids:
+        return {}
+    rows = await session.execute(
+        select(Match.id, Match.live_home_goals, Match.live_away_goals).where(
+            Match.id.in_(match_ids)
+        )
+    )
+    out = {mid: [h or 0, a or 0, 0] for mid, h, a in rows.tuples()}
+    cards = await session.execute(
+        select(MatchEvent.match_id, MatchEvent.detail).where(
+            MatchEvent.match_id.in_(match_ids), MatchEvent.kind == "Card"
+        )
+    )
+    for mid, detail in cards.tuples():
+        if _red(detail) and mid in out:
+            out[mid][2] += 1
+    return out
+
+
+async def goal_times(session: AsyncSession, match_ids: list[int]) -> dict[int, datetime]:
+    """Moment où le score actuel a été vu pour la première fois (après un but, ou un but
+    annulé), d'après les relevés du direct ; absent si le score n'a jamais changé."""
+    out: dict[int, datetime] = {}
+    for mid in match_ids:
+        snaps = (
+            (
+                await session.execute(
+                    select(LiveSnapshot.taken_at, LiveSnapshot.home_goals, LiveSnapshot.away_goals)
+                    .where(LiveSnapshot.match_id == mid)
+                    .order_by(LiveSnapshot.taken_at.desc())
+                    .limit(200)
+                )
+            )
+            .tuples()
+            .all()
+        )
+        if not snaps:
+            continue
+        score = (snaps[0][1], snaps[0][2])
+        first = None
+        for taken_at, h, a in snaps:
+            if (h, a) != score:
+                break
+            first = taken_at
+        else:
+            continue  # score inchangé sur tous les relevés gardés
+        if first is not None:
+            out[mid] = first
+    return out
+
+
+async def usable_odds(
+    session: AsyncSession, odds: dict[int, dict[str, Any]], now: datetime
+) -> tuple[dict[int, dict[str, Any]], set[int]]:
+    """Cotes encore valables : relevées au score et aux cartons rouges actuels, et pas dans
+    les 2 minutes après un but. Renvoie aussi les matchs écartés pour cette raison."""
+    ids = list(odds)
+    states = await match_states(session, ids)
+    goals = await goal_times(session, ids)
+    kept, after_goal = {}, set()
+    for mid, data in odds.items():
+        same = data.get("state") is not None and data.get("state") == states.get(mid)
+        recent = mid in goals and now - goals[mid] < GOAL_PAUSE
+        if same and not recent:
+            kept[mid] = data
+        else:
+            after_goal.add(mid)
+    return kept, after_goal
 
 
 # ------------------------------------------------------------- publication
@@ -230,7 +324,7 @@ async def proposals(
     if not open_:
         return out
     chances = await live_chances.current(session, list(open_))
-    odds = await load_odds(redis, list(open_), now)
+    odds, _ = await usable_odds(session, await load_odds(redis, list(open_), now), now)
     picks: dict[str, list[tuple[float, dict[str, Any]]]] = {p: [] for p in HALF_TIME_PROFILES}
     for mid, (match, h, a, moment, closes) in open_.items():
         markets = (chances.get(mid) or {}).get("markets") or {}
@@ -275,7 +369,8 @@ async def live_offer(
 ) -> tuple[Decimal, float | None] | None:
     """Cote en direct et chance du moteur d'une sélection pour placer un pari pendant une
     fenêtre ; None si le match n'est pas dans une fenêtre, si le coupon en direct n'est
-    pas publié ou si la cote n'est plus proposée."""
+    pas publié ou si la cote n'est plus proposée. Refusé (``AppError``) si la cote a été
+    relevée avant un but ou un carton rouge, ou juste après un but."""
     from footprono.predictions import live_chances
 
     published, _ = await settings_of(session)
@@ -284,7 +379,11 @@ async def live_offer(
         return None
     if window(match.api_status, match.live_minute) is None:
         return None
-    quotes = (await load_odds(redis, [match_id], now)).get(match_id, {}).get("odds") or {}
+    loaded = await load_odds(redis, [match_id], now)
+    usable, after_goal = await usable_odds(session, loaded, now)
+    if match_id in after_goal:
+        raise AppError(AFTER_GOAL, details={"match_id": match_id})
+    quotes = usable.get(match_id, {}).get("odds") or {}
     if key not in quotes:
         return None
     chance = (

@@ -52,3 +52,16 @@ Les vrais bookmakers suspendent les cotes à chaque but pour cette raison.
 La comparaison des cotes `/odds/live` avec l'application 1xBet, à la même minute, n'a pas
 encore été faite par le fondateur. Tant qu'elle ne l'est pas, publier en mode « cote
 indicative » (D11), pas « cote 1xBet ».
+
+## Corrigé le 13/11/2026
+
+- Chaque relevé `/odds/live` n'est gardé que s'il porte le même score que le relevé des
+  matchs du même passage, et s'il n'est pas suspendu par la source (`blocked`, `stopped`,
+  `finished`).
+- Chaque relevé gardé porte le score et les cartons rouges du moment (`state`).
+- Propositions et pari : une cote relevée à un autre score ou avec un autre nombre de
+  cartons rouges n'est plus proposée ; le pari est refusé (« la cote a changé après un but
+  ou un carton rouge : attends la prochaine cote »), et aussi dans les 2 minutes qui suivent
+  un but (ou un but annulé).
+- Test : relevé à 1-0, but à 2-0 → refusé ; nouvelle cote mais but récent → refusé ;
+  2 minutes après → accepté ; carton rouge → refusé.
