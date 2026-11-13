@@ -578,8 +578,19 @@ class LiveCoupons {
       matches = [for (final m in (j['matches'] as List? ?? const [])) LiveCouponMatch(m as Json)],
       combos = {
         for (final e in (j['combos'] as Map? ?? const {}).entries) '${e.key}': LiveCombo(e.value as Json),
-      };
+      },
+      windows = (j['open'] as num?)?.toInt() ?? 0,
+      trial = j['trial'] != false;
   final bool published;
+
+  /// Matchs dans une fenêtre, proposés ou non (filtre de la cote, 13/11/2026).
+  final int windows;
+
+  /// « En test » : moins de 200 propositions réglées, ou bilan en argent négatif.
+  final bool trial;
+
+  /// Un match est dans une fenêtre, mais aucune cote n'est assez généreuse.
+  bool get nothingWorthIt => published && matches.isEmpty && windows > 0;
 
   /// Cotes relevées chez un autre bookmaker que 1xBet : « cote indicative ≈ » (D11).
   final bool indicative;

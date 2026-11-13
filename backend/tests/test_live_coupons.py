@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+import pytest
 from httpx import AsyncClient
 from redis.asyncio import Redis
 from sqlalchemy import select, update
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from footprono.bookmaker import live_coupons
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.football.models import LiveSnapshot, Match, MatchEvent, MatchStatus
+from footprono.predictions import live_chances
 from footprono.predictions.publication import LIVE_KEY, set_flag
 
 from .conftest import TEST_REDIS_URL
@@ -87,7 +89,7 @@ def test_odds_entry_kept_only_at_the_same_score_and_not_suspended() -> None:
 
 def test_pick_follows_the_profile_band_and_the_exclusions() -> None:
     markets = {"1X2||home": 0.84, "OU|2.5|under": 0.70, "OU|3.5|under": 0.86, "DC||1X": 0.95}
-    odds = {k: "1.20" for k in markets}
+    odds = {k: f"{1 / (p - 0.05):.3f}" for k, p in markets.items()}
     sure = live_coupons.pick(markets, odds, "Sûr", "mi-temps", premium=True)
     assert sure is not None
     assert sure[0] == "1X2||home"  # le plus proche de 83,5 %
@@ -97,6 +99,12 @@ def test_pick_follows_the_profile_band_and_the_exclusions() -> None:
     assert balanced[0] == "OU|2.5|under"
     # À la 75e, « plus ou moins de buts » n'est pas proposé en Équilibré (étude du 13/11).
     assert live_coupons.pick(markets, odds, "Équilibré", "75'", premium=True) is None
+    # Décision du 13/11 : cote pas assez généreuse (moins de 3 points), ou écart de plus de
+    # 20 points (erreur probable du moteur) : rien.
+    tight = {k: f"{1 / (p - 0.02):.3f}" for k, p in markets.items()}
+    assert live_coupons.pick(markets, tight, "Sûr", "mi-temps", premium=True) is None
+    wide = {k: f"{1 / (p - 0.25):.3f}" for k, p in markets.items()}
+    assert live_coupons.pick(markets, wide, "Sûr", "mi-temps", premium=True) is None
 
 
 async def _live_world(db_factory: Factory, world: dict[str, Any]) -> tuple[int, int]:  # noqa: F811
@@ -126,18 +134,24 @@ async def _live_world(db_factory: Factory, world: dict[str, Any]) -> tuple[int, 
         await set_flag(session, LIVE_KEY, True)
         await live_coupons.set_settings(session, True, "indicative")
     redis = Redis.from_url(TEST_REDIS_URL, decode_responses=True)
-    quotes = {
-        "1X2||home": "1.20", "1X2||draw": "6.0", "1X2||away": "15", "DC||1X": "1.04",
-        "OU|0.5|over": "1.30", "OU|1.5|over": "2.10", "OU|1.5|under": "1.70",
-        "OU|2.5|over": "3.6", "OU|2.5|under": "1.25", "OU|3.5|under": "1.08",
-    }  # fmt: skip
+    # Cotes en direct 5 points sous la chance du moteur : assez généreuses pour le filtre
+    # (au moins 3 points, au plus 20).
+    async with db_factory() as session:
+        chances = await live_chances.current(session, [m1, m2])
     await live_coupons.store_odds(
         redis,
         {
-            m: {"at": now.isoformat(), "update": None, "odds": quotes, "state": [1, 0, 0]}
+            m: {
+                "at": now.isoformat(), "update": None, "state": [1, 0, 0],
+                "odds": {
+                    k: f"{1 / (p - 0.05):.3f}"
+                    for k, p in chances[m]["markets"].items()
+                    if p - 0.05 > 0.1
+                },
+            }
             for m in (m1, m2)
         },
-    )
+    )  # fmt: skip
     await redis.aclose()
     return m1, m2
 
@@ -317,6 +331,11 @@ async def test_proposals_recorded_once_settled_then_reliability(
     await redis.aclose()
     assert first > 0
     assert again == 0  # une seule fois par match, profil et moment
+    redis = Redis.from_url(TEST_REDIS_URL, decode_responses=True)
+    async with db_factory() as session:
+        assert await live_coupons.record_window_odds(session, redis) == 2
+        assert await live_coupons.record_window_odds(session, redis) == 0
+    await redis.aclose()
     async with db_factory() as session:
         picks = list(await session.scalars(select(LiveCouponPick)))
     assert {p.match_id for p in picks} == {m1, m2}
@@ -339,8 +358,35 @@ async def test_proposals_recorded_once_settled_then_reliability(
     assert data["total"] == len(picks)
     sure = {r["moment"]: r for r in data["profiles"]["Sûr"]}
     assert set(sure) == {"mi-temps", "60'"}
+    assert data["trial"] is True  # moins de 200 propositions réglées
+    assert data["profit"] == sum(r["profit"] for rows in data["profiles"].values() for r in rows)
     for row in sure.values():
         assert row["count"] == 1
+        assert row["profit"] in (-1000, round(row["yield"] * 1000))
         assert 0.75 <= row["announced"] < 0.92
         assert row["won"] in (0.0, 1.0)
         assert row["margin"] > 0
+
+
+async def test_nations_with_few_recent_matches_are_left_out(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Décision du 13/11 : match de sélections nationales où le moteur a trop peu de matchs
+    récents, écarté ; la fenêtre reste comptée (« aucun coupon intéressant »)."""
+    from footprono.predictions.models import MatchPrediction
+
+    _, m2 = await _live_world(db_factory, world)
+    async with db_factory() as session:
+        await session.execute(
+            update(MatchPrediction)
+            .where(MatchPrediction.match_id == m2)
+            .values(context={"nations": {"rating_home": 1500, "rating_away": 1400}})
+        )
+        await session.commit()
+    monkeypatch.setattr(live_coupons, "MIN_NATION_MATCHES", 10_000)
+    data = (await client.get("/api/v1/live/coupons")).json()
+    assert data["open"] == 2
+    assert m2 not in {m["match_id"] for m in data["matches"]}

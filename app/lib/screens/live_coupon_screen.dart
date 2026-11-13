@@ -62,7 +62,23 @@ class _LiveCouponScreenState extends State<LiveCouponScreen> {
                   children: [
                     BackChevron(onTap: () => Navigator.of(context).maybePop()),
                     const SizedBox(width: 4),
-                    Text('Coupon en direct', style: Fp.title(22)),
+                    Flexible(
+                      child: Text('Coupon en direct', style: Fp.title(22), overflow: TextOverflow.ellipsis),
+                    ),
+                    if (lc?.trial ?? true) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1F1709),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'En test',
+                          style: Fp.body(11, weight: FontWeight.w700, color: Fp.warning),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -77,6 +93,13 @@ class _LiveCouponScreenState extends State<LiveCouponScreen> {
                   const Padding(
                     padding: EdgeInsets.all(32),
                     child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (lc.nothingWorthIt)
+                  const EmptyState(
+                    'Aucun coupon intéressant pendant cette fenêtre : le moteur ne trouve pas de cote '
+                    'assez généreuse.\nC\'est normal : il ne propose que si sa chance dépasse celle de la '
+                    'cote d\'au moins 3 points.',
+                    icon: Icons.hourglass_empty_rounded,
                   )
                 else if (!lc.open)
                   const EmptyState(

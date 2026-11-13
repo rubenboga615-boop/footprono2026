@@ -229,6 +229,10 @@ async def _follow_live_once(settings: Settings) -> dict[str, Any]:
                 if odds:
                     async with create_session_factory(engine)() as session:
                         report["live_picks"] = await live_coupons.record_proposals(session, redis)
+                        # Cotes de chaque fenêtre, pour l'étude avec les statistiques du direct.
+                        report["live_window_odds"] = await live_coupons.record_window_odds(
+                            session, redis
+                        )
                 report["live_odds"] = len(odds)
                 if updated:
                     async with create_session_factory(engine)() as session:

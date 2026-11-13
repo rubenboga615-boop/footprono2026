@@ -58,6 +58,19 @@ GOALS_FAMILY = "Buts du match (plus/moins)"
 # Taille des combinés du moteur (au plus ; moins s'il y a moins de matchs ouverts).
 COMBO_SIZE = {"Sûr": 2, "Équilibré": 3, "Audacieux": 3}
 PREMIUM_PROFILES = ("Équilibré", "Audacieux")
+# Décision du fondateur (13/11/2026, après le premier coupon en production) : proposer
+# seulement si la chance du moteur dépasse la chance selon la cote (1/cote) d'au moins
+# 3 points, sélection comme combiné ; écart de plus de 20 points écarté (erreur probable
+# du moteur, Tunisie - Libye du 13/11). Remplace l'indépendance vis-à-vis des cotes pour le
+# seul coupon en direct ; le bilan en argent de la Fiabilité dira si c'est rentable.
+EDGE = 0.03
+MAX_EDGE = 0.20
+# Sélections nationales : moteur peu fiable si une équipe a moins de matchs joués en 2 ans.
+MIN_NATION_MATCHES = 8
+NATION_DAYS = 730
+# « En test » tant qu'il y a moins de propositions réglées, ou si le bilan est négatif.
+TRIAL_SETTLED = 200
+STAKE = 1000
 
 
 # ---------------------------------------------------------------------- fenêtres
@@ -236,6 +249,104 @@ async def usable_odds(
     return kept, after_goal
 
 
+async def thin_nations(session: AsyncSession, match_ids: list[int], now: datetime) -> set[int]:
+    """Matchs de sélections nationales (prévision du moteur des sélections) dont une équipe
+    a joué moins de ``MIN_NATION_MATCHES`` matchs en 2 ans : écartés du coupon en direct."""
+    from sqlalchemy import func, or_
+
+    from footprono.predictions.models import MatchPrediction
+
+    nation_ids = set(
+        await session.scalars(
+            select(MatchPrediction.match_id).where(
+                MatchPrediction.match_id.in_(match_ids), MatchPrediction.context.has_key("nations")
+            )
+        )
+    )
+    out: set[int] = set()
+    since = (now - timedelta(days=NATION_DAYS)).date()
+    for mid in nation_ids:
+        match = await session.get(Match, mid)
+        if match is None:
+            continue
+        for team in (match.home_team_id, match.away_team_id):
+            played = await session.scalar(
+                select(func.count())
+                .select_from(Match)
+                .where(
+                    or_(Match.home_team_id == team, Match.away_team_id == team),
+                    Match.status == MatchStatus.FINISHED,
+                    Match.match_date >= since,
+                )
+            )
+            if (played or 0) < MIN_NATION_MATCHES:
+                out.add(mid)
+                break
+    return out
+
+
+def _profit(result: str, odds: Decimal) -> float:
+    """Gain net d'une mise de ``STAKE`` sur une sélection réglée."""
+    o = float(odds)
+    return STAKE * {
+        "win": o - 1, "half_win": (o - 1) / 2, "push": 0.0, "half_loss": -0.5, "loss": -1.0,
+    }.get(result, 0.0)  # fmt: skip
+
+
+async def in_trial(session: AsyncSession) -> bool:
+    """« En test » : moins de ``TRIAL_SETTLED`` propositions réglées, ou bilan négatif."""
+    from footprono.bookmaker.smart_models import LiveCouponPick
+
+    rows = (
+        (
+            await session.execute(
+                select(LiveCouponPick.result, LiveCouponPick.odds).where(
+                    LiveCouponPick.result.is_not(None)
+                )
+            )
+        )
+        .tuples()
+        .all()
+    )
+    return len(rows) < TRIAL_SETTLED or sum(_profit(r or "", o) for r, o in rows) < 0
+
+
+async def record_window_odds(
+    session: AsyncSession, redis: Redis, now: datetime | None = None
+) -> int:
+    """Cotes du direct de chaque match dans une fenêtre, gardées une fois par moment, pour
+    l'étude « chances du direct avec ou sans les statistiques du match » (les statistiques
+    sont déjà gardées à chaque minute dans ``live_snapshots``)."""
+    from sqlalchemy.dialects.postgresql import insert
+
+    from footprono.bookmaker.smart_models import LiveWindowOdds
+
+    now = now or datetime.now(UTC)
+    rows = []
+    matches = await session.scalars(
+        select(Match).where(
+            Match.status == MatchStatus.SCHEDULED, Match.api_status.in_(("HT", "2H"))
+        )
+    )
+    open_ = {m.id: w for m in matches if (w := window(m.api_status, m.live_minute)) is not None}
+    for mid, data in (await load_odds(redis, list(open_), now)).items():
+        rows.append({
+            "match_id": mid, "moment": open_[mid][0], "taken_at": now,
+            "state": data.get("state"), "odds": data.get("odds") or {},
+        })  # fmt: skip
+    if not rows:
+        return 0
+    result = await session.execute(
+        insert(LiveWindowOdds)
+        .values(rows)
+        .on_conflict_do_nothing(index_elements=["match_id", "moment"])
+        .returning(LiveWindowOdds.id)
+    )
+    added = len(result.all())
+    await session.commit()
+    return added
+
+
 # ------------------------------------------------------------- publication
 
 
@@ -274,7 +385,8 @@ def pick(
 ) -> tuple[str, float, Decimal] | None:
     """Sélection d'un profil pour un match, choisie comme dans l'étude (``coupon_angles``) :
     dans la tranche du profil, la plus probable (la plus proche de la cible pour Sûr) ;
-    avec une cote en direct ; marchés gratuits seulement sans Premium."""
+    avec une cote en direct, au moins 3 points sous la chance du moteur (au plus 20) ;
+    marchés gratuits seulement sans Premium."""
     low, high, target = HALF_TIME_PROFILES[profile]
     inside = []
     for key, p in markets.items():
@@ -288,6 +400,9 @@ def pick(
             continue
         if key not in odds or not low <= p < high:
             continue
+        implied = 1 / float(odds[key])
+        if p < implied + EDGE or p - implied > MAX_EDGE:
+            continue  # cote pas assez généreuse, ou écart trop beau pour être vrai
         inside.append((key, p, Decimal(odds[key])))
     if not inside:
         return None
@@ -317,7 +432,7 @@ async def proposals(
     now = now or datetime.now(UTC)
     published, source = await settings_of(session)
     out: dict[str, Any] = {"published": published, "odds_source": source, "matches": [],
-                           "combos": {}}  # fmt: skip
+                           "combos": {}, "open": 0, "trial": True}  # fmt: skip
     if not published:
         return out
     home, away = aliased(Team), aliased(Team)
@@ -338,8 +453,12 @@ async def proposals(
         w = window(match.api_status, match.live_minute)
         if w is not None:
             open_[match.id] = (match, h, a, *w)
+    out["open"] = len(open_)
     if not open_:
         return out
+    out["trial"] = await in_trial(session)
+    for mid in await thin_nations(session, list(open_), now):
+        del open_[mid]  # sélection nationale avec trop peu de matchs récents
     chances = await live_chances.current(session, list(open_))
     odds, _ = await usable_odds(session, await load_odds(redis, list(open_), now), now)
     picks: dict[str, list[tuple[float, dict[str, Any]]]] = {p: [] for p in HALF_TIME_PROFILES}
@@ -367,7 +486,18 @@ async def proposals(
         if not options:
             continue
         options.sort(key=lambda f: -f[0])
-        chosen = [s for _, s in options[: COMBO_SIZE[profile]]]
+        # Combiné : sélections ajoutées tant que sa chance reste au moins 3 points au-dessus
+        # de 1/cote totale.
+        chosen: list[dict[str, Any]] = []
+        for _, sel in options:
+            if len(chosen) == COMBO_SIZE[profile]:
+                break
+            trial = [*chosen, sel]
+            p = math.prod(x["probability"] for x in trial)
+            if p >= 1 / float(combined_odds(Decimal(x["odds"]) for x in trial)) + EDGE:
+                chosen = trial
+        if not chosen:
+            continue
         chance = math.prod(s["probability"] for s in chosen)
         total = combined_odds(Decimal(s["odds"]) for s in chosen)
         locked = profile in PREMIUM_PROFILES and not premium
@@ -496,13 +626,14 @@ async def reliability(session: AsyncSession) -> dict[str, Any]:
         await session.execute(
             select(
                 LiveCouponPick.profile, LiveCouponPick.moment,
-                LiveCouponPick.probability, LiveCouponPick.result,
+                LiveCouponPick.probability, LiveCouponPick.result, LiveCouponPick.odds,
             ).where(LiveCouponPick.result.in_(tuple(_SCORE)))
         )
     ).tuples().all()  # fmt: skip
-    groups: dict[tuple[str, str], list[tuple[float, float]]] = {}
-    for profile, moment, p, result in rows:
-        groups.setdefault((profile, moment), []).append((p, _SCORE[result or "loss"]))
+    groups: dict[tuple[str, str], list[tuple[float, float, float]]] = {}
+    for profile, moment, p, result, odd in rows:
+        r = result or "loss"
+        groups.setdefault((profile, moment), []).append((p, _SCORE[r], _profit(r, odd)))
     out: dict[str, list[dict[str, Any]]] = {}
     for profile in HALF_TIME_PROFILES:
         for moment, _, _ in WINDOWS:
@@ -510,12 +641,19 @@ async def reliability(session: AsyncSession) -> dict[str, Any]:
             if not items:
                 continue
             n = len(items)
-            announced = sum(p for p, _ in items) / n
-            won = sum(w for _, w in items) / n
-            margin = 2 * math.sqrt(sum(p * (1 - p) for p, _ in items)) / n
+            announced = sum(p for p, _, _ in items) / n
+            won = sum(w for _, w, _ in items) / n
+            margin = 2 * math.sqrt(sum(p * (1 - p) for p, _, _ in items)) / n
+            profit = sum(g for _, _, g in items)
             out.setdefault(profile, []).append({
                 "moment": moment, "count": n, "announced": round(announced, 4),
                 "won": round(won, 4), "margin": round(margin, 4),
                 "fair": abs(won - announced) <= margin,
+                # Bilan d'une mise de 1 000 F sur chaque proposition réglée.
+                "profit": round(profit), "yield": round(profit / (n * STAKE), 4),
             })  # fmt: skip
-    return {"profiles": out, "total": len(rows)}
+    profit = sum(g for items in groups.values() for _, _, g in items)
+    return {
+        "profiles": out, "total": len(rows), "stake": STAKE, "profit": round(profit),
+        "trial": await in_trial(session), "trial_settled": TRIAL_SETTLED,
+    }  # fmt: skip

@@ -76,3 +76,19 @@ class LiveCouponPick(Base):
     # win, half_win, push, half_loss, loss ; null tant que le match n'est pas réglé.
     result: Mapped[str | None] = mapped_column(String(10), index=True)
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class LiveWindowOdds(Base):
+    """Cotes du direct d'un match à l'ouverture d'une fenêtre du coupon en direct (pause,
+    60e, 75e), avec le score et les cartons rouges du relevé : pour l'étude « chances du
+    direct avec ou sans les statistiques du match » demandée le 13/11/2026."""
+
+    __tablename__ = "live_window_odds"
+    __table_args__ = (UniqueConstraint("match_id", "moment"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)
+    moment: Mapped[str] = mapped_column(String(16))
+    taken_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    state: Mapped[list[int] | None] = mapped_column(JSONB)
+    odds: Mapped[dict[str, str]] = mapped_column(JSONB)

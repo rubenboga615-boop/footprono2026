@@ -152,3 +152,23 @@ dès maintenant** (mi-temps, 60e, 75e) pour pouvoir le vérifier dans quelques s
   écarté est notée dans le rapport du suivi du direct (`live_odds_dropped` : absent de
   /odds/live, cotes bloquées, score différent, aucune cote ouverte). À confirmer à la
   mi-temps de Burkina Faso – Mauritanie.
+
+### Décision du fondateur (13/11/2026, après-midi) — appliquée
+
+L'objectif du coupon en direct devient de proposer des paris rentables, pas un pari sur
+chaque match. Cela remplace, pour le seul coupon en direct, la règle « moteur indépendant
+des cotes ». Le risque relevé plus haut (`docs/MOTEUR.md` : ce filtre garde surtout les cas
+où la cote a raison) sera tranché par le bilan en argent.
+
+- `pick` : chance du moteur ≥ 1/cote + 0,03, et écart ≤ 0,20 (garde-fou) ; combinés :
+  sélections ajoutées tant que la chance du combiné reste ≥ 1/cote totale + 0,03.
+- Sélections nationales : match écarté si une équipe a joué moins de 8 matchs en 2 ans
+  (seuil choisi par nous, à revoir).
+- Fenêtre sans proposition : « Aucun coupon intéressant pendant cette fenêtre » (`open`
+  compte les matchs dans une fenêtre).
+- Fiabilité D15 : bilan d'une mise de 1 000 F sur chaque proposition réglée, par profil et
+  moment, et au total.
+- « En test » tant qu'il y a moins de 200 propositions réglées, ou si le bilan est négatif.
+- Étude future : cotes du direct gardées à chaque fenêtre (`live_window_odds`) ; les
+  statistiques du match (tirs, tirs cadrés, xG, corners, possession, attaques
+  dangereuses) le sont déjà à chaque minute dans `live_snapshots` depuis le 10/11.

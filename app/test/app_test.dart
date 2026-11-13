@@ -13,6 +13,7 @@ import 'package:footprono/desktop/desktop_shell.dart';
 import 'package:footprono/main.dart';
 import 'package:footprono/screens/daily_coupons_screen.dart';
 import 'package:footprono/screens/notifications_screen.dart';
+import 'package:footprono/screens/live_coupon_screen.dart';
 import 'package:footprono/screens/reliability_screen.dart';
 import 'package:footprono/screens/smart_coupon_screen.dart';
 import 'package:footprono/state/app_state.dart';
@@ -2879,9 +2880,21 @@ void main() {
     server.liveReliability = {
       'published': true,
       'total': 412,
+      'stake': 1000,
+      'profit': -12500,
+      'trial': false,
+      'trial_settled': 200,
       'profiles': {
         'Sûr': [
-          {'moment': 'mi-temps', 'count': 300, 'announced': 0.83, 'won': 0.84, 'margin': 0.043, 'fair': true},
+          {
+            'moment': 'mi-temps',
+            'count': 300,
+            'announced': 0.83,
+            'won': 0.84,
+            'margin': 0.043,
+            'fair': true,
+            'profit': 4200,
+          },
           {'moment': "60'", 'count': 112, 'announced': 0.82, 'won': 0.70, 'margin': 0.073, 'fair': false},
         ],
       },
@@ -2896,6 +2909,10 @@ void main() {
     await tester.tap(find.text('Coupons en direct'));
     await tester.pumpAndSettle();
     expect(find.text('Mi-temps'), findsOneWidget);
+    // Bilan en argent (décision du 13/11) : 1 000 F sur chaque proposition réglée.
+    expect(find.textContaining('Si tu avais misé 1\u00A0000\u00A0F'), findsOneWidget);
+    expect(find.textContaining('−12\u00A0500\u00A0F'), findsOneWidget);
+    expect(find.textContaining('bilan +4\u00A0200\u00A0F'), findsOneWidget);
     expect(find.text('83\u00A0%'), findsOneWidget);
     expect(find.text('84\u00A0%'), findsOneWidget);
     expect(find.text('300'), findsOneWidget);
@@ -2904,6 +2921,27 @@ void main() {
     await tester.tap(find.text('Audacieux'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Pas encore de coupon en direct réglé'), findsOneWidget);
+  });
+
+  testWidgets('coupon en direct : fenêtre ouverte sans cote assez généreuse, « En test »', (tester) async {
+    final (_, server) = await startApp(tester, loggedIn: true);
+    server.liveCoupons = {
+      'published': true,
+      'odds_source': 'indicative',
+      'matches': [],
+      'combos': {},
+      'open': 1,
+      'trial': true,
+    };
+    final context = tester.element(find.byType(Scaffold).first);
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => const LiveCouponScreen()));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Aucun coupon intéressant pendant cette fenêtre'), findsOneWidget);
+    expect(find.text('En test'), findsOneWidget);
+    expect(find.textContaining('Aucun match ouvert'), findsNothing);
   });
 
   testWidgets('coupon en direct : carte, combiné Sûr ajouté, à placer avant la fermeture', (tester) async {

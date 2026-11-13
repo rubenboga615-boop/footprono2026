@@ -88,6 +88,10 @@ class _LiveReliabilityScreenState extends State<LiveReliabilityScreen> {
                             ],
                           ),
                   ),
+                  if (r['total'] is num && (r['total'] as num) > 0) ...[
+                    const SizedBox(height: 12),
+                    _Money(r),
+                  ],
                   if (rows.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
@@ -171,6 +175,45 @@ class _Row extends StatelessWidget {
   }
 }
 
+/// Bilan en argent : une mise de 1 000 F sur chaque proposition réglée (décision du 13/11).
+class _Money extends StatelessWidget {
+  const _Money(this.r);
+  final Map r;
+
+  @override
+  Widget build(BuildContext context) {
+    final profit = (r['profit'] as num?)?.toInt() ?? 0;
+    final total = (r['total'] as num).toInt();
+    final stake = (r['stake'] as num?)?.toInt() ?? 1000;
+    final trial = r['trial'] != false;
+    final rate = profit / (total * stake);
+    return GlassCard.section(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Si tu avais misé ${money(stake)} sur chaque coupon en direct proposé ($total réglés) :',
+            style: Fp.body(12.5, color: Fp.text2, height: 1.4),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${signedMoney(profit)} · ${rate >= 0 ? '+' : '−'}${percent(rate.abs(), decimals: 1)}',
+            style: Fp.body(18, weight: FontWeight.w800, color: profit >= 0 ? Fp.win : Fp.loss),
+          ),
+          if (trial) ...[
+            const SizedBox(height: 4),
+            Text(
+              'En test : moins de ${r['trial_settled'] ?? 200} coupons réglés, ou bilan négatif.',
+              style: Fp.body(12, color: Fp.warning, height: 1.4),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// Barre : part gagnée ; trait vert : chance annoncée ; « juste » ou « à surveiller ».
 class _Bar extends StatelessWidget {
   const _Bar(this.row);
@@ -190,7 +233,8 @@ class _Bar extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  '${_momentLabel('${row['moment']}')} · annoncé contre gagné',
+                  '${_momentLabel('${row['moment']}')} · annoncé contre gagné'
+                  '${row['profit'] is num ? ' · bilan ${signedMoney(row['profit'] as num)}' : ''}',
                   style: Fp.body(12.5, color: Fp.text2),
                 ),
               ),
