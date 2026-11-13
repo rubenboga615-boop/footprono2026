@@ -102,3 +102,33 @@ source, ou match absent de `/odds/live`). Ce n'est pas faux en soi : sans cote, 
 de proposition. Mais c'est à confirmer avec « Tester le direct » à la prochaine mi-temps. Si
 la source suspend toutes ses cotes pendant la pause, la fenêtre « mi-temps » ne s'ouvrira
 qu'à la reprise, et ne durera alors que 46e-50e.
+
+## Quelles données font le coupon en direct ? (question du fondateur, 13/11 après-midi)
+
+Lu dans `engine/live.py`, `predictions/live_chances.py` et `bookmaker/live_coupons.py` :
+
+| Utilisé | Détail |
+|---|---|
+| Prévision d'avant-match | buts attendus de chaque équipe et part des buts en 1re période. Clubs : modèle de Poisson / Dixon-Coles sur 3 ans de résultats, 70 % xG Understat, demi-vie 180 jours. Sélections : note Elo et buts sur 2 ans de matchs officiels |
+| État du match | statut (1H, HT, 2H), minute, temps additionnel (moyenne fixe de 2 et 5 min), score, score de la pause |
+| Effet du score | l'équipe menée accélère un peu, celle qui mène ralentit (5 coefficients appris sur 2019-2022) |
+| Cartons rouges | seulement pour **se taire** : pas de chance calculée après un rouge |
+| Cotes en direct (`/odds/live`) | seulement pour savoir si la sélection est jouable et à quel prix ; **jamais pour choisir** |
+
+**Non utilisé** :
+- les statistiques du match en cours (tirs, tirs cadrés, xG du direct, possession, corners,
+  attaques dangereuses) ;
+- les compositions et absences ;
+- les remplacements et cartons jaunes ;
+- ce que disent les cotes du marché.
+
+**Conséquence.** À la 47e, le moteur sait seulement « 0-0, 47e, et ce qu'on pensait avant le
+match ». Si une équipe écrase l'autre (12 tirs à 1), le moteur ne le voit pas, alors que le
+bookmaker le voit et ajuste sa cote. C'est pourquoi les propositions tombent souvent sous la
+cote. Le filtre de valeur (chance du moteur ≥ 1/cote + 3 points) devient indispensable : il
+évite de proposer quand le marché en sait plus que le moteur.
+
+**Piste à étudier.** Ajouter les tirs cadrés et les xG du direct (API-Football les donne
+pendant le match ; l'onglet Statistiques les affiche déjà). Mais l'archive n'a pas ces
+statistiques minute par minute. Il faudrait commencer à les **enregistrer à chaque fenêtre
+dès maintenant** (mi-temps, 60e, 75e) pour pouvoir le vérifier dans quelques semaines.
