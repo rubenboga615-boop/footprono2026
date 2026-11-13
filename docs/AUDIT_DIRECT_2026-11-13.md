@@ -142,7 +142,14 @@ Réglage passé sur « Validé ou perdu » à 18:53 (`/me` → `results`), remis
 
 **Le réglage « Validé ou perdu » est conforme** : ni « C'est parti » ni « ⚽ », mais les
 sélections validées et les résultats arrivent. « Tout se joue sur Belgique – Italie »
-(pari 57, dernier match) n'est pas envoyé, ce qui est cohérent avec le réglage.
+(pari 57, dernier match) n'est pas parti avec le ✅ de 21:38:03. Il est arrivé à **21:39:03**,
+juste après que j'ai remis le réglage sur « Tout » (21:38:34) : le message retenu par le
+réglage est donc envoyé dès qu'on le rouvre. C'est discutable : il vaudrait mieux ne pas
+envoyer après coup ce que le joueur avait choisi de ne pas recevoir.
+
+**Défaut 7 — date manquante.** « 2 sur 3 validées : tout se joue sur Belgique - Italie
+(19:45) » : le match est le **15/11**, pas ce soir. Un joueur comprend « ce soir à 19:45 ».
+Écrire « (dimanche 15/11 à 19:45) » quand le match n'est pas le jour même.
 
 **Défaut 2 confirmé deux fois de plus.** Les paris 69 et 75 portaient sur la 1re
 mi-temps. Ils n'ont été réglés que 20 à 25 min après la pause, et sans état « pour
