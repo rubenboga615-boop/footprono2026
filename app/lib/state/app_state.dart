@@ -110,6 +110,19 @@ abstract class WebPushBridge {
 }
 
 /// Connexion avec Google (Firebase sur Android ; absent sur le web et en test).
+/// Code court de l'échec d'une connexion Google (code de Firebase, ou type de l'erreur),
+/// montré au joueur pour que l'aide sache quoi corriger.
+String googleErrorCode(Object e) {
+  try {
+    final code = (e as dynamic).code;
+    if (code is String && code.isNotEmpty) return code;
+  } catch (_) {}
+  return e.runtimeType.toString();
+}
+
+String _googleFailed(Object e) =>
+    'Connexion Google impossible (code : ${googleErrorCode(e)}). Réessaie ou utilise ton numéro.';
+
 abstract class GoogleAuthBridge {
   /// Jeton d'identité Firebase, ou null si le joueur ferme la fenêtre de Google.
   Future<String?> idToken();
@@ -318,8 +331,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       final token = await g.idToken();
       if (token != null) await _prefs?.remove(_kGoogleRedirect);
       return token;
-    } catch (_) {
-      throw ApiException(0, 'google', 'Connexion Google impossible. Réessaie ou utilise ton numéro.');
+    } catch (e) {
+      throw ApiException(0, 'google', _googleFailed(e));
     }
   }
 
@@ -358,8 +371,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     final String? token;
     try {
       token = await g.redirectResult().timeout(const Duration(seconds: 10));
-    } catch (_) {
-      showMessage('Connexion Google impossible. Réessaie ou utilise ton numéro.', error: true);
+    } catch (e) {
+      showMessage(_googleFailed(e), error: true);
       return;
     }
     if (token == null) return;
