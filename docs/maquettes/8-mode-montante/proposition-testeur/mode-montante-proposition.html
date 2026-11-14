@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mode Montante · proposition du testeur</title><style>
+*{box-sizing:border-box}
+body{margin:0;background:#07050D;font-family:Inter,system-ui,sans-serif;color:#fff}
+header{max-width:1240px;margin:0 auto;padding:28px 16px 8px}
+header h1{margin:0 0 6px;font-size:24px}
+header p{margin:4px 0;color:#A9A3C2;font-size:14px;line-height:1.5;max-width:900px}
+.rules{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.rules span{font-size:12px;border:1px solid #3A3260;border-radius:14px;padding:6px 10px;color:#C9C3F0}
+.grid{display:flex;flex-wrap:wrap;gap:28px;justify-content:center;padding:20px 12px 60px;max-width:1300px;margin:0 auto}
+figure{margin:0;width:390px;max-width:100%}
+figcaption{font-size:13px;color:#C9C3F0;line-height:1.45;margin:0 0 10px}
+figcaption b{color:#fff;font-size:15px;display:block;margin-bottom:2px}
+.p{position:relative;width:390px;max-width:100%;height:844px;background:#0E0B1A;color:#fff;overflow:hidden;font-size:14px;line-height:1.35;border-radius:28px;box-shadow:0 0 0 1px #241E3D}
+.sc{padding:48px 16px 110px}
+.hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hd h2{margin:0;font-size:26px}.hd h2 span{color:#A78BFA}
+.bk{display:flex;align-items:center;gap:10px}.bk h2{font-size:22px;margin:0}.bk .chev{font-size:22px;color:#B9B2FF}
+.c{background:#1A1530;border-radius:18px;padding:14px;margin-top:12px}
+.mu{color:#A9A3C2;font-size:12px}.mu2{color:#A9A3C2;font-size:13px}
+.row{display:flex;align-items:center;gap:10px}.sp{flex:1;min-width:0}.b{font-weight:700}
+.tag{font-size:11px;font-weight:700;border-radius:8px;padding:4px 8px;background:#2B2060;color:#B9B2FF;white-space:nowrap}
+.gr{background:#12301F;color:#4ADE80}.rd{background:#3A1620;color:#FF8A9B}.yl{background:#1F1709;color:#E7C98A}
+.btn{height:52px;border-radius:26px;background:#6D4AFF;color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;margin-top:14px}
+.btn2{height:46px;border-radius:23px;border:1px solid #3A3260;color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;margin-top:10px;font-size:14px}
+.lnk{color:#B9B2FF;font-weight:600}
+.li{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #241E3D}.li:last-child{border-bottom:0}
+.kv{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0}
+.warn{background:#1F1709;border:1px solid #6B4F1D;color:#E7C98A;border-radius:14px;padding:10px 12px;font-size:12.5px;margin-top:12px;line-height:1.45}
+.ok{background:#12301F;border:1px solid #1F5B3A;color:#C9F5D9;border-radius:14px;padding:10px 12px;font-size:13px;margin-top:12px}
+.info{background:#16122B;border:1px solid #2A2347;color:#C9C3F0;border-radius:14px;padding:10px 12px;font-size:12.5px;margin-top:12px;line-height:1.45}
+.seg{display:flex;background:#1A1530;border-radius:16px;padding:4px;margin-top:12px}
+.seg span{flex:1;height:40px;border-radius:12px;color:#A9A3C2;font-weight:600;display:flex;align-items:center;justify-content:center;font-size:13.5px}
+.seg .on{background:#2B2060;color:#fff}
+.nav{position:absolute;left:12px;right:12px;bottom:16px;height:72px;border-radius:28px;background:#15112A;box-shadow:inset 0 0 0 1px #2A2347;display:flex;justify-content:space-around;align-items:center;z-index:5}
+.nav span{color:#A9A3C2;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:500;min-width:56px}
+.nav .on{color:#B9B2FF}
+.ld{width:7px;height:7px;border-radius:50%;background:#4ADE80;display:inline-block;margin-right:5px}
+.live{color:#4ADE80;font-weight:700}
+.ht{color:#E7C98A;font-weight:700}
+.score{display:flex;align-items:center;gap:10px;margin-top:6px}.score .n{flex:1;font-weight:700;font-size:15px}.score .s{font-weight:800;font-size:18px}
+.prof{display:flex;gap:6px;margin-top:10px}
+.prof span{flex:1;background:#0E0B1A;border-radius:12px;text-align:center;padding:8px 2px;font-size:12px;color:#A9A3C2;line-height:1.3}
+.prof b{display:block;color:#fff;font-size:15px}
+.prof .on{box-shadow:inset 0 0 0 1.5px #7C5CFF;background:#2B2060}
+.lock{color:#E7C98A;font-size:11px}
+.sel{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid #241E3D}.sel:last-of-type{border-bottom:0}
+.odd{font-weight:800;font-size:16px;min-width:44px;text-align:right}
+.ind{color:#E7C98A}
+.timer{display:flex;align-items:center;gap:8px;background:#1F1709;border:1px solid #6B4F1D;border-radius:14px;padding:9px 12px;font-size:13px;color:#E7C98A;margin-top:12px}
+.timer b{font-variant-numeric:tabular-nums}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#1A1530;border-radius:24px 24px 0 0;padding:10px 18px 24px;z-index:9}
+.sheet:before{content:'';display:block;width:40px;height:4px;border-radius:2px;background:#3A3260;margin:0 auto 14px}
+.scrim{position:absolute;inset:0;background:rgba(5,3,12,.72);z-index:8}
+.blur{filter:blur(3px);opacity:.5}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl td,.tbl th{padding:9px 4px;border-bottom:1px solid #241E3D;text-align:left}.tbl th{color:#A9A3C2;font-weight:600;font-size:12px}.tbl .r{text-align:right}
+.bar{height:8px;border-radius:4px;background:#241E3D;position:relative;margin-top:6px}
+.bar i{position:absolute;top:0;bottom:0;left:0;border-radius:4px;background:#6D4AFF}
+.bar u{position:absolute;top:-3px;width:2px;height:14px;background:#4ADE80}
+.chip{display:inline-block;font-size:11px;font-weight:700;border-radius:8px;padding:3px 7px;background:#12301F;color:#4ADE80}
+.legend{max-width:1240px;margin:0 auto;padding:0 16px 40px;color:#C9C3F0;font-size:14px;line-height:1.55}
+.legend h2{font-size:18px;color:#fff}
+.legend li{margin:4px 0}
+</style><style>
+.sw{width:46px;height:28px;border-radius:14px;background:#6D4AFF;position:relative;flex:none}
+.sw:after{content:'';position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff}
+.sw.off{background:#3A3260}.sw.off:after{right:auto;left:3px}
+.mode{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;border-radius:10px;padding:5px 9px;background:#2B2060;color:#B9B2FF}
+.odds{display:flex;gap:6px;margin-top:8px}.odds span{flex:1;background:#0E0B1A;border-radius:10px;text-align:center;padding:7px 2px;font-size:12px;color:#A9A3C2}.odds b{display:block;color:#fff;font-size:14px}
+.odds .on{box-shadow:inset 0 0 0 1.5px #7C5CFF;background:#2B2060}
+</style></head><body>
+<style>
+.risk{display:flex;gap:6px;margin-top:10px}.risk div{flex:1;border-radius:12px;padding:8px 6px;text-align:center;font-size:11.5px;color:#A9A3C2;background:#0E0B1A}
+.risk b{display:block;font-size:15px;margin-top:2px}
+.risk .w b{color:#4ADE80}.risk .l b{color:#FF8A9B}.risk .s b{color:#fff}
+.odds span.in{box-shadow:inset 0 0 0 1px #1F5B3A}.odds span.out{opacity:.45}
+.odds small{display:block;font-size:10.5px;color:#A9A3C2;margin-top:1px}.odds .in small{color:#4ADE80}
+.slip{position:absolute;left:12px;right:12px;bottom:100px;background:#2B2060;border-radius:18px;padding:10px 14px;z-index:6;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+.empty{text-align:center;padding:26px 10px 8px}.empty .ic{font-size:40px}
+.step{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #241E3D;font-size:13px}.step:last-child{border-bottom:0}
+.dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex:none}
+.d-ok{background:#12301F;color:#4ADE80}.d-ko{background:#3A1620;color:#FF8A9B}.d-on{background:#2B2060;color:#B9B2FF;box-shadow:inset 0 0 0 1.5px #7C5CFF}.d-no{background:#15112A;color:#5E5880}
+.new{font-size:10px;font-weight:800;color:#0E0B1A;background:#E7C98A;border-radius:6px;padding:2px 5px;margin-left:6px;vertical-align:middle}
+</style>
+<header>
+<h1>Mode Montante — proposition du testeur (à comparer à MM1-MM4)</h1>
+<p>Mêmes couleurs et même principe que MM1 à MM4. Ajouts : l'écran « rien de valable aujourd'hui », ce qu'on risque à côté de ce qu'on gagne, le cas « moteur sous la cote », l'aide à composer dans la plage, les écrans manquants (créer, perdue, en direct, analyse) et 3 onglets au lieu de 4 (le palier s'ouvre en feuille). Les chiffres sont des exemples. Les éléments marqués <span class="new">NOUVEAU</span> n'existent pas dans MM1-MM4.</p>
+<div class="rules"><span>Réglage enregistré sur le compte</span><span>3 onglets : Montante · Matchs · Profil</span><span>Gain et risque toujours côte à côte</span><span>Attendre est une option</span></div>
+</header>
+<div class="grid">
+
+<figure><figcaption><b>T1 · Profil : le mode suit le compte</b>Même interrupteur, mais enregistré sur le compte : actif sur l'APK et sur le web en même temps (comme « Pendant mes matchs »). Les notifications des paliers restent actives.</figcaption>
+<div class="p"><div class="sc">
+  <div class="hd"><h2>Mon <span>profil</span></h2></div>
+  <div class="c"><div class="row"><div class="sp"><b>Mode Montante</b><div class="mu" style="margin-top:3px">Seulement la montante : coupons, direct, Grosse cote et Fiabilité générale sont cachés jusqu'à ce que tu le désactives.</div></div><span class="sw"></span></div></div>
+  <div class="info">Enregistré sur ton compte : même réglage sur tous tes appareils. <span class="new">NOUVEAU</span></div>
+  <div class="c"><div class="row"><span class="sp">Notifications des paliers</span><span class="mu2">Tout ›</span></div><div class="mu" style="margin-top:4px">Rappel 30 min avant, « C'est parti », buts de ton palier, palier validé ou perdu. <span class="new">NOUVEAU</span></div></div>
+  <div class="c row"><span class="sp">Mon bilan</span><span class="lnk">›</span></div>
+  <div class="c row"><span class="sp">Aide</span><span class="lnk">›</span></div>
+</div><div class="nav"><span>Montante</span><span>Matchs</span><span class="on">Profil</span></div></div></figure>
+
+<figure><figcaption><b>T2 · Montante : gain ET risque <span class="new">NOUVEAU</span></b>Le bilan reste neutre. Pour le palier en cours : ce que je gagne, ce que je garde si j'arrête, ce que je perds si ça rate. Les paliers sont visibles d'un coup d'œil.</figcaption>
+<div class="p"><div class="sc">
+  <div class="hd"><h2>Ma <span>montante</span></h2><span class="mode">◆ Mode Montante</span></div>
+  <div class="c"><div class="mu">Mon bilan des montantes (2 terminées)</div><div style="font-size:24px;font-weight:800">−1 350 F</div><div class="mu2">10 000 F misés · 8 650 F encaissés</div><div class="lnk" style="margin-top:6px">Voir l'analyse ›</div></div>
+  <div class="c">
+    <div class="row"><b class="sp">Montante n° 9</b><span class="tag">Palier 3 sur 6</span></div>
+    <div class="mu2" style="margin-top:4px">En jeu : 7 160 F · plage 1,55–1,65</div>
+    <div class="risk"><div class="w">Si ça passe<b>+4 300 F</b></div><div class="s">Si j'arrête<b>7 160 F</b></div><div class="l">Si ça rate<b>−7 160 F</b></div></div>
+    <div style="margin-top:10px">
+      <div class="step"><span class="dot d-ok">1</span><span class="sp">Palier 1 · Brest – Nantes, plus de 1,5 but</span><span class="chip">gagné</span></div>
+      <div class="step"><span class="dot d-ok">2</span><span class="sp">Palier 2 · Lens ou nul</span><span class="chip">gagné</span></div>
+      <div class="step"><span class="dot d-on">3</span><span class="sp">Palier 3 · à jouer</span><span class="mu">—</span></div>
+    </div>
+  </div>
+  <div class="btn">Voir les paris proposés</div>
+  <div class="btn2">Encaisser 7 160 F et arrêter</div>
+</div><div class="nav"><span class="on">Montante</span><span>Matchs</span><span>Profil</span></div></div></figure>
+
+<figure><figcaption><b>T3 · Rien de valable aujourd'hui <span class="new">NOUVEAU</span></b>L'écran le plus fréquent (du 9 au 13/11 : une seule suggestion au-dessus de la cote). Il dit pourquoi, et quand revenir. Composer reste possible, avec l'avertissement.</figcaption>
+<div class="p"><div class="sc">
+  <div class="bk"><span class="chev">‹</span><h2>Paris proposés · palier 3</h2></div>
+  <div class="c empty">
+    <div class="ic">⏸</div>
+    <div class="b" style="font-size:17px;margin-top:6px">Rien de valable aujourd'hui</div>
+    <div class="mu2" style="margin-top:8px;line-height:1.5">Dans ta plage (1,55–1,65), le moteur ne trouve aucun pari plus probable que ce que dit la cote. <b style="color:#fff">Attendre, c'est aussi jouer la montante</b> : ta mise reste de côté.</div>
+  </div>
+  <div class="c">
+    <div class="mu">Les 3 meilleurs, tous sous la cote</div>
+    <div class="sel"><span class="sp">Lille – Rennes · plus de 1,5 but</span><span class="mu2">58 % / 63 %</span><span class="odd">1,60</span></div>
+    <div class="sel"><span class="sp">Nice ou nul · Nice – Lyon</span><span class="mu2">55 % / 62 %</span><span class="odd">1,62</span></div>
+    <div class="sel"><span class="sp">Gand gagne · Gand – Genk</span><span class="mu2">54 % / 61 %</span><span class="odd">1,65</span></div>
+    <div class="mu" style="margin-top:6px">moteur / selon la cote</div>
+  </div>
+  <div class="info">Nouvelle recherche à chaque nouvelle cote (environ toutes les 2 heures). Je te préviens s'il y a un pari valable. </div>
+  <div class="btn2">Composer moi-même quand même</div>
+</div><div class="nav"><span class="on">Montante</span><span>Matchs</span><span>Profil</span></div></div></figure>
+
+<figure><figcaption><b>T4 · Matchs : composer dans la plage <span class="new">NOUVEAU</span></b>Les cotes dans la plage sont encadrées, les autres grisées ; la chance du moteur est sous chaque cote (vert si au-dessus de la cote). En bas, la cote totale et « dans la plage ✓ ».</figcaption>
+<div class="p"><div class="sc">
+  <div class="hd"><h2>Matchs <span>du jour</span></h2><span class="mode">◆ Mode Montante</span></div>
+  <div class="warn">Palier 3 : cote totale entre 1,55 et 1,65 · 1 à 3 sélections.</div>
+  <div class="c"><div class="row"><b class="sp">Lens – Lyon</b><span class="mu">20:45</span></div>
+    <div class="odds"><span class="in on">1<b>1,60</b><small>moteur 66 %</small></span><span class="out">N<b>3,60</b><small>24 %</small></span><span class="out">2<b>4,80</b><small>16 %</small></span></div></div>
+  <div class="c"><div class="row"><b class="sp">Brest – Nantes</b><span class="mu">17:00</span></div>
+    <div class="odds"><span class="out">1<b>2,05</b><small>47 %</small></span><span class="out">N<b>3,20</b><small>29 %</small></span><span class="out">2<b>3,70</b><small>24 %</small></span></div>
+    <div class="mu" style="margin-top:6px">Autres marchés dans la plage : plus de 1,5 but 1,58 (moteur 61 %) ›</div></div>
+  <div class="c"><div class="row"><b class="sp">Hull – Leeds</b><span class="mu">16:00</span></div>
+    <div class="odds"><span class="out">1<b>3,10</b><small>30 %</small></span><span class="out">N<b>3,30</b><small>28 %</small></span><span class="out">2<b>2,25</b><small>42 %</small></span></div></div>
+</div>
+<div class="slip"><div class="row"><span class="sp"><b>1 sélection · cote 1,60</b><div class="mu" style="color:#C9C3F0">Dans la plage ✓ · moteur 66 % / cote 63 %</div></span><span class="lnk">Palier ›</span></div></div>
+<div class="nav"><span>Montante</span><span class="on">Matchs</span><span>Profil</span></div></div></figure>
+
+<figure><figcaption><b>T5 · Palier (feuille) : cas favorable</b>Le palier s'ouvre en feuille depuis Matchs ou Montante, comme « Mon coupon ». Gain et risque côte à côte, mise imposée.</figcaption>
+<div class="p"><div class="sc blur">
+  <div class="hd"><h2>Matchs <span>du jour</span></h2></div><div class="c" style="height:120px"></div><div class="c" style="height:120px"></div>
+</div><div class="scrim"></div>
+<div class="sheet">
+  <div class="b" style="font-size:18px">Palier 3 · montante n° 9</div>
+  <div class="c" style="background:#0E0B1A">
+    <div class="mu">Lens – Lyon · sam. 15 nov. 20:45</div>
+    <div class="row"><b class="sp">Victoire de Lens</b><b>1,60</b></div>
+    <div class="mu" style="margin-top:4px;color:#4ADE80">moteur 66 % · selon la cote 63 %</div>
+  </div>
+  <div class="risk"><div class="w">Si ça passe<b>11 456 F</b></div><div class="l">Si ça rate<b>−7 160 F</b></div></div>
+  <div class="mu" style="margin-top:8px">Si ça rate, la montante s'arrête : les paliers 1 et 2 gagnés sont perdus avec elle.</div>
+  <div class="ok">Cote 1,60 dans la plage du palier.</div>
+  <div class="btn">Jouer le palier 3 · 7 160 F</div>
+</div>
+<div class="nav" style="z-index:3"><span>Montante</span><span class="on">Matchs</span><span>Profil</span></div></div></figure>
+
+<figure><figcaption><b>T6 · Palier : moteur sous la cote <span class="new">NOUVEAU</span></b>Le joueur garde la main, mais il sait. Le bouton principal devient « Attendre », et jouer demande un geste de plus.</figcaption>
+<div class="p"><div class="sc blur">
+  <div class="hd"><h2>Matchs <span>du jour</span></h2></div><div class="c" style="height:120px"></div><div class="c" style="height:120px"></div>
+</div><div class="scrim"></div>
+<div class="sheet">
+  <div class="b" style="font-size:18px">Palier 3 · montante n° 9</div>
+  <div class="c" style="background:#0E0B1A">
+    <div class="mu">Lille – Rennes · sam. 15 nov. 17:00</div>
+    <div class="row"><b class="sp">Plus de 1,5 but</b><b>1,60</b></div>
+    <div class="mu" style="margin-top:4px;color:#E7C98A">moteur 58 % · selon la cote 63 %</div>
+  </div>
+  <div class="warn">Le moteur est moins confiant que la cote (58 % contre 63 %). À long terme, ce genre de pari fait perdre. </div>
+  <div class="risk"><div class="w">Si ça passe<b>11 456 F</b></div><div class="l">Si ça rate<b>−7 160 F</b></div></div>
+  <div class="btn">Attendre un meilleur pari</div>
+  <div class="btn2">Jouer quand même · 7 160 F</div>
+</div>
+<div class="nav" style="z-index:3"><span>Montante</span><span class="on">Matchs</span><span>Profil</span></div></div></figure>
+
+<figure><figcaption><b>T7 · Palier en cours de match <span class="new">NOUVEAU</span></b>Sur l'écran Montante pendant le match : score, minute, « gagnant pour l'instant », chance du moteur maintenant. Pas de proposition de pari.</figcaption>
+<div class="p"><div class="sc">
+  <div class="hd"><h2>Ma <span>montante</span></h2><span class="mode">◆ Mode Montante</span></div>
+  <div class="c">
+    <div class="row"><b class="sp">Montante n° 9 · palier 3</b><span class="tag gr">gagnant pour l'instant</span></div>
+    <div class="row" style="margin-top:8px"><span class="ld"></span><span class="live">64'</span><span class="sp"></span></div>
+    <div class="score"><span class="n">Lens</span><span class="s">2 – 1</span><span class="n" style="text-align:right">Lyon</span></div>
+    <div class="mu2" style="margin-top:8px">Victoire de Lens · chance de tenir : <b style="color:#fff">78 %</b> <span class="mu">(66 % au départ)</span></div>
+    <div class="bar"><i style="width:78%"></i></div>
+    <div class="risk"><div class="w">Si ça passe<b>11 456 F</b></div><div class="l">Si ça rate<b>−7 160 F</b></div></div>
+  </div>
+  <div class="info">Notifications : but de Lens ou de Lyon, fin du match, palier validé ou perdu.</div>
+  <div class="btn2">Suivre le match ›</div>
+</div><div class="nav"><span class="on">Montante</span><span>Matchs</span><span>Profil</span></div></div></figure>
+
+<figure><figcaption><b>T8 · Montante perdue <span class="new">NOUVEAU</span></b>Dire les choses simplement, sans pousser à recommencer tout de suite. La nouvelle montante est possible, mais pas mise en avant.</figcaption>
+<div class="p"><div class="sc">
+  <div class="hd"><h2>Ma <span>montante</span></h2><span class="mode">◆ Mode Montante</span></div>
+  <div class="c">
+    <div class="row"><b class="sp">Montante n° 9</b><span class="tag rd">perdue au palier 3</span></div>
+    <div class="mu2" style="margin-top:6px">Lens 1 – 2 Lyon · victoire de Lens perdue</div>
+    <div class="kv"><span class="mu2">Mise de départ</span><span class="b">5 000 F</span></div>
+    <div class="kv"><span class="mu2">Perdu</span><span class="b" style="color:#FF8A9B">−5 000 F</span></div>
+    <div class="mu" style="margin-top:6px">Le palier avait 66 % de chances : un palier sur trois de ce genre perd.</div>
+  </div>
+  <div class="c"><div class="mu">Mes montantes</div>
+    <div class="step"><span class="dot d-ko">9</span><span class="sp">perdue au palier 3</span><span class="mu2">−5 000 F</span></div>
+    <div class="step"><span class="dot d-ok">8</span><span class="sp">encaissée au palier 4</span><span class="mu2">+3 650 F</span></div>
+    <div class="step"><span class="dot d-ko">7</span><span class="sp">perdue au palier 1</span><span class="mu2">−5 000 F</span></div>
+  </div>
+  <div class="btn2">Créer une nouvelle montante</div>
+</div><div class="nav"><span class="on">Montante</span><span>Matchs</span><span>Profil</span></div></div></figure>
+
+<figure><figcaption><b>T9 · Créer une montante <span class="new">NOUVEAU</span></b>Quand aucune montante n'est en cours. Mise, paliers et plage, avec le résumé honnête : chance d'aller au bout selon le moteur.</figcaption>
+<div class="p"><div class="sc">
+  <div class="hd"><h2>Nouvelle <span>montante</span></h2></div>
+  <div class="c"><div class="mu">Mise de départ</div><div class="seg"><span>2 000 F</span><span class="on">5 000 F</span><span>10 000 F</span></div>
+    <div class="mu" style="margin-top:12px">Nombre de paliers</div><div class="seg"><span>3</span><span>4</span><span class="on">6</span></div>
+    <div class="mu" style="margin-top:12px">Cote de chaque palier</div><div class="seg"><span>1,30–1,40</span><span class="on">1,55–1,65</span><span>1,80–2,00</span></div></div>
+  <div class="c">
+    <div class="kv"><span class="mu2">Si tout passe</span><span class="b" style="color:#4ADE80">≈ 84 000 F</span></div>
+    <div class="kv"><span class="mu2">Chance d'aller au bout</span><span class="b">≈ 7 %</span></div>
+    <div class="kv"><span class="mu2">Si un palier rate</span><span class="b" style="color:#FF8A9B">−5 000 F</span></div>
+    <div class="mu" style="margin-top:4px">Calculé avec une chance de 64 % par palier (cote 1,60). Tu peux encaisser à tout moment.</div>
+  </div>
+  <div class="btn">Créer la montante</div>
+</div><div class="nav"><span class="on">Montante</span><span>Matchs</span><span>Profil</span></div></div></figure>
+
+<figure><figcaption><b>T10 · Analyse : fiabilité des montantes <span class="new">NOUVEAU</span></b>La page Fiabilité générale est cachée, mais celle des montantes reste : chance annoncée contre gagnée, et bilan en argent.</figcaption>
+<div class="p"><div class="sc">
+  <div class="bk"><span class="chev">‹</span><h2>Analyse des montantes</h2></div>
+  <div class="c">
+    <div class="mu">Paliers joués sur des suggestions</div>
+    <table class="tbl"><tr><th>Moteur annonçait</th><th class="r">Paliers</th><th class="r">Gagnés</th></tr>
+      <tr><td>60–65 %</td><td class="r">41</td><td class="r">63 %</td></tr>
+      <tr><td>65–70 %</td><td class="r">58</td><td class="r">66 %</td></tr>
+      <tr><td>70–75 %</td><td class="r">22</td><td class="r">74 %</td></tr></table>
+    <div class="mu" style="margin-top:8px">Tous les joueurs FootProba · argent fictif.</div>
+  </div>
+  <div class="c">
+    <div class="mu">Mes montantes</div>
+    <div class="kv"><span class="mu2">Terminées</span><span class="b">3</span></div>
+    <div class="kv"><span class="mu2">Encaissées ou réussies</span><span class="b">1</span></div>
+    <div class="kv"><span class="mu2">Bilan</span><span class="b">−6 350 F</span></div>
+    <div class="kv"><span class="mu2">Paliers attendus faute de pari valable</span><span class="b">5 jours</span></div>
+  </div>
+</div><div class="nav"><span class="on">Montante</span><span>Matchs</span><span>Profil</span></div></div></figure>
+
+</div>
+<div class="legend">
+<h2>Différences avec MM1 à MM4</h2>
+<ul>
+<li><b>3 onglets</b> (Montante, Matchs, Profil) : le palier s'ouvre en feuille (T5, T6), comme « Mon coupon ».</li>
+<li><b>Gain et risque côte à côte</b> partout (T2, T5, T6, T7), et une ligne qui rappelle que tout s'arrête au premier palier perdu.</li>
+<li><b>« Rien de valable aujourd'hui »</b> (T3) : l'écran le plus fréquent, avec les meilleurs paris et l'écart moteur / cote.</li>
+<li><b>Moteur sous la cote</b> (T6) : le bouton principal devient « Attendre ».</li>
+<li><b>Aide à composer</b> (T4) : cotes dans la plage encadrées, chance du moteur sous chaque cote, cote totale en bas.</li>
+<li><b>Écrans manquants</b> : en cours de match (T7), perdue (T8), créer (T9), analyse (T10).</li>
+<li><b>Réglage sur le compte</b> (T1), notifications des paliers gardées.</li>
+<li><b>Exemples réalistes</b> : bilan négatif possible, chance d'aller au bout affichée (≈ 7 % pour 6 paliers à 64 %).</li>
+</ul></div></body></html>
