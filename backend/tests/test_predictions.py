@@ -18,7 +18,7 @@ from footprono.predictions import reliability
 from footprono.predictions.models import MatchPrediction
 from footprono.predictions.service import predict_upcoming, prediction_needed
 
-from .conftest import make_premium, make_settings
+from .conftest import admin_headers, make_premium, make_settings
 
 FIXTURES = Path(__file__).parent / "fixtures"
 AS_OF = date(2025, 5, 18)  # les deux dernières journées de 2024-25 deviennent « à venir »
@@ -125,7 +125,10 @@ async def test_prediction_api(
     )
     assert total == pytest.approx(1.0, abs=1e-5)
 
-    runs = await client.get("/api/v1/predictions/runs")
+    assert (await client.get("/api/v1/predictions/runs")).status_code == 401  # audit du 14/11
+    runs = await client.get(
+        "/api/v1/predictions/runs", headers=await admin_headers(client, db_factory)
+    )
     assert runs.status_code == 200
     assert runs.json()[0]["status"] == "ok"
 

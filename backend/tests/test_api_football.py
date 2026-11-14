@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from footprono.football.models import DataSource
 from footprono.ingestion.service import IngestionRequest, run_ingestion
 
-from .conftest import make_settings
+from .conftest import admin_headers, make_settings
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -117,12 +117,18 @@ async def test_match_not_found(client: AsyncClient) -> None:
     assert response.json()["error"]["code"] == "not_found"
 
 
-async def test_ingestion_runs_and_quality(client: AsyncClient) -> None:
-    runs = (await client.get("/api/v1/ingestion/runs")).json()
+async def test_ingestion_runs_and_quality(
+    client: AsyncClient, db_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    # Audit de l'équipe du 14/11/2026 : pages internes réservées à l'administrateur.
+    for path in ("/api/v1/ingestion/runs", "/api/v1/ingestion/runs/1", "/api/v1/data/quality"):
+        assert (await client.get(path)).status_code == 401
+    headers = await admin_headers(client, db_factory)
+    runs = (await client.get("/api/v1/ingestion/runs", headers=headers)).json()
     assert [r["status"] for r in runs] == ["ok"]
-    detail = (await client.get(f"/api/v1/ingestion/runs/{runs[0]['id']}")).json()
+    detail = (await client.get(f"/api/v1/ingestion/runs/{runs[0]['id']}", headers=headers)).json()
     assert [f["status"] for f in detail["report"]["files"]] == ["ok", "ok"]
-    assert (await client.get("/api/v1/ingestion/runs/999")).status_code == 404
+    assert (await client.get("/api/v1/ingestion/runs/999", headers=headers)).status_code == 404
 
-    quality = (await client.get("/api/v1/data/quality")).json()
+    quality = (await client.get("/api/v1/data/quality", headers=headers)).json()
     assert quality["errors"] == 0

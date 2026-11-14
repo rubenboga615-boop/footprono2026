@@ -435,7 +435,7 @@ async function dashboardPage() {
   const disk = d.disk;
   const backup = d.backup;
   const state = strip([
-    ["Services", allOk ? "En marche" : down.join(", ") + " arrêté" + (down.length > 1 ? "s" : ""), allOk ? "okt" : "badt", backup ? "sauvegarde " + ago(backup.at) : null],
+    ["Services", allOk ? "En marche" : down.join(", ") + " arrêté" + (down.length > 1 ? "s" : ""), allOk ? "okt" : "badt", [backup ? "sauvegarde " + ago(backup.at) : null, d.commit && d.commit !== "inconnu" ? "code " + d.commit : null].filter(Boolean).join(" · ") || null],
     ["API-Football", q && q.limit ? number(q.limit - q.used) : "—", "", q && q.limit ? "restantes sur " + number(q.limit) : "quota indisponible"],
     ["Disque libre", disk ? String(disk.free_gb).replace(".", ",") + " Go" : "—", disk && disk.free_gb / disk.total_gb < 0.15 ? "badt" : "", disk ? "sur " + disk.total_gb + " Go" : null],
     ["Comptes", number(d.users.total), "", (d.users.new_7d ? "+" + d.users.new_7d + " en 7 j · " : "") + number(d.users.premium) + " Premium"],

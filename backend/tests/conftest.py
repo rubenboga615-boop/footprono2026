@@ -122,3 +122,23 @@ async def make_premium(
             .values(premium_until=datetime.now(UTC) + timedelta(days=days))
         )
         await session.commit()
+
+
+async def admin_headers(
+    client: AsyncClient, factory: async_sessionmaker[AsyncSession]
+) -> dict[str, str]:
+    """Jeton d'un compte administrateur (connexion de la console)."""
+    from footprono.accounts import admin
+    from footprono.accounts import service as accounts
+
+    async with factory() as session:
+        await accounts.register(
+            session, make_settings(), phone="+22997222299", password="87654321",
+            display_name="Admin", country="BJ", adult=True,
+        )  # fmt: skip
+        await admin.set_role(session, "+229 97 22 22 99", "admin")
+        await session.commit()
+    r = await client.post(
+        "/api/v1/auth/console-login", json={"phone": "+22997222299", "password": "87654321"}
+    )
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}

@@ -10,6 +10,12 @@
 		respond 404
 	}
 
+	# Disponibilité de la base et de Redis : vérification interne seulement (audit de
+	# l'équipe du 14/11/2026 : page interne lisible par tout le monde).
+	handle /api/v1/ready* {
+		respond 404
+	}
+
 	# Connexion Google de la version web : les pages de connexion de Firebase sont
 	# servies sous notre domaine (authDomain), sinon Safari sur iPhone perd la
 	# session pendant la redirection vers Google.

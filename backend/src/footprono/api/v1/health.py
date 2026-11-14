@@ -9,7 +9,6 @@
 import asyncio
 import json
 import logging
-import os
 import time
 from collections.abc import Awaitable, Callable
 from typing import Literal
@@ -31,8 +30,6 @@ class HealthResponse(BaseModel):
     status: Literal["ok"]
     version: str
     environment: str
-    # Commit installé sur le serveur (deploy/install-server.sh) : quel code est en service.
-    commit: str
 
 
 class CheckResult(BaseModel):
@@ -51,7 +48,6 @@ async def health(settings: SettingsDep) -> HealthResponse:
         status="ok",
         version=__version__,
         environment=settings.environment,
-        commit=os.environ.get("FP_COMMIT", "inconnu"),
     )
 
 

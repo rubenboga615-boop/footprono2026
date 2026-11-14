@@ -9,7 +9,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import aliased
 
 from footprono.accounts.plans import PremiumRequiredError, is_premium
-from footprono.api.deps import OptionalUserDep, RedisDep, SessionDep, SettingsDep
+from footprono.api.deps import AdminUserDep, OptionalUserDep, RedisDep, SessionDep, SettingsDep
 from footprono.core.errors import NotFoundError
 from footprono.football import logos
 from footprono.football.analysis import match_analysis
@@ -386,14 +386,15 @@ async def get_team_sheets(match_id: int, session: SessionDep) -> dict[str, Any]:
 
 @router.get("/ingestion/runs", response_model=list[IngestionRunOut])
 async def list_ingestion_runs(
-    session: SessionDep, limit: Annotated[int, Query(ge=1, le=100)] = 20
+    session: SessionDep, _admin: AdminUserDep, limit: Annotated[int, Query(ge=1, le=100)] = 20
 ) -> list[IngestionRun]:
+    """Historique des collectes : réservé à l'administrateur (audit du 14/11/2026)."""
     runs = await session.scalars(select(IngestionRun).order_by(IngestionRun.id.desc()).limit(limit))
     return list(runs.all())
 
 
 @router.get("/ingestion/runs/{run_id}", response_model=IngestionRunDetailOut)
-async def get_ingestion_run(run_id: int, session: SessionDep) -> IngestionRun:
+async def get_ingestion_run(run_id: int, session: SessionDep, _admin: AdminUserDep) -> IngestionRun:
     run = await session.get(IngestionRun, run_id)
     if run is None:
         raise NotFoundError(f"ingestion {run_id} introuvable")
@@ -401,8 +402,9 @@ async def get_ingestion_run(run_id: int, session: SessionDep) -> IngestionRun:
 
 
 @router.get("/data/quality")
-async def data_quality(session: SessionDep) -> dict[str, Any]:
-    """Contrôles de qualité recalculés sur l'état actuel de la base."""
+async def data_quality(session: SessionDep, _admin: AdminUserDep) -> dict[str, Any]:
+    """Contrôles de qualité recalculés sur l'état actuel de la base : 7 à 9 s par appel,
+    réservés à l'administrateur (audit du 14/11/2026 : ouverts à tous, appelables en boucle)."""
     return await run_quality_checks(session)
 
 

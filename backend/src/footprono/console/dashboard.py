@@ -7,6 +7,7 @@ qui ne répond pas est affiché comme tel, jamais comme « en marche ».
 import asyncio
 import json
 import logging
+import os
 import shutil
 from datetime import UTC, datetime, timedelta
 from functools import cache
@@ -330,6 +331,8 @@ async def dashboard(session: AsyncSession, redis: Redis, settings: Settings) -> 
     return {
         "now": now,
         "version": __version__,
+        # Commit installé (deploy/install-server.sh) : plus dans /health, public (audit 14/11).
+        "commit": os.environ.get("FP_COMMIT", "inconnu"),
         "environment": settings.environment.value,
         "services": {"database": True, "redis": redis_ok, "workers": workers},
         "disk": disk,

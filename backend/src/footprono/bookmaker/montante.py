@@ -73,8 +73,21 @@ async def create(
     return montante
 
 
-async def _load(session: AsyncSession, user: User, montante_id: int) -> Montante:
-    montante = await session.get(Montante, montante_id)
+async def _load(
+    session: AsyncSession, user: User, montante_id: int, *, lock: bool = False
+) -> Montante:
+    """Montante du joueur. ``lock`` : ligne verrouillée jusqu'à la fin de la transaction
+    (audit de l'équipe du 14/11/2026 : deux appuis rapprochés sur « Jouer » pouvaient placer
+    deux paris sur le même palier ; le second attend le premier, puis voit son pari)."""
+    if lock:
+        montante = await session.scalar(
+            select(Montante)
+            .where(Montante.id == montante_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    else:
+        montante = await session.get(Montante, montante_id)
     if montante is None or montante.user_id != user.id:
         raise NotFoundError(f"montante {montante_id} introuvable")
     return montante
@@ -106,7 +119,7 @@ async def place_step_bet(
     suggested: bool | None = None,
 ) -> Bet:
     """Pari du palier en cours (1 à 3 sélections), à la mise fixée par la montante."""
-    montante = await _load(session, user, montante_id)
+    montante = await _load(session, user, montante_id, lock=True)
     if montante.status != "active":
         raise AppError("montante terminée")
     if not 1 <= len(selections) <= 3:
@@ -182,7 +195,7 @@ async def on_bet_settled(session: AsyncSession, bet: Bet) -> None:
 
 
 async def cash_out(session: AsyncSession, user: User, montante_id: int) -> Montante:
-    montante = await _load(session, user, montante_id)
+    montante = await _load(session, user, montante_id, lock=True)
     if montante.status != "active":
         raise AppError("montante déjà terminée")
     step = next(s for s in await _steps(session, montante.id) if s.number == montante.current_step)

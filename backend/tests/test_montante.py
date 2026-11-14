@@ -250,3 +250,55 @@ async def test_each_montante_gets_its_own_matches(
     assert placed.status_code == 201
     two = (await client.get(url.format(second), headers=headers)).json()
     assert matches(two) == {world["m2"]}
+
+
+async def test_two_simultaneous_step_bets_place_only_one(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    """Audit de l'équipe du 14/11/2026 : deux appuis rapprochés sur « Jouer » pouvaient
+    placer deux paris sur le même palier. La montante est verrouillée : un seul passe, une
+    seule mise est débitée."""
+    import asyncio
+
+    from sqlalchemy import func, select
+
+    from footprono.accounts.models import User, Wallet
+    from footprono.bookmaker.models import Bet
+
+    def balance() -> Any:
+        return (
+            select(Wallet.balance)
+            .join(User, User.id == Wallet.user_id)
+            .where(User.phone == "+22997111111")
+        )
+
+    await _predict(db_factory, [world["m1"], world["m2"]])
+    headers = await _login(client)
+    await make_premium(db_factory, "+22997111111")
+    async with db_factory() as session:
+        before = await session.scalar(balance())
+    mid = (
+        await client.post(
+            "/api/v1/montantes",
+            json={"start_stake": 5000, "steps": [{"odds_min": "1.80", "odds_max": "1.90"}] * 4},
+            headers=headers,
+        )
+    ).json()["id"]
+    bodies = [
+        {"selections": [_sel(world["m1"], "1X2", "home")]},
+        {"selections": [_sel(world["m2"], "1X2", "home")]},
+    ]
+    answers = await asyncio.gather(
+        *(client.post(f"/api/v1/montantes/{mid}/bet", json=b, headers=headers) for b in bodies)
+    )
+    assert sorted(a.status_code for a in answers) == [201, 400]
+    async with db_factory() as session:
+        count = await session.scalar(
+            select(func.count()).select_from(Bet).where(Bet.montante_step_id.is_not(None))
+        )
+        after = await session.scalar(balance())
+    assert count == 1
+    assert before is not None
+    assert after == before - 5000

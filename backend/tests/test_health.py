@@ -11,12 +11,11 @@ from .conftest import make_settings
 async def test_health_reports_version(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
     response = await client.get("/api/v1/health")
     assert response.status_code == 200
-    assert response.json() == {
-        "status": "ok", "version": __version__, "environment": "test", "commit": "inconnu",
-    }  # fmt: skip
-    # Commit installé (deploy/install-server.sh → image) : quel code est en service.
+    # Le commit installé n'est plus public (audit de l'équipe du 14/11/2026) : il est dans le
+    # tableau de bord de la console.
     monkeypatch.setenv("FP_COMMIT", "0727f11")
-    assert (await client.get("/api/v1/health")).json()["commit"] == "0727f11"
+    assert response.json() == {"status": "ok", "version": __version__, "environment": "test"}
+    assert "commit" not in (await client.get("/api/v1/health")).json()
 
 
 async def test_ready_when_dependencies_are_up(client: AsyncClient) -> None:

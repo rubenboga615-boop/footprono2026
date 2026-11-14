@@ -15,7 +15,7 @@ from redis.exceptions import RedisError
 from sqlalchemy import func, select
 
 from footprono.accounts.plans import FREE_MARKETS, is_premium
-from footprono.api.deps import OptionalUserDep, RedisDep, SessionDep, SettingsDep
+from footprono.api.deps import AdminUserDep, OptionalUserDep, RedisDep, SessionDep, SettingsDep
 from footprono.api.v1.football import _match_out, _match_select
 from footprono.core.errors import NotFoundError
 from footprono.engine.markets import Selection, offered
@@ -188,8 +188,9 @@ async def list_upcoming(
 
 @router.get("/predictions/runs", response_model=list[PredictionRunOut])
 async def list_prediction_runs(
-    session: SessionDep, limit: Annotated[int, Query(ge=1, le=100)] = 20
+    session: SessionDep, _admin: AdminUserDep, limit: Annotated[int, Query(ge=1, le=100)] = 20
 ) -> list[PredictionRun]:
+    """Exécutions du moteur et leurs réglages : réservé à l'administrateur (audit du 14/11)."""
     runs = await session.scalars(
         select(PredictionRun).order_by(PredictionRun.id.desc()).limit(limit)
     )
