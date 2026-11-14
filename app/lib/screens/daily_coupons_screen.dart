@@ -12,6 +12,7 @@ import '../state/app_state.dart';
 import 'premium_screen.dart' show PremiumCard, openPremium;
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/engine_vs_odds.dart';
 import 'bookmaker_screen.dart' as bookmaker;
 import 'share_coupon.dart';
 import 'smart_coupon_screen.dart';
@@ -153,6 +154,7 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
                     for (final c in coupons)
                       _DailyCouponCard(
                         c,
+                        note: _orderNote(c, coupons),
                         onTap: c['locked'] == true
                             ? () => openPremium(context)
                             : () =>
@@ -222,10 +224,36 @@ const _missingReason = {
       'cote de 2,00.',
 };
 
+/// Maquette P2 (14/11/2026) : quand l'Audacieux n'est pas plus risqué que les autres coupons
+/// du jour, le dire (l'ordre des cartes ne change pas).
+String? _orderNote(Json c, List<Json> all) {
+  if (c['profile'] != 'audacieux') return null;
+  Json? of(String key) => all.where((x) => x['profile'] == key).firstOrNull;
+  double num_(Json x, String k) => double.parse('${x[k]}');
+  final p = num_(c, 'probability'), o = num_(c, 'total_odds');
+  final count = (c['selection_count'] as int?) ?? (c['selections'] as List).length;
+  final equilibre = of('equilibre'), sur = of('sur');
+  if (equilibre != null && p > num_(equilibre, 'probability')) {
+    return 'Pourquoi l\'Audacieux est-il plus sûr que l\'Équilibré aujourd\'hui ? '
+        '${count == 1 ? 'Le moteur n\'a trouvé qu\'un seul pari dans sa fourchette. ' : ''}'
+        'Ce n\'est pas une erreur, mais ce n\'est pas un coupon « audacieux » habituel : rien ne '
+        'garantit qu\'il passe.';
+  }
+  if (sur != null && o <= num_(sur, 'total_odds') * 1.1 && p < num_(sur, 'probability') - 0.1) {
+    final gap = ((1 / o - p) * 100).round();
+    return 'Aujourd\'hui, l\'Audacieux a presque la même cote que le Sûr (${odds(o)} contre '
+        '${odds(sur['total_odds'])}) et bien moins de chances (${percent(p)} contre '
+        '${percent(num_(sur, 'probability'))}).'
+        '${gap >= 2 ? ' Le moteur le juge environ $gap points sous la cote.' : ''}';
+  }
+  return null;
+}
+
 class _DailyCouponCard extends StatelessWidget {
-  const _DailyCouponCard(this.c, {required this.onTap});
+  const _DailyCouponCard(this.c, {required this.onTap, this.note});
   final Json c;
   final VoidCallback onTap;
+  final String? note;
 
   @override
   Widget build(BuildContext context) {
@@ -260,6 +288,32 @@ class _DailyCouponCard extends StatelessWidget {
               Text(percent((c['probability'] as num).toDouble()), style: Fp.title(17)),
             ],
           ),
+          // Maquette P2 : la chance selon la cote, et où se place le moteur.
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'selon la cote : ${percent(1 / double.parse('${c['total_odds']}'))}',
+                  style: Fp.body(12.5, color: Fp.text2),
+                ),
+              ),
+              OddsSideTag(
+                oddsSide((c['probability'] as num).toDouble(), 1 / double.parse('${c['total_odds']}')),
+              ),
+            ],
+          ),
+          if (note != null)
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1F1709),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF6B4F1D)),
+              ),
+              child: Text(note!, style: Fp.body(12.5, color: Fp.warning, height: 1.4)),
+            ),
           const SizedBox(height: 8),
           Row(
             children: [

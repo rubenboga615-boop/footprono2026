@@ -2025,6 +2025,10 @@ void main() {
     expect(find.text('Victoire Lens'), findsOneWidget); // cote à droite (maquette C4)
     expect(find.textContaining('Coupon proposé · Équilibré · 1 sélection'), findsOneWidget);
     expect(find.text('• Forme (5 derniers) : Lens VNDVV, Lyon DNVVN'), findsOneWidget);
+    // Maquette P1 : moteur et cote côte à côte (62 % contre 54 %), sans promesse.
+    expect(find.text('Selon la cote'), findsOneWidget);
+    expect(find.textContaining('Le moteur est un peu plus confiant que la cote'), findsOneWidget);
+    expect(find.textContaining('L\'écart ne garantit rien'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Ajouter au coupon'));
     await tester.pumpAndSettle();
@@ -2043,6 +2047,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Coupons du jour'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byTooltip('Historique complet'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Historique complet'));
     await tester.pumpAndSettle();
     expect(find.text('Gagné'), findsWidgets);
@@ -2059,6 +2069,9 @@ void main() {
     await tester.tap(find.text('Coupons du jour'));
     await tester.pumpAndSettle();
     expect(find.text('62$nbsp%'), findsOneWidget); // la chance reste visible
+    // Maquette P2 : chance selon la cote sur chaque carte, et la place du moteur.
+    expect(find.textContaining('selon la cote : '), findsNWidgets(3));
+    expect(find.text('⚠ sous la cote'), findsOneWidget); // Audacieux 30 % à 3,10 (32 %)
     expect(find.text('Sélections et code 1xBet dans Premium'), findsNWidgets(3));
     expect(find.text('Copier'), findsNothing);
     expect(find.text('Débloquer les coupons du jour'), findsOneWidget);

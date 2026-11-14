@@ -222,18 +222,25 @@ class _AuthScreenState extends State<AuthScreen> {
                       if (showBack)
                         BackChevron(onTap: busy ? null : _back)
                       else if (welcome)
-                        // Maquette : « FootProba » écrit seul, sans le carré du logo.
-                        Text.rich(
-                          const TextSpan(
-                            children: [
-                              TextSpan(text: 'Foot'),
-                              TextSpan(
-                                text: 'Proba',
-                                style: TextStyle(color: Fp.accentLight),
+                        // Maquette P3 (14/11/2026) : le logo Ballon-jauge B3 devant le nom.
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const FpMark(size: 36),
+                            const SizedBox(width: 10),
+                            Text.rich(
+                              const TextSpan(
+                                children: [
+                                  TextSpan(text: 'Foot'),
+                                  TextSpan(
+                                    text: 'Proba',
+                                    style: TextStyle(color: Fp.accentLight),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          style: Fp.title(23),
+                              style: Fp.title(23),
+                            ),
+                          ],
                         )
                       else
                         const FpLogo(size: 20),

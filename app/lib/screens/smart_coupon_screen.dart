@@ -11,6 +11,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/engine_vs_odds.dart';
 import '../widgets/maquette.dart';
 import 'bookmaker_screen.dart' as bookmaker;
 import 'daily_coupons_screen.dart';
@@ -720,7 +721,11 @@ class _CouponCard extends StatelessWidget {
                         ),
                         Text(
                           percent(p, decimals: p < 0.1 ? 1 : 0),
-                          style: Fp.body(22, weight: FontWeight.w700, color: Fp.warning),
+                          style: Fp.body(
+                            22,
+                            weight: FontWeight.w700,
+                            color: oddsSideColor(oddsSide(p, implied)),
+                          ),
                         ),
                         if (p > 0)
                           Text(
@@ -733,11 +738,9 @@ class _CouponCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Selon la cote (marge comprise) : ${percent(implied, decimals: 1)}.',
-                style: Fp.body(12, color: Fp.muted),
-              ),
+              // Maquette P1 (14/11/2026) : moteur et cote côte à côte, et ce que ça veut dire.
+              const SizedBox(height: 4),
+              EngineVsOdds(engine: p, implied: implied),
               if (rule != null) ...[
                 const SizedBox(height: 6),
                 Text(rule!, style: Fp.body(12, color: Fp.muted, height: 1.4)),
@@ -916,10 +919,16 @@ class _SelectionRow extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                'moteur ${percent((s['model_probability'] as num).toDouble())} · '
                 '${competitionName(s['competition'] as String)} · $home – $away'
                 '${kickoff != null ? ' · ${shortDate(kickoff)} ${hourMinute(kickoff)}' : ''}',
                 style: Fp.body(12, color: Fp.text2),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 5),
+                child: OddsPill(
+                  engine: (s['model_probability'] as num).toDouble(),
+                  implied: 1 / double.parse('${s['odds']}'),
+                ),
               ),
               // Score de la sélection réglée (rapport du 09/11/2026 : seulement « Gagné »).
               if (result != null && result != 'pending' && s['score'] is List)
