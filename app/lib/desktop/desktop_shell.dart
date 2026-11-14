@@ -69,8 +69,17 @@ class DesktopShell extends StatefulWidget {
   State<DesktopShell> createState() => DesktopShellState();
 }
 
+const _modeSections = {
+  DeskSection.montante,
+  DeskSection.matchs,
+  DeskSection.coupon,
+  DeskSection.notifications,
+  DeskSection.profil,
+};
+
 class DesktopShellState extends State<DesktopShell> {
   DeskSection section = DeskSection.matchs;
+  bool _mode = false;
   // Chaque visite d'une rubrique repart de sa page d'accueil (paris placés entre-temps).
   GlobalKey<NavigatorState> _nav = GlobalKey<NavigatorState>();
 
@@ -100,6 +109,14 @@ class DesktopShellState extends State<DesktopShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Mode Montante : ouvre sur la montante ; une rubrique cachée y ramène.
+    final mode = context.watch<AppState>().montanteMode;
+    if ((mode && !_mode) || (mode && !_modeSections.contains(section))) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => section = DeskSection.montante);
+      });
+    }
+    _mode = mode;
     final rail = section == DeskSection.matchs;
     return CallbackShortcuts(
       bindings: {
@@ -188,7 +205,10 @@ class _Sidebar extends StatelessWidget {
           Expanded(
             child: ListView(
               children: [
-                for (final s in DeskSection.values) ...[
+                // Mode Montante : Montante, Matchs, Mon palier, Notifications, Profil.
+                for (final s in DeskSection.values.where(
+                  (s) => !state.montanteMode || _modeSections.contains(s),
+                )) ...[
                   if (s.group != group) ...[
                     Padding(
                       padding: const EdgeInsets.fromLTRB(10, 14, 10, 6),

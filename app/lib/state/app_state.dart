@@ -534,6 +534,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// Notifications pendant les matchs de mes coupons : « all », « results », « none ».
+  /// Mode Montante : seulement la montante, sur l'APK comme sur la version web.
+  bool get montanteMode => me?.montanteMode ?? false;
+
+  Future<void> setMontanteMode(bool on) async {
+    await api.put('/me/preferences', {'montante_mode': on});
+    await refreshMe();
+  }
+
   Future<void> setMatchNotifications(String level) async {
     await api.put('/me/preferences', {'match_notifications': level});
     await refreshMe();

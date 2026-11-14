@@ -514,6 +514,12 @@ async def test_daily_coupons_notification_once_all_codes_are_in(
         "/api/v1/me/preferences", json={"match_notifications": "parfois"}, headers=headers
     )
     assert bad.status_code == 422
+    # Mode Montante (14/11/2026) : réglage du compte, les autres réglages sont gardés.
+    assert me["montante_mode"] is False
+    on = await client.put("/api/v1/me/preferences", json={"montante_mode": True}, headers=headers)
+    assert on.status_code == 204
+    me = (await client.get("/api/v1/me", headers=headers)).json()
+    assert (me["montante_mode"], me["match_notifications"]) == (True, "results")
     async with db_factory() as session:
         await session.execute(
             update(smart_coupon.SmartCoupon).values(notified_at=None)

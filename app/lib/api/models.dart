@@ -39,6 +39,7 @@ class Me {
       lastRefill = parseDate((j['wallet'] as Json?)?['last_refill_at']),
       dailyCouponsNotifications = j['daily_coupons_notifications'] as bool? ?? true,
       matchNotifications = j['match_notifications'] as String? ?? 'all',
+      montanteMode = j['montante_mode'] == true,
       betaAvailable = j['beta_available'] as bool? ?? false,
       betaSharing = j['beta_sharing'] as bool? ?? false,
       betaTester = j['beta_tester'] as int?;
@@ -64,6 +65,9 @@ class Me {
 
   /// Pendant les matchs de mes coupons : « all », « results » (validé ou perdu), « none ».
   final String matchNotifications;
+
+  /// Mode Montante (14/11/2026) : l'application ne montre que la montante (réglage du compte).
+  final bool montanteMode;
 
   /// Mode bêta : proposé pendant la période de test ; partage choisi par le joueur
   /// (« Testeur n° [betaTester] », sans nom ni numéro).

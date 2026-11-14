@@ -41,6 +41,7 @@ class FakeServer {
   final List<Map<String, dynamic>> bookingCodes = [];
   bool admin = false;
   bool dailyNotifications = true;
+  bool montanteMode = false;
   bool betaAvailable = false;
   final extraUpcoming = <Map<String, dynamic>>[];
   final live = <Map<String, dynamic>>[];
@@ -149,6 +150,7 @@ class FakeServer {
     },
     'wallet': {'currency': 'XOF', 'balance': 100000, 'last_refill_at': null},
     'daily_coupons_notifications': dailyNotifications,
+    'montante_mode': montanteMode,
     'virtual_money': true,
     'email': googleLinked ? 'kossi@gmail.com' : null,
     'google_linked': googleLinked,
@@ -272,7 +274,9 @@ class FakeServer {
         betaEvents.addAll(events);
         body = {'kept': events.length};
       case 'PUT /me/preferences':
-        dailyNotifications = (jsonDecode(r.body) as Map)['daily_coupons_notifications'] as bool;
+        final prefs = jsonDecode(r.body) as Map;
+        if (prefs['daily_coupons_notifications'] case final bool v) dailyNotifications = v;
+        if (prefs['montante_mode'] case final bool v) montanteMode = v;
         return http.Response('', 204);
       case 'GET /app/web-push':
         body = {'vapid_key': vapidKey};
@@ -1687,6 +1691,54 @@ void main() {
     expect(find.textContaining('Trop peu de montantes terminées'), findsOneWidget);
   });
 
+  testWidgets('mode Montante : trois onglets, ouvre sur la montante, désactivé dans le Profil', (
+    tester,
+  ) async {
+    final (state, server) = await startApp(tester, loggedIn: true, premium: true);
+    // Activé dans le Profil : réglage du compte, l'application ouvre sur la montante.
+    await tester.tap(find.text('Profil').last);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Mode Montante'), 200);
+    await tester.tap(find.text('Mode Montante'));
+    await tester.pumpAndSettle();
+    expect(server.montanteMode, isTrue);
+    expect(find.text('Coupon'), findsNothing);
+    expect(find.text('Mes paris'), findsNothing);
+    expect(find.text('Matchs'), findsWidgets);
+    expect(find.text('Montante'), findsWidgets);
+    expect(find.text('Nombre de paliers'), findsOneWidget); // onglet Montante (aucune en cours)
+
+    // Une cote touchée dans les matchs : « Mon palier » s'ouvre par-dessus.
+    await tester.tap(find.text('Matchs').last);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Mon palier'), findsNothing);
+    await tester.tap(find.text('Lens').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1,85').first);
+    await tester.pumpAndSettle();
+    expect(state.coupon, hasLength(1));
+    await tester.tap(find.byTooltip('Retour'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mon palier · 1 sélection'), findsOneWidget);
+    await tester.tap(find.text('Mon palier · 1 sélection'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('palier', findRichText: true), findsWidgets); // titre « Mon palier »
+    expect(find.text('Coupon intelligent'), findsNothing);
+    await tester.tap(find.byType(BackChevron).first);
+    await tester.pumpAndSettle();
+    state.clearCoupon();
+
+    // Désactivé : l'application redevient complète.
+    await tester.tap(find.text('Profil').last);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Mode Montante'), 200);
+    await tester.tap(find.text('Mode Montante'));
+    await tester.pumpAndSettle();
+    expect(server.montanteMode, isFalse);
+    expect(find.text('Coupon'), findsOneWidget);
+    expect(find.text('Mes paris'), findsOneWidget);
+  });
+
   testWidgets('notifications push : téléphone enregistré, notification touchée, déconnexion', (tester) async {
     final push = FakePush();
     final (state, server) = await startApp(tester, loggedIn: true, push: push);
@@ -2136,7 +2188,8 @@ void main() {
     await tester.pumpAndSettle();
     final toggle = find.text('Coupons du jour, chaque matin');
     await tester.ensureVisible(toggle);
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    // Deux interrupteurs depuis le 14/11/2026 : mode Montante, puis coupons du jour.
+    expect(tester.widget<Switch>(find.byType(Switch).at(1)).value, isTrue);
     await tester.tap(toggle);
     await tester.pumpAndSettle();
     expect(server.dailyNotifications, isFalse);
@@ -2158,7 +2211,7 @@ void main() {
     await state.refreshMe();
     await tester.pumpAndSettle();
     final row = find.text('Aider à améliorer FootProba');
-    await tester.ensureVisible(row);
+    await tester.scrollUntilVisible(row, 200);
     // Au-dessus de la barre de navigation flottante (une ligne de plus dans Profil).
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -300));
     await tester.pumpAndSettle();

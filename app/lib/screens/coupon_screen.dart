@@ -79,6 +79,8 @@ class _CouponScreenState extends State<CouponScreen> {
           steps = s;
           final id = useStep?.montanteId;
           useStep = s.where((x) => x.montanteId == id).firstOrNull;
+          // Mode Montante : le coupon est le pari du palier en cours.
+          if (useStep == null && context.read<AppState>().montanteMode) useStep = s.firstOrNull;
         });
       }
     } on ApiException {
@@ -336,15 +338,15 @@ class _CouponScreenState extends State<CouponScreen> {
               // Maquette C3 du 07/11/2026 : titre et solde fictif dans une pastille.
               Row(
                 children: [
-                  const Expanded(child: MTitle('Mon', 'coupon', 26)),
+                  Expanded(child: MTitle('Mon', state.montanteMode ? 'palier' : 'coupon', 26)),
                   if (me != null)
                     Tooltip(message: 'Solde fictif', child: MOutlinePill(money(me.balance, currency))),
                 ],
               ),
               const SizedBox(height: 12),
               const OddsDownBanner(),
-              // Coupon vide : les deux entrées vers les coupons du moteur.
-              if (items.isEmpty) ...[
+              // Coupon vide : les deux entrées vers les coupons du moteur (pas en mode Montante).
+              if (items.isEmpty && !state.montanteMode) ...[
                 _Banner(
                   icon: Icons.confirmation_number_outlined,
                   title: 'Coupon intelligent',

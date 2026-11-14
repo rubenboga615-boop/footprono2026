@@ -52,6 +52,9 @@ class User(Base):
     # Notifications pendant les matchs d'un coupon : « all » (tout), « results » (sélection
     # validée ou perdue seulement), « none » (rien).
     match_notifications: Mapped[str] = mapped_column(String(8), default="all", server_default="all")
+    # Mode Montante (14/11/2026) : l'application ne montre que la montante ; réglage du compte
+    # (même mode sur l'APK et la version web). Ne change rien au moteur ni aux suggestions.
+    montante_mode: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     # Période de test (FP_BETA_SHARING) : partage anonyme accepté par le joueur, sous un
     # numéro de testeur (« Testeur n° 12 ») ; jamais son nom ni son numéro de téléphone.
     beta_sharing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())

@@ -266,6 +266,22 @@ class ProfileScreen extends StatelessWidget {
                 [
                   // Maquettes N4 et C6 : lignes en gras sans icône, séparées d'un trait ; les
                   // réglages du joueur, puis le compte, puis le partage et les pages légales.
+                  // Mode Montante (14/11/2026) : seulement la montante, jusqu'à ce que le joueur l'enlève.
+                  _Group([
+                    _SwitchItem(
+                      title: 'Mode Montante',
+                      value: me?.montanteMode ?? false,
+                      onChanged: me == null ? null : (on) => guard(context, () => state.setMontanteMode(on)),
+                    ),
+                  ]),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 6, 4, 12),
+                    child: Text(
+                      'Seulement la montante : coupons, direct, Grosse cote, Mes paris et Fiabilité sont cachés '
+                      'jusqu\'à ce que tu le désactives. Même moteur, mêmes montantes, même bilan.',
+                      style: Fp.body(12, color: Fp.muted, height: 1.4),
+                    ),
+                  ),
                   ValueListenableBuilder(
                     valueListenable: state.webPushStatus,
                     builder: (context, web, _) => _Group([

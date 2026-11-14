@@ -101,6 +101,7 @@ class HomeShell extends StatefulWidget {
 
 class HomeShellState extends State<HomeShell> {
   int index = 0;
+  bool _mode = false;
 
   static HomeShellState? of(BuildContext context) => context.findAncestorStateOfType<HomeShellState>();
 
@@ -244,7 +245,7 @@ class HomeShellState extends State<HomeShell> {
     // suivi du coupon dans Mes paris (retour du testeur du 12/11/2026).
     if (const {'bet_kickoff', 'bet_live', 'bet_settled'}.contains(_state.openedKind)) {
       Navigator.of(context).popUntil((r) => r.isFirst);
-      go(3);
+      go(_state.montanteMode ? 2 : 3);
       return;
     }
     final page = _state.openedKind == 'daily_coupons'
@@ -282,6 +283,15 @@ class HomeShellState extends State<HomeShell> {
     // Version ordinateur : menu à gauche à la place de la barre flottante.
     if (MediaQuery.sizeOf(context).width >= desktopMinWidth) return DesktopShell(key: _desk);
     const pages = [MatchesScreen(), CouponScreen(), MontanteListScreen(), BookmakerScreen(), ProfileScreen()];
+    // Mode Montante (14/11/2026) : ouvre sur la montante ; Coupon et Mes paris cachés.
+    final mode = state.montanteMode;
+    final switchedOn = mode && !_mode;
+    _mode = mode;
+    if (switchedOn || (mode && (index == 1 || index == 3))) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => index = 2);
+      });
+    }
     return Scaffold(
       backgroundColor: Colors.transparent,
       // Le contenu défile sous la barre flottante (listes : marge basse de 110).
@@ -298,10 +308,18 @@ class HomeShellState extends State<HomeShell> {
             ),
         ],
       ),
-      bottomNavigationBar: _FloatingNav(
-        index: index,
-        onTap: go,
-        badges: [0, state.coupon.length, 0, 0, state.unread],
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Mode Montante : le palier composé depuis les matchs s'ouvre par-dessus.
+          if (mode && index == 0 && state.coupon.isNotEmpty) const _PalierBar(),
+          _FloatingNav(
+            index: index,
+            onTap: go,
+            badges: [0, state.coupon.length, 0, 0, state.unread],
+            tabs: mode ? const [2, 0, 4] : null,
+          ),
+        ],
       ),
     );
   }
@@ -310,10 +328,13 @@ class HomeShellState extends State<HomeShell> {
 /// Barre de navigation flottante des maquettes : capsule en verre, onglet
 /// choisi encadré de violet.
 class _FloatingNav extends StatelessWidget {
-  const _FloatingNav({required this.index, required this.onTap, required this.badges});
+  const _FloatingNav({required this.index, required this.onTap, required this.badges, this.tabs});
   final int index;
   final ValueChanged<int> onTap;
   final List<int> badges;
+
+  /// Onglets montrés (index des pages) ; tous si null. Mode Montante : Montante, Matchs, Profil.
+  final List<int>? tabs;
 
   static const _items = [
     (NavGlyph.matchs, 'Matchs'),
@@ -345,8 +366,8 @@ class _FloatingNav extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  for (var i = 0; i < _items.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 4),
+                  for (final (n, i) in (tabs ?? [for (var k = 0; k < _items.length; k++) k]).indexed) ...[
+                    if (n > 0) const SizedBox(width: 4),
                     Expanded(
                       child: _NavItem(
                         icon: _items[i].$1,
@@ -452,4 +473,60 @@ class _UpdateProgress extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// Mode Montante : barre « Mon palier » au-dessus des onglets quand des sélections sont
+/// choisies dans les matchs ; ouvre le palier (le coupon, mise imposée par la montante).
+class _PalierBar extends StatelessWidget {
+  const _PalierBar();
+
+  @override
+  Widget build(BuildContext context) {
+    final n = context.watch<AppState>().coupon.length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Material(
+        color: Fp.accent,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => Scaffold(
+                backgroundColor: Fp.background,
+                body: SafeArea(
+                  child: Column(
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+                          child: BackChevron(onTap: () => Navigator.of(context).maybePop()),
+                        ),
+                      ),
+                      const Expanded(child: CouponScreen()),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Mon palier · $n sélection${n > 1 ? 's' : ''}',
+                    style: Fp.body(15, weight: FontWeight.w700, color: Colors.white),
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: Colors.white),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
