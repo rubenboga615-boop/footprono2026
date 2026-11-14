@@ -265,12 +265,24 @@ async def observe(
             when = (
                 "en cours"
                 if match.live_minute is not None
-                else match.kickoff_at.astimezone(UTC).strftime("%H:%M")
+                else _kickoff_text(match.kickoff_at, now)
                 if match.kickoff_at
                 else "heure à confirmer"
             )
             text = f"{ok} sur {total} validées : tout se joue sur {home} - {away} ({when})."
             alerts.events.append(Event(bet.user_id, "last_match", text, bet.id, match.id))
+
+
+_DAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
+
+
+def _kickoff_text(kickoff: datetime, now: datetime) -> str:
+    """« 19:45 » le jour même, sinon « dimanche 15/11 à 19:45 » (maquette P4 du 14/11/2026 :
+    le match du lendemain semblait être le soir même). Heure de Côte d'Ivoire (UTC)."""
+    k = kickoff.astimezone(UTC)
+    if k.date() == now.astimezone(UTC).date():
+        return k.strftime("%H:%M")
+    return f"{_DAYS[k.weekday()]} {k:%d/%m} à {k:%H:%M}"
 
 
 # ----------------------------------------------------------------------- envoi

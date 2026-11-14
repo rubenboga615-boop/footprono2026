@@ -582,6 +582,18 @@ async def test_notifications_during_the_matches_of_a_coupon(
     assert bet["id"] in [n.data.get("bet_id") for n in notes]
 
 
+def test_last_match_says_the_day_when_it_is_not_today() -> None:
+    """Maquette P4 (14/11/2026) : « Belgique - Italie (19:45) » pour un match du lendemain."""
+    from footprono.bookmaker import live_alerts
+
+    now = datetime(2026, 11, 14, 21, 39, tzinfo=UTC)
+    assert live_alerts._kickoff_text(datetime(2026, 11, 14, 22, 0, tzinfo=UTC), now) == "22:00"
+    assert (
+        live_alerts._kickoff_text(datetime(2026, 11, 15, 19, 45, tzinfo=UTC), now)
+        == "dimanche 15/11 à 19:45"
+    )
+
+
 def test_live_alert_labels_and_quiet_hours() -> None:
     from footprono.bookmaker.live_alerts import quiet, selection_label
 

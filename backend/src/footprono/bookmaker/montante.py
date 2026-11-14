@@ -144,16 +144,17 @@ async def place_step_bet(
     return bet
 
 
-async def on_bet_settled(session: AsyncSession, bet: Bet) -> None:
-    """Fait avancer (ou arrête) la montante quand le pari d'un palier est réglé."""
+async def on_bet_settled(session: AsyncSession, bet: Bet, detail: str | None = None) -> bool:
+    """Fait avancer (ou arrête) la montante quand le pari d'un palier est réglé. Vrai si la
+    perte du palier a déjà été notifiée ici (pas de « Pari perdu » en plus)."""
     if bet.montante_step_id is None:
-        return
+        return False
     step = await session.get(MontanteStep, bet.montante_step_id)
     assert step is not None
     montante = await session.get(Montante, step.montante_id)
     assert montante is not None
     if montante.status != "active" or step.bet_id != bet.id:
-        return
+        return False
     now = datetime.now(UTC)
     outcome, payout = bet.outcome, bet.payout or 0
     data = {"montante_id": montante.id, "step": step.number, "bet_id": bet.id}
@@ -164,8 +165,13 @@ async def on_bet_settled(session: AsyncSession, bet: Bet) -> None:
     if outcome == "lost":
         step.result = "lost"
         montante.status, montante.closed_at = "lost", now
-        tell("montante_lost", "Montante perdue", f"Palier {step.number} perdu : montante arrêtée.")
-        return
+        stake = notifications.money(bet.stake, bet.currency)
+        tell(
+            "montante_lost", f"Palier {step.number} de ta montante perdu",
+            f"{f'❌ {detail} ' if detail else ''}Ton pari de {stake} est perdu, la montante "
+            f"n° {montante.id} s'arrête.",
+        )  # fmt: skip
+        return True
     if outcome == "push":
         # Remboursé : le palier est rejoué avec la même mise.
         step.bet_id, step.result = None, "pending"
@@ -174,7 +180,7 @@ async def on_bet_settled(session: AsyncSession, bet: Bet) -> None:
             "montante_step", f"Palier {step.number} remboursé",
             f"Le palier {step.number} est à rejouer avec la même mise.",
         )  # fmt: skip
-        return
+        return False
     step.result = "won" if outcome == "won" else "partial"
     steps = await _steps(session, montante.id)
     if step.number == len(steps):
@@ -184,7 +190,7 @@ async def on_bet_settled(session: AsyncSession, bet: Bet) -> None:
             "montante_completed", "Montante réussie !",
             f"Dernier palier gagné : {notifications.money(payout, montante.currency)}.",
         )  # fmt: skip
-        return
+        return False
     montante.current_step = step.number + 1
     montante.next_stake = rolled_stake(payout, montante.secure_pct)
     tell(
@@ -192,6 +198,7 @@ async def on_bet_settled(session: AsyncSession, bet: Bet) -> None:
         f"Mise du palier {montante.current_step} : "
         f"{notifications.money(montante.next_stake, montante.currency)}.",
     )  # fmt: skip
+    return False
 
 
 async def cash_out(session: AsyncSession, user: User, montante_id: int) -> Montante:

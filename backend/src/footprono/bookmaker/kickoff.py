@@ -1,4 +1,5 @@
-"""Rappel de coup d'envoi : « ⏰ Dans 25 min : Leeds - Tottenham (ton coupon n° 57) ».
+"""Rappel de coup d'envoi : « ⏰ Ton match commence bientôt » / « Dans 25 min : Leeds -
+Tottenham (ton coupon n° 57) ».
 
 Revue du 07/11/2026 : l'application ne parlait au joueur que quand il perdait. Retour du
 testeur du 12/11/2026 : un seul rappel par pari (son premier match) ne suffisait pas ; un
@@ -76,7 +77,8 @@ async def send_kickoff_reminders(session: AsyncSession, now: datetime | None = N
         for match_id, (kickoff, bets) in ordered:
             minutes = max(1, round((kickoff - now).total_seconds() / 60))
             lines.append(
-                f"⏰ Dans {minutes} min : {await _match_name(session, match_id)} "
+                # Un seul ⏰, dans le titre (maquette P4 du 14/11/2026).
+                f"Dans {minutes} min : {await _match_name(session, match_id)} "
                 f"({await _coupons(session, sorted(bets))})."
             )
         title = (

@@ -420,7 +420,9 @@ def _notify_settled(session: AsyncSession, bet: Bet, name: str, detail: str | No
     if outcome == "lost" and detail:
         # La sélection qui a fait perdre, et rien d'autre (jamais de nouveau pari proposé).
         stake = notifications.money(bet.stake, bet.currency)
-        body = f"❌ {detail} Ton coupon de {stake} est perdu."
+        # « ton pari » pour une seule sélection, « ton coupon » sinon (maquette P4).
+        what = "Ton coupon" if bet.kind == "combo" else "Ton pari"
+        body = f"❌ {detail} {what} de {stake} est perdu."
     elif outcome == "lost":
         body = f"{name} : mise de {notifications.money(bet.stake, bet.currency)} perdue."
     else:
@@ -503,8 +505,12 @@ async def settle_bets(
                 if outcome == "lost"
                 else None
             )
-            _notify_settled(session, bet, await _bet_name(session, selections), detail)
-            await montante.on_bet_settled(session, bet)
+            # Palier de montante perdu : une seule notification, celle de la montante
+            # (maquette P4 du 14/11/2026 : « Pari perdu » et « Montante perdue » à la même
+            # seconde).
+            told = await montante.on_bet_settled(session, bet, detail)
+            if not told:
+                _notify_settled(session, bet, await _bet_name(session, selections), detail)
             report["settled"] += 1
         elif (outcome, payout) != (bet.outcome, bet.payout):
             await _correct(session, bet, outcome, payout, now, await _bet_name(session, selections))

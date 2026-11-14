@@ -64,7 +64,7 @@ async def test_kickoff_reminder_for_each_match_grouped_by_player(
     assert len(notes) == 1
     # Un match, deux coupons : un seul message, le match cité une fois.
     assert notes[0].title == "⏰ Ton match commence bientôt"
-    assert notes[0].body.startswith("⏰ Dans 25 min : ")
+    assert notes[0].body.startswith("Dans 25 min : ")
     assert f"(tes coupons n° {min(combo, single)} et {max(combo, single)})" in notes[0].body
     assert sorted(notes[0].data["bets"]) == sorted([combo, single])
     assert late not in notes[0].data["bets"]
@@ -78,7 +78,7 @@ async def test_kickoff_reminder_for_each_match_grouped_by_player(
         )
     assert last is not None
     assert last.title == "⏰ Ton match commence bientôt"
-    assert last.body.startswith("⏰ Dans 20 min : ")
+    assert last.body.startswith("Dans 20 min : ")
     assert sorted(last.data["bets"]) == sorted([combo, later])
     assert last.data["matches"] == [m2]
 
@@ -104,7 +104,7 @@ async def test_kickoff_reminder_names_every_match_of_the_window(
     assert note is not None
     assert note.title == "⏰ 2 de tes matchs commencent bientôt"
     lines = note.body.split("\n")
-    assert lines[0].startswith("⏰ Dans 20 min : ")
-    assert lines[1].startswith("⏰ Dans 28 min : ")
+    assert lines[0].startswith("Dans 20 min : ")
+    assert lines[1].startswith("Dans 28 min : ")
     assert f"(ton coupon n° {combo}, 0 sur 2 validée)" in lines[0]
     assert note.data["bet_id"] == combo

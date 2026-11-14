@@ -154,6 +154,23 @@ async def test_montante_end_to_end(
 
     plan = (await client.get(f"/api/v1/montantes/{mid}", headers=headers)).json()
     assert plan["status"] == "lost"
+    # Maquette P4 (14/11/2026) : une seule notification pour le palier perdu, pas « Pari
+    # perdu » en plus de « Montante perdue ».
+    from sqlalchemy import select
+
+    from footprono.notifications.models import Notification
+
+    async with db_factory() as session:
+        titles = list(await session.scalars(select(Notification.title).order_by(Notification.id)))
+        lost = await session.scalar(
+            select(Notification).where(Notification.kind == "montante_lost")
+        )
+    assert "Pari perdu" not in titles
+    assert lost is not None
+    assert lost.title == "Palier 2 de ta montante perdu"
+    assert lost.body.startswith("❌ ")
+    assert "Ton pari de " in lost.body
+    assert lost.body.endswith(f"est perdu, la montante n° {mid} s'arrête.")
     assert plan["steps"][1]["out_of_range"] is True
     assert plan["cashable"] == 1_850  # seule la part sécurisée reste acquise
 
