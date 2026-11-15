@@ -58,7 +58,7 @@ async def generate(
     require_premium(user, "coupon intelligent")
     if engine == 2 and not user.compare_engines:
         raise AppError("moteur 2 : active « Comparer les deux moteurs » dans ton profil")
-    return await smart_coupon.generate(
+    out = await smart_coupon.generate(
         session,
         profile,
         period,
@@ -79,6 +79,25 @@ async def generate(
         variant=variant,
         engine=engine,
     )
+    if user.compare_engines and out["coupon"] is not None and target_odds is None:
+        # Comparaison des moteurs (K6) : chaque proposition de chaque moteur est enregistrée,
+        # jouée ou non, puis réglée (bilan à mise fixe).
+        from footprono.bookmaker import engine_compare
+
+        await engine_compare.record_proposals(session, engine, "coupon", [out["coupon"]])
+        await session.commit()
+    return out
+
+
+@router.get("/reliability/engines")
+async def engines_reliability(user: CurrentUserDep, session: SessionDep) -> Any:
+    """Moteur 1 contre moteur 2 (maquette K6) : log loss sur les mêmes matchs, bilan à mise
+    fixe de chaque proposition, verdict seulement avec assez de données."""
+    from footprono.bookmaker import engine_compare
+
+    if not user.compare_engines:
+        raise AppError("comparaison : active « Comparer les deux moteurs » dans ton profil")
+    return await engine_compare.comparison(session)
 
 
 @router.get("/matches/{match_id}/picks")
@@ -117,8 +136,17 @@ async def history(
 
 
 @router.get("/smart-coupons/day")
-async def day_coupons(session: SessionDep, user: OptionalUserDep, day: date | None = None) -> Any:
+async def day_coupons(
+    session: SessionDep,
+    user: OptionalUserDep,
+    day: date | None = None,
+    engine: Annotated[
+        int, Query(ge=1, le=2, description="2 : moteur 2, en mode comparaison seulement")
+    ] = 1,
+) -> Any:
     """Les coupons du jour d'une date (aujourd'hui par défaut), leur état en direct et les
     codes de réservation : sélections et codes avec Premium tant qu'ils ne sont pas réglés,
     profil, cote, chance et bilan pour tous."""
-    return await smart_coupon.day_coupons(session, day, premium=is_premium(user))
+    if engine == 2 and (user is None or not user.compare_engines):
+        raise AppError("moteur 2 : active « Comparer les deux moteurs » dans ton profil")
+    return await smart_coupon.day_coupons(session, day, premium=is_premium(user), engine=engine)

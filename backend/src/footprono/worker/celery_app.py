@@ -103,6 +103,12 @@ def create_celery(settings: Settings | None = None) -> Celery:
                 "schedule": crontab(minute="*/5"),
                 "options": {"expires": 280},
             },
+            # Comparaison des moteurs (K6) : chances des deux moteurs avant chaque match.
+            "engine-chances": {
+                "task": "footprono.engine_chances",
+                "schedule": crontab(minute="*/10"),
+                "options": {"expires": 500},
+            },
             # Paiements dont la notification CinetPay n'est pas arrivée.
             "check-payments": {
                 "task": "footprono.check_payments",

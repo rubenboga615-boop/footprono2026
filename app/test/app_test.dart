@@ -297,6 +297,41 @@ class FakeServer {
         body = montantes;
       case 'GET /me/montantes/summary':
         body = montanteSummary;
+      case 'GET /reliability/engines':
+        if (!compareEngines) return _error(400, 'bad_request', 'comparaison');
+        Map<String, dynamic> e(int n, int won, int profit, double? y) => {
+          'settled': n,
+          'won': won,
+          'profit': profit,
+          'yield': y,
+        };
+        body = {
+          'matches': 412,
+          'calibrated': 380,
+          'log_loss': {'1': 0.983, '2': 0.961},
+          'money': [
+            {
+              'source': 'coupon',
+              'label': 'Coupon intelligent',
+              'engines': {'1': e(40, 12, -1600, -0.04), '2': e(40, 14, -400, -0.01)},
+            },
+            {
+              'source': 'daily',
+              'label': 'Coupons du jour',
+              'engines': {'1': e(30, 10, -1800, -0.06), '2': e(30, 11, -600, -0.02)},
+            },
+            {
+              'source': 'montante',
+              'label': 'Montante (paliers)',
+              'engines': {'1': e(0, 0, 0, null), '2': e(0, 0, 0, null)},
+            },
+          ],
+          'settled': {'1': 70, '2': 70},
+          'stake': 1000,
+          'enough': false,
+          'min_matches': 300,
+          'min_proposals': 200,
+        };
       case 'GET /reliability/montantes':
         body =
             montanteReliability ??
@@ -620,6 +655,22 @@ class FakeServer {
             c['selections'] = [];
             c['booking_codes'] = [];
           }
+        }
+        // Mode comparaison (K5) : les coupons du jour du moteur 2, à part.
+        if (r.url.queryParameters['engine'] == '2') {
+          if (!compareEngines) return _error(400, 'bad_request', 'moteur 2');
+          final all = ((body as Map)['coupons'] as List).cast<Map<String, dynamic>>();
+          body = {
+            'day': '2026-10-10',
+            'engine': 2,
+            'coupons': [
+              {...all[0], 'id': 11, 'total_odds': '1.92', 'probability': 0.6},
+            ],
+            'summary': {
+              'yesterday': {'settled': 0, 'won': 0},
+              'last_30_days': {'settled': 4, 'won': 3},
+            },
+          };
         }
       case 'PUT /admin/smart-coupons/1/booking-code':
         bookingCodes.add((jsonDecode(r.body) as Map).cast<String, dynamic>());
@@ -1803,6 +1854,35 @@ void main() {
     await tester.binding.setSurfaceSize(null);
   });
 
+  testWidgets('comparaison des moteurs : moteur 1 contre 2 dans la Fiabilité (K6)', (tester) async {
+    final (state, server) = await startApp(tester, loggedIn: true);
+    final context = tester.element(find.byType(Scaffold).first);
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => const ReliabilityScreen()));
+    await tester.pumpAndSettle();
+    expect(find.text('Moteur 1 contre moteur 2'), findsNothing); // seulement en mode comparaison
+    Navigator.of(tester.element(find.byType(ReliabilityScreen))).pop();
+    await tester.pumpAndSettle();
+    server.compareEngines = true;
+    await state.refreshMe();
+    Navigator.of(
+      tester.element(find.byType(Scaffold).first),
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => const ReliabilityScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Moteur 1 contre moteur 2'), 200);
+    await tester.tap(find.text('Moteur 1 contre moteur 2'));
+    await tester.pumpAndSettle();
+    expect(find.text('412'), findsOneWidget);
+    expect(find.text('0,983'), findsOneWidget);
+    expect(find.text('0,961'), findsOneWidget);
+    expect(find.text('−4,0\u00A0%'), findsOneWidget);
+    expect(find.text('−1,0\u00A0%'), findsOneWidget);
+    expect(find.textContaining('Trop peu de données pour conclure'), findsOneWidget);
+  });
+
   testWidgets('fiabilité des montantes : annoncé contre gagné par palier, montantes terminées', (
     tester,
   ) async {
@@ -2222,6 +2302,21 @@ void main() {
     await tester.tap(find.text('Passer Premium · 2${nbsp}000 F / mois'));
     await tester.pumpAndSettle();
     expect(find.text('Premium · 30 jours'), findsOneWidget); // « Passer Premium » directement
+  });
+
+  testWidgets('comparaison des moteurs : coupons du jour des deux moteurs (K5)', (tester) async {
+    final (state, server) = await startApp(tester, loggedIn: true, premium: true);
+    server.compareEngines = true;
+    await state.refreshMe();
+    await tester.binding.setSurfaceSize(const Size(430, 3000));
+    await tester.tap(find.text('Coupon'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Coupons du jour'));
+    await tester.pumpAndSettle();
+    expect(find.text('MOTEUR 1'), findsOneWidget);
+    expect(find.text('MOTEUR 2'), findsOneWidget);
+    expect(find.textContaining('1,92', findRichText: true), findsWidgets);
+    expect(find.textContaining('Moteur 2, 30 derniers jours : 3 gagnés sur 4'), findsOneWidget);
   });
 
   testWidgets('coupons du jour : chance, état en direct, code copié, détail', (tester) async {

@@ -774,21 +774,29 @@ def balanced_angles(profile: Profile, per_match: list[list[Pick]], quota: int) -
     return out
 
 
-async def create_daily(session: AsyncSession, now: datetime | None = None) -> dict[str, Any]:
-    """Enregistre le coupon du jour de chaque profil, **avant** les matchs (une fois par jour)."""
+async def create_daily(
+    session: AsyncSession, now: datetime | None = None, engine: int = 1
+) -> dict[str, Any]:
+    """Enregistre le coupon du jour de chaque profil, **avant** les matchs (une fois par jour).
+
+    ``engine`` 2 : coupons du jour du moteur 2 (comparaison K5), mêmes règles, à part."""
     now = now or datetime.now(UTC)
     day = now.date()
     out: dict[str, Any] = {}
     # Un match ne sert qu'à un seul profil par jour : le 04/11/2026, le même match (presque
     # le même pari) dans Sûr et Audacieux a fait perdre les deux coupons sur un seul but.
-    existing = (await session.scalars(select(SmartCoupon).where(SmartCoupon.day == day))).all()
+    existing = (
+        await session.scalars(
+            select(SmartCoupon).where(SmartCoupon.day == day, SmartCoupon.engine == engine)
+        )
+    ).all()
     used = {sel["match_id"] for c in existing for sel in c.selections}
     done = {c.profile for c in existing}
     # Les profils qui doivent atteindre une cote minimale choisissent d'abord ; « Sûr »
     # (3 matchs, sans cote minimale) trouve presque toujours ses matchs parmi les autres.
     order = sorted(DAILY_RULES.items(), key=lambda item: item[1][1] is None)
     start, end = period_window("today", now)
-    per_match = await window_candidates(session, start, end, now, Filters())
+    per_match = await window_candidates(session, start, end, now, Filters(), engine=engine)
     for profile, (size, min_odds) in order:
         if profile in done:
             out[profile] = "déjà créé"
@@ -806,6 +814,7 @@ async def create_daily(session: AsyncSession, now: datetime | None = None) -> di
             SmartCoupon(
                 day=day,
                 profile=profile,
+                engine=engine,
                 size=len(picks),
                 selections=[_stored(pk) for pk in picks],
                 total_odds=total,
@@ -922,6 +931,7 @@ async def history(
     rows = (
         await session.scalars(
             select(SmartCoupon)
+            .where(SmartCoupon.engine == 1)
             .order_by(SmartCoupon.day.desc(), SmartCoupon.id)
             .offset(offset)
             .limit(limit + 1)
@@ -929,7 +939,9 @@ async def history(
     ).all()
     done = (
         await session.scalars(
-            select(SmartCoupon).where(SmartCoupon.status.in_(("won", "lost", "partial")))
+            select(SmartCoupon).where(
+                SmartCoupon.engine == 1, SmartCoupon.status.in_(("won", "lost", "partial"))
+            )
         )
     ).all()
     shown = rows[:limit]
@@ -945,7 +957,9 @@ async def history(
         [(matches[sel["match_id"]], sel["market"]) for c in shown for sel in c.selections
          if sel["match_id"] in matches],
     )  # fmt: skip
-    first_day = await session.scalar(select(func.min(SmartCoupon.day)))
+    first_day = await session.scalar(
+        select(func.min(SmartCoupon.day)).where(SmartCoupon.engine == 1)
+    )
     return {
         "stats": _profile_record(done),
         "has_more": len(rows) > limit,
@@ -1098,14 +1112,18 @@ async def day_coupons(
     now: datetime | None = None,
     *,
     premium: bool = True,
+    engine: int = 1,
 ) -> dict[str, Any]:
     """Coupons du jour d'une date (aujourd'hui par défaut), avec l'état en direct de chaque
-    sélection, les codes de réservation, et le bilan de la veille et des 30 derniers jours."""
+    sélection, les codes de réservation, et le bilan de la veille et des 30 derniers jours.
+    ``engine`` 2 : ceux du moteur 2 (comparaison K5), avec leur propre bilan."""
     today = (now or datetime.now(UTC)).date()
     day = day or today
     coupons = (
         await session.scalars(
-            select(SmartCoupon).where(SmartCoupon.day == day).order_by(SmartCoupon.id)
+            select(SmartCoupon)
+            .where(SmartCoupon.day == day, SmartCoupon.engine == engine)
+            .order_by(SmartCoupon.id)
         )
     ).all()
     ids = {sel["match_id"] for c in coupons for sel in c.selections}
@@ -1122,6 +1140,7 @@ async def day_coupons(
                 # 5 sur 7 là-bas pour la même période).
                 SmartCoupon.day >= today - timedelta(days=30),
                 SmartCoupon.day <= today,
+                SmartCoupon.engine == engine,
             )
         )
     ).all()
@@ -1134,6 +1153,7 @@ async def day_coupons(
     )  # fmt: skip
     return {
         "day": day,
+        "engine": engine,
         "coupons": sorted(
             (_coupon_out(c, matches, premium=premium, counts=counts) for c in coupons),
             key=lambda c: order.index(c["profile"]),
@@ -1179,7 +1199,9 @@ async def notify_ready(session: AsyncSession, now: datetime | None = None) -> in
     now = now or datetime.now(UTC)
     coupons = (
         await session.scalars(
-            select(SmartCoupon).where(SmartCoupon.day == now.date()).order_by(SmartCoupon.id)
+            select(SmartCoupon)
+            .where(SmartCoupon.day == now.date(), SmartCoupon.engine == 1)
+            .order_by(SmartCoupon.id)
         )
     ).all()
     if (

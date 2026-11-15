@@ -107,13 +107,21 @@ async def step_suggestions(
         )
     )
     assert step is not None
+    found = await montante.step_suggestions(session, m, redis=redis, engine=engine)
+    if user.compare_engines:
+        # Comparaison des moteurs (K6) : les suggestions de chaque moteur sont enregistrées,
+        # jouées ou non, puis réglées (bilan à mise fixe).
+        from footprono.bookmaker import engine_compare
+
+        await engine_compare.record_proposals(session, engine, "montante", found)
+        await session.commit()
     return {
         "step": step.number,
         "odds_min": step.odds_min,
         "odds_max": step.odds_max,
         "stake": m.next_stake,
         "engine": engine,
-        "suggestions": await montante.step_suggestions(session, m, redis=redis, engine=engine),
+        "suggestions": found,
     }
 
 

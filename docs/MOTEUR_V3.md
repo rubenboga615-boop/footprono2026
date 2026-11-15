@@ -5,6 +5,12 @@
 > moteur 1, ses chances et ses choix ne changent pas. Code : `engine/market_fit.py`,
 > `predictions/calibration.py`, `bookmaker/price.py`, `service.engine2_probabilities`,
 > paramètre `engine=2` du Coupon intelligent, réglage du compte `compare_engines`.
+> Suite (K4-K6) : suggestions de palier `engine=2` (le palier joué garde son moteur,
+> `montante_steps.engine`), coupons du jour du moteur 2 (`smart_coupons.engine`, jamais dans
+> l'historique public), et le juge `bookmaker/engine_compare.py` : chances 1-N-2 des deux
+> moteurs relevées avant chaque match (log loss sur les mêmes matchs), chaque proposition
+> enregistrée et réglée à 1 000 F (`engine_proposals`), verdict seulement à partir de 300
+> matchs et 200 propositions réglées par moteur (`GET /reliability/engines`).
 
 Version 2 de FootProba (dépôt `R-A-`), construite à partir de l'application d'origine
 (`footprono2026`) et de ses données. Ce document décrit ce qui change dans le moteur et

@@ -10,6 +10,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'engines_reliability_screen.dart';
 import 'live_reliability_screen.dart';
 import 'montante_stats_screen.dart';
 
@@ -226,6 +227,7 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                   ),
                   const LiveReliabilityLink(),
                   const MontanteReliabilityLink(),
+                  const EnginesReliabilityLink(),
                 ],
               ),
             );

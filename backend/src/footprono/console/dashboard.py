@@ -186,7 +186,11 @@ async def dashboard(session: AsyncSession, redis: Redis, settings: Settings) -> 
     last_odds = await session.scalar(select(func.max(BookmakerOdds.fetched_at)))
 
     today = now.date()
-    coupons = (await session.scalars(select(SmartCoupon).where(SmartCoupon.day == today))).all()
+    coupons = (
+        await session.scalars(
+            select(SmartCoupon).where(SmartCoupon.day == today, SmartCoupon.engine == 1)
+        )
+    ).all()
     missing_codes = [
         c.profile
         for c in coupons
