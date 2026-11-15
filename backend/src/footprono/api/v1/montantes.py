@@ -1,9 +1,9 @@
 """Montante : plan, pari du palier, suggestions, encaissement (argent fictif)."""
 
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
@@ -13,7 +13,7 @@ from footprono.api.v1.bets import _bet_out
 from footprono.bookmaker import montante, service
 from footprono.bookmaker.montante_models import Montante, MontanteStep
 from footprono.bookmaker.schemas import BetOut, SelectionIn
-from footprono.core.errors import NotFoundError
+from footprono.core.errors import AppError, NotFoundError
 
 router = APIRouter(tags=["montante"])
 
@@ -34,6 +34,8 @@ class StepBetIn(BaseModel):
     accept_out_of_range: bool = False
     # Pari pris dans les suggestions du palier (true) ou composé par le joueur (false).
     from_suggestion: bool | None = None
+    # Comparaison des moteurs (K4) : moteur dont la suggestion est jouée.
+    engine: int | None = Field(default=None, ge=1, le=2)
 
 
 @router.post("/montantes", status_code=status.HTTP_201_CREATED)
@@ -87,9 +89,17 @@ async def get_montante(montante_id: int, user: CurrentUserDep, session: SessionD
 
 @router.get("/montantes/{montante_id}/suggestions")
 async def step_suggestions(
-    montante_id: int, user: CurrentUserDep, session: SessionDep, redis: RedisDep
+    montante_id: int,
+    user: CurrentUserDep,
+    session: SessionDep,
+    redis: RedisDep,
+    engine: Annotated[
+        int, Query(ge=1, le=2, description="2 : moteur 2, en mode comparaison seulement")
+    ] = 1,
 ) -> Any:
     require_premium(user, "suggestions de montante")
+    if engine == 2 and not user.compare_engines:
+        raise AppError("moteur 2 : active « Comparer les deux moteurs » dans ton profil")
     m = await _own(session, user, montante_id)
     step = await session.scalar(
         select(MontanteStep).where(
@@ -102,7 +112,8 @@ async def step_suggestions(
         "odds_min": step.odds_min,
         "odds_max": step.odds_max,
         "stake": m.next_stake,
-        "suggestions": await montante.step_suggestions(session, m, redis=redis),
+        "engine": engine,
+        "suggestions": await montante.step_suggestions(session, m, redis=redis, engine=engine),
     }
 
 
@@ -120,6 +131,7 @@ async def step_bet(
         ],
         accept_out_of_range=body.accept_out_of_range,
         suggested=body.from_suggestion,
+        engine=body.engine,
     )
     await session.commit()
     await session.refresh(bet)

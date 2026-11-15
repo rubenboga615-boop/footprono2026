@@ -9,7 +9,17 @@ Encaisser = arrêter : les gains sont déjà sur le solde.
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    SmallInteger,
+    String,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from footprono.db.base import Base
@@ -50,5 +60,8 @@ class MontanteStep(Base):
     # Pari proposé par le moteur (suggestions du palier) ou composé par le joueur ; inconnu
     # (null) pour les paliers joués avant le 14/11/2026 (suivi des montantes, M2).
     suggested: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # Comparaison des moteurs (K4, 15/11/2026) : moteur (1 ou 2) dont la suggestion a été
+    # jouée ; null pour un pari composé par le joueur ou joué avant la comparaison.
+    engine: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     # pending, won, partial, push, lost
     result: Mapped[str] = mapped_column(String(8), default="pending")

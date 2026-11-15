@@ -43,6 +43,7 @@ class FakeServer {
   bool dailyNotifications = true;
   bool montanteMode = false;
   bool compareEngines = false;
+  final List<Map<String, dynamic>> stepBets = [];
   bool betaAvailable = false;
   final extraUpcoming = <Map<String, dynamic>>[];
   final live = <Map<String, dynamic>>[];
@@ -930,6 +931,38 @@ class FakeServer {
             {'low': 20.0, 'high': null, 'bets': 12, 'won': 0, 'announced': 0.03, 'profit': -12000},
           ],
         };
+      case 'GET /montantes/4/suggestions':
+        final engine2 = r.url.queryParameters['engine'] == '2';
+        if (engine2 && !compareEngines) return _error(400, 'bad_request', 'moteur 2');
+        Map<String, dynamic> sug(String market, String sel, String odds, double p) => {
+          'selections': [
+            {
+              'match_id': 7,
+              'market': market,
+              'line': market == 'OU' ? '2.5' : null,
+              'selection': sel,
+              'odds': odds,
+              'bookmaker': '1xBet',
+              'label': '',
+              'model_probability': p,
+            },
+          ],
+          'total_odds': odds,
+          'model_probability': p,
+          'implied_probability': 0.6,
+          'engine_below_odds': false,
+        };
+        body = {
+          'step': 2,
+          'odds_min': '1.60',
+          'odds_max': '1.95',
+          'stake': 7850,
+          'engine': engine2 ? 2 : 1,
+          'suggestions': [engine2 ? sug('OU', 'over', '1.950', 0.55) : sug('1X2', 'home', '1.850', 0.62)],
+        };
+      case 'POST /montantes/4/bet':
+        stepBets.add(jsonDecode(r.body) as Map<String, dynamic>);
+        return http.Response(jsonEncode({'id': 32}), 201, headers: _json);
       case 'POST /bets':
         final b = jsonDecode(r.body) as Map<String, dynamic>;
         placedBets.add(b);
@@ -1594,6 +1627,54 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('PALIER 1'), findsOneWidget);
     expect(find.text('PALIER'), findsNothing); // en-tête du tableau du téléphone
+  });
+
+  testWidgets('comparaison des moteurs : suggestions du palier des deux moteurs, moteur gardé (K4)', (
+    tester,
+  ) async {
+    final (state, server) = await startApp(tester, loggedIn: true, premium: true);
+    server.compareEngines = true;
+    await state.refreshMe();
+    server.montantes = [
+      {
+        'id': 4,
+        'status': 'active',
+        'currency': 'XOF',
+        'start_stake': 5000,
+        'secure_pct': 0,
+        'current_step': 1,
+        'steps': [
+          {
+            'number': 1,
+            'odds_min': '1.60',
+            'odds_max': '1.95',
+            'result': 'pending',
+            'bet_id': null,
+            'out_of_range': false,
+            'stake': 5000,
+            'payout_range': [8000, 9750],
+          },
+        ],
+        'final_payout_range': [8000, 9750],
+        'chance_by_odds': 0.6,
+        'chance_by_model': null,
+        'cashable': 0,
+        'net_result': 0,
+      },
+    ];
+    await tester.binding.setSurfaceSize(const Size(430, 2400));
+    await tester.tap(find.text('Montante').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Suggestions du moteur', findRichText: true));
+    await tester.pumpAndSettle();
+    expect(find.text('MOTEUR 1'), findsOneWidget);
+    expect(find.text('MOTEUR 2'), findsOneWidget);
+    await tester.tap(find.text('1,95').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Jouer'));
+    await tester.pumpAndSettle();
+    expect(server.stepBets.single['engine'], 2);
+    expect(server.stepBets.single['from_suggestion'], isTrue);
   });
 
   testWidgets('montante : match, date et état du pari de chaque palier, comme dans Mes paris', (

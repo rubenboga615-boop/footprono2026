@@ -11,6 +11,7 @@ import '../main.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/engine_compare.dart';
 import '../widgets/maquette.dart';
 import 'bookmaker_screen.dart' show selectionColor, selectionState;
 import 'montante_stats_screen.dart';
@@ -1024,7 +1025,8 @@ class _MontanteViewState extends State<MontanteView> {
                   'Palier ${current['number']} : cote ${odds(bet.totalOdds)}, '
                   '${current['out_of_range'] == true ? 'hors de la plage (confirmé)' : 'dans la plage'} '
                   '${odds(current['odds_min'])}–${odds(current['odds_max'])}. Gain de ce palier : '
-                  '${money(bet.potentialPayout, bet.currency)}.',
+                  '${money(bet.potentialPayout, bet.currency)}.'
+                  '${current['engine'] is int ? ' Proposé par le moteur ${current['engine']}.' : ''}',
             ),
           ],
           if (waiting) ...[
@@ -1292,19 +1294,32 @@ class _SuggestionsScreenState extends State<SuggestionsScreen> {
   bool showAnyway = false;
 
   /// Demandé une seule fois : le calcul étudie toute la période (plusieurs secondes).
-  late final Future<(Json, Map<int, MatchInfo>)> _loading = _load(context.read<AppState>().api);
+  late final Future<(Json, Map<int, MatchInfo>)> _loading = _load(context.read<AppState>());
 
-  Future<(Json, Map<int, MatchInfo>)> _load(ApiClient api) async {
-    final data = await api.get('/montantes/$montanteId/suggestions', null, ApiClient.slowTimeout) as Json;
+  /// Mode comparaison (maquette K4) : les suggestions du moteur 2, sous celles du moteur 1.
+  Json? data2;
+
+  Future<(Json, Map<int, MatchInfo>)> _load(AppState state) async {
+    final api = state.api;
+    final url = '/montantes/$montanteId/suggestions';
+    final second = state.compareEngines
+        ? api
+              .get('$url?engine=2', null, ApiClient.slowTimeout)
+              .then<Object?>((v) => v, onError: (Object _) => null)
+        : null;
+    final data = await api.get(url, null, ApiClient.slowTimeout) as Json;
+    final other = await second;
+    data2 = other is Json ? other : null;
     final ids = <int>{
-      for (final s in data['suggestions'] as List)
-        for (final sel in s['selections'] as List) sel['match_id'] as int,
+      for (final d in [data, ?data2])
+        for (final s in d['suggestions'] as List)
+          for (final sel in s['selections'] as List) sel['match_id'] as int,
     }.toList();
     final infos = await Future.wait([for (final id in ids) api.get('/matches/$id')]);
     return (data, {for (final (i, id) in ids.indexed) id: MatchInfo(infos[i] as Json)});
   }
 
-  Future<void> _play(BuildContext context, Json suggestion, Json data) async {
+  Future<void> _play(BuildContext context, Json suggestion, Json data, {int? engine}) async {
     final state = context.read<AppState>();
     final ok = await showDialog<bool>(
       context: context,
@@ -1335,6 +1350,7 @@ class _SuggestionsScreenState extends State<SuggestionsScreen> {
             },
         ],
         'from_suggestion': true, // suivi des montantes (M2)
+        'engine': ?engine, // comparaison des moteurs (K4) : le palier garde le nom du moteur
       }),
     );
     if (done != null && context.mounted) {
@@ -1431,18 +1447,29 @@ class _SuggestionsScreenState extends State<SuggestionsScreen> {
                     'par tes autres montantes en cours sont écartés : ton risque reste réparti.',
                     icon: Icons.search_off_rounded,
                   )
-                else if (!allBelow || showAnyway)
+                else if (!allBelow || showAnyway) ...[
+                  if (data2 != null) ...[
+                    const SizedBox(height: 12),
+                    const Align(alignment: Alignment.centerLeft, child: EngineTag(1)),
+                  ],
+                  const SizedBox(height: 8),
                   MCard(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
                     child: Column(
                       children: [
                         for (final (i, s) in list.indexed) ...[
                           if (i > 0) const Divider(height: 1, thickness: 1, color: Fp.divider),
-                          _SuggestionCard(s: s, matches: matches, onPlay: () => _play(context, s, data)),
+                          _SuggestionCard(
+                            s: s,
+                            matches: matches,
+                            onPlay: () => _play(context, s, data, engine: data2 == null ? null : 1),
+                          ),
                         ],
                       ],
                     ),
                   ),
+                ],
+                if (data2 case final d2?) ..._engine2(context, d2, data, matches),
                 const SizedBox(height: 12),
                 Text(
                   'Le moteur n\'est pas plus fort que le bookmaker : une suggestion n\'est pas un conseil de '
@@ -1456,6 +1483,41 @@ class _SuggestionsScreenState extends State<SuggestionsScreen> {
         ),
       ),
     );
+  }
+}
+
+extension on _SuggestionsScreenState {
+  /// Maquette K4 : les suggestions du moteur 2 pour le même palier, marquées « MOTEUR 2 ».
+  List<Widget> _engine2(BuildContext context, Json d2, Json data, Map<int, MatchInfo> matches) {
+    final list = (d2['suggestions'] as List).cast<Json>();
+    return [
+      const SizedBox(height: 16),
+      const Align(alignment: Alignment.centerLeft, child: EngineTag(2)),
+      const SizedBox(height: 8),
+      if (list.isEmpty)
+        Text(
+          'Le moteur 2 n\'a aucun pari avec une cote réelle dans cette plage pour l\'instant.',
+          style: Fp.body(13, color: Fp.text2, height: 1.4),
+        )
+      else
+        MCard(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          child: Column(
+            children: [
+              for (final (i, s) in list.indexed) ...[
+                if (i > 0) const Divider(height: 1, thickness: 1, color: Fp.divider),
+                _SuggestionCard(s: s, matches: matches, onPlay: () => _play(context, s, data, engine: 2)),
+              ],
+            ],
+          ),
+        ),
+      const SizedBox(height: 6),
+      Text(
+        'Moteur 2 : les paris les mieux payés (prix proche de la cote juste selon la cote de référence) '
+        'd\'abord, puis la cote la plus basse.',
+        style: Fp.body(12, color: Fp.text2, height: 1.4),
+      ),
+    ];
   }
 }
 

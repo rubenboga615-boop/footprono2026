@@ -162,3 +162,62 @@ async def test_grosse_cote_stays_engine1(
         headers=headers,
     )
     assert r.status_code == 400
+
+
+async def test_montante_suggestions_of_both_engines_and_the_engine_is_kept(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    m1, m2 = world["m1"], world["m2"]
+    await _predict(db_factory, [m1, m2])
+    await _reference(db_factory, m1)
+    headers = await _login(client)
+    await make_premium(db_factory, "+22997111111")
+    mid = (
+        await client.post(
+            "/api/v1/montantes",
+            json={"start_stake": 5000, "steps": [{"odds_min": "1.80", "odds_max": "1.90"}] * 4},
+            headers=headers,
+        )
+    ).json()["id"]
+    url = f"/api/v1/montantes/{mid}/suggestions"
+    refused = await client.get(url, params={"engine": 2}, headers=headers)
+    assert refused.status_code == 400
+    await client.put("/api/v1/me/preferences", json={"compare_engines": True}, headers=headers)
+
+    one = (await client.get(url, headers=headers)).json()
+    two = (await client.get(url, params={"engine": 2}, headers=headers)).json()
+    assert (one["engine"], two["engine"]) == (1, 2)
+    # Moteur 1 : même classement que sans comparaison (cote la plus basse, probabilités
+    # du moteur 1, jamais de prix).
+    assert [s["model_probability"] for s in one["suggestions"]] == [0.6, 0.6, 0.5]
+    assert {sel["price_tier"] for s in one["suggestions"] for sel in s["selections"]} == {None}
+    # Moteur 2 : m1 calé (domicile 1,85 bien au-dessus de la cote juste : suspect), donc
+    # proposé après les paris neutres.
+    first = two["suggestions"][0]["selections"]
+    assert all(sel["price_tier"] != "suspect" for sel in first)
+    tiers = [
+        max((sel["price_tier"] or "neutral") == "suspect" for sel in s["selections"])
+        for s in two["suggestions"]
+    ]
+    assert tiers == sorted(tiers)
+
+    # Le palier joué garde le nom du moteur qui l'a proposé.
+    sel = first[0]
+    bet = await client.post(
+        f"/api/v1/montantes/{mid}/bet",
+        json={
+            "selections": [
+                {k: sel[k] for k in ("match_id", "market", "selection", "odds")}
+                | {"line": sel["line"] or ""}
+            ],
+            "from_suggestion": True,
+            "engine": 2,
+        },
+        headers=headers,
+    )
+    assert bet.status_code == 201, bet.text
+    plan = (await client.get(f"/api/v1/montantes/{mid}", headers=headers)).json()
+    assert plan["steps"][0]["engine"] == 2
+    assert plan["steps"][1]["engine"] is None
