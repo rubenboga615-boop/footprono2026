@@ -542,6 +542,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     await refreshMe();
   }
 
+  /// Comparaison des moteurs (K1) : moteur 1 et moteur 2 côte à côte ; réglage du compte.
+  bool get compareEngines => me?.compareEngines ?? false;
+
+  Future<void> setCompareEngines(bool on) async {
+    await api.put('/me/preferences', {'compare_engines': on});
+    await refreshMe();
+  }
+
   Future<void> setMatchNotifications(String level) async {
     await api.put('/me/preferences', {'match_notifications': level});
     await refreshMe();

@@ -13,6 +13,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/engine_compare.dart';
 import '../widgets/live_refresh.dart';
 import '../widgets/team_logo.dart';
 import '../widgets/maquette.dart';
@@ -520,6 +521,10 @@ class _MatchViewState extends State<_MatchView> {
           style: Fp.body(12, color: Fp.warning, height: 1.4),
         ),
       ],
+      if (d.offers.map((o) => o.engine2Calibrated).nonNulls.firstOrNull case final cal?) ...[
+        const SizedBox(height: 8),
+        Engine2Status(cal),
+      ],
       const SizedBox(height: 8),
       if (d.offers.isEmpty)
         const EmptyState(
@@ -557,7 +562,9 @@ class _MatchViewState extends State<_MatchView> {
                                   ),
                                   style: Fp.body(14, weight: FontWeight.w700),
                                 ),
-                                if (o.modelProbability != null)
+                                if (o.engine2Probability != null)
+                                  engineCompareOf(o)
+                                else if (o.modelProbability != null)
                                   Text(
                                     'Moteur ${percent(o.modelProbability!)} · cote juste ${decimal(1 / o.modelProbability!)}',
                                     style: Fp.body(12, color: Fp.text2),
@@ -1098,6 +1105,7 @@ class _ProbRow extends StatelessWidget {
                 ],
                 const SizedBox(height: 8),
                 ProbBar(prob.probability, height: 6),
+                engineCompareOf(offer),
                 if (prob.fairOdds != null || push.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(

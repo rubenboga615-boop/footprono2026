@@ -98,10 +98,18 @@ async def _offers_out(
         if market_allowed(user, o.market) and (keys is None or k in keys)
     }
     history = await service.offer_history(session, [o.quote_id for o in allowed.values()])
-    return [
+    out = [
         _offer_out(o, probs.get(k), history.get(o.quote_id, [None])[0])
         for k, o in sorted(allowed.items())
     ]
+    if user is not None and user.compare_engines:
+        # Mode comparaison (K2) : la chance du moteur 2 à côté, sans rien changer au reste.
+        probs2 = (await service.engine2_probabilities(session, [match_id])).get(match_id, {})
+        calibrated = service.CALIBRATED_KEY in probs2
+        for item, k in zip(out, sorted(allowed), strict=True):
+            item.engine2_probability = probs2.get(k)
+            item.engine2_calibrated = calibrated
+    return out
 
 
 @router.get("/matches/{match_id}/odds-history", response_model=OddsHistoryOut)

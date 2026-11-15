@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query
 from footprono.accounts.plans import is_premium, require_premium
 from footprono.api.deps import CurrentUserDep, OptionalUserDep, RedisDep, SessionDep
 from footprono.bookmaker import smart_coupon
+from footprono.core.errors import AppError
 
 router = APIRouter(tags=["coupon intelligent"])
 
@@ -50,8 +51,13 @@ async def generate(
     variant: Annotated[
         int, Query(ge=0, le=99, description="« Un autre coupon » : tirage suivant du joueur")
     ] = 0,
+    engine: Annotated[
+        int, Query(ge=1, le=2, description="2 : moteur 2, en mode comparaison seulement")
+    ] = 1,
 ) -> Any:
     require_premium(user, "coupon intelligent")
+    if engine == 2 and not user.compare_engines:
+        raise AppError("moteur 2 : active « Comparer les deux moteurs » dans ton profil")
     return await smart_coupon.generate(
         session,
         profile,
@@ -71,6 +77,7 @@ async def generate(
         # journée (proposition du 07/11/2026 : pas tout le monde perdant le même jour).
         player=user.id,
         variant=variant,
+        engine=engine,
     )
 
 

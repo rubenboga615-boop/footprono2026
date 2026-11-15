@@ -70,6 +70,7 @@ class MeOut(BaseModel):
     # Pendant les matchs de mes coupons : « all », « results » (validé ou perdu), « none ».
     match_notifications: str = "all"
     montante_mode: bool = False
+    compare_engines: bool = False
     virtual_money: bool = True  # argent fictif : rappel pour l'application
     # Mode bêta : proposé pendant la période de test seulement ; partage choisi par le joueur.
     beta_available: bool = False
@@ -83,6 +84,7 @@ class PreferencesIn(BaseModel):
     daily_coupons_notifications: bool | None = None
     match_notifications: Literal["all", "results", "none"] | None = None
     montante_mode: bool | None = None
+    compare_engines: bool | None = None
 
 
 class WalletEntryOut(BaseModel):

@@ -282,6 +282,25 @@ class ProfileScreen extends StatelessWidget {
                       style: Fp.body(12, color: Fp.muted, height: 1.4),
                     ),
                   ),
+                  // Maquette K1 (15/11/2026) : moteur 1 et moteur 2 côte à côte, pour les juger.
+                  _Group([
+                    _SwitchItem(
+                      title: 'Comparer les deux moteurs',
+                      value: me?.compareEngines ?? false,
+                      onChanged: me == null
+                          ? null
+                          : (on) => guard(context, () => state.setCompareEngines(on)),
+                    ),
+                  ]),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 6, 4, 12),
+                    child: Text(
+                      'Moteur 1 : celui d\'aujourd\'hui, inchangé. Moteur 2 : le même, calé sur la cote de '
+                      'référence. Sur la fiche d\'un match et dans le Coupon intelligent, chacun présente son '
+                      'choix ; la Fiabilité dira lequel est le plus juste.',
+                      style: Fp.body(12, color: Fp.muted, height: 1.4),
+                    ),
+                  ),
                   ValueListenableBuilder(
                     valueListenable: state.webPushStatus,
                     builder: (context, web, _) => _Group([

@@ -200,6 +200,7 @@ async def me(user: CurrentUserDep, session: SessionDep, settings: SettingsDep) -
         daily_coupons_notifications=user.daily_coupons_notifications,
         match_notifications=user.match_notifications,
         montante_mode=user.montante_mode,
+        compare_engines=user.compare_engines,
         beta_available=settings.beta_sharing,
         beta_sharing=settings.beta_sharing and user.beta_sharing,
         beta_tester=user.beta_number if settings.beta_sharing and user.beta_sharing else None,
@@ -216,6 +217,8 @@ async def set_preferences(body: PreferencesIn, user: CurrentUserDep, session: Se
         user.match_notifications = body.match_notifications
     if body.montante_mode is not None:
         user.montante_mode = body.montante_mode
+    if body.compare_engines is not None:
+        user.compare_engines = body.compare_engines
     await session.commit()
 
 

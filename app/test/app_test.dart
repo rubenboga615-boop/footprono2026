@@ -42,6 +42,7 @@ class FakeServer {
   bool admin = false;
   bool dailyNotifications = true;
   bool montanteMode = false;
+  bool compareEngines = false;
   bool betaAvailable = false;
   final extraUpcoming = <Map<String, dynamic>>[];
   final live = <Map<String, dynamic>>[];
@@ -151,6 +152,7 @@ class FakeServer {
     'wallet': {'currency': 'XOF', 'balance': 100000, 'last_refill_at': null},
     'daily_coupons_notifications': dailyNotifications,
     'montante_mode': montanteMode,
+    'compare_engines': compareEngines,
     'virtual_money': true,
     'email': googleLinked ? 'kossi@gmail.com' : null,
     'google_linked': googleLinked,
@@ -277,6 +279,7 @@ class FakeServer {
         final prefs = jsonDecode(r.body) as Map;
         if (prefs['daily_coupons_notifications'] case final bool v) dailyNotifications = v;
         if (prefs['montante_mode'] case final bool v) montanteMode = v;
+        if (prefs['compare_engines'] case final bool v) compareEngines = v;
         return http.Response('', 204);
       case 'GET /app/web-push':
         body = {'vapid_key': vapidKey};
@@ -417,6 +420,7 @@ class FakeServer {
             'fetched_at': '2026-10-09T08:00:00Z',
             'model_probability': 0.41,
             'model_fair_odds': 2.439,
+            if (compareEngines) ...{'engine2_probability': 0.45, 'engine2_calibrated': true},
             'opening_odds': '2.040',
             'opened_at': '2026-09-30T07:30:00Z',
             'source_updated_at': '2026-09-20T17:09:14Z',
@@ -485,7 +489,10 @@ class FakeServer {
         if (!premium) return _error(403, 'premium_required', 'réservé à Premium');
         smartQueries.add(r.url.queryParameters);
         final target = r.url.queryParameters['target_odds'];
+        final engine2 = r.url.queryParameters['engine'] == '2';
+        if (engine2 && !compareEngines) return _error(400, 'bad_request', 'moteur 2');
         body = {
+          'engine': engine2 ? 2 : 1,
           'profile': 'equilibre',
           'profile_label': 'Équilibré',
           'period': '3days',
@@ -493,9 +500,20 @@ class FakeServer {
           'target_odds': target,
           'range': target == null ? [0.6, 0.75] : null,
           'coupon': {
-            'selections': [smartSel],
-            'total_odds': '1.85',
-            'probability': 0.62,
+            'selections': [
+              engine2
+                  ? {
+                      ...smartSel,
+                      'market': 'OU',
+                      'line': '2.5',
+                      'selection': 'over',
+                      'odds': '1.950',
+                      'model_probability': 0.71,
+                    }
+                  : smartSel,
+            ],
+            'total_odds': engine2 ? '1.95' : '1.85',
+            'probability': engine2 ? 0.71 : 0.62,
             'implied_probability': 0.5405,
             'best_probability': 0.635,
           },
@@ -1203,6 +1221,50 @@ void main() {
     expect(find.text('Coupon vide : compose un nouveau coupon.'), findsOneWidget);
   });
 
+  testWidgets('Comparer les deux moteurs : réglage du Profil, fiche de match, deux coupons (K1-K3)', (
+    tester,
+  ) async {
+    final (state, server) = await startApp(tester, loggedIn: true, premium: true);
+    await tester.binding.setSurfaceSize(const Size(430, 2600));
+    // Éteint : ni moteur 2 sur la fiche, ni deuxième coupon.
+    expect(server.compareEngines, isFalse);
+    await tester.tap(find.text('Profil').last);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Comparer les deux moteurs'), 200);
+    await tester.tap(find.text('Comparer les deux moteurs'));
+    await tester.pumpAndSettle();
+    expect(server.compareEngines, isTrue);
+    expect(state.compareEngines, isTrue);
+
+    // K2 : la fiche de match, moteur 1 et moteur 2 côte à côte.
+    await tester.tap(find.text('Matchs').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lens').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cotes'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('moteur 2 calé', findRichText: true), findsOneWidget);
+    expect(find.textContaining('moteur 2 45', findRichText: true), findsWidgets);
+    await tester.tap(find.byTooltip('Retour'));
+    await tester.pumpAndSettle();
+
+    // K3 : deux coupons, chacun avec son bouton.
+    await tester.tap(find.text('Coupon'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Coupon intelligent'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Composer le coupon'));
+    await tester.tap(find.text('Composer le coupon'));
+    await tester.pumpAndSettle();
+    expect(find.text('MOTEUR 1'), findsOneWidget);
+    expect(find.text('MOTEUR 2'), findsOneWidget);
+    expect(server.smartQueries.where((q) => q['engine'] == '2'), hasLength(1));
+    await tester.ensureVisible(find.byKey(const ValueKey('add-engine-2')));
+    await tester.tap(find.byKey(const ValueKey('add-engine-2')));
+    await tester.pumpAndSettle();
+    expect(state.coupon.single.offer.market, 'OU');
+  });
+
   testWidgets('Premium : handicap asiatique visible, pas de verrou', (tester) async {
     await startApp(tester, loggedIn: true, premium: true);
     await tester.tap(find.text('Lens').first);
@@ -1282,7 +1344,8 @@ void main() {
     await startApp(tester, loggedIn: true);
     await tester.tap(find.text('Profil'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Classement mérité'));
+    await tester.scrollUntilVisible(find.text('Classement mérité'), 200);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Classement mérité'));
     await tester.pumpAndSettle();
     expect(find.text('2025-26'), findsOneWidget);
@@ -2201,8 +2264,8 @@ void main() {
     await tester.pumpAndSettle();
     final toggle = find.text('Coupons du jour, chaque matin');
     await tester.ensureVisible(toggle);
-    // Deux interrupteurs depuis le 14/11/2026 : mode Montante, puis coupons du jour.
-    expect(tester.widget<Switch>(find.byType(Switch).at(1)).value, isTrue);
+    // Interrupteurs : mode Montante, comparaison des moteurs (15/11/2026), puis coupons du jour.
+    expect(tester.widget<Switch>(find.byType(Switch).at(2)).value, isTrue);
     await tester.tap(toggle);
     await tester.pumpAndSettle();
     expect(server.dailyNotifications, isFalse);
@@ -2857,7 +2920,8 @@ void main() {
     );
     await tester.tap(find.text('Profil'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Lier mon compte Google'));
+    await tester.scrollUntilVisible(find.text('Lier mon compte Google'), 200);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Lier mon compte Google'));
     await tester.pumpAndSettle();
     expect(server.googleLinked, isTrue);

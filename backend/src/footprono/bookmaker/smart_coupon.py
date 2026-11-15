@@ -41,7 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from footprono.accounts.models import User
-from footprono.bookmaker import playable, service, settlement
+from footprono.bookmaker import playable, price, service, settlement
 from footprono.bookmaker.models import BetSelection
 from footprono.bookmaker.odds_math import combined_odds, shown_odds
 from footprono.bookmaker.rules import automatic
@@ -144,6 +144,10 @@ class Pick:
     competition: str
     offer: service.Offer
     probability: float
+    # Moteur 2 seulement (comparaison K1-K6) : tranche de prix (bookmaker/price.py) ; 0 bien
+    # payé, 1 neutre, 2 cher, 3 cote suspecte. Moteur 1 : toujours neutre, rien ne change.
+    price_tier: int = price.NEUTRAL
+    priced: bool = False  # le prix a un sens : match calé sur la référence, marché de buts
 
 
 async def _matches(
@@ -216,7 +220,12 @@ def french_day(d: datetime) -> str:
 
 
 def choose(profile: Profile, inside: list[Pick]) -> Pick:
-    """L'angle du match : le plus probable, ou le plus proche de la cible du profil."""
+    """L'angle du match : le plus probable, ou le plus proche de la cible du profil.
+
+    Moteur 2 : parmi les sélections de la meilleure tranche de prix seulement. Moteur 1 :
+    toutes ses sélections sont neutres, le filtre ne retire rien (choix inchangés)."""
+    best = min(pk.price_tier for pk in inside)
+    inside = [pk for pk in inside if pk.price_tier == best]
     if profile.target is None:
         return max(inside, key=lambda pk: pk.probability)
     target = profile.target
@@ -249,11 +258,19 @@ class Filters:
 def _picks(
     match: Match, home: str, away: str, comp: str,
     offers: dict[str, service.Offer], probs: dict[str, float], now: datetime,
+    engine: int = 1,
 ) -> list[Pick]:  # fmt: skip
     """Sélections jouables d'un match : marché retenu, vraie cote récente, probabilité du
-    moteur."""
+    moteur (moteur 2 : avec la tranche de prix)."""
+
+    def pick(offer: service.Offer, p: float) -> Pick:
+        if engine != 2:
+            return Pick(match, home, away, comp, offer, p)
+        priced = service.is_priced(probs, offer.market)
+        return Pick(match, home, away, comp, offer, p, price.tier(p, offer.odds, priced), priced)
+
     return [
-        Pick(match, home, away, comp, offer, p)
+        pick(offer, p)
         for k, offer in offers.items()
         if (p := probs.get(k)) is not None
         and automatic(offer.market)
@@ -277,17 +294,21 @@ async def window_candidates(
     now: datetime,
     filters: Filters,
     redis: Redis | None = None,
+    engine: int = 1,
 ) -> list[list[Pick]]:
     """Sélections jouables de chaque match de la période (préparées à l'avance si possible,
-    bookmaker/playable.py)."""
+    bookmaker/playable.py). Moteur 2 : mêmes cotes, probabilités calées sur la référence."""
     rows = [
         r
         for r in await _matches(session, start, end, filters.competitions)
         if filters.keeps(r[0]) and r[3] not in filters.exclude_competitions
     ]
-    offers, probs = await playable.load(session, [m.id for m, *_ in rows], now, redis)
+    ids = [m.id for m, *_ in rows]
+    offers, probs = await playable.load(session, ids, now, redis)
+    if engine == 2:
+        probs = await service.engine2_probabilities(session, ids, now)
     return [
-        _picks(m, home, away, comp, offers.get(m.id, {}), probs.get(m.id, {}), now)
+        _picks(m, home, away, comp, offers.get(m.id, {}), probs.get(m.id, {}), now, engine)
         for m, home, away, comp in rows
     ]
 
@@ -295,7 +316,8 @@ async def window_candidates(
 def ranked_angles(profile: Profile, per_match: list[list[Pick]]) -> list[Pick]:
     """L'angle de chaque match (voir ``choose``), du plus sûr au moins sûr."""
     picks = [pk for c in per_match if (pk := angle(profile, c)) is not None]
-    picks.sort(key=lambda pk: (-pk.probability, pk.match.kickoff_at, pk.match.id))
+    # Moteur 2 : les angles bien payés d'abord ; moteur 1 : tranche toujours neutre.
+    picks.sort(key=lambda pk: (pk.price_tier, -pk.probability, pk.match.kickoff_at, pk.match.id))
     return picks
 
 
@@ -336,10 +358,13 @@ async def best_angles(
     competitions: list[str] | None = None,
     filters: Filters | None = None,
     redis: Redis | None = None,
+    engine: int = 1,
 ) -> list[Pick]:
     """L'angle de chaque match (voir ``choose``), du plus sûr au moins sûr."""
     filters = filters or Filters(competitions=competitions)
-    return ranked_angles(profile, await window_candidates(session, start, end, now, filters, redis))
+    return ranked_angles(
+        profile, await window_candidates(session, start, end, now, filters, redis, engine)
+    )
 
 
 # Dernière sélection : choisie parmi les quelques suivantes les plus probables.
@@ -535,6 +560,9 @@ def _selection_out(pick: Pick, analysis: dict[str, Any] | None) -> dict[str, Any
         "bookmaker": pick.offer.bookmaker,
         "label": pick.offer.label,
         "model_probability": round(pick.probability, 4),
+        # Moteur 2 seulement : prix (probabilité fois cote) et tranche ; rien sinon.
+        "price_tier": price.LABELS[pick.price_tier] if pick.priced else None,
+        "price": round(price.price(pick.probability, pick.offer.odds), 3) if pick.priced else None,
         "reasons": reasons(analysis, pick) if analysis else [],
     }
 
@@ -571,6 +599,7 @@ async def generate(
     redis: Redis | None = None,
     player: int | None = None,
     variant: int = 0,
+    engine: int = 1,
 ) -> dict[str, Any]:
     """Coupon d'un profil (``size`` sélections) ou Grosse cote (``target_odds``).
 
@@ -587,6 +616,10 @@ async def generate(
         raise AppError(f"cote visée : de {TARGET_MIN} à {TARGET_MAX}")
     if after_hour is not None and not 0 <= after_hour <= 23:
         raise AppError("heure de début : de 0 à 23")
+    if engine not in (1, 2):
+        raise AppError("moteur : 1 ou 2")
+    if grosse and engine != 1:
+        raise AppError("Grosse cote : moteur 1 seulement")
     now = now or datetime.now(UTC)
     start, end = period_window(period, now, day, date_from, date_to)
     filters = Filters(
@@ -607,6 +640,7 @@ async def generate(
     out: dict[str, Any] = {
         "profile": profile,
         "profile_label": label,
+        "engine": engine,
         "range": None if grosse else [PROFILES[profile].low, PROFILES[profile].high],
         "target_odds": target_odds,
         "period": period,
@@ -657,7 +691,9 @@ async def generate(
             return out
     else:
         prof = PROFILES[profile]
-        picks = await best_angles(session, prof, start, end, now, filters=filters, redis=redis)
+        picks = await best_angles(
+            session, prof, start, end, now, filters=filters, redis=redis, engine=engine
+        )
         best = picks[:size]
         chosen, others = vary(picks, size, player_rng(player, now.date(), profile, variant))
         if len(chosen) < size:

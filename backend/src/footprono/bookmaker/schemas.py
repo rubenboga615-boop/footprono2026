@@ -22,6 +22,10 @@ class OfferOut(BaseModel):
     # Dernière mise à jour de la cote chez la source, et dernier relevé de FootProba.
     source_updated_at: datetime | None = None
     checked_at: datetime | None = None
+    # Mode comparaison (K2) : chance du moteur 2, et s'il est calé sur la cote de référence.
+    # Absents hors du mode comparaison.
+    engine2_probability: float | None = None
+    engine2_calibrated: bool | None = None
 
 
 class OddsPointOut(BaseModel):

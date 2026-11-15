@@ -40,6 +40,7 @@ class Me {
       dailyCouponsNotifications = j['daily_coupons_notifications'] as bool? ?? true,
       matchNotifications = j['match_notifications'] as String? ?? 'all',
       montanteMode = j['montante_mode'] == true,
+      compareEngines = j['compare_engines'] == true,
       betaAvailable = j['beta_available'] as bool? ?? false,
       betaSharing = j['beta_sharing'] as bool? ?? false,
       betaTester = j['beta_tester'] as int?;
@@ -68,6 +69,9 @@ class Me {
 
   /// Mode Montante (14/11/2026) : l'application ne montre que la montante (réglage du compte).
   final bool montanteMode;
+
+  /// Comparaison des moteurs (maquettes K1-K6, 15/11/2026) : le moteur 2 à côté du moteur 1.
+  final bool compareEngines;
 
   /// Mode bêta : proposé pendant la période de test ; partage choisi par le joueur
   /// (« Testeur n° [betaTester] », sans nom ni numéro).
@@ -365,12 +369,20 @@ class Offer {
       openingOdds = _dn(j['opening_odds']),
       openedAt = parseDate(j['opened_at']),
       sourceUpdatedAt = parseDate(j['source_updated_at']),
-      checkedAt = parseDate(j['checked_at']);
+      checkedAt = parseDate(j['checked_at']),
+      engine2Probability = _dn(j['engine2_probability']),
+      engine2Calibrated = j['engine2_calibrated'] as bool?;
   final String market;
   final String line;
   final String selection;
   final double odds;
   final String oddsText;
+
+  /// Mode comparaison (K2) : chance du moteur 2 ; nulle hors du mode comparaison.
+  final double? engine2Probability;
+
+  /// Le moteur 2 est-il calé sur la cote de référence pour ce match (sinon = moteur 1) ?
+  final bool? engine2Calibrated;
   final String bookmaker;
   final DateTime? fetchedAt;
   final double? modelProbability;
