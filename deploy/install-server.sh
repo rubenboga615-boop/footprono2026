@@ -133,14 +133,21 @@ docker compose -f docker-compose.yml --env-file .env up -d --force-recreate cadd
 docker compose -f docker-compose.yml --env-file .env exec -T -u root api \
     chown app:app /data/app /data/history /data/files </dev/null || true
 
-log "Attente de https://$DOMAIN/api/v1/ready"
+# /api/v1/ready n'est plus public (audit du 14/11/2026) : la base et Redis sont vérifiés
+# depuis le conteneur de l'API, puis HTTPS par /api/v1/health.
+log "Attente du serveur (base et Redis, puis https://$DOMAIN)"
 for _ in $(seq 1 60); do
-    if curl -fsS "https://$DOMAIN/api/v1/ready" >/dev/null 2>&1; then
+    if docker compose -f docker-compose.yml --env-file .env exec -T api \
+            python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/ready', timeout=4)" \
+            >/dev/null 2>&1 </dev/null \
+        && curl -fsS "https://$DOMAIN/api/v1/health" >/dev/null 2>&1; then
         log "Serveur prêt : https://$DOMAIN"
-        # Vérification après déploiement : les métriques ne sont pas publiques.
-        code="$(curl -s -o /dev/null -w '%{http_code}' "https://$DOMAIN/metrics")"
-        if [ "$code" = "404" ]; then log "/metrics fermé au public (404)"
-        else warn "/metrics répond $code depuis Internet : vérifier le Caddyfile"; fi
+        # Vérification après déploiement : métriques et disponibilité ne sont pas publiques.
+        for path in /metrics /api/v1/ready; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' "https://$DOMAIN$path")"
+            if [ "$code" = "404" ]; then log "$path fermé au public (404)"
+            else warn "$path répond $code depuis Internet : vérifier le Caddyfile"; fi
+        done
         docker compose -f docker-compose.yml --env-file .env ps --format 'table {{.Service}}\t{{.Status}}'
         exit 0
     fi
