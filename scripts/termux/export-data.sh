@@ -14,7 +14,8 @@ DEST_DIR="$HOME/storage/downloads"
 start_postgres
 OUT="$DEST_DIR/footprono-donnees-$(date +%Y%m%d).dump"
 PERSONAL=(users wallets wallet_entries bets bet_selections montantes montante_steps
-    notifications push_devices payments subscription_events)
+    notifications push_devices payments subscription_events beta_events
+    admin_actions admin_jobs admin_job_lines)
 args=()
 for t in "${PERSONAL[@]}"; do args+=(--exclude-table-data="$t"); done
 log "Export des données football (sans données personnelles)…"
