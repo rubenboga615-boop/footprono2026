@@ -1,0 +1,66 @@
+== 1. Retirer la marge : proportionnel contre méthode puissance (log loss, cote moyenne d'avant-match)
+  validation: proportionnel 0.97280   puissance 0.97235
+  test: proportionnel 0.95605   puissance 0.95470
+  puissance − proportionnel (test) : -0.00135 ± 0.00058
+  calibration par tranche de probabilité (test) : annoncé proportionnel / puissance → observé
+    0.0-0.1 n=  1569  0.075 / 0.061 → 0.045
+    0.1-0.2 n=  6529  0.157 / 0.145 → 0.138
+    0.2-0.3 n= 17182  0.257 / 0.252 → 0.253
+    0.3-0.4 n=  7302  0.344 / 0.344 → 0.339
+    0.4-0.5 n=  5040  0.446 / 0.453 → 0.451
+    0.5-0.6 n=  3283  0.547 / 0.560 → 0.580
+    0.6-0.7 n=  2141  0.648 / 0.669 → 0.674
+    0.7-0.8 n=  1449  0.746 / 0.774 → 0.791
+    0.8-1.0 n=   508  0.836 / 0.871 → 0.872
+
+== 2. Cotes courtes (B365 < 1,70) regroupées, par période et par saison
+  validation 2018-21 chez B365                       paris   3697  réussite  69.8 %  cote 1.41  rendement  -2.66 % ± 2.15
+  validation 2018-21 meilleure cote                  paris   3697  réussite  69.8 %  cote 1.48  rendement  +1.71 % ± 2.26
+  validation 2018-21 cote moyenne                    paris   3697  réussite  69.8 %  cote 1.43  rendement  -1.53 % ± 2.18
+  test 2022-26 chez B365                             paris   5334  réussite  71.3 %  cote 1.42  rendement  -0.50 % ± 1.77
+  test 2022-26 meilleure cote                        paris   5334  réussite  71.3 %  cote 1.46  rendement  +2.33 % ± 1.83
+  test 2022-26 cote moyenne                          paris   5334  réussite  71.3 %  cote 1.42  rendement  -0.38 % ± 1.78
+  saison 2019 meilleure cote                         paris   1186  réussite  69.0 %  cote 1.46  rendement  -1.06 % ± 3.96
+  saison 2020 meilleure cote                         paris   1279  réussite  69.1 %  cote 1.49  rendement  +2.18 % ± 3.91
+  saison 2021 meilleure cote                         paris   1232  réussite  71.3 %  cote 1.48  rendement  +3.90 % ± 3.86
+  saison 2022 meilleure cote                         paris   1203  réussite  71.4 %  cote 1.46  rendement  +2.30 % ± 3.84
+  saison 2023 meilleure cote                         paris   1268  réussite  72.8 %  cote 1.45  rendement  +4.00 % ± 3.68
+  saison 2024 meilleure cote                         paris   1267  réussite  69.9 %  cote 1.45  rendement  +0.09 % ± 3.79
+  saison 2025 meilleure cote                         paris   1193  réussite  70.5 %  cote 1.47  rendement  +2.10 % ± 3.94
+  saison 2026 meilleure cote                         paris    403  réussite  73.2 %  cote 1.45  rendement  +4.87 % ± 6.49
+
+== 3. Pinnacle (marge retirée, puissance) comme probabilité de référence ; pari chez B365 ou à la meilleure cote
+ validation (10366 matchs) ; log loss Pinnacle 0.9717  moyenne 0.9719
+  p Pinnacle × B365 > 1.00                           paris   1212  réussite  35.1 %  cote 3.97  rendement  +6.29 % ± 10.26
+  p Pinnacle × B365 > 1.02                           paris    481  réussite  26.2 %  cote 4.83  rendement  -0.19 % ± 18.15
+  p Pinnacle × B365 > 1.04                           paris    212  réussite  21.7 %  cote 5.67  rendement  -4.16 % ± 28.34
+  p Pinnacle × meilleure cote > 1.00 et cote < 3     paris   6243  réussite  56.1 %  cote 1.91  rendement  +0.18 % ± 2.41
+  p Pinnacle × meilleure cote > 1.02 et cote < 3     paris   1660  réussite  55.4 %  cote 1.95  rendement  +1.80 % ± 4.79
+  p Pinnacle × meilleure cote > 1.04 et cote < 3     paris    292  réussite  52.1 %  cote 2.06  rendement  +2.28 % ± 12.23
+  p Pinnacle × meilleure cote > 1.00 et cote < 1,7   paris   2428  réussite  71.9 %  cote 1.43  rendement  +1.75 % ± 2.64
+  p Pinnacle × meilleure cote > 1.02 et cote < 1,7   paris    582  réussite  71.3 %  cote 1.44  rendement  +2.01 % ± 5.49
+  p Pinnacle × meilleure cote > 1.04 et cote < 1,7   paris     75  réussite  69.3 %  cote 1.44  rendement  -1.44 % ± 15.45
+ test (12046 matchs) ; log loss Pinnacle 0.9506  moyenne 0.9509
+  p Pinnacle × B365 > 1.00                           paris    983  réussite  43.0 %  cote 3.83  rendement +11.33 % ± 11.31
+  p Pinnacle × B365 > 1.02                           paris    270  réussite  25.2 %  cote 5.48  rendement  +3.75 % ± 25.25
+  p Pinnacle × B365 > 1.04                           paris    105  réussite  22.9 %  cote 6.77  rendement +11.76 % ± 46.03
+  p Pinnacle × meilleure cote > 1.00 et cote < 3     paris   4629  réussite  62.1 %  cote 1.79  rendement  +4.62 % ± 2.59
+  p Pinnacle × meilleure cote > 1.02 et cote < 3     paris    714  réussite  59.9 %  cote 1.88  rendement  +5.02 % ± 6.88
+  p Pinnacle × meilleure cote > 1.04 et cote < 3     paris    119  réussite  54.6 %  cote 2.03  rendement  +4.84 % ± 18.58
+  p Pinnacle × meilleure cote > 1.00 et cote < 1,7   paris   2168  réussite  74.4 %  cote 1.40  rendement  +3.07 % ± 2.66
+  p Pinnacle × meilleure cote > 1.02 et cote < 1,7   paris    274  réussite  75.9 %  cote 1.41  rendement  +5.78 % ± 7.37
+  p Pinnacle × meilleure cote > 1.04 et cote < 1,7   paris     34  réussite  70.6 %  cote 1.45  rendement  +0.68 % ± 22.83
+
+== 4. Plus/moins 2,5 buts : même analyse
+  validation (10415): log loss moteur 0.6825  cote 0.6738
+  test (15001): log loss moteur 0.6804  cote 0.6705
+  B365 1.0-1.5                                       paris   2026  réussite  71.0 %  cote 1.39  rendement  -1.80 % ± 2.80
+     → meilleure cote                                paris   2026  réussite  71.0 %  cote 1.42  rendement  +0.31 % ± 2.86
+  B365 1.5-1.7                                       paris   5758  réussite  60.4 %  cote 1.60  rendement  -3.58 % ± 2.06
+     → meilleure cote                                paris   5758  réussite  60.4 %  cote 1.64  rendement  -0.94 % ± 2.12
+  B365 1.7-2.0                                       paris   9028  réussite  52.6 %  cote 1.84  rendement  -3.60 % ± 1.93
+     → meilleure cote                                paris   9028  réussite  52.6 %  cote 1.88  rendement  -1.46 % ± 1.97
+  B365 2.0-2.5                                       paris  10112  réussite  43.2 %  cote 2.16  rendement  -7.28 % ± 2.12
+     → meilleure cote                                paris  10112  réussite  43.2 %  cote 2.23  rendement  -3.99 % ± 2.20
+  B365 2.5-5                                         paris   3058  réussite  31.5 %  cote 2.88  rendement -10.76 % ± 4.82
+     → meilleure cote                                paris   3058  réussite  31.5 %  cote 2.99  rendement  -7.59 % ± 5.00
