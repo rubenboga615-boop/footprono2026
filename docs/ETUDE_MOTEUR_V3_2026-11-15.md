@@ -67,3 +67,79 @@ dans [`docs/etudes/2026-11-15/`](etudes/2026-11-15/).
 3. Montrer le bookmaker qui paie le mieux (écart moyen de 3 à 4 points de rendement).
 4. Refaire l'étude avec l'export du serveur (xG, statistiques API-Football, cotes relevées)
    pour les marchés où le moteur peut apporter quelque chose : corners, cartons, mi-temps.
+
+## Suite : export du serveur du 15/11/2026 (xG, cotes réelles, prévisions publiées)
+
+Export sans données personnelles restauré dans une base locale (jamais copié dans ce
+dépôt) : 70 539 matchs, 36 compétitions, 2,49 millions de cotes relevées (Bet365, 1xBet,
+Pinnacle, du 30/09 au 14/11/2026), 61 236 prévisions enregistrées. Scripts `s3.py`,
+`s4.py` ; seuls des résultats agrégés figurent ici.
+
+7. **Référence reproduite** : 5 grands championnats, 7 081 matchs de test, 1X2 log loss
+   **0,9813** (cotes de clôture 0,9665), plus/moins 2,5 0,6743 (0,6677).
+8. **Même avec les xG, le moteur ne pèse rien face à la cote** (cote moyenne
+   d'avant-match, marge retirée par la méthode puissance) :
+
+   | | Poids du moteur (appris 2018-21) | Moteur | Cote | Combiné | Combiné − cote |
+   |---|---|---|---|---|---|
+   | 1X2, 5 grands (xG), 7 581 matchs | 0,046 | 0,9802 | 0,9666 | 0,9668 | +0,0002 ± 0,0001 |
+   | 1X2, autres, 7 439 matchs | 0,000 | 0,9581 | 0,9426 | 0,9426 | 0 |
+   | +/−2,5, 5 grands | 0,050 | 0,6743 | 0,6691 | 0,6692 | +0,0000 ± 0,0001 |
+   | +/−2,5, autres | 0,061 | 0,6776 | 0,6711 | 0,6712 | +0,0001 ± 0,0001 |
+
+9. **Marges réelles par marché** (avant-match, moyenne) :
+
+   | Marché | Pinnacle | Bet365 | 1xBet |
+   |---|---|---|---|
+   | Vainqueur du match | 4,5 % | 7,7 % | 4,7 % |
+   | Double chance | — | 5,8 % | 5,5 % |
+   | Les deux équipes marquent | — | 7,3 % | 7,9 % |
+   | Plus/moins de buts | 4,8 % | 5,6 % | 7,3 % |
+   | Vainqueur à la mi-temps | 5,2 % | 8,3 % | 9,6 % |
+   | Corners plus/moins | 6,5 % | 6,9 % | 10,7 % |
+   | Cartons plus/moins | 6,1 % | 7,9 % | 7,9 % |
+
+   Sur 7 223 sélections cotées par les trois : Pinnacle paie le mieux dans 55 % des cas,
+   1xBet 23 %, Bet365 22 % ; la meilleure cote dépasse Bet365 de 3,6 % en moyenne.
+10. **Moteur publié contre Pinnacle** (477 matchs avec prévision avant le coup d'envoi ;
+    log loss par sélection, écart = moteur − Pinnacle) : vainqueur +0,0081 ± 0,0076,
+    plus/moins de buts +0,0105 ± 0,0052, mi-temps +0,0055 ± 0,0058 → le moteur est
+    moins bon. **Corners −0,0026 ± 0,0113 et cartons +0,0030 ± 0,0177 → à égalité.**
+    Corners et cartons : quand le moteur est au-dessus de la cote d'au moins 3 points,
+    +5,1 % ± 13,6 et +2,5 % ± 15,4 (≈ 200 paris chacun) ; au-dessous, −19,7 % ± 13,0 et
+    −17,8 % ± 13,7. Indice d'une information propre au moteur, échantillon trop petit
+    pour conclure.
+11. **Le prix payé par rapport à Pinnacle ordonne le rendement** (tous marchés ci-dessus,
+    pari à la meilleure cote Bet365/1xBet, p = probabilité Pinnacle marge retirée) :
+
+    | p Pinnacle × cote | Paris | Réussite | Rendement |
+    |---|---|---|---|
+    | < 0,90 | 4 109 | 33,3 % | −11,1 % ± 4,4 |
+    | 0,90-0,95 | 5 677 | 46,8 % | −8,6 % ± 2,8 |
+    | 0,95-0,98 | 3 762 | 57,3 % | −6,3 % ± 2,9 |
+    | 0,98-1,00 | 1 290 | 61,2 % | −0,2 % ± 4,9 |
+    | 1,00-1,03 | 562 | 57,7 % | +5,0 % ± 8,6 |
+
+    Cotes de 1,25 à 2,00 : < 0,95 → 57,0 % de réussite, −8,5 % ± 2,9 (3 210 paris) ;
+    0,95-1,00 → 62,4 %, −3,6 % ± 2,6 (3 375) ; ≥ 1,00 → 64,8 %, +8,0 % ± 7,5 (471).
+    Six semaines de cotes seulement : tendance nette, niveau encore incertain.
+
+## Lecture d'ensemble
+
+- 1X2, buts, mi-temps : aucune amélioration du moteur ne rattrape la cote ; la
+  probabilité à afficher et à utiliser pour choisir est celle de Pinnacle, marge retirée
+  par la méthode puissance.
+- Ce qui améliore à la fois le taux de réussite et le rendement d'une sélection, à cote
+  égale : **le prix** (cote proposée × probabilité Pinnacle), donc le choix du bookmaker
+  et du marché, et l'abandon des cotes longues.
+- Corners et cartons : seul endroit où le moteur tient tête au marché ; à suivre avec
+  plus de matchs.
+
+## Proposition (non appliquée)
+
+Pour les suggestions de montante et les coupons : dans la plage de cote demandée, ne
+garder que les sélections dont « cote × probabilité Pinnacle » ≥ 0,98, classées par ce
+prix décroissant ; afficher le bookmaker qui paie le mieux ; probabilité « selon la
+cote » par la méthode puissance. Le principe n° 4 reste respecté (le moteur sportif
+n'utilise aucune cote) mais la sélection des paris s'appuierait sur les cotes : décision
+du fondateur.

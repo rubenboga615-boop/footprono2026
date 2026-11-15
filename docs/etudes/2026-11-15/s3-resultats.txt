@@ -1,0 +1,8 @@
+== 1X2 5 grands championnats (moteur avec xG): val 5375, test 7581
+   poids du moteur appris sur validation 0.046 (optimum a posteriori sur test : 0.000)
+   test : moteur 0.9802  cote 0.9666  combiné 0.9668  (combiné − cote +0.00022 ± 0.00014)
+== 1X2 autres championnats (sans xG): val 5066, test 7439
+   poids du moteur appris sur validation 0.000 (optimum a posteriori sur test : 0.000)
+   test : moteur 0.9581  cote 0.9426  combiné 0.9426  (combiné − cote +0.00000 ± 0.00000)
+== +/-2,5 5 grands (xG): poids moteur 0.050 ; test moteur 0.6743 cote 0.6691 combiné 0.6692 (+0.00004 ± 0.00011)
+== +/-2,5 autres: poids moteur 0.061 ; test moteur 0.6776 cote 0.6711 combiné 0.6712 (+0.00011 ± 0.00014)

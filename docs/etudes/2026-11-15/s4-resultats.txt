@@ -1,0 +1,71 @@
+== A. Marge moyenne du bookmaker par marché (cotes d'avant-match réelles du serveur)
+  Match Winner                   Pinnacle   4.5 % (n=412)  Bet365   7.7 % (n=446)  1xBet   4.7 % (n=459)
+  Double Chance                  Bet365   5.8 % (n=435)  1xBet   5.5 % (n=455)
+  Both Teams Score               Bet365   7.3 % (n=445)  1xBet   7.9 % (n=459)
+  Goals Over/Under               Pinnacle   4.8 % (n=1108)  Bet365   5.6 % (n=1776)  1xBet   7.3 % (n=1698)
+  First Half Winner              Pinnacle   5.2 % (n=407)  Bet365   8.3 % (n=445)  1xBet   9.6 % (n=459)
+  Goals Over/Under First Half    Pinnacle   5.7 % (n=579)  Bet365   6.0 % (n=1741)  1xBet   7.7 % (n=1824)
+  Corners Over Under             Pinnacle   6.5 % (n=1256)  Bet365   6.9 % (n=586)  1xBet  10.7 % (n=6260)
+  Cards Over/Under               Pinnacle   6.1 % (n=387)  Bet365   7.9 % (n=106)  1xBet   7.9 % (n=104)
+
+== B. Résultats réels par tranche de cote (tous marchés ci-dessus, hors lignes entières)
+  Bet365 1.0-1.3                               paris   4117  réussite  88.1 %  cote 1.11  rendement  -2.87 % ± 1.14
+     → meilleure des 3                         paris   4117  réussite  88.1 %  cote 1.11  rendement  -2.47 % ± 1.15
+  Bet365 1.3-1.5                               paris   1169  réussite  68.6 %  cote 1.37  rendement  -6.01 % ± 3.73
+     → meilleure des 3                         paris   1169  réussite  68.6 %  cote 1.39  rendement  -4.80 % ± 3.78
+  Bet365 1.5-1.7                               paris   1135  réussite  58.3 %  cote 1.58  rendement  -7.83 % ± 4.63
+     → meilleure des 3                         paris   1135  réussite  58.3 %  cote 1.61  rendement  -6.41 % ± 4.71
+  Bet365 1.7-2.0                               paris   1816  réussite  51.7 %  cote 1.83  rendement  -5.60 % ± 4.29
+     → meilleure des 3                         paris   1816  réussite  51.7 %  cote 1.87  rendement  -3.40 % ± 4.40
+  Bet365 2.0-3.0                               paris   2819  réussite  41.0 %  cote 2.34  rendement  -5.37 % ± 4.32
+     → meilleure des 3                         paris   2819  réussite  41.0 %  cote 2.42  rendement  -2.28 % ± 4.46
+  Bet365 3.0-6.0                               paris   2689  réussite  22.5 %  cote 3.96  rendement -14.51 % ± 6.25
+     → meilleure des 3                         paris   2689  réussite  22.5 %  cote 4.11  rendement -11.69 % ± 6.47
+  Bet365 6.0-100                               paris   3062  réussite   6.2 %  cote 17.78  rendement -29.30 % ± 11.76
+     → meilleure des 3                         paris   3062  réussite   6.2 %  cote 18.22  rendement -27.61 % ± 11.98
+  par marché, cote Bet365 < 1,70 :
+     Match Winner                              paris    173  réussite  70.5 %  cote 1.39  rendement  -3.86 % ± 9.70
+        → meilleure des 3                      paris    173  réussite  70.5 %  cote 1.43  rendement  -1.34 % ± 10.00
+     Double Chance                             paris   1021  réussite  75.7 %  cote 1.29  rendement  -3.85 % ± 3.50
+        → meilleure des 3                      paris   1021  réussite  75.7 %  cote 1.31  rendement  -2.70 % ± 3.55
+     Both Teams Score                          paris    285  réussite  56.8 %  cote 1.53  rendement -13.14 % ± 9.01
+        → meilleure des 3                      paris    285  réussite  56.8 %  cote 1.54  rendement -12.78 % ± 9.05
+     Goals Over/Under                          paris   3040  réussite  83.7 %  cote 1.18  rendement  -3.35 % ± 1.65
+        → meilleure des 3                      paris   3040  réussite  83.7 %  cote 1.19  rendement  -2.74 % ± 1.67
+     First Half Winner                         paris     56  réussite  69.6 %  cote 1.54  rendement  +7.30 % ± 19.10
+        → meilleure des 3                      paris     56  réussite  69.6 %  cote 1.56  rendement  +8.48 % ± 19.30
+     Goals Over/Under First Half               paris   1749  réussite  80.0 %  cote 1.22  rendement  -4.97 % ± 2.39
+        → meilleure des 3                      paris   1749  réussite  80.0 %  cote 1.23  rendement  -4.46 % ± 2.41
+     Corners Over Under                        paris     52  réussite  48.1 %  cote 1.67  rendement -19.71 % ± 23.14
+        → meilleure des 3                      paris     52  réussite  48.1 %  cote 1.71  rendement -17.79 % ± 23.72
+     Cards Over/Under                          paris     45  réussite  62.2 %  cote 1.64  rendement  +2.13 % ± 23.74
+        → meilleure des 3                      paris     45  réussite  62.2 %  cote 1.68  rendement  +2.93 % ± 23.94
+  quel bookmaker paie le mieux (sélections cotées par les 3) :
+    {'Pinnacle': '55 %', '1xBet': '23 %', 'Bet365': '22 %'} ; meilleure cote / Bet365 : +3.6 % en moyenne (n=7223)
+
+== C. Moteur publié contre Pinnacle (marge retirée, puissance), matchs avec prévision avant le coup d'envoi
+  Match Winner                   n= 1221  moteur 0.5548  Pinnacle 0.5467  écart +0.0081 ± 0.0076
+       moteur au-dessus de la cote d'au moins 3 pts :  -10.3 % ± 18.8 (n=328) ; au-dessous :   -6.3 % ± 13.2 (n=316)
+  Goals Over/Under               n= 2772  moteur 0.5994  Pinnacle 0.5889  écart +0.0105 ± 0.0052
+       moteur au-dessus de la cote d'au moins 3 pts :   -7.6 % ± 8.3 (n=854) ; au-dessous :   -0.0 % ± 8.0 (n=854)
+  Both Teams Score               n=0 (trop peu)
+  First Half Winner              n= 1206  moteur 0.5951  Pinnacle 0.5896  écart +0.0055 ± 0.0058
+       moteur au-dessus de la cote d'au moins 3 pts :  -18.4 % ± 19.4 (n=265) ; au-dessous :  -10.5 % ± 14.2 (n=270)
+  Goals Over/Under First Half    n= 1128  moteur 0.6697  Pinnacle 0.6667  écart +0.0030 ± 0.0054
+       moteur au-dessus de la cote d'au moins 3 pts :   +1.1 % ± 14.3 (n=258) ; au-dessous :   -4.3 % ± 12.4 (n=258)
+  Corners Over Under             n=  558  moteur 0.6436  Pinnacle 0.6461  écart -0.0026 ± 0.0113
+       moteur au-dessus de la cote d'au moins 3 pts :   +5.1 % ± 13.6 (n=203) ; au-dessous :  -19.7 % ± 13.0 (n=203)
+  Cards Over/Under               n=  552  moteur 0.6152  Pinnacle 0.6122  écart +0.0030 ± 0.0177
+       moteur au-dessus de la cote d'au moins 3 pts :   +2.5 % ± 15.4 (n=200) ; au-dessous :  -17.8 % ± 13.7 (n=200)
+
+== D. Prix payé par rapport à Pinnacle (probabilité Pinnacle, marge retirée) : pari à la meilleure cote Bet365/1xBet
+  p Pinnacle × cote entre 0.00 et 0.90               paris   4109  réussite  33.3 %  cote 3.26  rendement -11.09 % ± 4.40
+  p Pinnacle × cote entre 0.90 et 0.95               paris   5677  réussite  46.8 %  cote 2.18  rendement  -8.64 % ± 2.84
+  p Pinnacle × cote entre 0.95 et 0.98               paris   3762  réussite  57.3 %  cote 1.81  rendement  -6.31 % ± 2.90
+  p Pinnacle × cote entre 0.98 et 1.00               paris   1290  réussite  61.2 %  cote 1.86  rendement  -0.16 % ± 4.86
+  p Pinnacle × cote entre 1.00 et 1.03               paris    562  réussite  57.7 %  cote 2.06  rendement  +5.04 % ± 8.60
+  p Pinnacle × cote entre 1.03 et 9.00               paris    181  réussite  48.6 %  cote 3.09  rendement  -4.67 % ± 15.31
+  idem, cotes de 1,25 à 2,00 seulement :
+  p Pinnacle × cote entre 0.00 et 0.95               paris   3210  réussite  57.0 %  cote 1.63  rendement  -8.54 % ± 2.85
+  p Pinnacle × cote entre 0.95 et 1.00               paris   3375  réussite  62.4 %  cote 1.57  rendement  -3.63 % ± 2.63
+  p Pinnacle × cote entre 1.00 et 9.00               paris    471  réussite  64.8 %  cote 1.69  rendement  +7.96 % ± 7.45

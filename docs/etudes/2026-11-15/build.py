@@ -18,10 +18,11 @@ async def main():
     odds = {}
     for mid, book, market, timing, sel, price in rows:
         odds.setdefault(mid, {})[(book, market, timing, sel)] = float(price)
-    comps = sorted(set(hist.competition[hist.finished]))
+    from footprono.ingestion.reference import NON_LEAGUE_CODES
+    comps = sorted(c for c in set(hist.competition[hist.finished]) if c not in NON_LEAGUE_CODES)
     print(comps, flush=True)
     pred = run_backtest(hist, BacktestConfig(competitions=comps, seasons=list(range(2018, 2027)),
                                               progress=lambda m: print(m, flush=True)))
-    pickle.dump({"hist": hist, "pred": pred, "odds": odds}, open("/opt/fpdata/study/data.pkl", "wb"))
+    pickle.dump({"hist": hist, "pred": pred, "odds": odds}, open("/opt/fpdata/study/data_server.pkl", "wb"))
     print("ok", len(pred.match_id))
 asyncio.run(main())
