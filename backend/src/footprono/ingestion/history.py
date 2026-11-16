@@ -74,6 +74,10 @@ CLUBS = {
     "SRB": League(286, "Serbia", "Serbie · Super Liga", "all"),
     "ISR": League(383, "Israel", "Israël · Ligat ha'Al", "all"),
     "CYP": League(318, "Cyprus", "Chypre · 1re division", "all"),
+    # Deuxièmes divisions candidates (étude du 03/10/2026, docs/MOTEUR.md « Championnats
+    # candidats ») : collectées pour l'audit marché par marché avant toute publication.
+    "ENG2": League(40, "England", "Angleterre · Championship", "all", "championship"),
+    "GER2": League(79, "Germany", "Allemagne · 2. Bundesliga", "all", "2. bundesliga"),
 }
 CUPS = {
     "UCL": League(2, "World", "Ligue des Champions", "main", "champions league"),
