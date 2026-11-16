@@ -165,3 +165,44 @@ async def test_stopped_task_is_reported_even_without_error(
     finally:
         for name in ("follow_live", "check_payments", "kickoff_reminders"):
             await redis.delete(PREFIX + name)
+
+
+async def test_paused_championships_are_an_outage(db_factory: Factory, redis: Any) -> None:
+    """Export du 15/11/2026 : du 17/10 au 02/11, presque tous les championnats en pause
+    (résultats manquants) sans que personne le voie. Panne signalée, avec depuis quand et
+    l'action qui répare ; collecte des résultats arrêtée depuis plus de 30 h signalée aussi."""
+    from datetime import date, timedelta
+
+    from footprono.football.models import IngestionRun
+    from footprono.predictions.models import PredictionRun
+
+    now = datetime.now(UTC)
+    paused = {"EPL": {"played": 10, "missing": 10}, "POL": {"played": 9, "missing": 9}}
+
+    def run(hours: int, stale: dict[str, Any]) -> PredictionRun:
+        return PredictionRun(
+            engine_version="test", as_of=date(2026, 1, 1), status="ok", parameters={},
+            report={"stale": stale}, started_at=now - timedelta(hours=hours),
+        )  # fmt: skip
+
+    async with db_factory() as session:
+        session.add_all([run(72, {}), run(48, {"EPL": paused["EPL"]}), run(1, paused)])
+        session.add(
+            IngestionRun(
+                source="api_football", status="ok", parameters={}, report={},
+                started_at=now - timedelta(hours=40),
+            )
+        )  # fmt: skip
+        await session.commit()
+        board = await dashboard.dashboard(session, redis, make_settings())
+    items = {t["text"].split(" ")[0]: t for t in board["todo"]}
+    pause = next(t for t in board["todo"] if t["text"].startswith("pronostics en pause"))
+    assert pause["level"] == "error"
+    assert pause["action"] == "ingest_current"
+    assert "pour 2 championnat(s)" in pause["text"]
+    since = now - timedelta(hours=48)
+    assert f"depuis le {since:%d/%m à %H:%M} GMT" in pause["text"]
+    assert "EPL, POL" in pause["text"]
+    results = items["résultats"]
+    assert results["level"] == "warning"
+    assert results["action"] == "ingest_current"

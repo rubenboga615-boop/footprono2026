@@ -40,7 +40,29 @@ HEARTBEATS = {
     "check_payments": timedelta(minutes=40),
     "kickoff_reminders": timedelta(minutes=30),
 }
+# Collecte des résultats (chaque matin) : au-delà, quelque chose l'empêche de tourner.
+INGESTION_MAX_AGE = timedelta(hours=30)
+# Exécutions du moteur relues pour dire depuis quand un championnat est en pause.
+PAUSE_LOOKBACK = 200
 QUOTA_TTL = 600  # /status ne coûte pas de requête, mais inutile de l'appeler à chaque page
+
+
+async def _paused_since(session: AsyncSession, stale: set[str]) -> datetime | None:
+    """Début de la pause en cours : première des dernières exécutions du moteur, sans
+    interruption, où l'un de ces championnats était déjà en pause."""
+    runs = (
+        await session.execute(
+            select(PredictionRun.started_at, PredictionRun.report)
+            .order_by(PredictionRun.started_at.desc())
+            .limit(PAUSE_LOOKBACK)
+        )
+    ).all()
+    since = None
+    for started, report in runs:
+        if not stale & set((report or {}).get("stale") or {}):
+            break
+        since = started
+    return since
 
 
 async def _unfollowed_matches(session: AsyncSession) -> list[str]:
@@ -282,11 +304,34 @@ async def dashboard(session: AsyncSession, redis: Redis, settings: Settings) -> 
         )
     stale = ((prediction.report or {}).get("stale") or {}) if prediction is not None else {}
     if stale:
+        # Du 17/10 au 02/11/2026, presque tous les championnats sont restés en pause sans que
+        # personne le voie (analyse de l'export du 15/11 : 323 matchs jamais prédits). C'est
+        # une panne des pronostics : alerte rouge, avec depuis quand et l'action qui répare.
+        since = await _paused_since(session, set(stale))
+        todo.append(
+            {
+                "level": "error",
+                "text": f"pronostics en pause pour {len(stale)} championnat(s), résultats "
+                "manquants"
+                + (f" depuis le {since:%d/%m à %H:%M} GMT" if since else "")
+                + " : "
+                + ", ".join(sorted(stale))
+                + ". Lance « Mettre à jour la saison en cours ».",
+                "action": "ingest_current",
+            }
+        )
+    last_ok = await session.scalar(
+        select(func.max(IngestionRun.started_at)).where(IngestionRun.status.in_(("ok", "partial")))
+    )
+    if last_ok is not None and now - last_ok > INGESTION_MAX_AGE:
+        # Les résultats arrivent par cette collecte (chaque matin) : sans elle, les
+        # championnats passent en pause quelques jours plus tard.
         todo.append(
             {
                 "level": "warning",
-                "text": "pronostics en pause, résultats manquants (source coupée ?) : "
-                + ", ".join(sorted(stale)),
+                "text": f"résultats pas mis à jour depuis le {last_ok:%d/%m à %H:%M} GMT "
+                "(dernière collecte réussie)",
+                "action": "ingest_current",
             }
         )
     runs = await recent_runs(redis) if redis_ok else []
