@@ -320,3 +320,28 @@ async def test_engines_reliability_records_settles_and_judges(
     assert (one["settled"], one["won"]) == (1, 1)
     assert one["profit"] == 2422  # 1 000 F à 1,85 fois 1,85 (3,4225) : 3 422 rendus
     assert body["enough"] is False  # jamais de verdict avec 2 matchs
+
+
+async def test_console_creates_the_daily_coupons_of_both_engines(
+    world: dict[str, Any],  # noqa: F811
+    db_factory: Factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from footprono.console import actions
+    from footprono.console.jobs import JobContext
+
+    from .conftest import make_settings
+
+    m1, m2 = world["m1"], world["m2"]
+    await _predict(db_factory, [m1, m2])
+    await _evening(db_factory, [m1, m2])
+    real = smart_coupon.create_daily
+
+    async def at_morning(session: Any, now: Any = None, engine: int = 1) -> Any:
+        return await real(session, MORNING, engine=engine)
+
+    monkeypatch.setattr(smart_coupon, "create_daily", at_morning)
+    ctx = JobContext(db_factory, make_settings(), 0)
+    summary = await actions.daily_coupons(ctx, {})
+    assert "equilibre : 2 sélection(s)" in summary
+    assert "moteur 2, equilibre : 2 sélection(s)" in summary

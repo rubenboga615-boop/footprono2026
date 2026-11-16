@@ -583,6 +583,10 @@ register(
 async def daily_coupons(ctx: JobContext, params: dict[str, Any]) -> str:
     async with ctx.factory() as session:
         report = await smart_coupon.create_daily(session)
+    # Comparaison des moteurs (K5) : ceux du moteur 2 aussi, à part (comme à 08:05).
+    async with ctx.factory() as session:
+        engine2 = await smart_coupon.create_daily(session, engine=2)
+    report.update({f"moteur 2, {p}": state for p, state in engine2.items()})
     for profile, state in report.items():
         ctx.log(f"{profile} : {state}")
     ctx.result = report
