@@ -62,6 +62,10 @@ TIER_2_NO_CLEAN_SHEET = replace(TIER_2, withdrawn=NO_BTTS | {"CLEAN_SHEET"})
 # Israël : buts à la mi-temps sans apport à l'audit 2022-25 (+0,7 % de log loss gagnée).
 TIER_2_ISRAEL = replace(TIER_2, withdrawn=NO_BTTS | {"HT_OU"})
 
+# Championship : « plus/moins de buts du match » sans apport à l'audit 2022-25 (+0,6 % de
+# log loss gagnée, docs/MOTEUR.md « Championship en service ») : retiré pour lui seulement.
+TIER_2_CHAMPIONSHIP = replace(TIER_2, withdrawn=NO_BTTS | {"OU"})
+
 # Niveau 2 : tirs sans xG (football-data, ou API-Football depuis la Suisse).
 _TIER_2_CODES = "POR BEL NED GRE TUR SCO SUI NOR SWE DEN AUT"
 TIERS: dict[str, Tier] = {
@@ -69,6 +73,7 @@ TIERS: dict[str, Tier] = {
     **{code: TIER_2_NO_CLEAN_SHEET for code in ("POL", "CZE", "CRO", "ROU")},
     "SRB": TIER_2,
     "ISR": TIER_2_ISRAEL,
+    "ENG2": TIER_2_CHAMPIONSHIP,
 }
 
 

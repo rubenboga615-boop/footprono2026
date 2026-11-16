@@ -1018,6 +1018,33 @@ Les clubs serbes et israéliens déjà créés par l'import des coupes d'Europe 
 Partizan, Maccabi Haïfa…) sont repris tels quels : une seule fiche par club, la même note
 Elo en championnat et en coupe.
 
+## Championship en service (niveau 2, 16/11/2026)
+
+Deuxième division anglaise, retenue avec la 2. Bundesliga après l'étude du 03/10/2026
+(« Championnats candidats »). Historique de l'archive `api-football-historique` (collecte du
+16/11/2026, saisons 2018 à 2026, statistiques de presque tous les matchs) importé par le vrai
+chargeur : 0 anomalie ; barrages de montée ignorés. Clubs déjà connus en Premier League
+repris (une seule fiche par club), 22 nouveaux. Réglages du niveau 2 tels quels, rien de
+réglé sur ce championnat. Pas de cotes passées dans l'archive : comparaison à la référence
+naïve (retard sur les cotes de clôture : 0,011 à l'étude du 03/10, comme les 5 grands).
+
+| Période | Matchs | 1-N-2 / naïf | +2,5 / naïf | Calibration | Favoris 60-70 % / 70-80 % annoncé → observé |
+|---|---|---|---|---|---|
+| 2022-26 | 2 208 | 1,0440 / 1,0763 | 0,6882 / 0,6927 | 0,9 pt | 64,0 → 61,8 / 72,9 → 77,8 |
+| 2019-21 | 1 656 | 1,0576 / 1,0798 | 0,6896 / 0,6908 | | |
+
+Lecture : mieux que la référence naïve sur les deux marchés et les deux périodes, très bien
+calibré, mais apport faible (championnat très équilibré : environ 3 % de log loss gagnée sur
+le 1-N-2, contre 2 à 10 % ailleurs au niveau 2). Audit de tous les marchés
+(`footprono-engine audit`, 2022-25) : 16 familles validées ; **« buts du match
+(plus/moins) » sans apport (+0,6 %) : retiré pour le Championship** (`TIER_2_CHAMPIONSHIP`),
+avec « les deux marquent » et ses combinés comme partout au niveau 2 ; mi-temps la plus
+prolifique et pair / impair étaient déjà retirés partout.
+
+2. Bundesliga : collecte de l'historique à terminer (statistiques absentes depuis 2023 dans
+l'archive du 16/11) ; noms de clubs à relier avant l'étude (« VfL Bochum » / « Vfl Bochum »,
+« FC Heidenheim » / « 1. FC Heidenheim »…).
+
 ## Pologne, Tchéquie, Croatie, Roumanie en service ; Australie écartée (06/10/2026)
 
 Historique de l'archive `api-football-historique` (collecte des 05 et 06/10/2026, saisons

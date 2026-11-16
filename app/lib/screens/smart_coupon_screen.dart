@@ -55,6 +55,7 @@ class SmartCouponScreen extends StatefulWidget {
     'ROU',
     'SRB',
     'ISR',
+    'ENG2',
     'UCL',
     'UEL',
     'UECL',

@@ -110,6 +110,11 @@ COMPETITIONS: tuple[CompetitionRef, ...] = (
     CompetitionRef(
         "ISR", "Ligat ha'Al", "Israel", 14, None, None, 383, team_counts=(14,), playoffs=True
     ),
+    # Étude du 16/11/2026 (docs/MOTEUR.md, « Championship en service ») : 24 équipes, barrages
+    # de montée ignorés à l'import (comme les autres phases finales hors championnat).
+    CompetitionRef(
+        "ENG2", "Championship", "England", 24, None, None, 40, team_counts=(24,), playoffs=True
+    ),
 )
 COMPETITIONS_BY_CODE = {c.code: c for c in COMPETITIONS}
 

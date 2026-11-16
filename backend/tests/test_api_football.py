@@ -35,7 +35,7 @@ async def test_competitions(client: AsyncClient) -> None:
     competitions = {c["code"]: c for c in response.json()}
     assert set(competitions) == {
         "EPL", "LA_LIGA", "SERIE_A", "BUNDESLIGA", "LIGUE_1", "POR", "BEL", "NED", "GRE", "TUR",
-        "SCO", "SUI", "NOR", "SWE", "DEN", "AUT", "POL", "CZE", "CRO", "ROU", "SRB", "ISR",
+        "SCO", "SUI", "NOR", "SWE", "DEN", "AUT", "POL", "CZE", "CRO", "ROU", "SRB", "ISR", "ENG2",
     }  # fmt: skip
     # Classement mérité (application) : seulement les championnats avec xG Understat.
     assert competitions["EPL"]["understat_slug"] == "EPL"

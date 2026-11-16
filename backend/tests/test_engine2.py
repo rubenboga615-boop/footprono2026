@@ -274,7 +274,9 @@ async def test_engines_reliability_records_settles_and_judges(
     m1, m2 = world["m1"], world["m2"]
     await _predict(db_factory, [m1, m2])
     await _evening(db_factory, [m1, m2])
-    await _reference(db_factory, m1)
+    # Cote de référence relevée 2 heures avant le match : récente au moment du relevé des
+    # chances (sinon, selon l'heure du test, plus de 36 heures avant le soir de demain).
+    await _reference(db_factory, m1, NOW - (KICKOFF - timedelta(hours=2)))
     headers = await _login(client)
     await make_premium(db_factory, "+22997111111")
     assert (await client.get("/api/v1/reliability/engines", headers=headers)).status_code == 400
