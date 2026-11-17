@@ -86,7 +86,12 @@ async def test_record_counts_only_my_settled_bets(
     assert body["yield"] == round(body["profit"] / body["staked"], 4)
 
     markets = {m["key"]: m for m in body["by_market"]}
-    assert markets["1X2"] == {"key": "1X2", "won": 15, "lost": 10, "push": 0, "rate": 0.6}
+    # 65 % annoncé, 60 % réalisé sur 25 : dans le hasard (écart-type ≈ 9,5 points), pas de signal.
+    assert markets["1X2"] == {
+        "key": "1X2", "won": 15, "lost": 10, "push": 0, "rate": 0.6,
+        "announced": 0.65, "gap": None,
+    }  # fmt: skip
+    assert markets["BTTS"]["announced"] is None  # seulement remboursée
     assert markets["BTTS"]["push"] == 1
     assert markets["BTTS"]["rate"] is None
     assert body["by_competition"][0]["key"] == "EPL"
@@ -127,3 +132,16 @@ async def test_record_counts_only_my_settled_bets(
     assert by_odds[2.0]["bets"] == 1  # combiné à 2,00
     assert by_odds[2.0]["announced"] == round(0.55 * 0.5, 4)
     assert by_odds[2.0]["high"] == 5.0
+
+
+def test_market_gap_needs_enough_selections_and_a_clear_difference() -> None:
+    """Maquette du 17/11/2026 : double chance annoncée 71 %, réalisée 44 % sur 43."""
+    from footprono.bookmaker.record import _group
+
+    dc = [("DC", "win" if i < 19 else "loss", 0.71) for i in range(43)]
+    few = [("HT_1X2", "win" if i < 1 else "loss", 0.38) for i in range(7)]
+    eh = [("EH", "win" if i < 24 else "loss", 0.70) for i in range(25)]
+    out = {g["key"]: g for g in _group(dc + few + eh)}
+    assert (out["DC"]["announced"], out["DC"]["gap"]) == (0.71, "low")
+    assert out["HT_1X2"]["gap"] is None  # 7 sélections : le hasard
+    assert out["EH"]["gap"] == "high"  # 96 % pour 70 % annoncé

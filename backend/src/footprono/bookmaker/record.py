@@ -41,15 +41,42 @@ def _rate(won: int, lost: int) -> float | None:
     return None if won + lost == 0 else round(won / (won + lost), 4)
 
 
-def _group(rows: list[tuple[str, str]]) -> list[dict[str, Any]]:
+def _gap(announced: float, won: int, n: int) -> str | None:
+    """« low » / « high » : réalisé nettement sous / au-dessus de l'annoncé (plus de deux
+    écarts-types du hasard, au moins MIN_BAND sélections) ; None sinon."""
+    if n < MIN_BAND:
+        return None
+    spread = 2 * math.sqrt(max(announced * (1 - announced), 1e-9) / n)
+    observed = won / n
+    if observed < announced - spread:
+        return "low"
+    if observed > announced + spread:
+        return "high"
+    return None
+
+
+def _group(rows: list[tuple[str, str, float | None]]) -> list[dict[str, Any]]:
+    """Par marché ou par championnat. « announced » (maquette du 17/11/2026) : chance moyenne
+    donnée par le moteur aux sélections gagnées ou perdues qui en ont une."""
     counts: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
-    for key, result in rows:
+    probs: dict[str, list[tuple[float, bool]]] = defaultdict(list)
+    for key, result, prob in rows:
         c = counts[key]
         c[0 if result in _WON else 1 if result in _LOST else 2] += 1
-    out = [
-        {"key": k, "won": w, "lost": lo, "push": p, "rate": _rate(w, lo)}
-        for k, (w, lo, p) in counts.items()
-    ]
+        if prob is not None and result in _WON | _LOST:
+            probs[key].append((prob, result in _WON))
+    out = []
+    for k, (w, lo, p) in counts.items():
+        graded = probs.get(k, [])
+        announced = sum(x for x, _ in graded) / len(graded) if graded else None
+        out.append(
+            {
+                "key": k, "won": w, "lost": lo, "push": p, "rate": _rate(w, lo),
+                "announced": None if announced is None else round(announced, 4),
+                "gap": None if announced is None
+                else _gap(announced, sum(1 for _, won in graded if won), len(graded)),
+            }
+        )  # fmt: skip
     return sorted(out, key=lambda x: -(x["won"] + x["lost"] + x["push"]))
 
 
@@ -118,8 +145,8 @@ async def player_record(
         "returned": returned,
         "profit": returned - staked,
         "yield": None if staked == 0 else round((returned - staked) / staked, 4),
-        "by_market": _group([(s.market, s.result) for s, _ in graded]),
-        "by_competition": _group([(code, s.result) for s, code in graded]),
+        "by_market": _group([(s.market, s.result, s.model_probability) for s, _ in graded]),
+        "by_competition": _group([(c, s.result, s.model_probability) for s, c in graded]),
         "calibration": bands,
         "min_band": MIN_BAND,
         "stakes_7d": stakes_7d,

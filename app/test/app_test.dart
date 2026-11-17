@@ -1001,10 +1001,20 @@ class FakeServer {
           'profit': 3000,
           'yield': 0.1,
           'by_market': [
-            {'key': '1X2', 'won': 15, 'lost': 10, 'push': 0, 'rate': 0.6},
+            {'key': '1X2', 'won': 15, 'lost': 10, 'push': 0, 'rate': 0.6, 'announced': 0.65, 'gap': null},
+            {'key': 'DC', 'won': 19, 'lost': 24, 'push': 0, 'rate': 0.4419, 'announced': 0.71, 'gap': 'low'},
+            {'key': 'HT_1X2', 'won': 1, 'lost': 6, 'push': 0, 'rate': 0.1429, 'announced': 0.38, 'gap': null},
           ],
           'by_competition': [
-            {'key': 'LIGUE_1', 'won': 16, 'lost': 10, 'push': 1, 'rate': 0.6154},
+            {
+              'key': 'LIGUE_1',
+              'won': 16,
+              'lost': 10,
+              'push': 1,
+              'rate': 0.6154,
+              'announced': 0.62,
+              'gap': null,
+            },
           ],
           'calibration': [band(0.6, 25, 0.65, 0.625, 0.6), band(0.5, 1, 0.55, 0.5, 1.0)],
           'min_band': 20,
@@ -1578,9 +1588,15 @@ void main() {
       find.text('Tes sélections annoncées autour de 65$nbsp% ont gagné 60$nbsp% du temps.'),
       findsOneWidget,
     );
-    expect(find.textContaining('Moins de 20 sélections'), findsOneWidget);
+    // Annoncé contre réalisé (bande de 1 sélection) et mi-temps (7 sélections, 38 % contre 14 %).
+    expect(find.textContaining('Moins de 20 sélections'), findsNWidgets(2));
     expect(find.textContaining('ont au moins doublé'), findsOneWidget);
     expect(find.text('Résultat du match'), findsOneWidget);
+    // Maquette du 17/11/2026 : annoncé à côté du réalisé, écart net signalé.
+    expect(find.text('Bien en dessous de l\'annoncé'), findsOneWidget);
+    expect(find.text('71$nbsp%'), findsOneWidget);
+    expect(find.text('44$nbsp%'), findsOneWidget);
+    expect(find.text('27'), findsOneWidget); // Ligue 1 : 16 + 10 + 1 remboursée
     expect(find.text('Ligue 1'), findsOneWidget);
     expect(find.text('Par cote du coupon'), findsOneWidget);
     expect(find.text('20 et plus'), findsOneWidget);

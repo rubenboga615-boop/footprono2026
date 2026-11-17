@@ -157,16 +157,28 @@ class RecordScreen extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 12),
-      _Breakdown('Par marché', (data['by_market'] as List).cast<Json>(), (k) => marketTitle(k)),
+      _Breakdown(
+        'Par marché',
+        (data['by_market'] as List).cast<Json>(),
+        (k) => marketTitle(k),
+        data['min_band'] as int,
+      ),
       const SizedBox(height: 12),
-      _Breakdown('Par championnat', (data['by_competition'] as List).cast<Json>(), competitionName),
+      _Breakdown(
+        'Par championnat',
+        (data['by_competition'] as List).cast<Json>(),
+        competitionName,
+        data['min_band'] as int,
+      ),
       if (((data['by_odds'] as List?) ?? const []).isNotEmpty) ...[
         const SizedBox(height: 12),
         _ByOdds((data['by_odds'] as List).cast<Json>(), currency),
       ],
       const SizedBox(height: 14),
       Text(
-        'Réussite : sélections gagnées (demi-gains compris) sur gagnées + perdues ; remboursées à part. '
+        'Réalisé : sélections gagnées (demi-gains compris) sur gagnées + perdues ; remboursées à part. '
+        'Annoncé : chance moyenne donnée par le moteur au moment du pari. Rouge ou vert : écart net, '
+        'plus grand que le hasard, sur au moins ${data['min_band']} sélections. '
         'Selon la cote : 1 / cote, la probabilité que la cote annonce (marge du bookmaker comprise). '
         'Argent fictif : aucun gain réel.',
         style: Fp.body(12, color: Fp.text3, height: 1.4),
@@ -221,15 +233,26 @@ class _Band extends StatelessWidget {
   }
 }
 
+/// Par marché ou par championnat, avec la chance annoncée par le moteur à côté du réalisé
+/// (maquette docs/maquettes/11-bilan-annonce, validée le 17/11/2026).
 class _Breakdown extends StatelessWidget {
-  const _Breakdown(this.title, this.rows, this.label);
+  const _Breakdown(this.title, this.rows, this.label, this.minBand);
   final String title;
   final List<Json> rows;
   final String Function(String) label;
+  final int minBand;
 
   @override
   Widget build(BuildContext context) {
     if (rows.isEmpty) return const SizedBox.shrink();
+    Widget head(String t, double w) => SizedBox(
+      width: w,
+      child: Text(
+        t,
+        textAlign: TextAlign.right,
+        style: Fp.body(11, color: Fp.text3),
+      ),
+    );
     return GlassCard.section(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -239,31 +262,74 @@ class _Breakdown extends StatelessWidget {
               Expanded(
                 child: Text(title, style: Fp.title(15, weight: FontWeight.w600)),
               ),
-              Text('gagnées · perdues · réussite', style: Fp.body(11, color: Fp.text3)),
+              head('sél.', 34),
+              head('annoncé', 62),
+              head('réalisé', 56),
             ],
           ),
           const SizedBox(height: 4),
-          for (final r in rows)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(label(r['key'] as String), style: Fp.body(14, weight: FontWeight.w600)),
-                  ),
-                  Text('${r['won']} · ${r['lost']}', style: Fp.body(13, color: Fp.text2)),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: 52,
-                    child: Text(
-                      r['rate'] == null ? '—' : percent((r['rate'] as num).toDouble()),
-                      textAlign: TextAlign.right,
-                      style: Fp.body(14, color: Fp.accentLight, weight: FontWeight.w700),
-                    ),
-                  ),
-                ],
-              ),
+          for (final r in rows) _BreakdownRow(r, label(r['key'] as String), minBand),
+        ],
+      ),
+    );
+  }
+}
+
+class _BreakdownRow extends StatelessWidget {
+  const _BreakdownRow(this.r, this.name, this.minBand);
+  final Json r;
+  final String name;
+  final int minBand;
+
+  @override
+  Widget build(BuildContext context) {
+    final graded = (r['won'] as int) + (r['lost'] as int);
+    final total = graded + (r['push'] as int);
+    final rate = (r['rate'] as num?)?.toDouble();
+    final announced = (r['announced'] as num?)?.toDouble();
+    final gap = r['gap'] as String?;
+    final color = switch (gap) {
+      'low' => Fp.loss,
+      'high' => Fp.win,
+      _ => Fp.accentLight,
+    };
+    // Petit échantillon et grand écart : on prévient que c'est surtout le hasard.
+    final fewButFar =
+        gap == null &&
+        graded < minBand &&
+        rate != null &&
+        announced != null &&
+        (rate - announced).abs() >= 0.15;
+    final note = switch (gap) {
+      'low' => ('Bien en dessous de l\'annoncé', Fp.loss),
+      'high' => ('Bien au-dessus de l\'annoncé', Fp.win),
+      _ when fewButFar => ('Moins de $minBand sélections : l\'écart vient surtout du hasard.', Fp.warning),
+      _ => null,
+    };
+    Widget cell(String t, double w, TextStyle style) => SizedBox(
+      width: w,
+      child: Text(t, textAlign: TextAlign.right, style: style),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: Fp.body(14, weight: FontWeight.w600)),
+                if (note != null) Text(note.$1, style: Fp.body(11.5, color: note.$2)),
+              ],
             ),
+          ),
+          cell('$total', 34, Fp.body(13, color: Fp.text2)),
+          cell(
+            announced == null ? '—' : percent(announced),
+            62,
+            Fp.body(14, color: Fp.accentLight, weight: FontWeight.w700),
+          ),
+          cell(rate == null ? '—' : percent(rate), 56, Fp.body(14, color: color, weight: FontWeight.w700)),
         ],
       ),
     );
