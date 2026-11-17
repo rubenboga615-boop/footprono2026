@@ -51,8 +51,9 @@ ODDS_STALE = timedelta(hours=3)
 DAILY_COUPONS_AT = time(8, 5)
 # Requêtes du reste de la journée hors direct (résultats du matin, blessés, cotes) : marge.
 OTHER_MARGIN = 300
-# Relevé des cotes : environ une requête par championnat et par page (estimation).
-ODDS_COST = 60
+# Relevé des cotes et des blessés : 211 requêtes au premier rattrapage réel (17/11/2026,
+# 60 estimées avant) ; arrondi au-dessus.
+ODDS_COST = 250
 STEPS = (
     "Bilan",
     "Matchs en retard",
