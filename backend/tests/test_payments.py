@@ -2,6 +2,7 @@
 
 import json
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -257,11 +258,17 @@ async def test_pending_payment_is_reused_for_20_minutes(
     assert len(fake.inits) == 2
 
 
-async def test_payment_callbacks_are_rate_limited(pay_app: FastAPI, fake: FakeCinetPay) -> None:
+async def test_payment_callbacks_are_rate_limited(
+    pay_app: FastAPI, fake: FakeCinetPay, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Rapport du 14/11/2026, P3 : chaque appel interroge le prestataire avec notre clé."""
     from redis.asyncio import Redis
 
     from footprono.api.v1 import payments as payments_api
+    from footprono.core import ratelimit
+
+    # Horloge figée : le test ne doit pas dépendre du passage d'une fenêtre de 10 minutes.
+    monkeypatch.setattr(ratelimit, "time", SimpleNamespace(time=lambda: 1_800_000_000.0))
 
     from .conftest import TEST_REDIS_URL
 
