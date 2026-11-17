@@ -34,6 +34,7 @@ TRACKED = {
     "check_payments": "Paiements (10 min)",
     "premium_reminders": "Rappels Premium",
     "kickoff_reminders": "Coups d'envoi (5 min)",
+    "catch_up": "Tout rattraper (nuit)",
 }
 
 F = TypeVar("F", bound=Callable[..., Any])

@@ -40,6 +40,9 @@ HEARTBEATS = {
     "check_payments": timedelta(minutes=40),
     "kickoff_reminders": timedelta(minutes=30),
 }
+# Quota bas en journée : le direct en a encore besoin jusqu'au soir.
+QUOTA_LOW_DAYTIME = 2000
+QUOTA_LOW_UNTIL_HOUR = 18
 # Collecte des résultats (chaque matin) : au-delà, quelque chose l'empêche de tourner.
 INGESTION_MAX_AGE = timedelta(hours=30)
 # Exécutions du moteur relues pour dire depuis quand un championnat est en pause.
@@ -294,14 +297,22 @@ async def dashboard(session: AsyncSession, redis: Redis, settings: Settings) -> 
         todo.append(
             {"level": "warning", "text": "pas de sauvegarde de la base depuis plus de 30 h"}
         )
-    if quota and quota["limit"] and quota["limit"] - quota["used"] < 500:
-        todo.append(
-            {
-                "level": "warning",
-                "text": f"plus que {quota['limit'] - quota['used']} requêtes API-Football "
-                "aujourd'hui",
-            }
-        )
+    if quota and quota["limit"]:
+        left = quota["limit"] - quota["used"]
+        # 16/11/2026 : quota vidé dès le matin par une collecte d'historique, personne
+        # prévenu. En journée (avant 18:00 GMT), le direct a encore besoin de beaucoup.
+        if left < 500 or (now.hour < QUOTA_LOW_UNTIL_HOUR and left < QUOTA_LOW_DAYTIME):
+            todo.append(
+                {
+                    "level": "warning",
+                    "text": f"plus que {left} requêtes API-Football aujourd'hui"
+                    + (
+                        " : le direct risque de s'arrêter"
+                        if now.hour < QUOTA_LOW_UNTIL_HOUR
+                        else ""
+                    ),
+                }
+            )
     stale = ((prediction.report or {}).get("stale") or {}) if prediction is not None else {}
     if stale:
         # Du 17/10 au 02/11/2026, presque tous les championnats sont restés en pause sans que

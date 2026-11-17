@@ -34,6 +34,9 @@ from footprono.notifications.models import Notification
 KIND = "bet_live"
 QUIET_FROM, QUIET_TO = 23, 8
 LATE_AFTER = timedelta(minutes=30)
+# Relevé du direct plus ancien que ça : le suivi est arrêté (quota, panne), le match peut
+# très bien avoir commencé.
+STALE_AFTER = timedelta(minutes=15)
 # Décalage horaire (heures) des pays des joueurs ; UTC par défaut (Côte d'Ivoire, Togo,
 # Sénégal, Mali, Burkina Faso, Guinée…).
 UTC_OFFSETS = {"BJ": 1, "CM": 1, "GA": 1, "CG": 1, "CD": 1, "NE": 1, "TD": 1, "CF": 1, "GQ": 1,
@@ -255,8 +258,16 @@ async def observe(
             )
             alerts.events.append(Event(bet.user_id, "delayed", text, bet.id, match.id))
         elif late and match.api_status in (None, "NS", "TBD") and match.live_minute is None:
-            text = f"{home} - {away} n'a pas commencé : heure à confirmer."
-            alerts.events.append(Event(bet.user_id, "delayed", text, bet.id, match.id))
+            # Pas de relevé récent : ce sont NOS nouvelles qui manquent (quota vide le
+            # 16/11/2026), pas forcément le match ; le dire au joueur.
+            stale = match.live_updated_at is None or now - match.live_updated_at > STALE_AFTER
+            text = (
+                f"Résultats en retard pour {home} - {away} : ils arriveront dès que possible."
+                if stale
+                else f"{home} - {away} n'a pas commencé : heure à confirmer."
+            )
+            kind = "lagging" if stale else "delayed"
+            alerts.events.append(Event(bet.user_id, kind, text, bet.id, match.id))
     undecided = {s.match_id for s, g in zip(selections, grades, strict=True) if g is None}
     if total >= 2 and len(undecided) == 1 and all(g.result not in LOST for g in decided):
         match = await session.get(Match, next(iter(undecided)))
@@ -293,10 +304,11 @@ _TITLES = {
     "cancelled": "↩️ But annulé",
     "last_match": "Tout se joue sur le dernier match",
     "delayed": "Match pas encore commencé",
+    "lagging": "Résultats en retard",
 }
-_ORDER = ("validated", "changed", "cancelled", "last_match", "started", "delayed")
+_ORDER = ("validated", "changed", "cancelled", "last_match", "started", "delayed", "lagging")
 # Une fois par match et par joueur (pas à chaque passage du règlement).
-_ONCE_PER_MATCH = ("delayed", "started")
+_ONCE_PER_MATCH = ("delayed", "started", "lagging")
 
 
 def quiet(country: str, now: datetime) -> bool:

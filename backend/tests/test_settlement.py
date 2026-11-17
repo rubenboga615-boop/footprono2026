@@ -147,6 +147,8 @@ async def test_bet_to_balance_end_to_end(
         report = await settle_bets(session)
     assert report == {
         "settled": 2, "resettled": 0, "pending": 0, "live_alerts": 0, "notified": 0,
+        "outcomes": {"won": 1, "lost": 1, "push": 0, "partial": 0},
+        "montantes": {"advanced": 0, "stopped": 0},
     }  # fmt: skip
     async with db_factory() as session:
         s = await session.get(Bet, single["id"])
@@ -198,7 +200,12 @@ async def test_postponed_match_is_refunded_after_48h(
         await session.execute(
             update(Match)
             .where(Match.id == world["m2"])
-            .values(api_status="PST", kickoff_at=datetime.now(UTC) - timedelta(hours=49))
+            .values(
+                api_status="PST",
+                kickoff_at=datetime.now(UTC) - timedelta(hours=49),
+                # Report confirmé par la source après coup (jamais sur un relevé manqué).
+                live_updated_at=datetime.now(UTC) - timedelta(hours=1),
+            )
         )
         await session.commit()
     async with db_factory() as session:

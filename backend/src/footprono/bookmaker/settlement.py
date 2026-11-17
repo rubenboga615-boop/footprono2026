@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from footprono.accounts import service as accounts
-from footprono.accounts.models import Wallet
+from footprono.accounts.models import User, Wallet
 from footprono.bookmaker import live_alerts, montante
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.engine.counts import booking_points_markets, count_markets
@@ -77,6 +77,11 @@ LIVE_COUNT_TYPES = {
 }
 # Match reporté ou annulé : sélection remboursée passé ce délai après le coup d'envoi prévu.
 VOID_AFTER = timedelta(hours=48)
+# Remboursement seulement si la source a confirmé le statut (reporté, annulé…) par une mise à
+# jour faite au moins ce délai après l'heure prévue : jamais parce que NOUS n'avons pas pu
+# demander le match (quota vide le 16/11/2026, panne). Le rattrapage de chaque nuit le
+# redemande ; un match jamais remis à jour reste en attente.
+VOID_CONFIRMED_AFTER = timedelta(hours=24)
 RESETTLE_WINDOW = timedelta(days=7)
 
 
@@ -359,8 +364,12 @@ async def grade_selection(session: AsyncSession, sel: BetSelection, now: datetim
         return Grade("push", Decimal(1))
     if match.status is not MatchStatus.FINISHED:
         planned = match.kickoff_at or datetime.combine(match.match_date, datetime.min.time(), UTC)
-        if match.api_status in UNPLAYED_STATUSES and now - planned > VOID_AFTER:
-            return Grade("push", Decimal(1))  # reporté ou annulé : remboursé
+        confirmed = (
+            match.live_updated_at is not None
+            and match.live_updated_at >= planned + VOID_CONFIRMED_AFTER
+        )
+        if match.api_status in UNPLAYED_STATUSES and now - planned > VOID_AFTER and confirmed:
+            return Grade("push", Decimal(1))  # reporté ou annulé, confirmé : remboursé
         # Pendant le match : réglée dès que son résultat ne peut plus changer.
         return await _early_grade(session, match, sel, now)
     key = f"{sel.market}|{sel.line}|{sel.selection}"
@@ -415,7 +424,13 @@ async def _bet_name(session: AsyncSession, selections: Sequence[BetSelection]) -
     return f"{row[0]} - {row[1]}" if row else "pari"
 
 
-def _notify_settled(session: AsyncSession, bet: Bet, name: str, detail: str | None = None) -> None:
+def _notify_settled(
+    session: AsyncSession,
+    bet: Bet,
+    name: str,
+    detail: str | None = None,
+    extra: dict[str, Any] | None = None,
+) -> None:
     outcome = bet.outcome or "lost"
     if outcome == "lost" and detail:
         # La sélection qui a fait perdre, et rien d'autre (jamais de nouveau pari proposé).
@@ -430,7 +445,36 @@ def _notify_settled(session: AsyncSession, bet: Bet, name: str, detail: str | No
         body = f"{name} : {gain} crédités sur ton solde."
     notifications.add(
         session, bet.user_id, "bet_settled", _TITLES[outcome], body,
-        {"bet_id": bet.id, "outcome": outcome, "payout": bet.payout},
+        {"bet_id": bet.id, "outcome": outcome, "payout": bet.payout, **(extra or {})},
+    )  # fmt: skip
+
+
+def _notify_catch_up(session: AsyncSession, user: Any, bets: list[Bet], now: datetime) -> None:
+    """Rattrapage (incident du 16/11/2026) : une seule notification pour les paris réglés
+    d'un coup, « Résultats en retard : 2 paris gagnés (+5 187 F), 1 perdu. »"""
+    won = [b for b in bets if b.outcome in ("won", "partial")]
+    lost = [b for b in bets if b.outcome == "lost"]
+    void = [b for b in bets if b.outcome == "push"]
+    currency = bets[0].currency
+    parts = []
+    if won:
+        gain = notifications.money(sum(b.payout or 0 for b in won), currency)
+        plural = "s" if len(won) > 1 else ""
+        parts.append(f"{len(won)} pari{plural} gagné{plural} (+{gain})")
+    if lost:
+        parts.append(f"{len(lost)} perdu{'s' if len(lost) > 1 else ''}")
+    if void:
+        parts.append(f"{len(void)} remboursé{'s' if len(void) > 1 else ''}")
+    notifications.add(
+        session, user.id, "bet_settled", "Résultats en retard",
+        f"Résultats en retard : {', '.join(parts)}. Détails dans Mes paris.",
+        {
+            "screen": "bookmaker",
+            "bets": sorted(b.id for b in bets),
+            "catch_up": True,
+            # Silence de 23 h à 8 h : gardée dans l'application, rien sur le téléphone.
+            "silent": live_alerts.quiet(user.country or "", now),
+        },
     )  # fmt: skip
 
 
@@ -449,13 +493,24 @@ async def settle_bets(
     now: datetime | None = None,
     redis: Redis | None = None,
     push: "FcmSender | None" = None,
+    *,
+    catch_up: bool = False,
 ) -> dict[str, Any]:
     """Règle les paris ouverts dont le résultat est connu ; revoit les règlements récents.
 
     Les notifications sont diffusées (``redis``) une fois le règlement validé.
+
+    ``catch_up`` (« Tout rattraper ») : aucune notification du direct (but, coup d'envoi,
+    retard : les matchs sont déjà finis), et les paris réglés d'un même joueur en une seule
+    notification de synthèse ; silence de 23 h à 8 h.
     """
     now = now or datetime.now(UTC)
-    report: dict[str, Any] = {"settled": 0, "resettled": 0, "pending": 0}
+    report: dict[str, Any] = {
+        "settled": 0, "resettled": 0, "pending": 0,
+        "outcomes": {"won": 0, "lost": 0, "push": 0, "partial": 0},
+        "montantes": {"advanced": 0, "stopped": 0},
+    }  # fmt: skip
+    settled_now: dict[int, list[tuple[Bet, str, str | None]]] = {}
     # Un seul règlement à la fois (audit de sécurité du 12/11/2026, n° 1) : le suivant attend
     # la fin du premier, puis relit des paris déjà réglés ; payés une seule fois.
     await hold_lock(session, SETTLE_BETS_LOCK)
@@ -479,7 +534,7 @@ async def settle_bets(
             for s, g in zip(selections, grades, strict=True):
                 if g is not None:
                     s.result = g.result
-            if bet.status == "open":
+            if bet.status == "open" and not catch_up:
                 # Notifications pendant les matchs (12/11/2026) : validée, but, dernier match.
                 await live_alerts.observe(
                     alerts, session, bet, list(selections), grades, before, now
@@ -509,13 +564,35 @@ async def settle_bets(
             # (maquette P4 du 14/11/2026 : « Pari perdu » et « Montante perdue » à la même
             # seconde).
             told = await montante.on_bet_settled(session, bet, detail)
+            if bet.montante_step_id is not None:
+                report["montantes"]["advanced" if outcome != "lost" else "stopped"] += 1
             if not told:
-                _notify_settled(session, bet, await _bet_name(session, selections), detail)
+                name = await _bet_name(session, selections)
+                if catch_up:
+                    settled_now.setdefault(bet.user_id, []).append((bet, name, detail))
+                else:
+                    _notify_settled(session, bet, name, detail)
             report["settled"] += 1
+            report["outcomes"][outcome] = report["outcomes"].get(outcome, 0) + 1
         elif (outcome, payout) != (bet.outcome, bet.payout):
             await _correct(session, bet, outcome, payout, now, await _bet_name(session, selections))
             report["resettled"] += 1
     report["live_alerts"] = await live_alerts.emit(alerts, session, now)
+    if settled_now:
+        users = {
+            u.id: u
+            for u in await session.scalars(select(User).where(User.id.in_(set(settled_now))))
+        }
+        for user_id, items in settled_now.items():
+            user = users.get(user_id)
+            if user is None:
+                continue
+            if len(items) == 1:
+                bet, name, detail = items[0]
+                silent = live_alerts.quiet(user.country or "", now)
+                _notify_settled(session, bet, name, detail, {"silent": silent})
+            else:
+                _notify_catch_up(session, user, [b for b, _, _ in items], now)
     await session.commit()
     report["notified"] = await notifications.publish_pending(session, redis, push)
     return report

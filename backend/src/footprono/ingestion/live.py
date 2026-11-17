@@ -314,20 +314,73 @@ def regulation_score(item: dict[str, Any]) -> tuple[int | None, int | None]:
     return goals.get("home"), goals.get("away")
 
 
+# Rattrapage (incident du 16/11/2026) : matchs dont l'heure est passée et qui ne sont pas
+# terminés en base, jusqu'à 7 jours en arrière.
+CATCH_UP_BACK = timedelta(days=7)
+QUOTA_STOPPED = "quota"  # statut du rapport : direct à l'arrêt faute de quota
+
+
+async def late_matches(session: AsyncSession, now: datetime) -> list[Match]:
+    """Matchs suivis (numéro API-Football) dont l'heure est passée et qui ne sont ni
+    terminés ni annulés en base, depuis 7 jours au plus : ceux qu'un rattrapage redemande."""
+    return list(
+        (
+            await session.scalars(
+                select(Match)
+                .where(
+                    Match.api_football_id.is_not(None),
+                    Match.status == MatchStatus.SCHEDULED,
+                    Match.kickoff_at.between(now - CATCH_UP_BACK, now - LIVE_BEFORE),
+                )
+                .order_by(Match.kickoff_at)
+            )
+        ).all()
+    )
+
+
+async def live_need(session: AsyncSession, now: datetime) -> dict[str, int]:
+    """Requêtes que le suivi du direct demandera encore aujourd'hui (jusqu'à minuit GMT,
+    remise à zéro du quota) : une requête par lot de 20 matchs dans leur fenêtre, toutes les
+    2 minutes, plus une par match pour ses statistiques à la fin."""
+    midnight = datetime(now.year, now.month, now.day, tzinfo=UTC) + timedelta(days=1)
+    kickoffs = list(
+        (
+            await session.scalars(
+                select(Match.kickoff_at).where(
+                    Match.api_football_id.is_not(None),
+                    Match.status == MatchStatus.SCHEDULED,
+                    Match.kickoff_at.between(now - LIVE_AFTER, midnight + LIVE_BEFORE),
+                )
+            )
+        ).all()
+    )
+    passes = 0
+    t = now
+    while t < midnight:
+        live = sum(k - LIVE_BEFORE <= t <= k + LIVE_AFTER for k in kickoffs if k is not None)
+        passes += -(-live // IDS_PER_REQUEST)
+        t += timedelta(minutes=2)
+    return {"matches": len(kickoffs), "requests": passes + len(kickoffs)}
+
+
 async def follow_live(
     session: AsyncSession,
     settings: Settings,
     now: datetime | None = None,
     progress: Callable[[str], None] = _noop,
+    *,
+    catch_up: bool = False,
 ) -> dict[str, Any]:
     """Met à jour les matchs en cours ; termine ceux qui sont finis, avec leurs statistiques.
 
     Sans match dans sa fenêtre, ne fait aucune requête. Appelé chaque minute : les minutes
     paires font tout (matchs en cours, statistiques, compositions), les minutes impaires
     seulement les matchs en cours, si le quota du jour le permet (``EVERY_MINUTE_MARGIN``).
-    """
+
+    ``catch_up`` (« Tout rattraper ») : tous les matchs en retard (``late_matches``), sans
+    cotes en direct ni compositions."""
     now = now or datetime.now(UTC)
-    extra_pass = now.minute % 2 == 1
+    extra_pass = now.minute % 2 == 1 and not catch_up
     has_stats = (
         select(MatchTeamStats.id)
         .where(
@@ -346,6 +399,11 @@ async def follow_live(
         (Match.status == MatchStatus.SCHEDULED)
         & Match.kickoff_at.between(now - LIVE_AFTER, now + LIVE_BEFORE),
     ]
+    if catch_up:
+        windows = [
+            (Match.status == MatchStatus.SCHEDULED)
+            & Match.kickoff_at.between(now - CATCH_UP_BACK, now - LIVE_BEFORE)
+        ]
     if not extra_pass:
         windows.append(
             (Match.status == MatchStatus.FINISHED)
@@ -353,7 +411,7 @@ async def follow_live(
             & (Match.kickoff_at >= now - STATS_RETRY_UNTIL)
             & ~has_stats
         )
-    if now.minute % 10 == 0:
+    if now.minute % 10 == 0 and not catch_up:
         # Compositions publiées ~1 h avant : matchs de l'heure qui vient, un passage
         # sur cinq (toutes les 10 minutes) tant qu'elles manquent.
         windows.append(
@@ -384,6 +442,16 @@ async def follow_live(
         transport=service.api_football_transport,
     ) as client:
         await client.status()
+        if not client.can_spend():
+            # Quota du jour presque vide (16/11/2026 : collecte d'historique) : le dire, pour
+            # l'alerte de la console et le rattrapage dès que le quota revient.
+            return {
+                "status": QUOTA_STOPPED,
+                "requests": 0,
+                "remaining": client.day_remaining,
+                "reason": "quota API-Football du jour presque vide : direct à l'arrêt, "
+                "rattrapé dès que le quota revient",
+            }
         reserve = settings.api_football_min_remaining + EVERY_MINUTE_MARGIN
         if extra_pass and client.day_remaining is not None and client.day_remaining < reserve:
             return {"status": "idle", "requests": 0, "skipped": "quota : relevé toutes les 2 min"}
@@ -401,7 +469,12 @@ async def follow_live(
                 it["fixture"]["status"].get("short"), it["fixture"]["status"].get("elapsed")
             )
         } & set(by_fixture)
-        if wanted and client.can_spend() and (await live_coupons.settings_of(session))[0]:
+        if (
+            wanted
+            and not catch_up
+            and client.can_spend()
+            and (await live_coupons.settings_of(session))[0]
+        ):
             odds_body = await client.get("/odds/live", {})
             # Score du relevé des matchs : des cotes d'un autre score (relevées avant un but)
             # ou suspendues par la source ne sont pas gardées ; la raison est notée pour la

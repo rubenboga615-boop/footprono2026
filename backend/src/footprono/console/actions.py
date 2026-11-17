@@ -1510,10 +1510,50 @@ def history_options() -> list[tuple[str, str]]:
     return [(code, f"{code} · {league.label}") for code, league in history.LEAGUES.items()]
 
 
+# Réserve de la collecte (incident du 16/11/2026 : réglée à 200, la même limite que le
+# direct, elle a vidé le quota et rien n'a tourné de la journée).
+HISTORY_MIN_RESERVE = 1000
+# Collecte conseillée le soir, après les derniers matchs, avant la remise à zéro du quota
+# API-Football à minuit GMT : elle n'utilise que des requêtes perdues de toute façon.
+HISTORY_EVENING_HOUR = 22
+
+
+async def history_reserve_check(
+    ctx: JobContext, reserve: int, daytime_ok: bool, now: datetime | None = None
+) -> None:
+    """Refuse une collecte qui entamerait ce que le direct doit encore demander aujourd'hui,
+    ou lancée en journée avec des matchs suivis sans l'avoir confirmé."""
+    from footprono.worker.catchup import OTHER_MARGIN
+
+    now = now or datetime.now(UTC)
+    async with ctx.factory() as session:
+        need = await live.live_need(session, now)
+    needed = ctx.settings.api_football_min_remaining + need["requests"] + OTHER_MARGIN
+    ctx.log(
+        f"Réserve nécessaire au direct aujourd'hui : {needed} requêtes "
+        f"({need['matches']} match(s) suivis, environ {need['requests']} requêtes, plus "
+        f"{ctx.settings.api_football_min_remaining} gardées par le serveur et {OTHER_MARGIN} "
+        "de marge)"
+    )
+    if reserve < needed:
+        raise AppError(
+            f"réserve trop basse : {reserve} requêtes laissées, il en faut au moins {needed} "
+            "pour le direct d'aujourd'hui. Augmente la réserve, ou lance la collecte vers "
+            "22 h 30 GMT."
+        )
+    if now.hour < HISTORY_EVENING_HOUR and need["matches"] and not daytime_ok:
+        raise AppError(
+            f"{need['matches']} match(s) suivis aujourd'hui : la collecte se lance plutôt vers "
+            "22 h 30 GMT, après les derniers matchs et avant la remise à zéro du quota à "
+            "minuit. Pour la lancer maintenant quand même, coche « Lancer en journée »."
+        )
+
+
 async def collect_history(ctx: JobContext, params: dict[str, Any]) -> str:
     key = ctx.settings.api_football_key
     if key is None:
         raise AppError("clé API-Football absente (FP_API_FOOTBALL_KEY)")
+    await history_reserve_check(ctx, params["reserve"], params["daytime_ok"])
     out = await asyncio.to_thread(ctx.settings.history_archive_dir.expanduser)
     await asyncio.to_thread(out.mkdir, parents=True, exist_ok=True)
     ctx.log(f"Dossier : {out}")
@@ -1617,8 +1657,18 @@ register(
                 "Requêtes laissées au serveur",
                 "int",
                 default=1500,
-                minimum=200,
-                help="arrêt quand il ne reste plus que ce nombre de requêtes du jour",
+                minimum=HISTORY_MIN_RESERVE,
+                help=(
+                    "arrêt quand il ne reste plus que ce nombre de requêtes du jour ; au moins "
+                    "ce que le direct demandera encore aujourd'hui (calculé au lancement)"
+                ),
+            ),
+            Param(
+                "daytime_ok",
+                "Lancer en journée malgré les matchs suivis",
+                "bool",
+                default=False,
+                help="conseillé : vers 22 h 30 GMT, avant la remise à zéro du quota à minuit",
             ),
             Param(
                 "archive",
@@ -1627,6 +1677,55 @@ register(
                 default=True,
             ),
             Param("import_after", "Importer en base ensuite", "bool", default=True),
+        ),
+    )
+)
+
+
+# --- Tout rattraper (incident du 16/11/2026) -------------------------------------
+
+
+async def catch_up(ctx: JobContext, params: dict[str, Any]) -> str:
+    from footprono.worker import catchup
+
+    try:
+        report = await catchup.run(
+            ctx.settings, ctx.factory, log=ctx.log, step=ctx.step, check_stop=ctx.check_stop
+        )
+    except catchup.CatchUpRefusedError as exc:
+        raise AppError(f"rattrapage refusé : {exc}") from exc
+    ctx.result = {k: v for k, v in report.items() if k not in ("predictions", "reliability")}
+    return catchup.summary(report)
+
+
+register(
+    Action(
+        id="catch_up",
+        title="Tout rattraper",
+        family="Données",
+        description=(
+            "Après une panne (quota API-Football vide, serveur arrêté) : redemande les matchs "
+            "en retard des 7 derniers jours, règle les paris et les montantes (une seule "
+            "notification de résultats par joueur), puis refait les cotes, les prédictions et "
+            "les coupons du jour s'ils manquent. Chaque étape est sautée si elle est à jour ; "
+            "refusé si le quota ne suffit pas sans toucher au direct du jour. Sans risque à "
+            "relancer. Tourne aussi tout seul chaque nuit à 00:10 GMT."
+        ),
+        risk="modifie",
+        run=catch_up,
+        exclusive=True,
+        stoppable=True,
+        cost="1 requête par lot de 20 matchs en retard + 1 par match terminé (bilan au début)",
+        duration="quelques minutes",
+        steps=(
+            "Bilan",
+            "Matchs en retard",
+            "Règlement",
+            "Cotes",
+            "Prédictions",
+            "Coupons du jour",
+            "Pages et caches",
+            "Compte rendu",
         ),
     )
 )

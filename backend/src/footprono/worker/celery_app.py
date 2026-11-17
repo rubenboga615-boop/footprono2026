@@ -103,6 +103,13 @@ def create_celery(settings: Settings | None = None) -> Celery:
                 "schedule": crontab(minute="*/5"),
                 "options": {"expires": 280},
             },
+            # « Tout rattraper » (incident du 16/11/2026) : juste après la remise à zéro du
+            # quota API-Football (minuit GMT), ce qui a été manqué la veille.
+            "catch-up": {
+                "task": "footprono.catch_up",
+                "schedule": crontab(hour=0, minute=10),
+                "options": {"expires": 3000},
+            },
             # Comparaison des moteurs (K6) : chances des deux moteurs avant chaque match.
             "engine-chances": {
                 "task": "footprono.engine_chances",

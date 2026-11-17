@@ -130,8 +130,9 @@ async def test_catalog_describes_actions(
     ]
     assert params["reserve"] == {
         "name": "reserve", "label": "Requêtes laissées au serveur", "kind": "int",
-        "default": 1500, "min": 200,
-        "help": "arrêt quand il ne reste plus que ce nombre de requêtes du jour",
+        "default": 1500, "min": 1000,
+        "help": "arrêt quand il ne reste plus que ce nombre de requêtes du jour ; au moins ce "
+        "que le direct demandera encore aujourd'hui (calculé au lancement)",
     }  # fmt: skip
     assert actions["daily_coupons"]["confirm"] is True
     assert actions["quality"]["confirm"] is False
@@ -253,7 +254,7 @@ async def test_params_are_checked(
     # Ordre de priorité du catalogue, sans doublon ; valeurs par défaut complétées.
     assert r.json()["params"] == {
         "competitions": ["SWZ", "CAN"], "first_season": 2018, "reserve": 1500,
-        "archive": True, "import_after": True,
+        "archive": True, "import_after": True, "daytime_ok": False,
     }  # fmt: skip
 
 

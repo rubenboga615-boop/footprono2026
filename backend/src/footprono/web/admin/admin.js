@@ -544,7 +544,7 @@ function actionTags(a) {
     a.produces_file ? h("span", { class: "tag" }, icon("i-file"), "fichier") : null,
     a.stoppable ? h("span", { class: "tag", text: "arrêtable" }) : null);
 }
-const FREQUENT_ACTIONS = ["collect_odds", "predict", "daily_coupons", "ingest_current"];
+const FREQUENT_ACTIONS = ["catch_up", "collect_odds", "predict", "daily_coupons", "ingest_current"];
 async function actionsPage() {
   setPage("actions", "Actions");
   const actions = await getCatalog();

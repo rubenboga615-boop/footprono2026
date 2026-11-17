@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from celery.signals import worker_ready
@@ -30,6 +31,7 @@ from footprono.predictions import nations as nation_predictions
 from footprono.predictions import reliability
 from footprono.predictions import service as prediction_service
 from footprono.predictions.publication import publication
+from footprono.worker import catchup
 from footprono.worker.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -40,6 +42,10 @@ async def _settle(engine: AsyncEngine, settings: Settings) -> dict[str, Any]:
     redis = create_redis(settings)
     push = push_sender_or_none(settings)
     try:
+        if await redis.exists(catchup.LOCK):
+            # « Tout rattraper » en cours : c'est lui qui règle, en une notification de
+            # synthèse par joueur (sinon une notification par pari, au milieu de la nuit).
+            return {"skipped": "rattrapage en cours"}
         async with create_session_factory(engine)() as session:
             report = await settlement.settle_bets(session, redis=redis, push=push)
         async with create_session_factory(engine)() as session:
@@ -219,6 +225,18 @@ async def _follow_live_once(settings: Settings) -> dict[str, Any]:
     try:
         async with create_session_factory(engine)() as session:
             report = await live.follow_live(session, settings)
+        # Direct arrêté faute de quota (16/11/2026) : noté pour l'alerte de la console ; au
+        # premier passage qui retrouve du quota, tout ce qui a été manqué est rattrapé.
+        flag = create_redis(settings)
+        try:
+            if report.get("status") == live.QUOTA_STOPPED:
+                await flag.set(catchup.QUOTA_STOPPED_FLAG, datetime.now(UTC).isoformat())
+            elif report.get("status") == "ok" and await flag.get(catchup.QUOTA_STOPPED_FLAG):
+                await flag.delete(catchup.QUOTA_STOPPED_FLAG)
+                catch_up.delay()
+                report["catch_up"] = "lancé (le quota est revenu)"
+        finally:
+            await flag.aclose()
         # Règlement juste après : un pari est payé dès la fin de son match.
         report["bets"] = await _settle(engine, settings)
         # Puis le relevé poussé à l'application ouverte, réglements compris (retour du
@@ -251,6 +269,26 @@ async def _follow_live_once(settings: Settings) -> dict[str, Any]:
             finally:
                 await redis.aclose()
         return report
+    finally:
+        await engine.dispose()
+
+
+@celery_app.task(name="footprono.catch_up")
+@tracked("catch_up")
+def catch_up() -> dict[str, Any]:
+    """« Tout rattraper » : matchs en retard, règlement, cotes, prédictions, coupons du jour.
+    Chaque nuit à 00:10 GMT (quota remis à zéro) et dès que le direct retrouve du quota."""
+    return asyncio.run(_catch_up())
+
+
+async def _catch_up() -> dict[str, Any]:
+    settings = get_settings()
+    engine = create_engine(settings)
+    try:
+        report = await catchup.run(settings, create_session_factory(engine), log=logger.info)
+        return {"summary": catchup.summary(report), "requests": report.get("requests", 0)}
+    except catchup.CatchUpRefusedError as exc:
+        return {"status": "skipped", "reason": str(exc)}
     finally:
         await engine.dispose()
 
