@@ -115,6 +115,9 @@ COMPETITIONS: tuple[CompetitionRef, ...] = (
     CompetitionRef(
         "ENG2", "Championship", "England", 24, None, None, 40, team_counts=(24,), playoffs=True
     ),
+    # Étude du 17/11/2026 (docs/MOTEUR.md, « 2. Bundesliga en service ») : barrages contre la
+    # Bundesliga et la 3. Liga ignorés à l'import.
+    CompetitionRef("GER2", "2. Bundesliga", "Germany", 18, None, None, 79, team_counts=(18,)),
 )
 COMPETITIONS_BY_CODE = {c.code: c for c in COMPETITIONS}
 

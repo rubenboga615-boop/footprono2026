@@ -1,6 +1,6 @@
 competition,name,football_data,understat,api_football
 BUNDESLIGA,1. FC Köln,FC Koln,FC Cologne,1. FC Köln
-BUNDESLIGA,1. FC Nürnberg,Nurnberg,Nuernberg,FC Nurnberg
+BUNDESLIGA,1. FC Nürnberg,Nurnberg,Nuernberg,FC Nurnberg|1. FC Nürnberg
 BUNDESLIGA,Arminia Bielefeld,Bielefeld,Arminia Bielefeld,Arminia Bielefeld
 BUNDESLIGA,Augsburg,Augsburg,Augsburg,FC Augsburg
 BUNDESLIGA,Bayer Leverkusen,Leverkusen,Bayer Leverkusen,Bayer Leverkusen
@@ -12,12 +12,12 @@ BUNDESLIGA,Darmstadt,Darmstadt,Darmstadt,SV Darmstadt 98
 BUNDESLIGA,Eintracht Frankfurt,Ein Frankfurt,Eintracht Frankfurt,Eintracht Frankfurt
 BUNDESLIGA,Elversberg,Elversberg,Elversberg,SV Elversberg
 BUNDESLIGA,FC Heidenheim,Heidenheim,FC Heidenheim,1. FC Heidenheim|FC Heidenheim
-BUNDESLIGA,Fortuna Düsseldorf,Fortuna Dusseldorf,Fortuna Duesseldorf,Fortuna Dusseldorf
+BUNDESLIGA,Fortuna Düsseldorf,Fortuna Dusseldorf,Fortuna Duesseldorf,Fortuna Dusseldorf|Fortuna Düsseldorf
 BUNDESLIGA,Freiburg,Freiburg,Freiburg,SC Freiburg
-BUNDESLIGA,Greuther Fürth,Greuther Furth,Greuther Fuerth,SpVgg Greuther Furth
+BUNDESLIGA,Greuther Fürth,Greuther Furth,Greuther Fuerth,SpVgg Greuther Furth|SpVgg Greuther Fürth
 BUNDESLIGA,Hamburger SV,Hamburg,Hamburger SV,Hamburger SV
 BUNDESLIGA,Hannover 96,Hannover,Hannover 96,Hannover 96
-BUNDESLIGA,Hertha Berlin,Hertha,Hertha Berlin,Hertha Berlin
+BUNDESLIGA,Hertha Berlin,Hertha,Hertha Berlin,Hertha Berlin|Hertha BSC
 BUNDESLIGA,Hoffenheim,Hoffenheim,Hoffenheim,1899 Hoffenheim
 BUNDESLIGA,Holstein Kiel,Holstein Kiel,Holstein Kiel,Holstein Kiel
 BUNDESLIGA,Ingolstadt,Ingolstadt,Ingolstadt,FC Ingolstadt 04
@@ -618,3 +618,21 @@ ENG2,Sheffield Wednesday,,,Sheffield Wednesday
 ENG2,Wigan,,,Wigan
 ENG2,Wrexham,,,Wrexham
 ENG2,Wycombe,,,Wycombe
+GER2,Jahn Regensburg,,,Jahn Regensburg|SSV Jahn Regensburg
+GER2,1. FC Magdeburg,,,1. FC Magdeburg|FC Magdeburg
+GER2,Dynamo Dresden,,,Dynamo Dresden
+GER2,MSV Duisburg,,,MSV Duisburg
+GER2,SV Sandhausen,,,SV Sandhausen
+GER2,Erzgebirge Aue,,,Erzgebirge AUE
+GER2,Eintracht Braunschweig,,,Eintracht Braunschweig
+GER2,1. FC Kaiserslautern,,,1. FC Kaiserslautern|FC Kaiserslautern
+GER2,Würzburger Kickers,,,FC Wurzburger Kickers
+GER2,Karlsruher SC,,,Karlsruher SC
+GER2,Preußen Münster,,,Preußen Münster
+GER2,Wehen Wiesbaden,,,SV Wehen
+GER2,Energie Cottbus,,,Energie Cottbus
+GER2,Hansa Rostock,,,Hansa Rostock
+GER2,VfL Osnabrück,,,VfL Osnabruck|VfL Osnabrück
+GER2,Rot-Weiss Essen,,,Rot-Weiß Essen
+GER2,1. FC Saarbrücken,,,FC Saarbrücken
+GER2,SSV Ulm 1846,,,SSV Ulm 1846

@@ -307,6 +307,7 @@ const competitionNames = {
   'SRB': 'Super Liga serbe',
   'ISR': 'Ligat ha\'Al israélienne',
   'ENG2': 'Championship anglais',
+  'GER2': '2. Bundesliga allemande',
   'UCL': 'Ligue des Champions',
   'UEL': 'Ligue Europa',
   'UECL': 'Ligue Conférence',

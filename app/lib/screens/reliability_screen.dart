@@ -60,6 +60,7 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
     'SRB',
     'ISR',
     'ENG2',
+    'GER2',
     'UCL',
     'UEL',
     'UECL',

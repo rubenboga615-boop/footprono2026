@@ -66,6 +66,11 @@ TIER_2_ISRAEL = replace(TIER_2, withdrawn=NO_BTTS | {"HT_OU"})
 # log loss gagnée, docs/MOTEUR.md « Championship en service ») : retiré pour lui seulement.
 TIER_2_CHAMPIONSHIP = replace(TIER_2, withdrawn=NO_BTTS | {"OU"})
 
+# 2. Bundesliga : « plus/moins de buts du match » et « mi-temps : buts » sans apport à
+# l'audit 2022-25 (+0,5 % et +0,4 %, docs/MOTEUR.md « 2. Bundesliga en service ») ; plus/moins
+# 2,5 moins bon que la référence naïve sur 2019-21.
+TIER_2_GER2 = replace(TIER_2, withdrawn=NO_BTTS | {"OU", "HT_OU"})
+
 # Niveau 2 : tirs sans xG (football-data, ou API-Football depuis la Suisse).
 _TIER_2_CODES = "POR BEL NED GRE TUR SCO SUI NOR SWE DEN AUT"
 TIERS: dict[str, Tier] = {
@@ -74,6 +79,7 @@ TIERS: dict[str, Tier] = {
     "SRB": TIER_2,
     "ISR": TIER_2_ISRAEL,
     "ENG2": TIER_2_CHAMPIONSHIP,
+    "GER2": TIER_2_GER2,
 }
 
 

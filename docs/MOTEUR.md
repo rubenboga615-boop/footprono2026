@@ -1041,9 +1041,26 @@ le 1-N-2, contre 2 à 10 % ailleurs au niveau 2). Audit de tous les marchés
 avec « les deux marquent » et ses combinés comme partout au niveau 2 ; mi-temps la plus
 prolifique et pair / impair étaient déjà retirés partout.
 
-2. Bundesliga : collecte de l'historique à terminer (statistiques absentes depuis 2023 dans
-l'archive du 16/11) ; noms de clubs à relier avant l'étude (« VfL Bochum » / « Vfl Bochum »,
-« FC Heidenheim » / « 1. FC Heidenheim »…).
+## 2. Bundesliga en service (niveau 2, 17/11/2026)
+
+Archive `api-football-historique` du 17/11/2026 (saisons 2018 à 2026, statistiques de
+presque tous les matchs) importée par le vrai chargeur : 0 anomalie ; barrages ignorés.
+Noms de clubs changeant selon les saisons reliés (« SSV Jahn Regensburg » / « Jahn
+Regensburg », « FC Kaiserslautern » / « 1. FC Kaiserslautern »…) ; clubs déjà connus en
+Bundesliga repris (alias « Hertha BSC », « Fortuna Düsseldorf », « 1. FC Nürnberg »,
+« SpVgg Greuther Fürth » ajoutés), 18 nouveaux. Réglages du niveau 2 tels quels.
+
+| Période | Matchs | 1-N-2 / naïf | +2,5 / naïf | Calibration | Favoris 60-70 % annoncé → observé |
+|---|---|---|---|---|---|
+| 2022-26 | 1 224 | 1,0436 / 1,0693 | 0,6761 / 0,6775 | 1,2 pt | 63,7 → 68,9 (74 cas) |
+| 2019-21 | 918 | 1,0647 / 1,0840 | 0,6843 / 0,6816 | 2,0 pts | 63,1 → 74,1 (54 cas) |
+
+Lecture : 1-N-2 mieux que la référence naïve sur les deux périodes et bien calibré (apport
+faible, comme le Championship : 2,1 % de log loss gagnée à l'audit) ; plus/moins 2,5 moins
+bon que la référence naïve sur 2019-21. Audit de tous les marchés (2022-25) : 13 familles
+validées ; **« buts du match (plus/moins) » (+0,5 %) et « mi-temps : buts » (+0,4 %) sans
+apport : retirés pour la 2. Bundesliga** (`TIER_2_GER2`), avec « les deux marquent » et ses
+combinés comme partout au niveau 2.
 
 ## Pologne, Tchéquie, Croatie, Roumanie en service ; Australie écartée (06/10/2026)
 
