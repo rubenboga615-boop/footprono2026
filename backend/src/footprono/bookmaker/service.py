@@ -275,6 +275,7 @@ async def place_bet(
     now: datetime | None = None,
     montante_step_id: int | None = None,
     redis: Redis | None = None,
+    engine: int | None = None,
 ) -> Bet:
     """Pari sur des cotes réelles récentes. Pendant une fenêtre du coupon en direct (publié),
     une sélection d'un match commencé se place sur sa cote en direct, relue ici (``redis``)."""
@@ -338,6 +339,7 @@ async def place_bet(
         status="open",
         settlements=0,
         montante_step_id=montante_step_id,
+        engine=engine,
     )
     session.add(bet)
     await session.flush()

@@ -194,6 +194,7 @@ async def _bet_out(session: SessionDep, bet: Bet) -> BetOut:
         placed_at=bet.placed_at,
         settled_at=bet.settled_at,
         montante_step_id=bet.montante_step_id,
+        engine=bet.engine,
         selections=out,
     )
 
@@ -236,6 +237,7 @@ async def place_bet(
         ],
         body.stake,
         redis=redis,  # cotes en direct du coupon en direct
+        engine=body.engine,
     )
     await session.commit()
     await session.refresh(bet)

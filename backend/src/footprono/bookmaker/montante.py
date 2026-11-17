@@ -129,7 +129,12 @@ async def place_step_bet(
     if await _open_bet(session, step) is not None:
         raise AppError(f"le palier {step.number} a déjà un pari en cours")
     bet = await service.place_bet(
-        session, user, selections, montante.next_stake, montante_step_id=step.id
+        session,
+        user,
+        selections,
+        montante.next_stake,
+        montante_step_id=step.id,
+        engine=engine if suggested else None,
     )
     in_range = step.odds_min <= bet.total_odds <= step.odds_max
     if not in_range and not accept_out_of_range:

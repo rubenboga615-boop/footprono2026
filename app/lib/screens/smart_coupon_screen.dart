@@ -378,7 +378,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
     );
   }
 
-  Future<void> _addToCoupon(List<Json> selections, {bool big = false}) async {
+  Future<void> _addToCoupon(List<Json> selections, {bool big = false, int engine = 1}) async {
     setState(() => adding = 'Ajout…');
     final state = context.read<AppState>();
     try {
@@ -386,6 +386,8 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
         state,
         selections,
         stake: big ? 500 : null,
+        // Mode comparaison : le pari gardera le nom du moteur qui l'a proposé (Mes paris).
+        engine: state.compareEngines ? engine : null,
         onProgress: (done, total) {
           if (mounted) setState(() => adding = 'Ajout $done / $total…');
         },
@@ -641,7 +643,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                         error: error2,
                         label: '${result?['profile_label'] ?? ''}',
                         adding: adding,
-                        onAdd: busy ? null : (sels) => _addToCoupon(sels),
+                        onAdd: busy ? null : (sels) => _addToCoupon(sels, engine: 2),
                       ),
                       const SizedBox(height: 8),
                     ],
@@ -1300,6 +1302,7 @@ Future<void> addSelectionsToCoupon(
   AppState state,
   List<Json> selections, {
   int? stake,
+  int? engine,
   void Function(int done, int total)? onProgress,
 }) async {
   // Match et cotes du moment de chaque sélection, tous demandés en même temps : l'un après
@@ -1327,7 +1330,7 @@ Future<void> addSelectionsToCoupon(
       if (offer == null) {
         missing++;
       } else if (!state.inCoupon(match.id, offer.key)) {
-        state.toggleCoupon(match, offer);
+        state.toggleCoupon(match, offer, engine: engine);
         added++;
       }
     }

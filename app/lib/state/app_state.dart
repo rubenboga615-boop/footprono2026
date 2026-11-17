@@ -645,7 +645,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Ajoute une sélection ; une autre sélection du même match est remplacée
   /// (deux sélections d'un même match sont liées : le serveur les refuse).
-  String toggleCoupon(MatchInfo match, Offer offer) {
+  String toggleCoupon(MatchInfo match, Offer offer, {int? engine}) {
     final existing = coupon.indexWhere((c) => c.match.id == match.id);
     if (existing >= 0 && coupon[existing].offer.key == offer.key) {
       coupon.removeAt(existing);
@@ -656,14 +656,21 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // Match commencé : paris fermés (le serveur refuserait le coupon entier).
     if (match.started) return '${match.home.name} – ${match.away.name} a commencé : paris fermés';
     if (existing >= 0) {
-      coupon[existing] = CouponItem(match: match, offer: offer);
+      coupon[existing] = CouponItem(match: match, offer: offer, engine: engine);
       notifyListeners();
       return 'Sélection remplacée : une seule par match dans un combiné';
     }
     if (coupon.length >= maxCoupon) return 'Coupon plein ($maxCoupon sélections au maximum)';
-    coupon.add(CouponItem(match: match, offer: offer));
+    coupon.add(CouponItem(match: match, offer: offer, engine: engine));
     notifyListeners();
     return 'Ajouté au coupon';
+  }
+
+  /// Moteur du coupon à placer : celui de toutes ses sélections, ou null (à la main, ou
+  /// sélections des deux moteurs mêlées). Le pari le garde (Mes paris).
+  int? get couponEngine {
+    final engines = {for (final c in coupon) c.engine};
+    return engines.length == 1 ? engines.first : null;
   }
 
   /// Coupon en direct : propositions du moment (GET /live/coupons), gardées pour la carte

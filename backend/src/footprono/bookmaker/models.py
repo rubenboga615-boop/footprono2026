@@ -9,7 +9,17 @@ moment du pari. Montants en entiers dans la devise de l'utilisateur.
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    Numeric,
+    SmallInteger,
+    String,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from footprono.db.base import Base
@@ -36,6 +46,10 @@ class Bet(Base):
     settlements: Mapped[int] = mapped_column(Integer, default=0)
     # Palier de montante auquel ce pari appartient (phase 4, étape montante).
     montante_step_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    # Comparaison des moteurs (demande du fondateur du 18/11/2026) : moteur dont viennent
+    # toutes les sélections du pari (1 ou 2) ; null : composé à la main, ou sélections des
+    # deux moteurs mêlées.
+    engine: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
 
 
 class BetSelection(Base):

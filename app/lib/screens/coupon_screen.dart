@@ -201,7 +201,11 @@ class _CouponScreenState extends State<CouponScreen> {
           'from_suggestion': false, // composé par le joueur (suivi des montantes, M2)
         });
       } else {
-        await state.api.post('/bets', {'stake': amount, 'selections': selections});
+        await state.api.post('/bets', {
+          'stake': amount,
+          'selections': selections,
+          'engine': ?state.couponEngine, // comparaison des moteurs : le pari garde son moteur
+        });
       }
       state.clearCoupon();
       useStep = null;

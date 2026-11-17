@@ -1081,6 +1081,7 @@ def _coupon_out(
         "day": coupon.day,
         "profile": coupon.profile,
         "profile_label": PROFILES[coupon.profile].label,
+        "engine": coupon.engine,
         # Sans Premium : profil, cote, chance et avancement ; ni sélections ni code.
         "locked": locked,
         "selection_count": len(selections),

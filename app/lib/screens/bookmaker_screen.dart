@@ -11,6 +11,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/engine_compare.dart';
 import '../widgets/live_chances.dart';
 import '../widgets/maquette.dart';
 import 'match_screen.dart';
@@ -369,6 +370,8 @@ class _BetRow extends StatelessWidget {
                 Expanded(
                   child: Text(betKind(b), style: Fp.body(13, color: Fp.muted)),
                 ),
+                // Comparaison des moteurs (18/11/2026) : de quel moteur vient ce pari.
+                if (b.engine != null) ...[EngineTag(b.engine!), const SizedBox(width: 6)],
                 betTag(b),
               ],
             ),
@@ -688,6 +691,7 @@ class BetCard extends StatelessWidget {
           children: [
             Expanded(child: Text('Pari n° ${b.id} · ${betKind(b)}', style: Fp.title(17))),
             const SizedBox(width: 8),
+            if (b.engine != null) ...[EngineTag(b.engine!), const SizedBox(width: 6)],
             betTag(b),
           ],
         ),

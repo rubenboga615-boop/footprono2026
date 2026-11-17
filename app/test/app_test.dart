@@ -1347,6 +1347,18 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('add-engine-2')));
     await tester.pumpAndSettle();
     expect(state.coupon.single.offer.market, 'OU');
+    // Le pari placé garde le moteur qui l'a proposé (demande du 18/11/2026).
+    expect(state.coupon.single.engine, 2);
+    expect(state.couponEngine, 2);
+    await tester.tap(find.byTooltip('Retour'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Placer le pari · 1${nbsp}000 F'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Placer le pari · 1${nbsp}000 F'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirmer · 1${nbsp}000 F'));
+    await tester.pumpAndSettle();
+    expect(server.placedBets.single['engine'], 2);
   });
 
   testWidgets('Premium : handicap asiatique visible, pas de verrou', (tester) async {
@@ -1455,6 +1467,29 @@ void main() {
     expect(find.text('MOINS DE 15 MATCHS (NON CLASSÉS)'), findsOneWidget);
     expect(find.text('Tim Kirk'), findsOneWidget);
     expect(find.textContaining('4 matchs de cette saison sans arbitre connu'), findsOneWidget);
+  });
+
+  testWidgets('Mes paris : le pari proposé par un moteur garde son nom (18/11)', (tester) async {
+    final (_, server) = await startApp(tester, loggedIn: true);
+    Map<String, dynamic> bet(int id, int? engine) => {
+      'id': id,
+      'kind': 'single',
+      'stake': 1000,
+      'currency': 'XOF',
+      'total_odds': '1.92',
+      'potential_payout': 1920,
+      'status': 'open',
+      'engine': engine,
+      'selections': [
+        {'match_id': 7, 'market': '1X2', 'selection': 'home', 'odds': '1.92'},
+      ],
+    };
+    server.bets = [bet(58, 2), bet(57, null)];
+    await tester.binding.setSurfaceSize(const Size(430, 2400));
+    await tester.tap(find.text('Mes paris'));
+    await tester.pumpAndSettle();
+    expect(find.text('MOTEUR 2'), findsOneWidget); // le pari composé à la main : rien
+    expect(find.text('MOTEUR 1'), findsNothing);
   });
 
   testWidgets('Mon bilan : rendement, annoncé contre réalisé, rappel de jeu responsable', (tester) async {

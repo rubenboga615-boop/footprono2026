@@ -347,3 +347,29 @@ async def test_console_creates_the_daily_coupons_of_both_engines(
     summary = await actions.daily_coupons(ctx, {})
     assert "equilibre : 2 sélection(s)" in summary
     assert "moteur 2, equilibre : 2 sélection(s)" in summary
+
+
+async def test_bet_keeps_the_engine_that_proposed_it(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+) -> None:
+    """Demande du 18/11/2026 : dans Mes paris, savoir de quel moteur vient chaque pari."""
+    headers = await _login(client)
+    sel = {"match_id": world["m1"], "market": "1X2", "line": "", "selection": "home"}
+    two = await client.post(
+        "/api/v1/bets", json={"stake": 1000, "selections": [sel], "engine": 2}, headers=headers
+    )
+    assert two.status_code == 201, two.text
+    assert two.json()["engine"] == 2
+    plain = await client.post(
+        "/api/v1/bets", json={"stake": 1000, "selections": [sel]}, headers=headers
+    )
+    assert plain.json()["engine"] is None
+    bad = await client.post(
+        "/api/v1/bets", json={"stake": 1000, "selections": [sel], "engine": 3}, headers=headers
+    )
+    assert bad.status_code == 422
+    listed = {
+        b["id"]: b["engine"] for b in (await client.get("/api/v1/bets", headers=headers)).json()
+    }
+    assert listed == {two.json()["id"]: 2, plain.json()["id"]: None}

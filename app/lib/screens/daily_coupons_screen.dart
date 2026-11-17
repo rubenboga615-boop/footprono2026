@@ -564,7 +564,12 @@ class DailyCouponDetail extends StatelessWidget {
                       // Seulement avant le premier match : ensuite, les cotes ne sont plus jouables.
                       if (coupon['display_status'] == 'upcoming')
                         OutlinedButton.icon(
-                          onPressed: () => addSelectionsToCoupon(context.read<AppState>(), sels),
+                          onPressed: () {
+                            final state = context.read<AppState>();
+                            // Mode comparaison : le pari garde le moteur du coupon du jour.
+                            final engine = state.compareEngines ? (coupon['engine'] as int? ?? 1) : null;
+                            addSelectionsToCoupon(state, sels, engine: engine);
+                          },
                           icon: const Icon(Icons.add_rounded, size: 18),
                           label: const Text('Ajouter à mon coupon'),
                         ),

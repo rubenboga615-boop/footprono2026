@@ -460,6 +460,7 @@ class Bet {
       payout = j['payout'] as int?,
       placedAt = parseDate(j['placed_at']),
       montanteStepId = j['montante_step_id'] as int?,
+      engine = j['engine'] as int?,
       selections = [for (final s in j['selections'] as List) BetSel(s as Json)];
   final int id;
   final String kind;
@@ -472,14 +473,22 @@ class Bet {
   final int? payout;
   final DateTime? placedAt;
   final int? montanteStepId;
+
+  /// Comparaison des moteurs (18/11/2026) : moteur dont vient le pari (1 ou 2) ; null :
+  /// composé à la main, ou sélections des deux moteurs mêlées.
+  final int? engine;
   final List<BetSel> selections;
 }
 
 /// Une ligne du coupon (sélection choisie par l'utilisateur, pas encore jouée).
 class CouponItem {
-  CouponItem({required this.match, required this.offer, this.closesAt});
+  CouponItem({required this.match, required this.offer, this.closesAt, this.engine});
   final MatchInfo match;
   final Offer offer;
+
+  /// Moteur qui a proposé la sélection (Coupon intelligent, coupons du jour, en mode
+  /// comparaison) ; null : choisie à la main.
+  final int? engine;
 
   /// Coupon en direct : minute de fermeture de la fenêtre (50, 63 ou 78).
   final int? closesAt;

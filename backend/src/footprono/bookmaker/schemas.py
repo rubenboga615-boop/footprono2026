@@ -59,6 +59,8 @@ class SelectionIn(BaseModel):
 class BetIn(BaseModel):
     stake: int = Field(gt=0)
     selections: list[SelectionIn] = Field(min_length=1)
+    # Moteur dont viennent toutes les sélections (Coupon intelligent en mode comparaison).
+    engine: int | None = Field(default=None, ge=1, le=2)
 
 
 class BetSelectionOut(BaseModel):
@@ -103,4 +105,5 @@ class BetOut(BaseModel):
     placed_at: datetime
     settled_at: datetime | None
     montante_step_id: int | None
+    engine: int | None = None
     selections: list[BetSelectionOut]
