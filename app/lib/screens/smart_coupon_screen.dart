@@ -88,6 +88,26 @@ class SmartCouponScreen extends StatefulWidget {
   State<SmartCouponScreen> createState() => _SmartCouponScreenState();
 }
 
+/// Dernier Coupon intelligent composé, gardé tant que l'application est ouverte (constat du
+/// fondateur du 18/11/2026 : en revenant après avoir joué le coupon du moteur 1, celui du
+/// moteur 2 avait disparu). Pour le même compte et le même jour seulement.
+class _SmartMemory {
+  _SmartMemory(this.owner, this.userId, this.day);
+  final Object owner; // l'état de l'application qui l'a gardé (une session)
+  final int? userId;
+  final DateTime day;
+  int profile = 1, period = 5, size = 3, maxBig = AppState.maxCoupon, hour = 0, variant = 0;
+  num target = 7;
+  DateTime? pickedDay, rangeTo;
+  Set<String> competitions = {}, excludedCompetitions = {};
+  Set<int> excludedMatches = {};
+  bool skipPlayed = true;
+  Json? result, result2;
+  DateTime? composedAt;
+}
+
+_SmartMemory? _memory;
+
 class _SmartCouponScreenState extends State<SmartCouponScreen> {
   int profile = 1;
   int period = 5; // Prochaine journée : jamais vide pendant une trêve
@@ -120,6 +140,84 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
 
   /// « Un autre coupon » : tirage suivant parmi les sélections presque à égalité (0 : le tien).
   int variant = 0;
+
+  /// Matchs de mes paris en cours, écartés des nouveaux coupons (constat du 18/11/2026 : les
+  /// mêmes réglages redonnaient le coupon déjà joué). Le joueur peut les remettre.
+  Set<int> playedMatches = {};
+  bool skipPlayed = true;
+  DateTime? composedAt;
+
+  /// Gardé pour ``dispose`` (le contexte n'est plus utilisable à ce moment-là).
+  late final AppState _app;
+
+  @override
+  void initState() {
+    super.initState();
+    final state = _app = context.read<AppState>();
+    final m = _memory;
+    if (m != null && identical(m.owner, state) && m.userId == state.me?.id && m.day == _today()) {
+      profile = m.profile;
+      period = m.period;
+      size = m.size;
+      maxBig = m.maxBig;
+      hour = m.hour;
+      variant = m.variant;
+      target = m.target;
+      day = m.pickedDay ?? day;
+      rangeTo = m.rangeTo;
+      competitions.addAll(m.competitions);
+      excludedCompetitions.addAll(m.excludedCompetitions);
+      excludedMatches.addAll(m.excludedMatches);
+      skipPlayed = m.skipPlayed;
+      result = m.result;
+      result2 = m.result2;
+      composedAt = m.composedAt;
+    }
+    _loadPlayed();
+  }
+
+  @override
+  void dispose() {
+    _remember();
+    super.dispose();
+  }
+
+  void _remember() {
+    final state = _app;
+    final m = _SmartMemory(state, state.me?.id, _today())
+      ..profile = profile
+      ..period = period
+      ..size = size
+      ..maxBig = maxBig
+      ..hour = hour
+      ..variant = variant
+      ..target = target
+      ..pickedDay = day
+      ..rangeTo = rangeTo
+      ..competitions = {...competitions}
+      ..excludedCompetitions = {...excludedCompetitions}
+      ..excludedMatches = {...excludedMatches}
+      ..skipPlayed = skipPlayed
+      ..result = result
+      ..result2 = result2
+      ..composedAt = composedAt;
+    _memory = m;
+  }
+
+  /// Matchs pas encore réglés de mes paris en cours.
+  Future<void> _loadPlayed() async {
+    try {
+      final bets = await context.read<AppState>().api.get('/bets', {'limit': 100}) as List;
+      final ids = {
+        for (final b in bets.cast<Json>())
+          if (b['status'] == 'open')
+            for (final s in (b['selections'] as List).cast<Json>()) s['match_id'] as int,
+      };
+      if (mounted) setState(() => playedMatches = ids);
+    } on ApiException {
+      // Sans la liste, rien n'est écarté : le coupon reste composé normalement.
+    }
+  }
 
   static DateTime _today() {
     final n = DateTime.now();
@@ -155,6 +253,8 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
 
   Future<void> _generate({bool another = false}) async {
     final state = context.read<AppState>();
+    if (skipPlayed) await _loadPlayed(); // un pari placé depuis l'ouverture de l'écran
+    if (!mounted) return;
     setState(() {
       composing = true;
       error = null;
@@ -187,7 +287,9 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
           result = r;
           result2 = r2 is Json ? r2 : null;
           error2 = r2 is Json ? null : r2;
+          composedAt = DateTime.now();
         });
+        _remember();
       }
     } on ApiException catch (e) {
       // Premium terminé ou retiré depuis la dernière mise à jour : le profil est relu,
@@ -226,7 +328,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
     final parts = [
       for (final e in query.entries) '${e.key}=${Uri.encodeQueryComponent('${e.value}')}',
       for (final c in competitions) 'competitions=$c',
-      for (final m in excludedMatches) 'exclude_matches=$m',
+      for (final m in {...excludedMatches, if (skipPlayed) ...playedMatches}) 'exclude_matches=$m',
       for (final t in context.read<AppState>().excludedTeams.keys) 'exclude_teams=$t',
       for (final c in excludedCompetitions) 'exclude_competitions=$c',
     ];
@@ -537,6 +639,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                   // Exclusions toujours visibles, au-dessus de « Composer le coupon ».
                   if (state.excludedTeams.isNotEmpty ||
                       excludedMatches.isNotEmpty ||
+                      (skipPlayed && playedMatches.isNotEmpty) ||
                       excludedCompetitions.isNotEmpty) ...[
                     _Label('Exclus'),
                     Wrap(
@@ -559,6 +662,15 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                             ),
                             onDeleted: () => setState(excludedMatches.clear),
                           ),
+                        if (skipPlayed && playedMatches.isNotEmpty)
+                          InputChip(
+                            label: Text(
+                              playedMatches.length == 1
+                                  ? '1 match déjà dans tes paris'
+                                  : '${playedMatches.length} matchs déjà dans tes paris',
+                            ),
+                            onDeleted: () => setState(() => skipPlayed = false),
+                          ),
                       ],
                     ),
                   ],
@@ -576,6 +688,16 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Text(message, style: Fp.body(13, color: Fp.warning, height: 1.4)),
+                    ),
+                  if (coupon != null && composedAt != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Composé à ${composedAt!.hour.toString().padLeft(2, '0')}:'
+                        '${composedAt!.minute.toString().padLeft(2, '0')}. Les cotes peuvent avoir bougé : '
+                        'elles sont relues quand tu l\'ajoutes.',
+                        style: Fp.body(12, color: Fp.muted, height: 1.4),
+                      ),
                     ),
                   if (coupon != null && (result2 != null || error2 != null)) ...[
                     const Align(alignment: Alignment.centerLeft, child: EngineTag(1)),

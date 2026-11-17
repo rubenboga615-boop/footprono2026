@@ -1406,6 +1406,33 @@ void main() {
     await tester.tap(find.text('Confirmer · 1${nbsp}000 F'));
     await tester.pumpAndSettle();
     expect(server.placedBets.single['engine'], 2);
+
+    // Constat du 18/11 : en revenant, les deux coupons sont toujours là…
+    await tester.tap(find.text('Coupon intelligent'));
+    await tester.pumpAndSettle();
+    expect(find.text('MOTEUR 1'), findsOneWidget);
+    expect(find.text('MOTEUR 2'), findsOneWidget);
+    expect(find.textContaining('Composé à'), findsOneWidget);
+    // … et un nouveau coupon écarte les matchs déjà joués (chip pour les remettre).
+    server.bets = [
+      {
+        'id': 90,
+        'kind': 'single',
+        'stake': 1000,
+        'currency': 'XOF',
+        'total_odds': '1.95',
+        'potential_payout': 1950,
+        'status': 'open',
+        'selections': [
+          {'match_id': 7, 'market': 'OU', 'line': '2.5', 'selection': 'over', 'odds': '1.95'},
+        ],
+      },
+    ];
+    server.smartQueries.clear();
+    await tester.ensureVisible(find.text('Composer le coupon'));
+    await tester.tap(find.text('Composer le coupon'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 match déjà dans tes paris'), findsOneWidget);
   });
 
   testWidgets('Premium : handicap asiatique visible, pas de verrou', (tester) async {
