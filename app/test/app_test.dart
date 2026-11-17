@@ -43,6 +43,7 @@ class FakeServer {
   bool dailyNotifications = true;
   bool montanteMode = false;
   bool compareEngines = false;
+  bool montanteFinished = false;
   final List<Map<String, dynamic>> stepBets = [];
   bool betaAvailable = false;
   final extraUpcoming = <Map<String, dynamic>>[];
@@ -734,6 +735,39 @@ class FakeServer {
           ],
           'versus_closing_odds': [],
           'recent': [],
+          'nations_vs_odds': {
+            'stake': 1000,
+            'matches': 40,
+            'bands': [
+              {
+                'from': 0.05,
+                'to': 0.10,
+                'selections': 12,
+                'engine': 0.61,
+                'implied': 0.54,
+                'won': 0.58,
+                'profit': 900,
+              },
+              {
+                'from': 0.10,
+                'to': 0.15,
+                'selections': 6,
+                'engine': 0.66,
+                'implied': 0.54,
+                'won': 0.5,
+                'profit': -700,
+              },
+              {
+                'from': 0.15,
+                'to': null,
+                'selections': 0,
+                'engine': null,
+                'implied': null,
+                'won': null,
+                'profit': 0,
+              },
+            ],
+          },
           'markets_audit': !{null, 'BIG5'}.contains(r.url.queryParameters['competition'])
               ? null
               : {
@@ -983,6 +1017,19 @@ class FakeServer {
           ],
         };
       case 'GET /montantes/4/suggestions':
+        if (montanteFinished) {
+          return http.Response(
+            jsonEncode({
+              'error': {
+                'code': 'bad_request',
+                'message': 'montante terminée : plus de pari possible, crée une nouvelle montante',
+                'details': {'code': 'montante_finished', 'status': 'lost'},
+              },
+            }),
+            400,
+            headers: _json,
+          );
+        }
         final engine2 = r.url.queryParameters['engine'] == '2';
         if (engine2 && !compareEngines) return _error(400, 'bad_request', 'moteur 2');
         Map<String, dynamic> sug(String market, String sel, String odds, double p) => {
@@ -1761,6 +1808,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(server.stepBets.single['engine'], 2);
     expect(server.stepBets.single['from_suggestion'], isTrue);
+
+    // Montante terminée entre-temps (retour du 17/11) : message clair, pas de suggestions.
+    server.montanteFinished = true;
+    await tester.tap(find.textContaining('Suggestions du moteur', findRichText: true));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Cette montante est terminée'), findsOneWidget);
+    expect(find.text('Créer une nouvelle montante'), findsOneWidget);
+    expect(find.text('MOTEUR 1'), findsNothing);
   });
 
   testWidgets('montante : match, date et état du pari de chaque palier, comme dans Mes paris', (
@@ -1916,6 +1971,20 @@ void main() {
     expect(find.text('−4,0\u00A0%'), findsOneWidget);
     expect(find.text('−1,0\u00A0%'), findsOneWidget);
     expect(find.textContaining('Trop peu de données pour conclure'), findsOneWidget);
+  });
+
+  testWidgets('fiabilité : sélections nationales, moteur contre cote (retour du 17/11)', (tester) async {
+    await startApp(tester, loggedIn: true);
+    final context = tester.element(find.byType(Scaffold).first);
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => const ReliabilityScreen()));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Sélections nationales : moteur contre cote'), 200);
+    expect(find.text('+10 à +15 pts'), findsOneWidget);
+    expect(find.text('+15 pts et plus'), findsOneWidget);
+    expect(find.textContaining('Seulement 18 sélections'), findsOneWidget);
   });
 
   testWidgets('fiabilité des montantes : annoncé contre gagné par palier, montantes terminées', (

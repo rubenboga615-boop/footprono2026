@@ -1396,6 +1396,25 @@ class _SuggestionsScreenState extends State<SuggestionsScreen> {
                 ],
               );
             }
+            if (err is ApiException && err.montanteFinished) {
+              return ListView(
+                padding: padding,
+                children: [
+                  header,
+                  EmptyState(
+                    'Cette montante est terminée : plus de pari possible pour elle. Lance-en une '
+                    'nouvelle depuis l\'onglet Montante.',
+                    icon: Icons.flag_rounded,
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Créer une nouvelle montante'),
+                  ),
+                ],
+              );
+            }
             if (err != null) return ErrorPanel(error: err);
             final (data, matches) = snap.data!;
             final list = (data['suggestions'] as List).cast<Json>();

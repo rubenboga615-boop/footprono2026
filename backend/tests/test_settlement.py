@@ -626,3 +626,18 @@ def test_live_alert_labels_and_quiet_hours() -> None:
     assert quiet("CI", datetime(2026, 11, 12, 7, 59, tzinfo=UTC)) is True
     assert quiet("CI", datetime(2026, 11, 12, 8, 0, tzinfo=UTC)) is False
     assert quiet("BJ", datetime(2026, 11, 12, 22, 30, tzinfo=UTC)) is True  # 23 h 30 à Cotonou
+
+
+def test_all_won_pays_exactly_the_announced_payout() -> None:
+    """Retour du testeur du 17/11/2026 (pari 87) : 3 204 F annoncés, 3 203 F payés. Tout
+    gagné : mise fois la cote du pari (1,11 x 1,11 x 1,30 = 1,6017, cote 1,602)."""
+    from footprono.bookmaker.odds_math import combined_odds
+
+    odds = [Decimal("1.11"), Decimal("1.11"), Decimal("1.30")]
+    total = combined_odds(odds)
+    assert total == Decimal("1.602")
+    grades = [Grade("win", o) for o in odds]
+    assert bet_outcome(2000, grades, total) == ("won", 3204)
+    # Remboursé ou demi-gagné : produit exact des facteurs, comme avant.
+    mixed = [Grade("win", Decimal("1.11")), Grade("push", Decimal(1))]
+    assert bet_outcome(2000, mixed, total) == ("won", 2220)

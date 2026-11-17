@@ -49,3 +49,22 @@ le pari 80 (3 518 annoncés, 3 517 payés).
 
 Le message du commit `8da1cee` parle d'une « demande du fondateur du **18**/11/2026 »,
 alors qu'il a été écrit le 17/11 à 02:10. C'est sans effet, mais l'historique sera trompeur.
+
+## Suite donnée (développement, 17/11)
+
+- **Gain exact** : un pari tout gagné paie maintenant exactement le gain annoncé (mise fois
+  la cote du pari) ; remboursé, demi-gagné ou demi-perdu : produit exact des facteurs, comme
+  avant. Test : 2 000 F sur 1,11 x 1,11 x 1,30 → 3 204 F. Les paris déjà payés à 1 F près
+  (87, 80) ne sont pas repris : ni « Score corrigé » ni nouvelle notification pour 1 F.
+- **Irlande** : « Rep. Of Ireland » → « Irlande » ; l'équipe déjà en base est renommée à la
+  prochaine mise à jour des sélections (chaque matin).
+- **Minute** : « ⚽ 90+4' » pour un but du temps additionnel.
+- **Montante terminée** : les suggestions répondent une erreur claire (« montante terminée,
+  crée une nouvelle montante ») ; l'application propose « Créer une nouvelle montante ».
+- **Sélections nationales dans la Fiabilité** : tableau « moteur contre cote » par écart
+  (+5 à +10, +10 à +15, +15 points et plus) : chance du moteur, selon la cote, part gagnée
+  et bilan à 1 000 F par sélection, avec l'avertissement « trop peu pour conclure » sous
+  100 sélections.
+- **Date du commit 8da1cee** : erreur reconnue (17/11, pas 18/11). L'historique déjà envoyé
+  n'est pas réécrit (d'autres sessions travaillent sur la même branche) ; cette note fait foi.
+- **1re mi-temps réglée dès la pause** : rien de changé, à revérifier sur un vrai match.

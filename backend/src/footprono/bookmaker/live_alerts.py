@@ -240,7 +240,9 @@ async def observe(
                 )
                 kind = "cancelled"
             else:
-                minute = f"{match.live_minute}' " if match.live_minute else ""
+                # Temps additionnel : « 90+4' », pas « 90' » (retour du testeur du 17/11/2026).
+                extra = f"+{match.live_extra}" if match.live_extra else ""
+                minute = f"{match.live_minute}{extra}' " if match.live_minute else ""
                 text = (
                     f"⚽ {minute}{_scoreline(match, home, away)} : « {label} » est {now_text} "
                     "pour l'instant."

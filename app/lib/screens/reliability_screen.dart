@@ -227,6 +227,7 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                       ),
                     ],
                   ),
+                  if (r['nations_vs_odds'] case final Json nv) _NationsVsOdds(nv),
                   const LiveReliabilityLink(),
                   const MontanteReliabilityLink(),
                   const EnginesReliabilityLink(),
@@ -1007,3 +1008,88 @@ class _RecentRow extends StatelessWidget {
 
 /// Barre « annoncé » des maquettes (#6B6490).
 const _announced = Color(0xFF6B6490);
+
+/// Sélections nationales (retour du testeur du 17/11/2026) : quand le moteur est plus
+/// confiant que la cote, la part réellement gagnée tient-elle ? Par écart annoncé, avec le
+/// bilan d'une mise fixe sur chaque sélection.
+class _NationsVsOdds extends StatelessWidget {
+  const _NationsVsOdds(this.data);
+  final Json data;
+
+  @override
+  Widget build(BuildContext context) {
+    final bands = (data['bands'] as List).cast<Json>();
+    final stake = (data['stake'] as num?)?.toInt() ?? 1000;
+    final total = bands.fold<int>(0, (n, b) => n + (b['selections'] as int));
+    String band(Json b) {
+      final lo = ((b['from'] as num) * 100).round();
+      final hi = b['to'] == null ? null : ((b['to'] as num) * 100).round();
+      return hi == null ? '+$lo pts et plus' : '+$lo à +$hi pts';
+    }
+
+    Widget cell(String t, {bool head = false, Color? color, TextAlign align = TextAlign.right}) => Text(
+      t,
+      textAlign: align,
+      style: head
+          ? Fp.body(11.5, weight: FontWeight.w600, color: Fp.text2)
+          : Fp.body(13, weight: FontWeight.w600, color: color ?? Fp.text),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: GlassCard.section(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Sélections nationales : moteur contre cote', style: Fp.body(14, weight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text(
+              'Résultats des matchs où le moteur était plus confiant que la cote d\'avant le match. '
+              'Annoncé par le moteur, selon la cote, et vraiment gagné ; bilan avec ${money(stake)} '
+              'sur chaque sélection.',
+              style: Fp.body(12, color: Fp.text2, height: 1.4),
+            ),
+            const SizedBox(height: 8),
+            Table(
+              columnWidths: const {0: FlexColumnWidth(2.4)},
+              children: [
+                TableRow(
+                  children: [
+                    cell('Écart', head: true, align: TextAlign.left),
+                    cell('Cas', head: true),
+                    cell('Moteur', head: true),
+                    cell('Cote', head: true),
+                    cell('Gagné', head: true),
+                    cell('Bilan', head: true),
+                  ],
+                ),
+                for (final b in bands)
+                  TableRow(
+                    children: [
+                      cell(band(b), align: TextAlign.left),
+                      cell('${b['selections']}'),
+                      cell(b['engine'] == null ? '—' : percent((b['engine'] as num).toDouble())),
+                      cell(b['implied'] == null ? '—' : percent((b['implied'] as num).toDouble())),
+                      cell(b['won'] == null ? '—' : percent((b['won'] as num).toDouble())),
+                      cell(
+                        (b['selections'] as int) == 0 ? '—' : signedMoney(b['profit'] as num),
+                        color: (b['profit'] as num) >= 0 ? Fp.win : Fp.loss,
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              total < 100
+                  ? 'Seulement $total sélections : trop peu pour conclure, l\'écart vient surtout du hasard.'
+                  : 'Si « Gagné » reste proche de « Moteur », les écarts tiennent ; proche de « Cote », '
+                        'c\'est la cote qui avait raison.',
+              style: Fp.body(12, color: total < 100 ? Fp.warning : Fp.muted, height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

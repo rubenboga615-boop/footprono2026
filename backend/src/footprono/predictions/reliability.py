@@ -353,6 +353,75 @@ def _versus_closing(
     }
 
 
+# Sélections nationales : quand le moteur est plus confiant que la cote (retour du testeur du
+# 17/11/2026 : +11 à +18 points dans les Coupons intelligents, Israël - Autriche 74 % contre
+# 56 %), ces écarts tiennent-ils ? Dernière cote jouable d'avant le coup d'envoi (1xBet, sinon
+# Bet365), chance selon la cote = 1 / cote, comme dans l'application.
+_PRE_KICKOFF_1X2 = text(
+    """
+    SELECT DISTINCT ON (o.match_id, o.bookmaker, o.value)
+           o.match_id, o.bookmaker, o.value, o.price
+    FROM bookmaker_odds o JOIN matches m ON m.id = o.match_id
+    WHERE o.match_id = ANY(:ids) AND o.bet = 'Match Winner'
+      AND o.bookmaker IN ('1xBet', 'Bet365') AND o.fetched_at < m.kickoff_at
+    ORDER BY o.match_id, o.bookmaker, o.value, o.fetched_at DESC
+    """
+)
+GAP_BANDS = ((0.05, 0.10), (0.10, 0.15), (0.15, None))
+GAP_STAKE = 1000
+
+
+async def nations_vs_odds(session: AsyncSession, rows: list[Scored]) -> dict[str, Any] | None:
+    """Sélections nationales, résultat du match : écart « moteur - cote » annoncé (moteur au
+    moins 5 points au-dessus), contre la part réellement gagnée et le bilan à mise fixe."""
+    nation_rows = [r for r in rows if r.competition in NATIONS_BY_CODE]
+    if not nation_rows:
+        return None
+    odds: dict[int, dict[str, dict[int, float]]] = {}
+    slots = {"Home": 0, "Draw": 1, "Away": 2}
+    result = await session.execute(_PRE_KICKOFF_1X2, {"ids": [r.match_id for r in nation_rows]})
+    for mid, book, value, price in result.all():
+        if value in slots:
+            odds.setdefault(mid, {}).setdefault(book, {})[slots[value]] = float(price)
+    bands: list[dict[str, Any]] = [
+        {"from": lo, "to": hi, "n": 0, "engine": 0.0, "implied": 0.0, "won": 0, "profit": 0}
+        for lo, hi in GAP_BANDS
+    ]
+    for r in nation_rows:
+        books = odds.get(r.match_id, {})
+        prices = next((books[b] for b in ("1xBet", "Bet365") if len(books.get(b, {})) == 3), None)
+        if prices is None:
+            continue
+        for k in range(3):
+            p, implied = r.probs["1X2"][k], 1 / prices[k]
+            gap = p - implied
+            band = next(
+                (b for b in bands if gap >= b["from"] and (b["to"] is None or gap < b["to"])),
+                None,
+            )
+            if band is None:
+                continue
+            won = r.outcome["1X2"] == k
+            band["n"] += 1
+            band["engine"] += p
+            band["implied"] += implied
+            band["won"] += won
+            band["profit"] += round(GAP_STAKE * prices[k]) - GAP_STAKE if won else -GAP_STAKE
+    out = []
+    for b in bands:
+        n = b["n"]
+        out.append(
+            {
+                "from": b["from"], "to": b["to"], "selections": n,
+                "engine": round(b["engine"] / n, 4) if n else None,
+                "implied": round(b["implied"] / n, 4) if n else None,
+                "won": round(b["won"] / n, 4) if n else None,
+                "profit": b["profit"],
+            }
+        )  # fmt: skip
+    return {"stake": GAP_STAKE, "matches": len(nation_rows), "bands": out}
+
+
 async def load_scored(
     session: AsyncSession, *, competition: str | None = None, since: date | None = None
 ) -> list[Scored]:
@@ -451,6 +520,11 @@ async def reliability_report(
             }
             for r in reversed(rows[-recent:] if recent else [])
         ],
+        "nations_vs_odds": (
+            await nations_vs_odds(session, rows)
+            if competition is None or competition in NATIONS_BY_CODE
+            else None
+        ),
         # Tous les marchés : audit des 5 grands championnats (pas d'audit par championnat).
         "markets_audit": markets_audit() if competition in (None, "BIG5") else None,
         "backtest": (

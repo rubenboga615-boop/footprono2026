@@ -18,6 +18,9 @@ class ApiException implements Exception {
   bool get oddsChanged => code == 'odds_changed';
   bool get outOfRange => details is Map && (details as Map)['code'] == 'out_of_range';
 
+  /// Montante perdue, encaissée ou finie : plus de suggestions (retour du 17/11/2026).
+  bool get montanteFinished => details is Map && (details as Map)['code'] == 'montante_finished';
+
   @override
   String toString() => message;
 }

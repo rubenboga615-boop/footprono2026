@@ -382,8 +382,16 @@ async def grade_selection(session: AsyncSession, sel: BetSelection, now: datetim
     return _grade(outcome, sel.odds)
 
 
-def bet_outcome(stake: int, grades: list[Grade]) -> tuple[str, int]:
-    """Issue et gain d'un pari (arrondi au franc inférieur, comme un bookmaker)."""
+def bet_outcome(
+    stake: int, grades: list[Grade], total_odds: Decimal | None = None
+) -> tuple[str, int]:
+    """Issue et gain d'un pari (arrondi au franc inférieur, comme un bookmaker).
+
+    Toutes les sélections gagnées : exactement le gain annoncé au joueur, mise fois la cote
+    du pari (``total_odds``, arrondie au millième, ``odds_math.combined_odds``). Avant, le
+    produit exact des cotes payait parfois 1 F de moins (pari 87 du 16/11/2026 : 1,11 x
+    1,11 x 1,30 = 1,6017, cote 1,602 : 3 204 F annoncés, 3 203 F payés). Remboursé, demi-gagné
+    ou demi-perdu : produit exact des facteurs."""
     factor = Decimal(1)
     for g in grades:
         factor *= g.factor
@@ -393,6 +401,8 @@ def bet_outcome(stake: int, grades: list[Grade]) -> tuple[str, int]:
         return "lost", 0
     if results == {"push"}:
         return "push", payout
+    if results == {"win"} and total_odds is not None:
+        return "won", math.floor(Decimal(stake) * total_odds)
     if results <= {"win", "push"}:
         return "won", payout
     return "partial", payout
@@ -544,7 +554,9 @@ async def settle_bets(
         for s, g in zip(selections, grades, strict=True):
             s.result = g.result if g is not None else "pending"
         outcome, payout = (
-            ("lost", 0) if lost else bet_outcome(bet.stake, [g for g in grades if g is not None])
+            ("lost", 0)
+            if lost
+            else bet_outcome(bet.stake, [g for g in grades if g is not None], bet.total_odds)
         )
         if bet.status == "open":
             bet.status, bet.outcome, bet.payout, bet.settled_at = "settled", outcome, payout, now
@@ -574,7 +586,11 @@ async def settle_bets(
                     _notify_settled(session, bet, name, detail)
             report["settled"] += 1
             report["outcomes"][outcome] = report["outcomes"].get(outcome, 0) + 1
-        elif (outcome, payout) != (bet.outcome, bet.payout):
+        elif (outcome, payout) != (bet.outcome, bet.payout) and not (
+            # Même issue, 1 F d'écart : l'arrondi du gain changé le 17/11/2026, pas le
+            # score ; jamais de « Score corrigé » pour ça.
+            outcome == bet.outcome and abs(payout - (bet.payout or 0)) <= 1
+        ):
             await _correct(session, bet, outcome, payout, now, await _bet_name(session, selections))
             report["resettled"] += 1
     report["live_alerts"] = await live_alerts.emit(alerts, session, now)

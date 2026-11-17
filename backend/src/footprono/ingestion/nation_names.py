@@ -17,6 +17,8 @@ NATION_NAMES_FR: dict[str, str] = {
     "Finland": "Finlande", "France": "France", "Georgia": "Géorgie", "Germany": "Allemagne",
     "Gibraltar": "Gibraltar", "Greece": "Grèce", "Hungary": "Hongrie", "Iceland": "Islande",
     "Ireland": "Irlande", "Republic of Ireland": "Irlande", "Israel": "Israël", "Italy": "Italie",
+    # Nom d'API-Football dans les coupons du 15 et du 16/11/2026 (retour du testeur).
+    "Rep. Of Ireland": "Irlande",
     "Kazakhstan": "Kazakhstan", "Kosovo": "Kosovo", "Latvia": "Lettonie",
     "Liechtenstein": "Liechtenstein", "Lithuania": "Lituanie", "Luxembourg": "Luxembourg",
     "Malta": "Malte", "Moldova": "Moldavie", "Montenegro": "Monténégro",

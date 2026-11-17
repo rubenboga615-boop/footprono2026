@@ -101,6 +101,13 @@ async def step_suggestions(
     if engine == 2 and not user.compare_engines:
         raise AppError("moteur 2 : active « Comparer les deux moteurs » dans ton profil")
     m = await _own(session, user, montante_id)
+    if m.status != "active":
+        # Retour du testeur du 17/11/2026 : une montante perdue recevait encore 3 suggestions
+        # (le pari était refusé ensuite) ; le dire tout de suite.
+        raise AppError(
+            "montante terminée : plus de pari possible, crée une nouvelle montante",
+            details={"code": "montante_finished", "status": m.status},
+        )
     step = await session.scalar(
         select(MontanteStep).where(
             MontanteStep.montante_id == m.id, MontanteStep.number == m.current_step
