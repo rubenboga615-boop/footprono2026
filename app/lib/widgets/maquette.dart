@@ -124,7 +124,7 @@ class MButton extends StatelessWidget {
   }
 }
 
-/// Pastille : texte 11 gras, fond doux (« 2 000 F / mois », « Gagné »).
+/// Pastille : texte 11 gras, fond doux (« 2 000 F pour 30 jours », « Gagné »).
 class MPill extends StatelessWidget {
   const MPill(this.text, {super.key, this.color = M.lock, this.background = const Color(0x337C3AED)});
   const MPill.win(this.text, {super.key}) : color = M.green, background = const Color(0x2234D399);
@@ -144,7 +144,7 @@ class MPill extends StatelessWidget {
   );
 }
 
-/// Pastille entourée (« 2 000 F / mois », solde du coupon) : maquettes C3 et N4.
+/// Pastille entourée (« 2 000 F pour 30 jours », solde du coupon) : maquettes C3 et N4.
 class MOutlinePill extends StatelessWidget {
   const MOutlinePill(this.text, {super.key});
   final String text;

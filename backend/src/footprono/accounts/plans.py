@@ -3,7 +3,7 @@
 - Gratuit : matchs, marchés 1X2 / plus-moins de buts / les deux marquent
   (prédictions, offre, paris), bookmaker virtuel, coupons, montante sans
   suggestions, page publique de fiabilité.
-- Premium (2 000 F CFA par mois, sans essai automatique) : tous les
+- Premium (2 000 F CFA pour 30 jours, sans essai automatique) : tous les
   marchés (handicaps, mi-temps, scores exacts, corners, cartons, tirs…),
   suggestions de montante, analyses détaillées.
 
@@ -19,7 +19,7 @@ from footprono.accounts.models import User
 from footprono.core.errors import AppError
 
 FREE_MARKETS = frozenset({"1X2", "OU", "BTTS"})
-PREMIUM_PRICE = 2000  # F CFA par mois
+PREMIUM_PRICE = 2000  # F CFA pour PREMIUM_DAYS jours
 PREMIUM_DAYS = 30  # durée achetée par paiement
 PREMIUM_CURRENCY = "XOF"
 

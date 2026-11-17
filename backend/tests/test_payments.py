@@ -169,15 +169,17 @@ async def test_wrong_amount_or_refusal_never_grants(
 ) -> None:
     headers = await _signup(http)
     before = (await _user(db_factory)).premium_until
-    first = (await http.post("/api/v1/payments/premium", headers=headers)).json()
-    second = (await http.post("/api/v1/payments/premium", headers=headers)).json()
-    fake.pay(first["transaction_id"], amount="100")  # montant trafiqué
-    fake.pay(second["transaction_id"], status="REFUSED")
-    for p in (first, second):
+    created = []
+    for state in ({"amount": "100"}, {"status": "REFUSED"}):  # montant trafiqué, puis refus
+        p = (await http.post("/api/v1/payments/premium", headers=headers)).json()
+        fake.pay(p["transaction_id"], **state)
         await http.post(
             "/api/v1/payments/cinetpay/notify",
             data={"cpm_trans_id": p["transaction_id"], "cpm_site_id": SITE},
         )
+        created.append(p)
+    first, second = created
+    assert first["id"] != second["id"]  # le premier n'est plus en attente : nouveau paiement
     statuses = [
         (await http.get(f"/api/v1/payments/{p['id']}", headers=headers)).json()["status"]
         for p in (first, second)
@@ -233,3 +235,53 @@ async def test_pending_payments_are_rechecked(
     async with db_factory() as session:
         assert await payment_service.pending_to_check(session, later) == []
         assert (await session.get(Payment, payment["id"])) is not None
+
+
+async def test_pending_payment_is_reused_for_20_minutes(
+    http: AsyncClient, fake: FakeCinetPay, db_factory: Factory
+) -> None:
+    """Rapport du 14/11/2026, P4 : dix appuis sur « Passer Premium », un seul paiement."""
+    headers = await _signup(http)
+    first = (await http.post("/api/v1/payments/premium", headers=headers)).json()
+    again = (await http.post("/api/v1/payments/premium", headers=headers)).json()
+    assert again["id"] == first["id"]
+    assert again["payment_url"] == first["payment_url"]
+    assert len(fake.inits) == 1
+    async with db_factory() as session:
+        payment = await session.get(Payment, first["id"])
+        assert payment is not None
+        payment.created_at = datetime.now(UTC) - timedelta(minutes=21)
+        await session.commit()
+    late = (await http.post("/api/v1/payments/premium", headers=headers)).json()
+    assert late["id"] != first["id"]
+    assert len(fake.inits) == 2
+
+
+async def test_payment_callbacks_are_rate_limited(pay_app: FastAPI, fake: FakeCinetPay) -> None:
+    """Rapport du 14/11/2026, P3 : chaque appel interroge le prestataire avec notre clé."""
+    from redis.asyncio import Redis
+
+    from footprono.api.v1 import payments as payments_api
+
+    from .conftest import TEST_REDIS_URL
+
+    redis = Redis.from_url(TEST_REDIS_URL)
+    for key in await redis.keys("ratelimit:payment-callback-*"):
+        await redis.delete(key)
+    await redis.aclose()
+    # Adresse à part : les autres tests de paiement gardent leur propre compteur.
+    transport = ASGITransport(app=pay_app, client=("10.9.8.7", 4000))
+    async with AsyncClient(transport=transport, base_url="http://test") as http:
+        for _ in range(payments_api.CALLBACKS_PER_TRANSACTION):
+            r = await http.get("/api/v1/payments/cinetpay/return?transaction_id=BOUCLE")
+            assert r.status_code == 200
+        blocked = await http.get("/api/v1/payments/cinetpay/return?transaction_id=BOUCLE")
+        assert blocked.status_code == 429
+        # Une autre transaction passe encore (limite par adresse plus large)…
+        other = await http.get("/api/v1/payments/cinetpay/return?transaction_id=AUTRE")
+        assert other.status_code == 200
+        # … jusqu'à la limite par adresse.
+        for _ in range(payments_api.CALLBACKS_PER_IP):
+            await http.post("/api/v1/payments/wave/notify", content=b"{}")
+        last = await http.post("/api/v1/payments/wave/notify", content=b"{}")
+        assert last.status_code == 429

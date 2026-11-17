@@ -7,7 +7,7 @@ Code : `backend/src/footprono/accounts/plans.py`, `accounts/admin.py`,
 
 | Sujet | Décision |
 |---|---|
-| Formules | Version gratuite sans limite de durée, **pas d'essai automatique** (Premium offert seulement par l'administrateur, console ou `grant`) ; Premium à **2 000 F CFA par mois** |
+| Formules | Version gratuite sans limite de durée, **pas d'essai automatique** (Premium offert seulement par l'administrateur, console ou `grant`) ; Premium à **2 000 F CFA pour 30 jours** |
 | Activation de Premium | **Mobile Money** (Paystack : Wave, Orange Money, MTN MoMo ou carte ; Profil → Passer Premium, voir `PRODUCTION.md`) ; l'administrateur peut aussi l'accorder |
 | Langue | Français seulement |
 

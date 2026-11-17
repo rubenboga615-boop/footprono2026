@@ -376,7 +376,9 @@ def check_payments() -> dict[str, Any]:
 
 async def _check_payments() -> dict[str, Any]:
     settings = get_settings()
-    if settings.cinetpay_api_key is None and settings.paystack_secret_key is None:
+    # Tous les prestataires configurés, Wave Business compris (rapport du 14/11/2026, P1 :
+    # avant, un paiement Wave dont la notification se perdait n'était jamais revérifié).
+    if not payment_service.available_providers(settings):
         return {"status": "idle", "reason": "aucun prestataire de paiement configuré"}
     engine = create_engine(settings)
     redis = create_redis(settings)

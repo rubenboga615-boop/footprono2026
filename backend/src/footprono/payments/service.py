@@ -68,6 +68,9 @@ async def _check(
     return await CinetPayClient.from_settings(settings, transport).check(payment.transaction_id)
 
 
+# Paiement en attente repris au lieu d'en créer un nouveau (rapport du 14/11/2026, P4). 20 minutes
+# et non 30 : une session Wave expire au bout de 30 minutes, le lien repris doit encore marcher.
+REUSE_PENDING = timedelta(minutes=20)
 # Un paiement non confirmé après ce délai n'est plus vérifié automatiquement.
 RECONCILE_WINDOW = timedelta(hours=24)
 
@@ -100,6 +103,22 @@ async def start_premium(
 ) -> Payment:
     provider = active_provider(settings, method)
     notify_url, return_url = _urls(settings, provider)
+    # Rapport du 14/11/2026, P4 : un appui répété sur « Passer Premium » créait chaque fois un
+    # nouveau paiement en attente. Celui de moins de 20 minutes, même prestataire, est repris.
+    recent = await session.scalar(
+        select(Payment)
+        .where(
+            Payment.user_id == user.id,
+            Payment.provider == provider,
+            Payment.status == "pending",
+            Payment.payment_url.is_not(None),
+            Payment.created_at >= datetime.now(UTC) - REUSE_PENDING,
+        )
+        .order_by(Payment.created_at.desc())
+        .limit(1)
+    )
+    if recent is not None:
+        return recent
     payment = Payment(
         user_id=user.id,
         provider=provider,

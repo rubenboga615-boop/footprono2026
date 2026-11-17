@@ -1,15 +1,19 @@
 """Paiement de Premium par Wave (simulé : aucun appel réseau)."""
 
 import json
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.main import create_app
 from footprono.payments import wave
+from footprono.payments.models import Payment
 
 from .conftest import make_settings
 from .test_accounts import SIGNUP
@@ -159,3 +163,30 @@ async def test_manual_wave_number_shown(db_engine: object) -> None:
         assert methods["manual"] == {
             "wave_number": "+2250700000000", "whatsapp": "+2250500649904",
         }  # fmt: skip
+
+
+async def test_wave_only_payments_are_rechecked_by_the_worker(
+    http: AsyncClient,
+    fake: FakeWave,
+    monkeypatch: pytest.MonkeyPatch,
+    db_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Rapport du 14/11/2026, P1 : avec Wave seul, la revérification ne s'arrêtait jamais
+    (« aucun prestataire ») ; un paiement dont la notification se perdait restait en attente."""
+    from footprono.worker import tasks
+
+    headers, created = await _buy(http, {"method": "wave"})
+    reference = created.json()["transaction_id"]
+    fake.pay(reference)
+    async with db_factory() as session:  # revérifié à partir de 2 minutes
+        await session.execute(
+            update(Payment)
+            .where(Payment.transaction_id == reference)
+            .values(created_at=datetime.now(UTC) - timedelta(minutes=5))
+        )
+        await session.commit()
+    monkeypatch.setattr(tasks, "get_settings", lambda: make_settings(wave_api_key=KEY))
+    report = await tasks._check_payments()
+    assert report["status"] == "ok"
+    assert report.get("accepted") == 1
+    assert (await http.get("/api/v1/me", headers=headers)).json()["plan"]["name"] == "premium"

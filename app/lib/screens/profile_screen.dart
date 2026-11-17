@@ -541,7 +541,7 @@ class _PlanCard extends StatelessWidget {
     final me = context.watch<AppState>().me!;
     final plan = me.plan;
     final price = money(plan.price, plan.priceCurrency);
-    // « 2 000 F / mois » comme la maquette (la devise reste dite dans la fenêtre de paiement).
+    // « 2 000 F pour 30 jours » : 30 jours payés, pas un mois calendaire (rapport du 14/11/2026).
     final short = plan.priceCurrency == 'XOF' ? '${thousands(plan.price)} F' : price;
     return MCard(
       child: Column(
@@ -552,7 +552,7 @@ class _PlanCard extends StatelessWidget {
               Expanded(
                 child: Text(plan.premium ? 'FootProba Premium' : 'Version gratuite', style: Fp.title(17)),
               ),
-              if (plan.premium) const Tag.win('Actif') else MOutlinePill('$short / mois'),
+              if (plan.premium) const Tag.win('Actif') else MOutlinePill('$short · 30 jours'),
             ],
           ),
           if (plan.premium && plan.premiumUntil != null) ...[
@@ -568,7 +568,7 @@ class _PlanCard extends StatelessWidget {
           ],
           const SizedBox(height: 12),
           MButton(
-            plan.premium ? 'Prolonger · $short / mois' : 'Passer Premium · $short / mois',
+            plan.premium ? 'Prolonger de 30 jours · $short' : 'Passer Premium · $short',
             onPressed: () => openPremiumPurchase(context, plan),
           ),
           if (context.watch<AppState>().wavePendingSince case final since?) ...[

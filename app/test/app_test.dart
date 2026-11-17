@@ -1465,7 +1465,7 @@ void main() {
     await tester.pumpAndSettle();
     // Aperçu flouté (structure seulement, aucun chiffre) puis le bouton d'abonnement.
     expect(find.text('Inclus dans Premium'), findsOneWidget);
-    expect(find.text('Débloquer · 2${nbsp}000 F / mois'), findsOneWidget);
+    expect(find.text('Débloquer · 2${nbsp}000 F pour 30 jours'), findsOneWidget);
     expect(find.text('Forme · 5 derniers matchs'), findsNothing);
   });
 
@@ -2335,6 +2335,8 @@ void main() {
     await tester.tap(find.text('Profil'));
     await tester.pumpAndSettle();
     expect(find.text('Notifications sur cet appareil'), findsOneWidget);
+    await tester.ensureVisible(find.text('Activer'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Activer'));
     await tester.pumpAndSettle();
     expect(server.platforms, ['web']);
@@ -2347,6 +2349,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Notifications sur cet appareil'), findsNothing);
     state.webPushStatus.value = WebPushStatus.install;
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Écran d\'accueil'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Écran d\'accueil'));
     await tester.pumpAndSettle();
@@ -2430,7 +2434,7 @@ void main() {
     expect(find.text('Sélections et code 1xBet dans Premium'), findsNWidgets(3));
     expect(find.text('Copier'), findsNothing);
     expect(find.text('Débloquer les coupons du jour'), findsOneWidget);
-    await tester.tap(find.text('Passer Premium · 2${nbsp}000 F / mois'));
+    await tester.tap(find.text('Passer Premium · 2${nbsp}000 F pour 30 jours'));
     await tester.pumpAndSettle();
     expect(find.text('Premium · 30 jours'), findsOneWidget); // « Passer Premium » directement
   });
@@ -3005,8 +3009,8 @@ void main() {
     expect(find.textContaining('Exemple : coupon du'), findsOneWidget);
     expect(find.text('Gagné'), findsOneWidget);
     expect(find.text('Lens – Lyon'), findsOneWidget);
-    await tester.ensureVisible(find.text('Débloquer · 2${nbsp}000 F / mois'));
-    await tester.tap(find.text('Débloquer · 2${nbsp}000 F / mois'));
+    await tester.ensureVisible(find.text('Débloquer · 2${nbsp}000 F pour 30 jours'));
+    await tester.tap(find.text('Débloquer · 2${nbsp}000 F pour 30 jours'));
     await tester.pumpAndSettle();
     expect(find.text('Premium · 30 jours'), findsOneWidget); // « Passer Premium » directement
   });

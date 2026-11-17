@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.accounts.plans import PREMIUM_CURRENCY, PREMIUM_DAYS, PREMIUM_PRICE
 from footprono.api.deps import CurrentUserDep, RedisDep, SessionDep, SettingsDep
+from footprono.core import ratelimit
 from footprono.core.config import Settings
 from footprono.core.errors import AppError, NotFoundError
 from footprono.notifications import push
@@ -31,6 +32,25 @@ from footprono.payments.models import Payment
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["paiements"])
+
+# Adresses appelées par les prestataires et par le navigateur au retour du paiement : chaque
+# appel interroge le prestataire avec notre clé. Sans limite, quelqu'un pouvait les appeler en
+# boucle et faire bloquer notre compte (rapport du 14/11/2026, P3). Les vrais prestataires
+# n'appellent que quelques fois par paiement : jamais gênés.
+CALLBACK_WINDOW = 600
+CALLBACKS_PER_IP = 60
+CALLBACKS_PER_TRANSACTION = 10
+
+
+async def _callback_guard(request: Request, redis: Any, transaction_id: str | None) -> None:
+    ip = request.client.host if request.client else "inconnue"
+    checks = [("payment-callback-ip", ip, CALLBACKS_PER_IP)]
+    if transaction_id:
+        checks.append(("payment-callback-tx", transaction_id[:64], CALLBACKS_PER_TRANSACTION))
+    for scope, ident, limit in checks:
+        await ratelimit.check(redis, scope, ident, limit, CALLBACK_WINDOW)
+    for scope, ident, _ in checks:
+        await ratelimit.hit(redis, scope, ident, CALLBACK_WINDOW)
 
 
 class PaymentOut(BaseModel):
@@ -126,6 +146,7 @@ async def notify_ping() -> dict[str, str]:
 
 @router.post("/payments/cinetpay/notify", include_in_schema=False)
 async def notify(
+    request: Request,
     session: SessionDep,
     settings: SettingsDep,
     redis: RedisDep,
@@ -133,6 +154,7 @@ async def notify(
     cpm_site_id: Annotated[str, Form()] = "",
 ) -> dict[str, str]:
     """Signal de CinetPay : la transaction est revérifiée auprès de CinetPay."""
+    await _callback_guard(request, redis, cpm_trans_id)
     if not cpm_trans_id or cpm_site_id != (settings.cinetpay_site_id or ""):
         logger.warning("payment_notify_ignored", extra={"tx": cpm_trans_id})
         return {"status": "ignored"}
@@ -159,23 +181,27 @@ h1{{color:#b793f5;font-size:22px}}p{{color:#c9c3d6;line-height:1.5}}</style></he
     include_in_schema=False,
 )
 async def return_page(
+    request: Request,
     session: SessionDep,
     settings: SettingsDep,
     redis: RedisDep,
     transaction_id: Annotated[str | None, Query()] = None,
 ) -> HTMLResponse:
     """Page affichée après le guichet CinetPay : l'utilisateur revient à l'application."""
+    await _callback_guard(request, redis, transaction_id)
     return await _return_html(session, settings, redis, transaction_id)
 
 
 @router.get("/payments/paystack/return", response_class=HTMLResponse, include_in_schema=False)
 async def paystack_return_page(
+    request: Request,
     session: SessionDep,
     settings: SettingsDep,
     redis: RedisDep,
     reference: Annotated[str | None, Query()] = None,
 ) -> HTMLResponse:
     """Page affichée après la page de paiement Paystack (``?reference=…``)."""
+    await _callback_guard(request, redis, reference)
     return await _return_html(session, settings, redis, reference)
 
 
@@ -185,6 +211,7 @@ async def paystack_notify(
 ) -> dict[str, str]:
     """Webhook Paystack : signature HMAC SHA-512 contrôlée, puis la transaction est
     revérifiée auprès de Paystack (le contenu du message n'est jamais cru tel quel)."""
+    await _callback_guard(request, redis, None)
     body = await request.body()
     secret = settings.paystack_secret_key
     signature = request.headers.get("x-paystack-signature")
@@ -208,12 +235,14 @@ async def paystack_notify(
 
 @router.get("/payments/wave/return", response_class=HTMLResponse, include_in_schema=False)
 async def wave_return_page(
+    request: Request,
     session: SessionDep,
     settings: SettingsDep,
     redis: RedisDep,
     transaction_id: Annotated[str | None, Query()] = None,
 ) -> HTMLResponse:
     """Page affichée au retour de l'application Wave (succès ou échec)."""
+    await _callback_guard(request, redis, transaction_id)
     return await _return_html(session, settings, redis, transaction_id)
 
 
@@ -223,6 +252,7 @@ async def wave_notify(
 ) -> dict[str, str]:
     """Webhook Wave : simple signal. La session est revérifiée auprès de Wave avec notre
     clé (montant, devise, état) ; le contenu du message n'est jamais cru tel quel."""
+    await _callback_guard(request, redis, None)
     try:
         event = json.loads(await request.body())
         reference = str(event["data"]["client_reference"])

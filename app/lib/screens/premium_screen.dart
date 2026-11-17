@@ -80,12 +80,12 @@ class PremiumTable extends StatelessWidget {
   }
 }
 
-/// Prix affiché sur les boutons : « 2 000 F / mois » (la devise complète est sur l'écran
+/// Prix affiché sur les boutons : « 2 000 F pour 30 jours » (la devise complète est sur l'écran
 /// « Passer Premium »).
 String premiumPrice(BuildContext context) {
   final plan = context.read<AppState>().me?.plan;
-  if (plan == null) return '2 000 F / mois';
-  return '${plan.priceCurrency == 'XOF' ? '${thousands(plan.price)} F' : money(plan.price, plan.priceCurrency)} / mois';
+  if (plan == null) return '2 000 F pour 30 jours';
+  return '${plan.priceCurrency == 'XOF' ? '${thousands(plan.price)} F' : money(plan.price, plan.priceCurrency)} pour 30 jours';
 }
 
 /// Depuis un écran verrouillé : « Passer Premium » directement (avant : retour à l'onglet
@@ -101,7 +101,7 @@ void openPremium(BuildContext context) {
 }
 
 /// Cadre « Inclus dans Premium » des écrans verrouillés (maquettes N1, N2, N3) : fond
-/// #2B2060, bordure violette, cadenas au trait, bouton « Débloquer · 2 000 F / mois ».
+/// #2B2060, bordure violette, cadenas au trait, bouton « Débloquer · 2 000 F pour 30 jours ».
 class PremiumCard extends StatelessWidget {
   const PremiumCard({
     super.key,
