@@ -19,3 +19,15 @@ précédente soit validée par ses critères (tests automatisés verts).
   Extension à d'autres ligues seulement après validation complète du moteur.
 - La value n'est pas un objectif de la V1 : elle ne sera exposée que si un
   backtest la démontre.
+
+## Études prévues
+
+| Quand | Étude | Règle |
+|---|---|---|
+| 1er décembre 2026 | Bilan en conditions réelles par championnat, favoris, moteur 1 contre 2 (export de fin novembre) | Constat seulement |
+| Début 2027 (environ 2 mois de compositions) | **Impact des joueurs** (décidé le 18/11/2026) : quand des titulaires importants manquent (gardien, cadres, équipe B), le moteur se trompe-t-il plus que d'habitude ? Données : `match_lineups`, `match_lineup_players`, `player_match_stats`, collectées depuis le 10/11/2026 | Le moteur 1 reste intact ; un gain éventuel est essayé d'abord dans le moteur 2 et comparé au moteur 1 |
+| À programmer | **Sélections africaines** (éliminatoires de la CAN : 46 % de réussite dans un bilan joueur) : altitude, voyages, joueurs de l'étranger absents | Même règle |
+
+Déjà testé sur les saisons passées (`engine/correction.py`) : repos, forme, réussite de
+la saison et luttes au classement n'améliorent pas les prévisions ; seul « sans enjeu »
+est retenu.
