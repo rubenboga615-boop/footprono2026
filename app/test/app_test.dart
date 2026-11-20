@@ -2601,8 +2601,8 @@ void main() {
     await tester.tap(find.text('Coupons du jour'));
     await tester.pumpAndSettle();
     expect(find.text('62$nbsp%'), findsOneWidget); // la chance reste visible
-    // Maquette P2 : chance selon la cote sur chaque carte, et la place du moteur.
-    expect(find.textContaining('selon la cote : '), findsNWidgets(3));
+    // Maquette 12 : cote, moteur et « la cote dit » sur chaque carte.
+    expect(find.text('la cote dit'), findsNWidgets(3));
     expect(find.text('cote'), findsWidgets); // « ≈ cote » : Audacieux 30 % à 3,10 (32 %), −2 points
     expect(find.text('Sélections et code 1xBet dans Premium'), findsNWidgets(3));
     expect(find.text('Copier'), findsNothing);
@@ -2638,11 +2638,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coupons du jour'));
     await tester.pumpAndSettle();
-    expect(find.text('2 gagnés sur 3'), findsOneWidget);
-    // 30 derniers jours : un profil par ligne, jamais additionnés.
-    expect(find.text('49 gagnés sur 90'), findsNothing);
-    expect(find.text('17 gagnés sur 30'), findsOneWidget);
-    expect(find.text('Chance annoncée 27$nbsp% · réalisé 27$nbsp%'), findsOneWidget);
+    expect(find.text('Hier : 2 gagnés sur 3'), findsOneWidget);
+    // Bilan public sur 30 jours : un chiffre par profil, jamais additionnés (maquette 12).
+    expect(find.textContaining('49 gagnés sur 90'), findsNothing);
+    expect(find.textContaining('17/30'), findsOneWidget);
     // Coupon perdu sans code : plus de « bientôt disponible » (essai du 07/11/2026).
     expect(find.textContaining('Code bientôt disponible'), findsOneWidget);
     expect(find.text('Perdu'), findsOneWidget);
@@ -2655,7 +2654,7 @@ void main() {
     expect(copied, ['7HQ2K']);
     expect(find.text('Code 7HQ2K copié : colle-le dans 1xBet.'), findsOneWidget);
 
-    await tester.tap(find.text('ÉQUILIBRÉ'));
+    await tester.tap(find.text('Équilibré'));
     await tester.pumpAndSettle();
     expect(find.text('en cours 58\' · 1-0'), findsOneWidget);
     expect(find.textContaining('Sur 100 coupons comme celui-ci, environ 62 passent.'), findsOneWidget);
@@ -3797,9 +3796,11 @@ void main() {
     expect(find.text('71 %'), findsOneWidget);
     expect(find.text('cote ≈ 1,34'), findsOneWidget); // cote indicative
     expect(find.text('Premium'), findsOneWidget); // Équilibré réservé
-    expect(find.textContaining('Sûr : moins de 2,5 buts'), findsOneWidget);
-    expect(find.text('encore 2 min'), findsOneWidget);
-    expect(find.text('jusqu\'à la 50e'), findsOneWidget);
+    // Maquette 14 : par match, chaque proposition avec moteur et cote, et la fenêtre ouverte.
+    expect(find.text('Moins de 2,5 buts'), findsWidgets);
+    expect(find.textContaining('Sûr · moteur'), findsWidgets);
+    expect(find.textContaining('Fenêtre « '), findsOneWidget);
+    expect(find.textContaining('Ferme à la '), findsOneWidget);
 
     await tester.tap(find.text('Sûr · 2'));
     await tester.pumpAndSettle();

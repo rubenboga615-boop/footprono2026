@@ -14,6 +14,7 @@ import '../format.dart';
 import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../widgets/visage.dart';
 import 'create_screen.dart' show HomeTab;
 import '../widgets/common.dart';
 import 'premium_screen.dart';
@@ -57,87 +58,64 @@ class _LiveCouponScreenState extends State<LiveCouponScreen> {
           builder: (context, lc, _) => RefreshIndicator(
             onRefresh: _state.loadLiveCoupons,
             child: ListView(
-              padding: pagePadding(context, 16, 40, maxWidth: 720),
+              padding: pagePadding(context, 6, 40, maxWidth: 720),
               children: [
-                Row(
-                  children: [
-                    BackChevron(onTap: () => Navigator.of(context).maybePop()),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text('Coupon en direct', style: Fp.title(22), overflow: TextOverflow.ellipsis),
-                    ),
-                    if (lc?.trial ?? true) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Fp.warningBg,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'En test',
-                          style: Fp.body(11, weight: FontWeight.w700, color: Fp.warning),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _Info(
-                  lc?.indicative ?? true
-                      ? 'Cotes indicatives, relevées en direct chez un autre bookmaker : vérifie-les dans '
-                            '1xBet avant de parier. Si tu viens de perdre, fais une pause.'
-                      : 'Cotes 1xBet en direct : elles bougent vite, vérifie-les avant de parier. Si tu '
-                            'viens de perdre, fais une pause.',
+                // Maquette 14 : titre, « En test », la fenêtre ouverte et son compte à rebours.
+                VTopBar(
+                  'Coupon en direct',
+                  trailing: (lc?.trial ?? true) ? const VChip('En test', kind: VChipKind.am) : null,
                 ),
                 if (lc == null)
                   const Padding(
                     padding: EdgeInsets.all(32),
                     child: Center(child: CircularProgressIndicator()),
                   )
-                else if (lc.nothingWorthIt)
-                  const EmptyState(
-                    'Aucun coupon intéressant pendant cette fenêtre : le moteur ne trouve pas de cote '
-                    'assez généreuse.\nC\'est normal : il ne propose que si sa chance dépasse celle de la '
-                    'cote d\'au moins 3 points.',
-                    icon: Icons.hourglass_empty_rounded,
-                  )
-                else if (!lc.open)
+                else if (!lc.open && !lc.nothingWorthIt)
                   const EmptyState(
                     'Aucun match ouvert en ce moment.\nLe coupon en direct s\'ouvre à la pause (jusqu\'à la '
                     '50e), de la 60e à la 63e et de la 75e à la 78e.',
                     icon: Icons.sensors_rounded,
                   )
                 else ...[
-                  const SizedBox(height: 14),
-                  Text(
-                    'Combinés du moteur · ${lc.matches.length} match${lc.matches.length > 1 ? 's' : ''} '
-                    'ouvert${lc.matches.length > 1 ? 's' : ''}',
-                    style: Fp.body(13, color: Fp.muted, weight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      for (final (i, p) in liveProfiles.indexed) ...[
-                        if (i > 0) const SizedBox(width: 6),
-                        Expanded(
-                          child: _ProfileTile(
-                            profile: p,
-                            combo: lc.combos[p],
-                            indicative: lc.indicative,
-                            onTap: () => _open(context, lc, p),
+                  if (lc.matches.isNotEmpty) _Window(lc),
+                  if (lc.nothingWorthIt)
+                    VCard(
+                      child: Text(
+                        'Aucun coupon intéressant pendant cette fenêtre : le moteur ne trouve pas de cote '
+                        'assez généreuse. Il ne propose que si sa chance dépasse celle de la cote d\'au moins '
+                        '3 points.',
+                        style: V.t(12.5, color: V.mu),
+                      ),
+                    )
+                  else ...[
+                    const SizedBox(height: 12),
+                    VKicker(
+                      'Combinés du moteur · ${lc.matches.length} match${lc.matches.length > 1 ? 's' : ''} '
+                      'ouvert${lc.matches.length > 1 ? 's' : ''}',
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        for (final (i, p) in liveProfiles.indexed) ...[
+                          if (i > 0) const SizedBox(width: 6),
+                          Expanded(
+                            child: _ProfileTile(
+                              profile: p,
+                              combo: lc.combos[p],
+                              indicative: lc.indicative,
+                              onTap: () => _open(context, lc, p),
+                            ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Par match',
-                    style: Fp.body(13, color: Fp.muted, weight: FontWeight.w700),
-                  ),
+                    ),
+                  ],
                   for (final m in lc.matches) _MatchRow(match: m, indicative: lc.indicative),
                 ],
+                const VInfo(
+                  'Rien n\'est proposé juste après un but (2 min) ni si la cote a été relevée avant un but. '
+                  'Si tu viens de perdre, fais une pause.',
+                ),
               ],
             ),
           ),
@@ -166,22 +144,6 @@ String _moment(LiveCouponMatch m) => m.apiStatus == 'HT' ? 'MT' : "${m.minute ??
 
 String _oddsText(Object v, bool indicative) => indicative ? '≈ ${odds(v)}' : odds(v);
 
-class _Info extends StatelessWidget {
-  const _Info(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-    decoration: BoxDecoration(
-      color: Fp.fill6,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: Fp.line12),
-    ),
-    child: Text(text, style: Fp.body(12.5, color: Fp.textSoft, height: 1.45)),
-  );
-}
-
 class _ProfileTile extends StatelessWidget {
   const _ProfileTile({
     required this.profile,
@@ -197,42 +159,53 @@ class _ProfileTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = combo;
-    final first = profile == liveProfiles.first;
-    return Material(
-      color: first ? Fp.cardHigh : Fp.card,
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: c == null ? null : onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-          decoration: first
-              ? BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Fp.accent2, width: 1.5),
-                )
-              : null,
-          child: Column(
+    return VCard2(
+      onTap: c == null ? null : onTap,
+      border: profile == liveProfiles.first ? V.vi : null,
+      child: Column(
+        children: [
+          Text(c == null ? profile : '$profile · ${c.size}', style: V.mu_()),
+          Text(c == null ? '—' : chancePercent(c.probability), style: V.b(16)),
+          Text(c == null ? 'rien à proposer' : 'cote ${_oddsText(c.odds, indicative)}', style: V.mu_()),
+          if (c != null && c.locked) Text('Premium', style: V.t(11, color: V.amber)),
+          if (c != null && !c.locked && c.belowOdds) Text('moteur < cote', style: V.t(11, color: V.amber)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Fenêtre ouverte (maquette 14) : « Fenêtre « 60e » ouverte », minutes restantes, fermeture.
+class _Window extends StatelessWidget {
+  const _Window(this.lc);
+  final LiveCoupons lc;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = lc.matches.first;
+    final ht = m.apiStatus == 'HT';
+    final name = ht ? 'mi-temps' : (m.closesAt <= 63 ? '60e' : '75e');
+    final left = ht ? null : m.closesAt - (m.minute ?? m.closesAt);
+    return VCard(
+      border: const Color(0xFF5A4417),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              Text(
-                c == null ? profile : '$profile · ${c.size}',
-                style: Fp.body(12, color: Fp.muted),
-                textAlign: TextAlign.center,
-              ),
-              Text(
-                c == null ? '—' : chancePercent(c.probability),
-                style: Fp.body(16, weight: FontWeight.w800),
-              ),
-              Text(
-                c == null ? 'rien à proposer' : 'cote ${_oddsText(c.odds, indicative)}',
-                style: Fp.body(12, color: Fp.muted),
-              ),
-              if (c != null && c.locked) Text('Premium', style: Fp.body(11, color: Fp.warning)),
-              if (c != null && !c.locked && c.belowOdds)
-                Text('moteur < cote', style: Fp.body(11, color: Fp.warning)),
+              const VDot(),
+              const SizedBox(width: 10),
+              Expanded(child: Text('Fenêtre « $name » ouverte', style: V.b())),
+              if (left != null) Text('encore $left min', style: V.b(13.5, V.amber)),
             ],
           ),
-        ),
+          const SizedBox(height: 4),
+          Text(
+            'Ferme à la ${m.closesAt}e minute · '
+            '${lc.indicative ? 'cotes indicatives (autre bookmaker que 1xBet)' : 'cotes 1xBet en direct'}',
+            style: V.mu_(),
+          ),
+        ],
       ),
     );
   }
@@ -246,52 +219,75 @@ class _MatchRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final m = match;
-    final sure = m.picks['Sûr'];
-    final left = m.apiStatus == 'HT' ? null : m.closesAt - (m.minute ?? m.closesAt);
-    return Container(
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(color: Fp.card, borderRadius: BorderRadius.circular(18)),
+    final picks = [
+      for (final e in m.picks.entries)
+        if (e.value != null) (e.key, e.value!),
+    ];
+    double implied(LiveSel s) => 1 / (double.tryParse(s.odds) ?? 1);
+    final best = picks.isEmpty
+        ? null
+        : picks
+              .map((p) => p.$2)
+              .reduce((a, b) => a.probability - implied(a) >= b.probability - implied(b) ? a : b);
+    // Maquette 14 : « Bayern 1 – 0 Köln », minute, pastille ; chaque proposition avec moteur et cote.
+    return VCard(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
               Expanded(
-                child: Text(
-                  '${m.home} ${m.score.isNotEmpty ? m.score[0] ?? 0 : 0}-'
-                  '${m.score.length > 1 ? m.score[1] ?? 0 : 0} ${m.away}',
-                  style: Fp.body(14.5, weight: FontWeight.w700),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${m.home} ${m.score.isNotEmpty ? m.score[0] ?? 0 : 0} – '
+                      '${m.score.length > 1 ? m.score[1] ?? 0 : 0} ${m.away}',
+                      style: V.b(),
+                    ),
+                    Text(
+                      m.apiStatus == 'HT' ? 'Mi-temps' : '${m.minute}\'',
+                      style: V.t(11.5, w: FontWeight.w800, color: m.apiStatus == 'HT' ? V.amber : V.mint),
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                m.apiStatus == 'HT' ? '● Mi-temps' : '● ${m.minute}\'',
-                style: Fp.body(
-                  12.5,
-                  color: m.apiStatus == 'HT' ? Fp.warning : Fp.win,
-                  weight: FontWeight.w700,
-                ),
-              ),
+              if (best != null) VGapChip(engine: best.probability, implied: implied(best)),
             ],
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  sure == null
-                      ? 'Pas de proposition Sûr pour ce match'
-                      : 'Sûr : ${selectionLabel(sure.market, sure.line, sure.selection, home: m.home, away: m.away).toLowerCase()}'
-                            ' · ${chancePercent(sure.probability)} · ${_oddsText(sure.odds, indicative)}',
-                  style: Fp.body(12.5, color: Fp.muted),
-                ),
+          if (picks.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                m.picks.isEmpty
+                    ? 'Aucune cote plus généreuse que le moteur sur ce match.'
+                    : 'Propositions réservées à Premium.',
+                style: V.t(12.5, color: V.mu),
               ),
-              Text(
-                left == null || left > 3 ? 'jusqu\'à la ${m.closesAt}e' : 'encore $left min',
-                style: Fp.body(12, color: Fp.warning),
-              ),
-            ],
-          ),
+            )
+          else
+            VList(
+              children: [
+                for (final (profile, s) in picks)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(selectionLabel(s.market, s.line, s.selection, home: m.home, away: m.away)),
+                            Text(
+                              '$profile · moteur ${chancePercent(s.probability)} · cote ${chancePercent(implied(s))}',
+                              style: V.mu_(),
+                            ),
+                          ],
+                        ),
+                      ),
+                      VOdd(_oddsText(s.odds, indicative), on: profile == 'Sûr'),
+                    ],
+                  ),
+              ],
+            ),
         ],
       ),
     );

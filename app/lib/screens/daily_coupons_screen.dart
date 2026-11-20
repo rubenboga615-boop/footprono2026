@@ -11,9 +11,9 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import 'premium_screen.dart' show PremiumCard, openPremium;
 import '../theme.dart';
+import '../widgets/visage.dart';
 import '../widgets/common.dart';
 import '../widgets/engine_compare.dart';
-import '../widgets/engine_vs_odds.dart';
 import 'bookmaker_screen.dart' as bookmaker;
 import 'share_coupon.dart';
 import 'smart_coupon_screen.dart';
@@ -122,30 +122,41 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
               child: ListView(
                 padding: pagePadding(context, 16, 120, maxWidth: 1080),
                 children: [
-                  const BackHeader('Coupons', 'du jour'),
-                  const SizedBox(height: 14),
-                  const OddsDownBanner(),
-                  if (byProfile == null)
-                    Row(
-                      children: [
-                        Expanded(child: KeyTile('Hier', _record(yesterday))),
-                        const SizedBox(width: 8),
-                        Expanded(child: KeyTile('30 derniers jours', _record(month))),
-                      ],
-                    )
-                  else ...[
-                    KeyTile('Hier', _record(yesterday)),
-                    const SizedBox(height: 8),
-                    ProfileRecordCard('30 derniers jours', byProfile),
-                  ],
-                  const SizedBox(height: 12),
+                  // Maquette 12 : « Coupons du jour », le jour et l'heure de publication.
                   Row(
                     children: [
-                      for (final (o, label) in const [(-1, 'Hier'), (0, 'Aujourd\'hui')]) ...[
-                        FpChip(label, selected: offset == o, onTap: () => setState(() => offset = o)),
-                        const SizedBox(width: 8),
-                      ],
+                      BackChevron(onTap: () => Navigator.of(context).maybePop()),
+                      Expanded(
+                        child: Text.rich(
+                          const TextSpan(
+                            children: [
+                              TextSpan(text: 'Coupons '),
+                              TextSpan(
+                                text: 'du jour',
+                                style: TextStyle(color: V.vi2),
+                              ),
+                            ],
+                          ),
+                          style: V.t(24, w: FontWeight.w800, ls: -0.4),
+                        ),
+                      ),
                     ],
+                  ),
+                  Text(
+                    [
+                      shortDate(day),
+                      if (coupons.isNotEmpty ? parseDate(coupons.first['created_at']) : null case final t?)
+                        'publiés à ${hourMinute(t.toLocal())}',
+                      'code 1xBet',
+                    ].join(' · '),
+                    style: V.t(12.5, color: V.mu),
+                  ),
+                  const SizedBox(height: 8),
+                  const OddsDownBanner(),
+                  VTabs(
+                    items: const ['Hier', 'Aujourd\'hui'],
+                    selected: offset + 1,
+                    onSelect: (i) => setState(() => offset = i - 1),
                   ),
                   if (coupons.any((c) => c['locked'] != true && (c['booking_codes'] as List).isNotEmpty)) ...[
                     const SizedBox(height: 10),
@@ -207,6 +218,35 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
                       style: Fp.body(11.5, color: Fp.text2, height: 1.45),
                     ),
                   ],
+                  // Bilan public : les coupons gagnés de chaque profil, puis l'historique.
+                  VCard(
+                    onTap: () =>
+                        Navigator.of(context)
+                            .push(MaterialPageRoute(builder: (_) => const SmartHistoryScreen())),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const VKicker('Bilan public · 30 jours'),
+                              Text(
+                                byProfile == null
+                                    ? _record(month)
+                                    : [
+                                        for (final st in byProfile.values.cast<Json>())
+                                          '${st['label']} ${st['won']}/${st['settled']}',
+                                      ].join(' · '),
+                                style: V.b(),
+                              ),
+                              Text('Hier : ${_record(yesterday)}', style: V.mu_()),
+                            ],
+                          ),
+                        ),
+                        const RotatedBox(quarterTurns: 2, child: VIc(VIcon.back, size: 16, color: V.vi2)),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Center(
                     child: Tooltip(
@@ -319,94 +359,90 @@ class _DailyCouponCard extends StatelessWidget {
     final validated = c['validated'] as int;
     final first = c['first_kickoff'] as String?;
     final codes = (c['booking_codes'] as List).cast<Json>();
-    final key = '${c['profile']}';
-    final color = switch (key) {
-      'sur' => Fp.win,
-      'audacieux' || 'grosse' => Fp.lossText,
-      _ => Fp.accentLight,
+    final p = (c['probability'] as num).toDouble();
+    final implied = 1 / double.parse('${c['total_odds']}');
+    final comps = {
+      for (final x in ((c['selections'] as List?) ?? const []).cast<Json>())
+        if (x['competition'] != null) competitionName(x['competition'] as String),
     };
-    return GlassCard.section(
-      margin: const EdgeInsets.only(bottom: 12),
+    Widget fig(String label, String value) => Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: V.mu_(12.5)),
+          Text(value, style: V.b(15)),
+        ],
+      ),
+    );
+    // Maquette 12 : profil et pastille, puis cote / moteur / la cote dit ; liseré vert quand
+    // le moteur dépasse la cote.
+    return VCard(
       onTap: onTap,
+      border: p - implied >= 0.03 ? const Color(0xFF1D5A44) : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Maquette v2 : profil, nombre de sélections et cote, chance du moteur à droite.
           Row(
             children: [
-              Tag('${c['profile_label']}'.toUpperCase(), color: color),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  '${count == 1 ? 'Un seul pari ce jour-là' : '$count sélections'} · cote ${odds(c['total_odds'])}',
-                  style: Fp.body(14.5, weight: FontWeight.w800),
-                ),
-              ),
-              Text(percent((c['probability'] as num).toDouble()), style: Fp.title(17)),
+              Expanded(child: Text('${c['profile_label']}', style: V.b(15))),
+              VGapChip(engine: p, implied: implied),
             ],
           ),
-          // Maquette P2 : la chance selon la cote, et où se place le moteur.
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              fig('cote', odds(c['total_odds'])),
+              fig('moteur', percent(p)),
+              fig('la cote dit', percent(implied)),
+            ],
+          ),
           const SizedBox(height: 6),
           Row(
             children: [
               Expanded(
                 child: Text(
-                  'selon la cote : ${percent(1 / double.parse('${c['total_odds']}'))}',
-                  style: Fp.body(12.5, color: Fp.text2),
+                  [
+                    count == 1 ? 'Un seul pari ce jour-là' : '$count sélections',
+                    if (comps.isNotEmpty) comps.join(', '),
+                  ].join(' · '),
+                  style: V.mu_(),
                 ),
               ),
-              GapBadge(
-                engine: (c['probability'] as num).toDouble(),
-                implied: 1 / double.parse('${c['total_odds']}'),
-              ),
+              _statusTag(c),
             ],
           ),
+          if (validated > 0 || c['display_status'] == 'live')
+            Text(
+              [
+                '$validated / $count validée${validated > 1 ? 's' : ''}',
+                if (first != null) 'premier match ${hourMinute(DateTime.parse(first).toLocal())}',
+              ].join(' · '),
+              style: V.mu_(),
+            ),
           if (note != null)
             Container(
               margin: const EdgeInsets.only(top: 8),
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
               decoration: BoxDecoration(
-                color: Fp.warningBg,
+                color: V.amberbg,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Fp.warningLine),
+                border: Border.all(color: const Color(0xFF5A4417)),
               ),
-              child: Text(note!, style: Fp.body(12.5, color: Fp.warning, height: 1.4)),
+              child: Text(note!, style: V.t(12, color: const Color(0xFFFFE0A8))),
             ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _statusTag(c),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  [
-                    '$validated / $count validée${validated > 1 ? 's' : ''}',
-                    if (first != null) 'premier match ${hourMinute(DateTime.parse(first).toLocal())}',
-                  ].join(' · '),
-                  style: Fp.body(12.5, color: Fp.text2),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ProbBar(count == 0 ? 0 : validated / count, color: Fp.win),
           if (c['status'] == 'lost' &&
-              ((c['selections'] as List?) ?? const []).any((s) => (s as Json)['result'] == 'pending')) ...[
-            const SizedBox(height: 8),
+              ((c['selections'] as List?) ?? const []).any((s) => (s as Json)['result'] == 'pending'))
             Text(
               'Coupon perdu : les matchs restants ne comptent plus. Ils restent affichés pour information.',
-              style: Fp.body(12, color: Fp.text2, height: 1.4),
+              style: V.mu_(),
             ),
-          ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           if (locked)
             Row(
               children: [
-                const Icon(Icons.lock_outline_rounded, size: 16, color: Fp.muted),
+                const Icon(Icons.lock_outline_rounded, size: 16, color: V.mu),
                 const SizedBox(width: 8),
-                Flexible(
-                  child: Text('Sélections et code 1xBet dans Premium', style: Fp.body(13, color: Fp.muted)),
-                ),
+                Flexible(child: Text('Sélections et code 1xBet dans Premium', style: V.mu_(12.5))),
               ],
             )
           else if (codes.isEmpty && !_over(c))
@@ -438,40 +474,17 @@ class BookingCodeRow extends StatelessWidget {
   final Json booking;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-      decoration: BoxDecoration(
-        color: const Color(0x66000000),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0x52A78BFA)),
-      ),
-      child: Row(
-        children: [
-          Text('Code ${booking['label']}', style: Fp.body(11.5, color: Fp.text2)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: SelectableText(
-              '${booking['code']}',
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 2,
-                color: Fp.text,
-              ),
-            ),
-          ),
-          FilledButton(
-            onPressed: () => copyBookingCode(booking),
-            style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
-            child: const Text('Copier'),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Row(
+      children: [
+        VChip('Code ${booking['label']}', kind: VChipKind.vi),
+        const SizedBox(width: 10),
+        Expanded(child: SelectableText('${booking['code']}', style: V.b(15).copyWith(letterSpacing: 1))),
+        VLink('Copier', onTap: () => copyBookingCode(booking)),
+      ],
+    ),
+  );
 }
 
 /// Pas encore de code 1xBet (saisi à la main chaque matin) : les sélections à reproduire,
