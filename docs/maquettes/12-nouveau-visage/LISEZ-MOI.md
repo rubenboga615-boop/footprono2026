@@ -1,7 +1,7 @@
 # Nouveau visage de FootProba — proposition du testeur (20/11/2026), à valider
 
-`nouveau-visage.html` : 34 écrans (tous les écrans de l'application et 7 nouveaux), captures
-`e01.png` à `e34.png`. Les chiffres sont des exemples. Rien n'est codé.
+`nouveau-visage.html` : 36 écrans (tous les écrans de l'application, 9 nouveaux dont le tableau de
+bord), captures `e01.png` à `e36.png`. Les chiffres sont des exemples. Rien n'est codé.
 Explications et liste des problèmes : `docs/AUDIT_COMPLET_2026-11-20.md`.
 
 **Les 4 idées** : fond bleu nuit (#0B0F1A) et violet réservé aux actions ; une pastille unique
@@ -27,3 +27,16 @@ Explications et liste des problèmes : `docs/AUDIT_COMPLET_2026-11-20.md`.
 | 15 | Montante | 32 | Bilan de la semaine (nouveau) |
 | 16 | Montante, rien de valable | 33 | Inviter un ami (nouveau) |
 | 17 | Nouvelle montante | 34 | Mode simple (nouveau) |
+| 35 | **Tableau de bord complet, téléphone** (nouveau) | 36 | **Tableau de bord, ordinateur** (nouveau) |
+
+## Révision du 20/11 (retour du fondateur)
+
+- **Plus aucune icône emoji** (cloche, ballon, cadeau, horloge…), qui faisaient « site généré
+  par une IA ». Elles sont remplacées par un jeu d'icônes dessinées au même trait (`icons.py`
+  dans la proposition : accueil, terrain, ticket, profil, cloche avec pastille de compteur,
+  recherche, étoile, etc.). La barre du bas utilise ces icônes.
+- **Vrai tableau de bord** (35 et 36) : solde et courbe sur 30 jours, 4 indicateurs
+  (rendement, paris gagnés, moteur annoncé contre réalisé, plan de jeu), matchs en direct de
+  mes paris, mes paris avec leur chance, agenda, occasions du jour avec alerte de cote,
+  coupons du jour, montante (paliers, gain et risque), justesse du moteur par marché. La
+  version ordinateur a un menu à gauche et une recherche.
