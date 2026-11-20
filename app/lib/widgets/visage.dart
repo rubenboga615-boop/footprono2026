@@ -937,9 +937,10 @@ class VTabs extends StatelessWidget {
 
 /// ``.team`` : rond 26 avec le code de l'équipe.
 class VTeamBadge extends StatelessWidget {
-  const VTeamBadge(this.code, {super.key, this.size = 26});
+  const VTeamBadge(this.code, {super.key, this.size = 26, this.fontSize = 10});
   final String code;
   final double size;
+  final double fontSize;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -949,7 +950,7 @@ class VTeamBadge extends StatelessWidget {
     decoration: const BoxDecoration(color: V.s3, shape: BoxShape.circle),
     child: Text(
       code,
-      style: V.t(size * 10 / 26, w: FontWeight.w800, color: const Color(0xFFCFD5E6)).copyWith(height: 1),
+      style: V.t(fontSize, w: FontWeight.w800, color: const Color(0xFFCFD5E6)).copyWith(height: 1),
     ),
   );
 }
@@ -980,5 +981,13 @@ class VBar3 extends StatelessWidget {
         ),
       ),
     ),
+  );
+}
+
+/// Marge sous un widget (cartes empilées sans la marge haute de ``.c``).
+extension VBottom on Widget {
+  Widget withBottom(double b) => Padding(
+    padding: EdgeInsets.only(bottom: b),
+    child: this,
   );
 }

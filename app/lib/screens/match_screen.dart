@@ -12,10 +12,10 @@ import '../format.dart';
 import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../widgets/visage.dart';
 import '../widgets/common.dart';
 import '../widgets/engine_compare.dart';
 import '../widgets/live_refresh.dart';
-import '../widgets/team_logo.dart';
 import '../widgets/maquette.dart';
 import 'premium_screen.dart' show PremiumCard;
 import 'live_tab.dart';
@@ -162,93 +162,149 @@ class _MatchViewState extends State<_MatchView> {
         : switch (index) {
             0 => _probabilities(d),
             1 => _odds(context, d),
-            _ => _analysis(d),
+            2 => _analysis(d),
+            // Maquette 7 : « Compos » avant le match (données en général une heure avant).
+            _ => [LiveTab(match: m, section: 2)],
           };
     return RefreshIndicator(
       onRefresh: widget.reload,
       child: ListView(
         padding: pagePadding(context, 16, 32, maxWidth: 1080),
         children: [
+          // Maquettes 7 et 8 du nouveau visage : en-tête unique.
           Row(
             children: [
               BackChevron(onTap: () => Navigator.of(context).maybePop()),
-              const SizedBox(width: 4),
               Expanded(
-                child: Text(
-                  '${competitionName(m.competition)} · ${longDate(m.date)}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Fp.body(13, color: Fp.text2, weight: FontWeight.w600),
+                child: m.isLive
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const VDot(),
+                          const SizedBox(width: 6),
+                          Text(
+                            'EN DIRECT${m.clock.isEmpty ? '' : ' · ${m.clock}'}',
+                            style: V.t(11.5, w: FontWeight.w800, color: V.mint),
+                          ),
+                        ],
+                      )
+                    // Maquette 9 : sur les autres onglets, le nom du match à la place de la date.
+                    : !m.started && tab != 0
+                    ? Text(
+                        '${m.home.name} – ${m.away.name}',
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: V.b(15.5),
+                      )
+                    : Text(
+                        '${competitionName(m.competition)} · ${_when(m)}',
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: V.mu_(),
+                      ),
+              ),
+              Tooltip(
+                message: 'Suivre les équipes',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _follow(context, m),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: VIc(
+                      VIcon.star,
+                      size: 19,
+                      color: context.watch<AppState>().followed.intersection({m.home.id, m.away.id}).isEmpty
+                          ? V.mu
+                          : V.amber,
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          GlassCard(
-            padding: const EdgeInsets.fromLTRB(12, 16, 12, 14),
-            child: Row(
+          const SizedBox(height: 12),
+          if (!m.started && tab != 0)
+            const SizedBox.shrink()
+          else if (m.started)
+            Row(
+              children: [
+                Expanded(child: _teamName(m.home)),
+                Text(m.score?.replaceAll(' - ', ' – ') ?? '–', style: V.big()),
+                Expanded(child: _teamName(m.away)),
+              ],
+            )
+          else
+            Row(
               children: [
                 Expanded(child: _bigTeam(m.home, Fp.accentLight)),
-                Column(
-                  children: [
-                    Text(
-                      m.score?.replaceAll(' - ', ' – ') ??
-                          (m.awaitingKickoff || m.kickoffDelayed
-                              ? hourMinute(m.kickoffAt!.toLocal())
-                              : m.when),
-                      style: Fp.body(30, weight: FontWeight.w800),
-                    ),
-                    if (m.awaitingKickoff)
-                      Text(
-                        '● Coup d\'envoi imminent',
-                        style: Fp.body(12.5, color: Fp.win, weight: FontWeight.w700),
-                      ),
-                    if (m.kickoffDelayed)
-                      SizedBox(
-                        width: 130,
-                        child: Text(
-                          'Coup d\'envoi retardé (heure à confirmer)',
-                          textAlign: TextAlign.center,
-                          style: Fp.body(12.5, color: Fp.muted, weight: FontWeight.w700),
-                        ),
-                      ),
-                    if (m.score != null)
-                      Text(
-                        m.isLive ? '● ${m.when}' : m.when,
-                        style: Fp.body(12.5, color: m.isLive ? Fp.win : Fp.muted, weight: FontWeight.w700),
-                      ),
-                    if (m.isLive && m.liveUpdatedAt != null) UpdatedAgo(m.liveUpdatedAt),
-                    if (m.referee != null)
-                      InkWell(
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: () =>
-                            Navigator.of(context)
-                                .push(MaterialPageRoute(builder: (_) => RefereeScreen(name: m.referee!))),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                          child: Text(
-                            'Arbitre : ${m.referee}',
-                            textAlign: TextAlign.center,
-                            style: Fp.body(12, color: Fp.text2),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                Text('vs', style: V.t(12.5, color: V.mu)),
                 Expanded(child: _bigTeam(m.away, Fp.lossText)),
               ],
             ),
-          ),
-          const SizedBox(height: 18),
-          SegmentTabs(
-            labels: [
+          if (m.started && !m.isLive)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(m.when, textAlign: TextAlign.center, style: V.mu_()),
+            ),
+          if (m.isLive && m.liveUpdatedAt != null) Center(child: UpdatedAgo(m.liveUpdatedAt)),
+          if (m.awaitingKickoff)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                '● Coup d\'envoi imminent',
+                textAlign: TextAlign.center,
+                style: V.t(12.5, w: FontWeight.w700, color: V.mint),
+              ),
+            ),
+          if (m.kickoffDelayed)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'Coup d\'envoi retardé (heure à confirmer)',
+                textAlign: TextAlign.center,
+                style: V.t(12.5, w: FontWeight.w700, color: V.mu),
+              ),
+            ),
+          // Chances 1-N-2 en grand (maquette 7), avant le match.
+          if (!m.started && tab == 0)
+            if (_before(d) case (final h, final n, final a)) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  for (final (p, c) in [(h, V.vi2), (n, V.mu), (a, V.sky)])
+                    Expanded(
+                      child: Text(percent(p), textAlign: TextAlign.center, style: V.big(c)),
+                    ),
+                ],
+              ),
+              VBar3(h, n, a),
+            ],
+          if (m.referee != null && (m.started || tab == 0))
+            Center(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () =>
+                    Navigator.of(context)
+                        .push(MaterialPageRoute(builder: (_) => RefereeScreen(name: m.referee!))),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                  child: Text('Arbitre : ${m.referee}', style: V.mu_(12)),
+                ),
+              ),
+            ),
+          const SizedBox(height: 10),
+          VTabs(
+            items: [
               if (live) m.isLive || m.awaitingKickoff || m.kickoffDelayed ? 'En direct' : 'Résumé',
-              'Probabilités',
+              'Chances',
               'Cotes',
               'Analyse',
+              if (!live) 'Compos',
             ],
             selected: tab,
-            onSelected: (i) => setState(() {
+            onSelect: (i) => setState(() {
               tab = i;
               _picked = true;
             }),
@@ -260,6 +316,67 @@ class _MatchViewState extends State<_MatchView> {
     );
   }
 
+  /// « ven. 20 nov. 20:00 ».
+  static String _when(MatchInfo m) {
+    final k = (m.kickoffAt ?? m.date).toLocal();
+    final day = shortDate(k);
+    final text = m.kickoffAt == null ? day : '$day ${hourMinute(k)}';
+    return text[0].toLowerCase() + text.substring(1);
+  }
+
+  /// Étoile : suivre l'une ou l'autre équipe (filtre « Suivis » des matchs).
+  Future<void> _follow(BuildContext context, MatchInfo m) async {
+    final state = context.read<AppState>();
+    if (state.me == null) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: V.s1,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Consumer<AppState>(
+            builder: (ctx, st, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Suivre', style: V.b(16)),
+                Text('Les matchs des équipes suivies sont dans « Suivis ».', style: V.mu_(12)),
+                const SizedBox(height: 8),
+                for (final t in [m.home, m.away])
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        VTeamBadge(t.code),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(t.name, style: V.b())),
+                        VSwitch(
+                          value: st.followed.contains(t.id),
+                          label: 'Suivre ${t.name}',
+                          onChanged: (_) => guard(ctx, () => st.toggleFollow(t.id)),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Nom d'une équipe au-dessus du score (maquette 8) ; un appui ouvre sa fiche.
+  Widget _teamName(Team t) => GestureDetector(
+    onTap: () => Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TeamScreen(teamId: t.id, name: t.name),
+      ),
+    ),
+    child: Text(t.name, textAlign: TextAlign.center, maxLines: 2, style: V.b(15)),
+  );
+
   /// Toucher une équipe ouvre sa fiche.
   Widget _bigTeam(Team t, Color tint) => Tooltip(
     message: 'Fiche équipe',
@@ -270,17 +387,12 @@ class _MatchViewState extends State<_MatchView> {
           builder: (_) => TeamScreen(teamId: t.id, name: t.name),
         ),
       ),
-      // Maquettes F et N : logo rond, nom dessous ; un appui ouvre la fiche équipe.
+      // Maquette 7 : rond de 44 avec les initiales, nom dessous ; un appui ouvre la fiche.
       child: Column(
         children: [
-          TeamLogo(t, size: 52),
-          const SizedBox(height: 8),
-          Text(
-            t.name,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            style: Fp.body(15, weight: FontWeight.w700),
-          ),
+          VTeamBadge(t.code, size: 44),
+          const SizedBox(height: 6),
+          Text(t.name, textAlign: TextAlign.center, maxLines: 2, style: V.b()),
         ],
       ),
     ),
@@ -306,117 +418,65 @@ class _MatchViewState extends State<_MatchView> {
     final offers = {for (final o in d.offers) o.key: o};
     Prob? find(String sel) => byMarket['1X2']?.where((x) => x.selection == sel).firstOrNull;
     final home = find('home'), draw = find('draw'), away = find('away');
-    final best = [
-      home,
-      draw,
-      away,
-    ].whereType<Prob>().fold<double>(0, (a, b) => b.probability > a ? b.probability : a);
     final scores = [...?byMarket['CS']]..sort((a, b) => b.probability.compareTo(a.probability));
-
-    // Maquettes F et N du 07/11/2026 : case sombre, nom, chance, puis la cote dans une
-    // petite case (« fermé » une fois le match commencé) ; l'issue la plus probable encadrée.
-    Widget outcomeTile(String label, Prob? x) {
-      final offer = x == null ? null : offers[x.key];
-      final on = x != null && x.probability == best;
-      return Expanded(
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
-          decoration: BoxDecoration(
-            color: Fp.fill,
-            borderRadius: BorderRadius.circular(14),
-            border: on ? Border.all(color: Fp.accent2, width: 1.5) : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Fp.body(13, color: Fp.muted),
-              ),
-              Text(
-                x == null ? '—' : percent(x.probability),
-                textAlign: TextAlign.center,
-                style: Fp.body(20, weight: FontWeight.w800),
-              ),
-              if (offer != null) ...[
-                const SizedBox(height: 6),
-                OddsButton(match: m, offer: offer, expand: true),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
 
     return [
       // Match commencé (essai du 07/11/2026 : « score le plus probable 0-2 » à 1-0, 78e) :
       // les chances sont celles d'avant le match, et le choix du moteur n'est plus jouable.
-      if (m.started) ...[
-        _BeforeKickoff(m),
-        const SizedBox(height: 12),
-      ] else if (d.picks != null) ...[
-        _EnginePicks(picks: d.picks!, offers: offers, match: m),
-        const SizedBox(height: 12),
-      ],
-      GlassCard.section(
+      if (m.started) ...[_BeforeKickoff(m), const SizedBox(height: 12)],
+      // Maquette 7 : chaque marché, ligne par ligne : moteur, cote, pastille, case de cote.
+      VCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Résultat du match', style: Fp.body(17, weight: FontWeight.w700)),
-            const SizedBox(height: 12),
-            if (home != null && draw != null && away != null)
-              OutcomeBar(home.probability, draw.probability, away.probability),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const VKicker('Résultat du match'),
+            VList(
               children: [
-                outcomeTile(m.home.name, home),
-                const SizedBox(width: 8),
-                outcomeTile('Nul', draw),
-                const SizedBox(width: 8),
-                outcomeTile(m.away.name, away),
+                for (final (label, x) in [(m.home.name, home), ('Match nul', draw), (m.away.name, away)])
+                  if (x != null) _ProbRow(label: label, prob: x, match: m, offer: offers[x.key]),
               ],
             ),
-            const SizedBox(height: 10),
             if ((p.xgHome, p.xgAway) case (final double h, final double a))
-              KeyValue('Buts attendus', '${decimal(h)} - ${decimal(a)}'),
-            if (scores.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              Text('Scores les plus probables', style: Fp.body(17, weight: FontWeight.w700)),
-              const SizedBox(height: 12),
-              GridView.count(
-                crossAxisCount: 3,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                childAspectRatio: 1.6,
-                children: [
-                  for (final (i, sc) in scores.where((x) => x.selection != 'other').take(6).indexed)
-                    Container(
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: i == 0 ? Fp.cardHigh : Colors.transparent,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: i == 0 ? Fp.accent2 : Fp.line, width: i == 0 ? 1.5 : 1),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(sc.selection, style: Fp.body(18, weight: FontWeight.w800)),
-                          Text(percent(sc.probability), style: Fp.body(12, color: Fp.muted)),
-                        ],
-                      ),
-                    ),
-                ],
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('Buts attendus : ${decimal(h)} - ${decimal(a)}', style: V.mu_(12)),
               ),
-            ],
           ],
         ),
       ),
+      // Les choix du moteur par profil, après le résultat du match.
+      if (!m.started && d.picks != null) ...[
+        const SizedBox(height: 12),
+        _EnginePicks(picks: d.picks!, offers: offers, match: m),
+      ],
+      if (scores.isNotEmpty)
+        VCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const VKicker('Scores les plus probables'),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  for (final (i, sc) in scores.where((x) => x.selection != 'other').take(4).indexed) ...[
+                    if (i > 0) const SizedBox(width: 6),
+                    Expanded(
+                      child: VCard2(
+                        border: i == 0 ? V.vi : null,
+                        child: Column(
+                          children: [
+                            Text(sc.selection, style: V.b(16)),
+                            Text(percent(sc.probability), style: V.mu_()),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
       // Le premier groupe qui a des marchés est ouvert, les autres repliés.
       for (final (i, g) in marketGroups.where((g) => _shown(g, byMarket).isNotEmpty).indexed)
         ..._group(g, byMarket, offers, m, open: i == 0),
@@ -428,7 +488,9 @@ class _MatchViewState extends State<_MatchView> {
               'corners, cartons, tirs…) sont calculés pour ce match. Ils sont inclus dans Premium.',
         ),
       ],
-      const SizedBox(height: 16),
+      const SizedBox(height: 8),
+      if (!m.started) Text('Touche une cote pour l\'ajouter au coupon.', style: V.mu_()),
+      const SizedBox(height: 8),
       Text(
         'Probabilités calculées le ${p.createdAt != null ? dateTime(p.createdAt!) : '—'}. '
         'Elles ne tiennent pas compte des cotes des bookmakers.',
@@ -708,20 +770,25 @@ class _MatchViewState extends State<_MatchView> {
     ];
 
     return [
-      if (summary.isNotEmpty) ...[
-        MCard(
-          margin: EdgeInsets.zero,
-          child: Text(summary.join('\n'), style: Fp.body(13.5, weight: FontWeight.w600, height: 1.45)),
-        ),
-        const SizedBox(height: 12),
-      ],
       ...facts,
-      if (facts.isNotEmpty) const SizedBox(height: 12),
-      GlassCard.section(
+      if (summary.isNotEmpty)
+        VCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const VKicker('Ce que le moteur en retient'),
+              const SizedBox(height: 6),
+              Text(summary.join('\n'), style: V.t(12.5, color: V.mu).copyWith(height: 1.5)),
+            ],
+          ),
+        ),
+      const SizedBox(height: 12),
+      VCard(
+        top: 0,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Situation', style: Fp.title(15, weight: FontWeight.w600)),
+            const VKicker('Situation'),
             const SizedBox(height: 8),
             if ((p.xgHome, p.xgAway) case (final double h, final double a))
               _TwoSided('Buts attendus', h, a, format: decimal),
@@ -740,11 +807,12 @@ class _MatchViewState extends State<_MatchView> {
         ),
       ),
       const SizedBox(height: 12),
-      GlassCard.section(
+      VCard(
+        top: 0,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Enjeu', style: Fp.title(15, weight: FontWeight.w600)),
+            const VKicker('Enjeu'),
             const SizedBox(height: 6),
             KeyValue(m.home.name, stakes(0)),
             KeyValue(m.away.name, stakes(1)),
@@ -752,18 +820,12 @@ class _MatchViewState extends State<_MatchView> {
         ),
       ),
       const SizedBox(height: 12),
-      GlassCard.section(
+      VCard(
+        top: 0,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text('Moyennes attendues', style: Fp.title(15, weight: FontWeight.w600)),
-                ),
-                Text('pour ce match', style: Fp.body(12, color: Fp.text3)),
-              ],
-            ),
+            const VHead('Moyennes attendues pour ce match'),
             const SizedBox(height: 8),
             for (final e in statNames.entries)
               if (counts[e.key] is Map)
@@ -801,24 +863,22 @@ class _MatchViewState extends State<_MatchView> {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Expanded(
-            child: Text(name, style: Fp.body(15, weight: FontWeight.w600)),
-          ),
+          Expanded(child: Text(name, style: V.b())),
           for (final f in results.reversed.cast<Json>()) ...[
-            const SizedBox(width: 6),
+            const SizedBox(width: 5),
             Tooltip(
               message: '${f['venue'] == 'home' ? 'contre' : 'chez'} ${f['opponent']} : ${f['score']}',
               child: Builder(
                 builder: (context) {
                   final (bg, fg, letter) = formColors(f['result']);
                   return Container(
-                    width: 28,
-                    height: 28,
+                    width: 26,
+                    height: 26,
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
                     child: Text(
                       letter,
-                      style: Fp.body(13, weight: FontWeight.w700, color: fg),
+                      style: V.t(11, w: FontWeight.w700, color: fg),
                     ),
                   );
                 },
@@ -838,51 +898,78 @@ class _MatchViewState extends State<_MatchView> {
       'corners': 'Corners',
     };
     return [
-      GlassCard.section(
+      VCard(
+        top: 0,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Forme · 5 derniers matchs', style: Fp.title(15, weight: FontWeight.w600)),
-            Text('Le plus récent à droite.', style: Fp.body(12, color: Fp.text3)),
-            const SizedBox(height: 6),
+            const VKicker('Forme (5 derniers)'),
+            const SizedBox(height: 4),
             formRow(m.home.name, form['home'] as List),
             formRow(m.away.name, form['away'] as List),
           ],
         ),
       ),
-      const SizedBox(height: 12),
       if ((hs['matches'] as int) > 0 || (as_['matches'] as int) > 0) ...[
-        GlassCard.section(
+        VCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
+              const VKicker('Moyennes cette saison'),
+              const SizedBox(height: 6),
+              // Maquette 9 : un tableau, une colonne par équipe (chaque chiffre dit à qui il va).
+              Table(
+                columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(), 2: FlexColumnWidth()},
+                border: const TableBorder(horizontalInside: BorderSide(color: V.line)),
                 children: [
-                  Expanded(
-                    child: Text('Moyennes cette saison', style: Fp.title(15, weight: FontWeight.w600)),
+                  TableRow(
+                    children: [
+                      const SizedBox.shrink(),
+                      for (final t in [m.home.name, m.away.name])
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 7),
+                          child: Text(
+                            t,
+                            textAlign: TextAlign.right,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: V.t(11, w: FontWeight.w600, color: V.mu),
+                          ),
+                        ),
+                    ],
                   ),
-                  Text('par match', style: Fp.body(12, color: Fp.text3)),
+                  for (final e in rows.entries)
+                    if (v(hs, e.key) != null && v(as_, e.key) != null)
+                      TableRow(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 7),
+                            child: Text(e.value, style: V.t(12)),
+                          ),
+                          for (final x in [v(hs, e.key)!, v(as_, e.key)!])
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 7),
+                              child: Text(decimal(x), textAlign: TextAlign.right, style: V.b(12)),
+                            ),
+                        ],
+                      ),
                 ],
               ),
               const SizedBox(height: 6),
-              for (final e in rows.entries)
-                if (v(hs, e.key) != null && v(as_, e.key) != null)
-                  _TwoSided(e.value, v(hs, e.key)!, v(as_, e.key)!, format: decimal),
-              const SizedBox(height: 4),
               Text(
                 '${hs['matches']} et ${as_['matches']} matchs de championnat joués avant celui-ci.',
-                style: Fp.body(12, color: Fp.text3),
+                style: V.mu_(),
               ),
             ],
           ),
         ),
         const SizedBox(height: 12),
       ],
-      GlassCard.section(
+      VCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Confrontations', style: Fp.title(15, weight: FontWeight.w600)),
+            const VKicker('Confrontations'),
             const SizedBox(height: 6),
             if (h2h.isEmpty)
               Text(
@@ -1031,43 +1118,54 @@ class _MarketCardState extends State<_MarketCard> {
     final m = widget.match;
     final visible = _visible();
     final hidden = widget.probs.length - visible.length;
-    return GlassCard(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            marketTitle(widget.market, home: m.home.name, away: m.away.name),
-            style: Fp.title(15, weight: FontWeight.w600),
-          ),
-          if (marketHelp(widget.market) case final help?) ...[
-            const SizedBox(height: 4),
-            Text(help, style: Fp.body(12, color: Fp.text3, height: 1.4)),
-          ],
-          const SizedBox(height: 4),
-          for (final s in visible)
-            _ProbRow(
-              explain: explainSelection(
-                widget.market,
-                s.line,
-                s.selection,
-                home: m.home.name,
-                away: m.away.name,
+    return VCard(
+      top: 0,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            VKicker(marketTitle(widget.market, home: m.home.name, away: m.away.name)),
+            if (marketHelp(widget.market) case final help?) ...[
+              const SizedBox(height: 4),
+              Text(help, style: V.mu_()),
+            ],
+            VList(
+              children: [
+                for (final s in visible)
+                  _ProbRow(
+                    explain: explainSelection(
+                      widget.market,
+                      s.line,
+                      s.selection,
+                      home: m.home.name,
+                      away: m.away.name,
+                    ),
+                    label: selectionLabel(
+                      widget.market,
+                      s.line,
+                      s.selection,
+                      home: m.home.name,
+                      away: m.away.name,
+                    ),
+                    prob: s,
+                    offer: widget.offers[s.key],
+                    match: m,
+                  ),
+              ],
+            ),
+            if (hidden > 0 || all)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: VLink(
+                  all ? 'Réduire' : 'Voir les $hidden autres',
+                  onTap: () => setState(() => all = !all),
+                ),
               ),
-              label: selectionLabel(widget.market, s.line, s.selection, home: m.home.name, away: m.away.name),
-              prob: s,
-              offer: widget.offers[s.key],
-              match: m,
-            ),
-          if (hidden > 0 || all)
-            TextButton(
-              onPressed: () => setState(() => all = !all),
-              child: Text(all ? 'Réduire' : 'Voir les $hidden autres'),
-            ),
-        ],
+          ],
+        ),
       ),
-    );
+    ).withBottom(10);
   }
 }
 
@@ -1082,43 +1180,39 @@ class _ProbRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final push = prob.push > 0.001 ? ' · remboursé ${percent(prob.push)}' : '';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(label, style: Fp.body(14, color: Fp.textStrong)),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(percent(prob.probability), style: Fp.body(14, weight: FontWeight.w700)),
-                  ],
-                ),
-                if (explain != null) ...[
-                  const SizedBox(height: 3),
-                  Text(explain!, style: Fp.body(12, color: Fp.text3, height: 1.35)),
-                ],
-                const SizedBox(height: 8),
-                ProbBar(prob.probability, height: 6),
-                engineCompareOf(offer),
-                if (prob.fairOdds != null || push.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Cote juste ${prob.fairOdds != null ? decimal(prob.fairOdds) : '—'}$push',
-                    style: Fp.body(11, color: Fp.text3),
-                  ),
-                ],
-              ],
-            ),
+    final o = offer;
+    final implied = o == null || o.odds <= 1 ? null : 1 / o.odds;
+    // Maquette 7 : « Moins de 2,5 buts » / « moteur 59 % · cote 50 % », pastille, case de cote.
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: V.t(13.5)),
+              Text(
+                [
+                      'moteur ${percent(prob.probability)}',
+                      if (implied != null)
+                        'cote ${percent(implied)}'
+                      else if (prob.fairOdds != null)
+                        'cote juste ${decimal(prob.fairOdds)}',
+                    ].join(' · ') +
+                    push,
+                style: V.mu_(),
+              ),
+              if (explain != null) Text(explain!, style: V.mu_(11)),
+              engineCompareOf(offer),
+            ],
           ),
-          if (offer != null) ...[const SizedBox(width: 12), OddsButton(match: match, offer: offer!)],
+        ),
+        if (o != null && implied != null) ...[
+          const SizedBox(width: 8),
+          VGapChip(engine: prob.probability, implied: implied, nation: isNation(match.competition)),
+          const SizedBox(width: 8),
+          OddsButton(match: match, offer: o),
         ],
-      ),
+      ],
     );
   }
 }
@@ -1186,10 +1280,10 @@ class OddsButton extends StatelessWidget {
       return Container(
         width: expand ? double.infinity : null,
         // 44 px au moins pour le doigt (étape A du nouveau visage ; avant : 35 px).
-        constraints: const BoxConstraints(minWidth: 58, minHeight: 44),
+        constraints: const BoxConstraints(minWidth: 52, minHeight: 44),
         alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(color: Fp.line12, borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(color: V.s2, borderRadius: BorderRadius.circular(12)),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -1209,21 +1303,21 @@ class OddsButton extends StatelessWidget {
       side: BorderSide(color: on ? Fp.accent2 : Colors.transparent),
     );
     return Material(
-      color: on ? Fp.accent : Fp.line12,
+      color: on ? V.vi : V.s2,
       shape: shape,
       child: InkWell(
         customBorder: shape,
         onTap: () => addToCoupon(context, match, offer),
         child: Container(
           width: expand ? double.infinity : null,
-          constraints: const BoxConstraints(minWidth: 58, minHeight: 44),
+          constraints: const BoxConstraints(minWidth: 52, minHeight: 44),
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(odds(offer.odds), style: Fp.body(15, weight: FontWeight.w700)),
+              Text(odds(offer.odds), style: V.t(14, w: FontWeight.w800)),
               // 1xBet : dit en haut de l'écran ; le bookmaker de secours est nommé.
               if (offer.bookmaker != '1xBet')
                 Text(offer.bookmaker, style: Fp.body(10, color: on ? Colors.white70 : Fp.muted)),

@@ -4,6 +4,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'widgets/visage_icons.dart';
+
 // Nouveau visage, étape A (plan du 20/11/2026, docs/maquettes/12-nouveau-visage) : fond bleu
 // nuit #0B0F1A, cartes #131A2A, cartes internes #1B2438, lignes #26314A ; violet #7C5CFF pour
 // les actions seulement ; menthe #34E0A1 = au-dessus de la cote ou gagné ; corail #FF6B7A =
@@ -597,9 +599,10 @@ class BackChevron extends StatelessWidget {
       child: InkResponse(
         onTap: onTap,
         radius: 20,
+        // Flèche au trait violette des maquettes « nouveau visage ».
         child: const Padding(
-          padding: EdgeInsets.all(4),
-          child: Icon(Icons.chevron_left_rounded, size: 26, color: Fp.text2),
+          padding: EdgeInsets.all(6),
+          child: VIc(VIcon.back, size: 22, color: Color(0xFFA48BFF)),
         ),
       ),
     ),
@@ -1062,9 +1065,10 @@ class FpField extends StatelessWidget {
   }
 }
 
-/// Résultat d'un match passé, G / N / P (maquette R) : fond sombre teinté, lettre en couleur.
+/// Résultat d'un match passé, V / N / D (maquettes 9 et 26 du nouveau visage) : pastille
+/// menthe, grise ou corail.
 (Color, Color, String) formColors(Object? result) => switch (result) {
-  'W' => (Fp.winBg, Fp.win, 'G'),
-  'L' => (Fp.lossBg, Fp.loss, 'P'),
-  _ => (const Color(0xFF232D45), Fp.lilac, 'N'),
+  'W' => (const Color(0xFF0F3328), Fp.win, 'V'),
+  'L' => (const Color(0xFF3A1720), Fp.loss, 'D'),
+  _ => (const Color(0xFF24304A), Fp.muted, 'N'),
 };

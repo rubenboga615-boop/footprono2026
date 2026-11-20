@@ -1397,7 +1397,7 @@ void main() {
     final (state, server) = await startApp(tester, loggedIn: true);
     await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
-    expect(find.text('Résultat du match'), findsOneWidget);
+    expect(find.text('RÉSULTAT DU MATCH'), findsOneWidget);
     expect(find.text('41$nbsp%'), findsOneWidget); // tuile Lens
     expect(find.textContaining('2 autres marchés'), findsOneWidget);
 
@@ -1589,17 +1589,17 @@ void main() {
     expect(find.text('Handicap asiatique'), findsNothing);
     await tester.tap(find.text('Handicaps'));
     await tester.pumpAndSettle();
-    expect(find.text('Handicap asiatique'), findsOneWidget);
+    expect(find.text('HANDICAP ASIATIQUE'), findsOneWidget);
     expect(find.text('Lens (−0,25)'), findsOneWidget);
     expect(find.textContaining('autres marchés'), findsNothing);
 
     await tester.tap(find.text('Analyse'));
     await tester.pumpAndSettle();
-    expect(find.text('Forme · 5 derniers matchs'), findsOneWidget);
-    // Résumé en tête de l'analyse (rapport du 07/11/2026) : des faits, aucun avis.
+    expect(find.text('FORME (5 DERNIERS)'), findsOneWidget);
+    // Maquette 9 : « Ce que le moteur en retient » : des faits, aucun avis.
     expect(find.text('Buts attendus par le moteur : Lens 1,4, Lyon 1,1 (2,5 au total).'), findsOneWidget);
-    expect(find.text('G'), findsNWidgets(5)); // 3 + 2 victoires
-    expect(find.text('Moyennes cette saison'), findsOneWidget);
+    expect(find.text('V'), findsNWidgets(5)); // 3 + 2 victoires
+    expect(find.text('MOYENNES CETTE SAISON'), findsOneWidget);
     expect(find.text('Lyon 1-2 Lens'), findsOneWidget);
   });
 
@@ -1916,7 +1916,7 @@ void main() {
     // Un match s'ouvre dans la zone centrale ; le menu et le coupon restent.
     await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
-    expect(find.text('Résultat du match'), findsOneWidget);
+    expect(find.text('RÉSULTAT DU MATCH'), findsOneWidget);
     expect(find.text('Miser sur ce coupon'), findsOneWidget);
     expect(find.text('Fiabilité du moteur'), findsOneWidget);
 
@@ -3460,7 +3460,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('3 – 1'), findsOneWidget);
-    expect(find.text('● En direct 70\''), findsOneWidget);
+    expect(find.text('EN DIRECT · 70\''), findsOneWidget);
     expect(find.text('Mis à jour à l\'instant'), findsOneWidget);
     expect(find.text('91 %'), findsOneWidget); // chances du relevé, sans requête
     expect(state.unread, 0); // un relevé n'est pas une notification
@@ -3562,7 +3562,7 @@ void main() {
     await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
     expect(find.text('● Coup d\'envoi imminent'), findsOneWidget);
-    expect(find.text('Probabilités'), findsOneWidget);
+    expect(find.text('Chances'), findsOneWidget);
 
     // 19 h 15 : toujours pas commencé (heure à confirmer) ; paris toujours fermés.
     MatchInfo.now = () => DateTime.utc(2026, 10, 10, 19, 15);

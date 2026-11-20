@@ -28,8 +28,11 @@ const liveStatLabels = [
 ];
 
 class LiveTab extends StatefulWidget {
-  const LiveTab({super.key, required this.match, this.before});
+  const LiveTab({super.key, required this.match, this.before, this.section});
   final MatchInfo match;
+
+  /// Une seule partie, sans les onglets (2 : compositions, onglet « Compos » avant le match).
+  final int? section;
 
   /// Chances d'avant le match (1, N, 2), pour la carte « Chances en direct ».
   final (double, double, double)? before;
@@ -96,6 +99,9 @@ class _LiveTabState extends State<LiveTab> {
     }
     final m = widget.match;
     final live = m.isLive;
+    if (widget.section == 2) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _lineups(d));
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
