@@ -256,3 +256,32 @@ async def test_alert_owner_only_and_delete(
         await client.delete(f"/api/v1/me/odds-alerts/{aid}", headers=headers)
     ).status_code == 204
     assert (await client.get("/api/v1/me/odds-alerts", headers=headers)).json()["alerts"] == []
+
+
+async def test_followed_teams(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    from footprono.football.models import Match
+
+    headers = await _login(client)
+    assert (await client.get("/api/v1/me/followed-teams")).status_code == 401
+    async with db_factory() as session:
+        m = await session.get(Match, world["m1"])
+        assert m is not None
+        team = m.home_team_id
+    assert (
+        await client.put(f"/api/v1/me/followed-teams/{team}", headers=headers)
+    ).status_code == 204
+    assert (
+        await client.put(f"/api/v1/me/followed-teams/{team}", headers=headers)
+    ).status_code == 204
+    assert (await client.get("/api/v1/me/followed-teams", headers=headers)).json() == [team]
+    assert (
+        await client.put("/api/v1/me/followed-teams/999999", headers=headers)
+    ).status_code == 404
+    assert (
+        await client.delete(f"/api/v1/me/followed-teams/{team}", headers=headers)
+    ).status_code == 204
+    assert (await client.get("/api/v1/me/followed-teams", headers=headers)).json() == []

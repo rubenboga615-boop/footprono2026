@@ -93,3 +93,17 @@ class OddsAlertHit(Base):
     bookmaker: Mapped[str] = mapped_column(String(40))
     engine: Mapped[float] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class FollowedTeam(Base):
+    """Équipe suivie par un joueur (maquette 26 « Suivie », filtre « Suivis » de la maquette 6)."""
+
+    __tablename__ = "followed_teams"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    team_id: Mapped[int] = mapped_column(
+        ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

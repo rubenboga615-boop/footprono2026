@@ -1,4 +1,4 @@
-"""Mon plan de jeu et mes alertes de cote (maquettes 29 et 30 du nouveau visage)."""
+"""Mon plan de jeu, mes alertes de cote et mes équipes suivies (maquettes 26, 29 et 30)."""
 
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -7,9 +7,13 @@ from typing import Any, Literal
 from fastapi import APIRouter, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy import delete, func, select
 
 from footprono.api.deps import CurrentUserDep, SessionDep
 from footprono.bookmaker import odds_alerts, play_plan
+from footprono.bookmaker.play_models import FollowedTeam
+from footprono.core.errors import AppError, NotFoundError
+from footprono.football.models import Team
 
 router = APIRouter(tags=["plan de jeu et alertes"])
 
@@ -106,4 +110,39 @@ async def patch_alert(
 @router.delete("/me/odds-alerts/{alert_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_alert(alert_id: int, user: CurrentUserDep, session: SessionDep) -> None:
     await odds_alerts.remove(session, user, alert_id)
+    await session.commit()
+
+
+MAX_FOLLOWED = 50
+
+
+@router.get("/me/followed-teams")
+async def followed_teams(user: CurrentUserDep, session: SessionDep) -> list[int]:
+    """Équipes que je suis (maquette 26) : filtre « Suivis » de la liste des matchs."""
+    rows = await session.scalars(
+        select(FollowedTeam.team_id).where(FollowedTeam.user_id == user.id)
+    )
+    return list(rows.all())
+
+
+@router.put("/me/followed-teams/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def follow_team(team_id: int, user: CurrentUserDep, session: SessionDep) -> None:
+    if not 1 <= team_id <= 2_147_483_647 or await session.get(Team, team_id) is None:
+        raise NotFoundError("équipe introuvable")
+    if await session.get(FollowedTeam, (user.id, team_id)) is not None:
+        return
+    n = await session.scalar(
+        select(func.count()).select_from(FollowedTeam).where(FollowedTeam.user_id == user.id)
+    )
+    if (n or 0) >= MAX_FOLLOWED:
+        raise AppError(f"{MAX_FOLLOWED} équipes suivies au plus")
+    session.add(FollowedTeam(user_id=user.id, team_id=team_id))
+    await session.commit()
+
+
+@router.delete("/me/followed-teams/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def unfollow_team(team_id: int, user: CurrentUserDep, session: SessionDep) -> None:
+    await session.execute(
+        delete(FollowedTeam).where(FollowedTeam.user_id == user.id, FollowedTeam.team_id == team_id)
+    )
     await session.commit()

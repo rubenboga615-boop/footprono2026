@@ -278,6 +278,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         await refreshMe();
         _connectSocket();
         unawaited(refreshUnread());
+        unawaited(refreshFollowed());
+        unawaited(refreshFollowed());
         unawaited(_registerPush(atLaunch: true));
         unawaited(_registerWebPush());
       } on ApiException catch (e) {
@@ -603,6 +605,32 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       }
       rethrow;
     }
+  }
+
+  /// Équipes suivies (maquettes 6 et 26) : filtre « Suivis » des matchs.
+  Set<int> followed = {};
+
+  Future<void> refreshFollowed() async {
+    if (api.token == null) return;
+    try {
+      followed = {for (final t in await api.get('/me/followed-teams') as List) t as int};
+      notifyListeners();
+    } on ApiException {
+      // sans conséquence : le filtre « Suivis » reste vide
+    }
+  }
+
+  /// Suivre ou ne plus suivre une équipe.
+  Future<void> toggleFollow(int teamId) async {
+    final on = !followed.contains(teamId);
+    if (on) {
+      await api.put('/me/followed-teams/$teamId');
+      followed = {...followed, teamId};
+    } else {
+      await api.delete('/me/followed-teams/$teamId');
+      followed = {...followed}..remove(teamId);
+    }
+    notifyListeners();
   }
 
   Future<void> refreshUnread() async {

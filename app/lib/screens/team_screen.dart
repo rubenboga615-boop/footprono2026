@@ -7,6 +7,7 @@ import '../format.dart';
 import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../widgets/visage.dart';
 import '../widgets/common.dart';
 import 'merited_screen.dart';
 
@@ -70,14 +71,22 @@ class _TeamScreenState extends State<TeamScreen> {
           subtitle:
               '${competitionName(comp)} ${seasonLabel(year)} · ${(venues['all'] as Json)['matches']} matchs joués'
               '${_venues[venue].$1 == 'all' ? '' : ' (dont ${v['matches']} ${_venues[venue].$1 == 'home' ? 'à domicile' : 'à l\'extérieur'})'}',
-          trailing: SquareButton(
-            icon: Icons.leaderboard_rounded,
-            tooltip: 'Classement mérité',
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => MeritedScreen(competition: comp, season: year),
+          // Maquette 26 : « Suivie » (filtre « Suivis » de la liste des matchs).
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _FollowChip(teamId: widget.teamId),
+              const SizedBox(width: 8),
+              SquareButton(
+                icon: Icons.leaderboard_rounded,
+                tooltip: 'Classement mérité',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => MeritedScreen(competition: comp, season: year),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
         const SizedBox(height: 14),
@@ -291,4 +300,24 @@ class _Stat extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _FollowChip extends StatelessWidget {
+  const _FollowChip({required this.teamId});
+  final int teamId;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    if (state.me == null) return const SizedBox.shrink();
+    final on = state.followed.contains(teamId);
+    return GestureDetector(
+      onTap: () => guard(context, () => state.toggleFollow(teamId)),
+      child: VChip(
+        on ? 'Suivie' : 'Suivre',
+        kind: on ? VChipKind.vi : VChipKind.eq,
+        arrow: const VIc(VIcon.star, size: 13),
+      ),
+    );
+  }
 }

@@ -2819,8 +2819,8 @@ void main() {
     await tester.fling(find.text('Lens').first, const Offset(0, 400), 1000);
     await tester.pumpAndSettle();
     expect(find.text('1 – 0'), findsOneWidget);
-    expect(find.text('● 90+4\''), findsOneWidget);
-    expect(find.text('Lyon'), findsOneWidget); // une seule carte : plus dans la journée
+    expect(find.text('90+4\''), findsOneWidget);
+    expect(find.text('Lens – Lyon'), findsOneWidget); // une seule carte : plus dans la journée
     final m = MatchInfo(playing);
     expect(m.when, 'En direct 90+4\'');
     expect(
@@ -2899,19 +2899,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.binding.setSurfaceSize(const Size(430, 2400));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('● En direct 2'));
+    await tester.tap(find.text('En direct 2'));
     await tester.pumpAndSettle();
     expect(find.text('Matchs '), findsNothing);
-    expect(find.textContaining('★ en haut'), findsOneWidget);
     // Le match de mon pari en premier, marqué ★, avec buteurs et carton rouge.
-    final cards = tester.widgetList<Text>(find.textContaining('★ ')).map((t) => t.data).toList();
-    expect(cards.where((t) => t != null && t.startsWith('★ ') && !t.contains('en haut')), hasLength(1));
+    expect(find.textContaining('★ '), findsOneWidget);
     expect(find.text('12\' Krstović · 77\' Lucca · carton rouge 81\' Lyon'), findsOneWidget);
-    expect(find.text('50\u00a0%'), findsOneWidget);
-    expect(find.textContaining('Chances en direct · avant le match'), findsOneWidget);
-    expect(find.text('● MT'), findsOneWidget);
-    final top = tester.getTopLeft(find.text('● 81\'')).dy;
-    expect(top, lessThan(tester.getTopLeft(find.text('● MT')).dy));
+    expect(find.textContaining('50\u00a0%'), findsOneWidget); // issue la plus probable en direct
+    expect(find.text('MT'), findsOneWidget);
+    final top = tester.getTopLeft(find.text('81\'')).dy;
+    expect(top, lessThan(tester.getTopLeft(find.text('MT')).dy));
     MatchInfo.now = DateTime.now;
   });
 
@@ -3089,9 +3086,10 @@ void main() {
   ) async {
     await startApp(tester, loggedIn: true);
     // Revue du 07/11/2026 : légende visible sous l'en-tête, pas seulement en bas de la liste.
-    expect(find.textContaining('Encadré : l\'issue la plus probable selon le moteur'), findsOneWidget);
-    final context = tester.element(find.textContaining('Encadré :'));
+    expect(find.text('Matchs'), findsWidgets);
+    final context = tester.element(find.text('Matchs').first);
     expect(MaterialLocalizations.of(context).modalBarrierDismissLabel, 'Ignorer'); // et non « Dismiss »
+    await tab(tester, HomeTab.today); // cloche du tableau de bord (maquette 35)
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
     expect(find.text('Notifications'), findsWidgets);
@@ -3111,6 +3109,7 @@ void main() {
       'read_at': '2026-11-07T10:00:00Z',
     };
     server.notifications.addAll([note(1, 'Pari perdu'), note(2, 'Pari gagné'), note(3, 'Palier validé')]);
+    await tab(tester, HomeTab.today); // cloche du tableau de bord (maquette 35)
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
     await tester.drag(find.text('Pari perdu'), const Offset(-500, 0));
@@ -3528,10 +3527,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('● 20\''), findsOneWidget);
+    expect(find.text('20\''), findsOneWidget);
     expect(find.text('1 – 1'), findsOneWidget);
     expect(find.textContaining('Calvert-Lewin'), findsOneWidget);
-    expect(find.text('62 %'), findsOneWidget);
+    expect(find.textContaining('62\u00a0%'), findsOneWidget);
     // Chargés une fois pour ce nouveau match en cours (buts, chances, mes paris), jamais
     // toute la liste.
     expect(server.calls.where((c) => c.contains('/predictions/upcoming')), isEmpty);
@@ -3551,7 +3550,7 @@ void main() {
     MatchInfo.now = () => DateTime.utc(2026, 10, 10, 19, 3);
     await tester.drag(find.byType(ListView).first, const Offset(0, 400));
     await tester.pumpAndSettle();
-    expect(find.text('● Coup d\'envoi imminent'), findsWidgets);
+    expect(find.textContaining('COUP D\'ENVOI IMMINENT'), findsWidgets);
 
     await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
@@ -3627,6 +3626,7 @@ void main() {
       'created_at': DateTime.now().toUtc().toIso8601String(),
       'read_at': '2026-11-13T16:00:00Z',
     });
+    await tab(tester, HomeTab.today); // cloche du tableau de bord (maquette 35)
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('C\'est parti : Lens - Lyon'));

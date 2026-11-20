@@ -372,15 +372,15 @@ class VOdd extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
+          Text(
+            text,
+            style: V.t(14, w: FontWeight.w800, color: on ? Colors.white : V.tx),
+          ),
           if (label != null)
             Text(
               label!,
               style: V.t(9.5, w: FontWeight.w600, color: on ? const Color(0xFFE4DCFF) : V.mu),
             ),
-          Text(
-            text,
-            style: V.t(14, w: FontWeight.w800, color: on ? Colors.white : V.tx),
-          ),
         ],
       ),
     ),
@@ -558,45 +558,49 @@ class VIconBtn extends StatelessWidget {
   final String? tooltip;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: tooltip,
-    child: GestureDetector(
-      onTap: onTap,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: V.s1,
-              borderRadius: BorderRadius.circular(13),
-              border: Border.all(color: V.iconBorder),
+  Widget build(BuildContext context) => Tooltip(
+    message: tooltip ?? '',
+    excludeFromSemantics: true,
+    child: Semantics(
+      button: true,
+      label: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: V.s1,
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: V.iconBorder),
+              ),
+              child: Center(child: VIc(icon, color: const Color(0xFFDCE1EE))),
             ),
-            child: Center(child: VIc(icon, color: const Color(0xFFDCE1EE))),
-          ),
-          if (badge > 0)
-            Positioned(
-              top: -4,
-              right: -4,
-              child: Container(
-                constraints: const BoxConstraints(minWidth: 18),
-                height: 18,
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                decoration: BoxDecoration(
-                  color: V.coral,
-                  borderRadius: BorderRadius.circular(9),
-                  border: Border.all(color: V.bg, width: 2),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  badge > 99 ? '99+' : '$badge',
-                  style: V.t(10.5, w: FontWeight.w800, color: Colors.white).copyWith(height: 1),
+            if (badge > 0)
+              Positioned(
+                top: -4,
+                right: -4,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 18),
+                  height: 18,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: V.coral,
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(color: V.bg, width: 2),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    badge > 99 ? '99+' : '$badge',
+                    style: V.t(10.5, w: FontWeight.w800, color: Colors.white).copyWith(height: 1),
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     ),
   );
@@ -856,4 +860,105 @@ class VPage extends StatelessWidget {
       ),
     );
   }
+}
+
+/// ``.tabs`` : pastilles qui défilent (s1, liseré, 12 600) ; choisie : claire sur fond sombre.
+class VTabs extends StatelessWidget {
+  const VTabs({super.key, required this.items, required this.selected, required this.onSelect, this.icons});
+  final List<String> items;
+  final int selected;
+  final ValueChanged<int> onSelect;
+
+  /// Icône devant certaines pastilles (« ☆ Suivis »).
+  final Map<int, VIcon>? icons;
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: Row(
+      children: [
+        for (final (i, s) in items.indexed) ...[
+          if (i > 0) const SizedBox(width: 6),
+          Semantics(
+            button: true,
+            selected: i == selected,
+            child: GestureDetector(
+              onTap: () => onSelect(i),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: i == selected ? V.tx : V.s1,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: i == selected ? V.tx : V.cardBorder),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (icons?[i] case final ic?) ...[
+                      VIc(ic, size: 13, color: i == selected ? V.bg : V.mu),
+                      const SizedBox(width: 4),
+                    ],
+                    Text(
+                      s,
+                      style: V
+                          .t(12, w: FontWeight.w600, color: i == selected ? V.bg : V.mu)
+                          .copyWith(height: 1.2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
+}
+
+/// ``.team`` : rond 26 avec le code de l'équipe.
+class VTeamBadge extends StatelessWidget {
+  const VTeamBadge(this.code, {super.key, this.size = 26});
+  final String code;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    alignment: Alignment.center,
+    decoration: const BoxDecoration(color: V.s3, shape: BoxShape.circle),
+    child: Text(
+      code,
+      style: V.t(size * 10 / 26, w: FontWeight.w800, color: const Color(0xFFCFD5E6)).copyWith(height: 1),
+    ),
+  );
+}
+
+/// ``.bar3`` : barre des chances 1-N-2 (violet, gris, bleu), 8 de haut, 2 entre les parts.
+class VBar3 extends StatelessWidget {
+  const VBar3(this.home, this.draw, this.away, {super.key});
+  final double home, draw, away;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: SizedBox(
+        height: 8,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final (i, (p, c)) in [(home, V.vi), (draw, V.s3), (away, V.sky)].indexed) ...[
+              if (i > 0) const SizedBox(width: 2),
+              Expanded(
+                flex: math.max(1, (p * 1000).round()),
+                child: ColoredBox(color: c),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
 }
