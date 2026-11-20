@@ -21,6 +21,8 @@ Tâches planifiées (UTC) :
   a plus de 12 h ou si de nouveaux matchs sont arrivés au calendrier.
 - ``footprono.daily_smart_coupons`` à 08:05 : coupons intelligents du jour
   (un par profil), réglés avec les paris.
+- ``footprono.odds_alerts`` à :07 et :37, et après chaque relevé des cotes : alertes de
+  cote des joueurs.
 """
 
 from celery import Celery
@@ -115,6 +117,12 @@ def create_celery(settings: Settings | None = None) -> Celery:
                 "task": "footprono.engine_chances",
                 "schedule": crontab(minute="*/10"),
                 "options": {"expires": 500},
+            },
+            # Alertes de cote des joueurs (aussi lancées après chaque relevé des cotes).
+            "odds-alerts": {
+                "task": "footprono.odds_alerts",
+                "schedule": crontab(minute="7,37"),
+                "options": {"expires": 1500},
             },
             # Paiements dont la notification CinetPay n'est pas arrivée.
             "check-payments": {

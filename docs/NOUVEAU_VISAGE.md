@@ -110,3 +110,33 @@ Pas fait ici :
 ## Points du plan à confirmer avant l'étape C
 - **Écrans « rien de valable » et « Pas d'occasion aujourd'hui »** (écrans 5 et 16 du plan). Le fondateur avait demandé de ne jamais faire d'écran « rien de valable » ni « Attendre un meilleur pari ». Il faut sa confirmation avant de les coder.
 - **Premium « 30 jours / 3 mois »** (écran 25) : l'offre 3 mois avait été remise à plus tard avec le point A. À confirmer.
+
+## Copie à l'identique des maquettes du testeur (20/11/2026, suite)
+
+Demande du fondateur : chaque écran doit ressembler à l'identique aux maquettes
+`docs/maquettes/12-nouveau-visage`. Les fonctions qu'un écran réclame sont construites pour de
+vrai (serveur, application, tests), sans bouton factice.
+
+- Boîte à outils `app/lib/widgets/visage.dart` : classes CSS de la maquette recopiées (`.c`,
+  `.c2`, `.k`, `.chip`, `.seg`, `.odd`, `.ring`, `.tl`, `.gauge`, `.iconbtn`, `.logo`, `.btn`,
+  `.btn2`, `.sw`, `.info`, `.nav`). Icônes au trait recopiées de leur SVG
+  (`visage_icons.dart`).
+- Barre du bas : capsule flottante de 66, « + » violet de 56 surélevé (maquette).
+- Écran 35, tableau de bord : en-tête (logo, date, recherche, cloche), solde et courbe violette,
+  grille 2 × 2 (rendement, paris gagnés, moteur, plan de jeu), cartes « en direct pour moi »,
+  paris en cours avec anneau de chance, agenda en frise, occasions du jour, coupons du jour,
+  montante, « où le moteur tient parole (30 j) ».
+- Écran 29, alertes de cote : alerte sur une sélection (cote visée) et alerte d'écart (5, 8 ou
+  10 points, tous les championnats, hors sélections nationales). Vérifiées après chaque relevé
+  des cotes et à :07 et :37 ; au plus une par match, jamais de 23 h à 8 h ; la notification
+  constate un fait, sans proposer de pari. Migration 0045.
+- Écran 30, plan de jeu : budget de la semaine (lundi 0 h, heure du pays), limite de perte,
+  mise maximale, pause 24 h / 7 j / 30 j, rappel après 1 h dans l'appli. Le serveur refuse le
+  pari qui dépasse ; une limite relevée ou retirée attend 24 h.
+- Recherche (loupe de l'en-tête) : matchs à venir et équipes.
+- Captures côte à côte : `docs/maquettes/16-copie-identique/`.
+
+Écarts restants assumés : « Tous mes championnats suivis » devient « Tous les championnats »
+(il n'existe pas encore de championnats suivis) ; la ligne « bilan de la semaine » de l'agenda
+viendra avec l'écran 32 ; sur la maquette la barre du bas reste visible sur les écrans ouverts
+par-dessus (plan de jeu, alertes), pas encore dans l'application.

@@ -357,6 +357,11 @@ class KeyValue extends StatelessWidget {
   }
 }
 
+/// Message d'erreur du serveur en bas de l'écran.
+void showError(BuildContext context, ApiException e) => ScaffoldMessenger.of(context)
+  ..hideCurrentSnackBar()
+  ..showSnackBar(SnackBar(content: Text(e.message), backgroundColor: Fp.lossBg));
+
 /// Montre l'erreur d'une action (message du serveur) sans planter l'écran.
 Future<T?> guard<T>(
   BuildContext context,

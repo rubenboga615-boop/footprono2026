@@ -9,6 +9,7 @@ import '../theme.dart';
 import 'create_screen.dart' show HomeTab;
 import '../widgets/common.dart';
 import 'daily_coupons_screen.dart';
+import 'odds_alerts_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -49,6 +50,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   static IconData _icon(String kind) {
     if (kind == 'daily_coupons') return Icons.today_rounded;
+    if (kind == 'odds_alert') return Icons.notifications_active_outlined;
     if (kind.startsWith('montante')) return Icons.stairs_rounded;
     if (kind.startsWith('premium')) return Icons.workspace_premium_outlined;
     if (kind == 'bet_corrected') return Icons.edit_note_rounded;
@@ -122,7 +124,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   },
                   child: GlassCard(
                     margin: const EdgeInsets.only(bottom: 12),
-                    onTap: !unread && n['kind'] != 'daily_coupons' && !_betKinds.contains(n['kind'])
+                    onTap:
+                        !unread &&
+                            !const {'daily_coupons', 'odds_alert'}.contains(n['kind']) &&
+                            !_betKinds.contains(n['kind'])
                         ? null
                         : () async {
                             if (unread) {
@@ -134,6 +139,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             if (n['kind'] == 'daily_coupons' && context.mounted) {
                               await Navigator.of(context)
                                   .push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen()));
+                            }
+                            // Alerte de cote : mes alertes et leurs déclenchements.
+                            if (n['kind'] == 'odds_alert' && context.mounted) {
+                              await Navigator.of(context)
+                                  .push(MaterialPageRoute(builder: (_) => const OddsAlertsScreen()));
                             }
                             // Matchs d'un coupon : le suivi dans Mes paris.
                             if (_betKinds.contains(n['kind']) && context.mounted) {

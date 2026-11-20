@@ -1,8 +1,9 @@
-// Nouveau visage, étape B (plan du 20/11/2026, écrans 35 et 36) : « Aujourd'hui », le tableau de
-// bord. Seulement des données qui existent : solde et sa courbe, 30 derniers jours, moteur
-// annoncé contre réalisé, mises de la semaine, mes paris (en direct, en cours, à venir), le
-// moteur au-dessus de la cote, les coupons du jour, la montante, la justesse par marché.
-// On informe ; rien ne pousse à parier. Section vide : cachée, jamais d'écran « rien de valable ».
+// « Aujourd'hui », le tableau de bord : copie de la maquette 35 du testeur
+// (docs/maquettes/12-nouveau-visage, « Tableau de bord complet »), bloc par bloc, avec les
+// vraies données : solde et courbe, 4 indicateurs (dont le plan de jeu), mes matchs en direct,
+// mes paris avec leur chance, mon agenda, les occasions (moteur au-dessus de la cote) et
+// l'alerte de cote, les coupons du jour, la montante, la justesse du moteur par marché (30 j).
+// On informe ; rien ne pousse à parier. Section sans donnée : cachée.
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -14,16 +15,17 @@ import '../desktop/layout.dart';
 import '../format.dart';
 import '../labels.dart';
 import '../state/app_state.dart';
-import '../theme.dart';
 import '../widgets/common.dart';
-import '../widgets/engine_vs_odds.dart';
 import '../widgets/live_chances.dart';
+import '../widgets/visage.dart';
 import 'create_screen.dart' show HomeTab;
 import 'daily_coupons_screen.dart';
 import 'match_screen.dart';
 import 'notifications_screen.dart';
-import 'record_screen.dart';
+import 'odds_alerts_screen.dart';
+import 'play_plan_screen.dart';
 import 'reliability_screen.dart';
+import 'search_screen.dart';
 
 /// Données du tableau de bord, chargées ensemble (une erreur sur une partie secondaire la
 /// cache sans bloquer le reste).
@@ -33,20 +35,18 @@ class TodayData {
     required this.openBets,
     required this.montantes,
     required this.daily,
-    required this.record,
     required this.chances,
   });
   final Json dash;
   final List<Bet> openBets;
   final List<Json> montantes;
   final Json? daily;
-  final Json? record;
   final Map<int, Json> chances;
 
   /// Nouveau joueur : ni pari, ni mouvement autre que l'ouverture du compte.
   bool get newPlayer =>
       openBets.isEmpty &&
-      ((record?['bets'] as Json?)?['settled'] as int? ?? 0) == 0 &&
+      ((dash['last_30_days'] as Json)['settled'] as int? ?? 0) == 0 &&
       (dash['curve'] as List).length <= 1;
 
   static Future<TodayData> load(ApiClient api) async {
@@ -56,7 +56,6 @@ class TodayData {
       soft(api.get('/bets', {'status': 'open', 'limit': 30})),
       soft(api.get('/montantes')),
       soft(api.get('/smart-coupons/day')),
-      soft(api.get('/me/record')),
     ]);
     final bets = [for (final j in (r[1] as List?) ?? const []) Bet(j as Json)];
     final live = {
@@ -69,11 +68,21 @@ class TodayData {
       openBets: bets,
       montantes: ((r[2] as List?) ?? const []).cast<Json>(),
       daily: r[3] as Json?,
-      record: r[4] as Json?,
       chances: await loadLiveChances(api, live),
     );
   }
 }
+
+/// Montant comme la maquette : « 90 339 F ».
+String fcfa(num v, [String currency = 'XOF']) =>
+    '${thousands(v)}$nbsp${const {'XOF', 'XAF'}.contains(currency) ? 'F' : currency}';
+
+String _lc(String s) => s.isEmpty ? s : s[0].toLowerCase() + s.substring(1);
+
+String _pct(double p) => '${(p * 100).round()}$nbsp%';
+
+void _push(BuildContext context, Widget page) =>
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
 
 class TodayScreen extends StatelessWidget {
   const TodayScreen({super.key});
@@ -81,7 +90,6 @@ class TodayScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final now = DateTime.now();
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
@@ -89,95 +97,82 @@ class TodayScreen extends StatelessWidget {
         child: Loader<TodayData>(
           load: () => TodayData.load(state.api),
           builder: (context, d, reload) {
-            final currency = d.dash['currency'] as String? ?? 'XOF';
+            final cur = d.dash['currency'] as String? ?? 'XOF';
+            final live = _liveSels(d);
+            final above = (d.dash['engine_above_odds'] as List).cast<Json>();
+            final coupons = ((d.daily?['coupons'] as List?) ?? const []).cast<Json>();
+            final montante = d.montantes.where((m) => m['status'] == 'active').firstOrNull;
+            final markets = _markets(d);
+            final agenda = _agenda(d);
             return RefreshIndicator(
               onRefresh: reload,
-              child: ListView(
-                padding: pagePadding(context, 22, 120, maxWidth: 1000),
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Aujourd\'hui', style: Fp.title(26)),
-                            Text(shortDate(now), style: Fp.body(13, color: Fp.muted)),
-                          ],
+              child: DefaultTextStyle(
+                style: V.t(13.5),
+                child: ListView(
+                  padding: pagePadding(context, 6, 120, maxWidth: 760),
+                  children: [
+                    _Header(unread: state.unread),
+                    _BalanceCard(dash: d.dash, currency: cur),
+                    if (d.newPlayer)
+                      ..._starter(context)
+                    else ...[
+                      _Indicators(dash: d.dash, currency: cur),
+                      if (live.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: VHead('En direct pour moi', link: '${live.length}'),
                         ),
-                      ),
-                      IconButton(
-                        tooltip: 'Notifications',
-                        onPressed: () =>
-                            Navigator.of(context)
-                                .push(MaterialPageRoute(builder: (_) => const NotificationsScreen())),
-                        icon: Badge(
-                          isLabelVisible: state.unread > 0,
-                          label: Text('${state.unread}'),
-                          backgroundColor: Fp.accent,
-                          child: const Icon(Icons.notifications_none_rounded, color: Fp.text),
+                        const SizedBox(height: 8),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          clipBehavior: Clip.none,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (final (i, s) in live.indexed) ...[
+                                if (i > 0) const SizedBox(width: 8),
+                                _LiveCard(sel: s, chances: d.chances),
+                              ],
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
+                      if (d.openBets.isNotEmpty)
+                        VCard(
+                          child: Column(
+                            children: [
+                              VHead(
+                                'Mes paris en cours',
+                                link: 'Tout',
+                                onLink: () => state.openTab(HomeTab.paris),
+                              ),
+                              VList(
+                                children: [
+                                  for (final b in d.openBets.take(4))
+                                    _BetLine(bet: b, chances: d.chances, montantes: d.montantes),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (agenda.isNotEmpty)
+                        VCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const VKicker('Mon agenda'),
+                              const SizedBox(height: 6),
+                              VTimeline(items: agenda),
+                            ],
+                          ),
+                        ),
                     ],
-                  ),
-                  const SizedBox(height: 14),
-                  _BalanceCard(dash: d.dash, currency: currency),
-                  const SizedBox(height: 12),
-                  if (d.newPlayer)
-                    ..._starter(context)
-                  else ...[
-                    _Indicators(dash: d.dash, currency: currency),
-                    if (_live(d).isNotEmpty) ...[
-                      const SectionTitle('En direct pour moi'),
-                      for (final b in _live(d)) _BetRow(bet: b, chances: d.chances, live: true),
-                    ],
-                    if (d.openBets.isNotEmpty) ...[
-                      _Title(
-                        'Mes paris en cours',
-                        action: 'Tout voir',
-                        onAction: () => state.openTab(HomeTab.paris),
-                      ),
-                      for (final b in d.openBets.where((b) => !_live(d).contains(b)).take(4))
-                        _BetRow(bet: b, chances: d.chances),
-                    ],
-                    if (_agenda(d).isNotEmpty) ...[
-                      const SectionTitle('À venir dans mes paris'),
-                      _Agenda(items: _agenda(d)),
-                    ],
+                    _Occasions(items: above),
+                    if (coupons.isNotEmpty) _Daily(coupons: coupons),
+                    if (montante != null) _Montante(m: montante, currency: cur),
+                    if (markets.isNotEmpty) _Markets(rows: markets),
                   ],
-                  if ((d.dash['engine_above_odds'] as List).isNotEmpty) ...[
-                    const SectionTitle('Le moteur au-dessus de la cote'),
-                    _EngineAbove(items: (d.dash['engine_above_odds'] as List).cast<Json>()),
-                  ],
-                  if (((d.daily?['coupons'] as List?) ?? const []).isNotEmpty) ...[
-                    _Title(
-                      'Coupons du jour',
-                      action: 'Ouvrir',
-                      onAction: () =>
-                          Navigator.of(context)
-                              .push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen())),
-                    ),
-                    _Daily(coupons: (d.daily!['coupons'] as List).cast<Json>()),
-                  ],
-                  if (d.montantes.where((m) => m['status'] == 'active').firstOrNull case final m?) ...[
-                    _Title('Ma montante', action: 'Ouvrir', onAction: () => state.openTab(HomeTab.montante)),
-                    _Montante(m: m, currency: currency),
-                  ],
-                  if (_markets(d).isNotEmpty) ...[
-                    _Title(
-                      'Justesse du moteur sur mes paris',
-                      action: 'Mon bilan',
-                      onAction: () =>
-                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RecordScreen())),
-                    ),
-                    _Markets(rows: _markets(d)),
-                  ],
-                  const SizedBox(height: 8),
-                  Text(
-                    'Argent fictif. Le moteur calcule des chances ; ce n\'est jamais un conseil de pari.',
-                    style: Fp.body(12, color: Fp.text4, height: 1.4),
-                  ),
-                ],
+                ),
               ),
             );
           },
@@ -186,73 +181,144 @@ class TodayScreen extends StatelessWidget {
     );
   }
 
-  static List<Bet> _live(TodayData d) =>
-      d.openBets.where((b) => b.selections.any((s) => s.state == 'live')).toList();
-
-  /// Prochains matchs de mes paris (pas encore commencés), du plus proche au plus lointain.
-  static List<BetSel> _agenda(TodayData d) {
+  /// Sélections en cours de mes paris (une carte par match).
+  static List<BetSel> _liveSels(TodayData d) {
     final seen = <int>{};
-    final out = [
+    return [
       for (final b in d.openBets)
         for (final s in b.selections)
-          if (s.state == 'upcoming' && s.kickoffAt != null && seen.add(s.matchId)) s,
-    ]..sort((a, b) => a.kickoffAt!.compareTo(b.kickoffAt!));
-    return out.take(5).toList();
+          if (s.state == 'live' && seen.add(s.matchId)) s,
+    ];
   }
 
-  /// Marchés de mes paris avec la chance annoncée, les plus joués d'abord.
+  /// Frise : matchs de mes paris en cours puis à venir, du plus proche au plus lointain.
+  static List<(String, VDotKind)> _agenda(TodayData d) {
+    final now = DateTime.now();
+    final seen = <int>{};
+    final sels = [
+      for (final b in d.openBets)
+        for (final s in b.selections)
+          if ((s.state == 'live' || s.state == 'upcoming') && s.kickoffAt != null && seen.add(s.matchId)) s,
+    ]..sort((a, b) => a.kickoffAt!.compareTo(b.kickoffAt!));
+    String day(DateTime k) {
+      final today = DateTime(now.year, now.month, now.day);
+      final kd = DateTime(k.year, k.month, k.day);
+      final diff = kd.difference(today).inDays;
+      if (diff == 0) return k.hour >= 18 ? 'Ce soir' : 'Aujourd\'hui';
+      if (diff == 1) return 'Demain';
+      return shortDate(k).split(' ').first;
+    }
+
+    return [
+      for (final s in sels.take(5))
+        if (s.state == 'live')
+          (
+            'En cours · ${s.homeTeam} – ${s.awayTeam} (${s.minute ?? ''}${s.extra != null ? '+${s.extra}' : ''}\')',
+            VDotKind.green,
+          )
+        else
+          (
+            '${day(s.kickoffAt!.toLocal())} ${hourMinute(s.kickoffAt!.toLocal())} · ${s.homeTeam} – ${s.awayTeam}',
+            VDotKind.plain,
+          ),
+    ];
+  }
+
+  /// « Où le moteur tient parole (30 j) » : marchés avec une chance annoncée, les plus joués.
   static List<Json> _markets(TodayData d) => [
-    for (final m in ((d.record?['by_market'] as List?) ?? const []).cast<Json>())
+    for (final m in ((d.dash['markets_30'] as List?) ?? const []).cast<Json>())
       if (m['announced'] != null && m['rate'] != null) m,
   ].take(4).toList();
 
-  /// Nouveau joueur : trois cartes de départ au lieu de compteurs à zéro.
+  /// Nouveau joueur : cartes de départ au lieu de compteurs à zéro.
   List<Widget> _starter(BuildContext context) {
     final state = context.read<AppState>();
-    void push(Widget page) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+    Widget card(VIcon icon, String title, String text, VoidCallback onTap) => VCard(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: V.s2, borderRadius: BorderRadius.circular(13)),
+            child: Center(child: VIc(icon, color: V.vi2)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: V.b()),
+                Text(text, style: V.mu_()),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
     return [
-      const SectionTitle('Pour commencer'),
-      _StartCard(
-        icon: Icons.sports_soccer_rounded,
-        title: 'Un premier pari, en argent fictif',
-        text: 'Touche une cote dans Matchs : la chance du moteur est à côté.',
-        onTap: () => state.openTab(HomeTab.matchs),
+      const SizedBox(height: 16),
+      const VKicker('Pour commencer'),
+      card(
+        VIcon.ball,
+        'Un premier pari, en argent fictif',
+        'Touche une cote dans Matchs : la chance du moteur est à côté.',
+        () => state.openTab(HomeTab.matchs),
       ),
-      _StartCard(
-        icon: Icons.today_outlined,
-        title: 'Les coupons du jour',
-        text: 'Trois coupons composés chaque matin, avec la cote en face.',
-        onTap: () => push(const DailyCouponsScreen()),
+      card(
+        VIcon.ticket,
+        'Les coupons du jour',
+        'Trois coupons composés chaque matin, avec la cote en face.',
+        () => _push(context, const DailyCouponsScreen()),
       ),
-      _StartCard(
-        icon: Icons.verified_outlined,
-        title: 'Le moteur est-il juste ?',
-        text: 'Ce qu\'il annonce, face à ce qui arrive vraiment.',
-        onTap: () => push(const ReliabilityScreen()),
+      card(
+        VIcon.target,
+        'Le moteur est-il juste ?',
+        'Ce qu\'il annonce, face à ce qui arrive vraiment.',
+        () => _push(context, const ReliabilityScreen()),
       ),
     ];
   }
 }
 
-class _Title extends StatelessWidget {
-  const _Title(this.text, {required this.action, required this.onAction});
-  final String text;
-  final String action;
-  final VoidCallback onAction;
+/// En-tête : logo, date, « Tableau de bord », recherche et cloche.
+class _Header extends StatelessWidget {
+  const _Header({required this.unread});
+  final int unread;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 18, bottom: 6),
-    child: Row(
-      children: [
-        Expanded(child: Text(text, style: Fp.title(16))),
-        TextButton(onPressed: onAction, child: Text(action)),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: [
+          const VLogo(),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(longDate(now), style: V.mu_()),
+                Text('Tableau de bord', style: V.b(17)),
+              ],
+            ),
+          ),
+          VIconBtn(VIcon.search, tooltip: 'Rechercher', onTap: () => _push(context, const SearchScreen())),
+          const SizedBox(width: 10),
+          VIconBtn(
+            VIcon.bell,
+            tooltip: 'Notifications',
+            badge: unread,
+            onTap: () => _push(context, const NotificationsScreen()),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-/// Solde et sa courbe (fin de journée), sur 7 jours, 30 jours, 3 mois ou tout.
+/// Carte du solde : dégradé, montant, variation de la période, courbe violette, périodes.
 class _BalanceCard extends StatefulWidget {
   const _BalanceCard({required this.dash, required this.currency});
   final Json dash;
@@ -280,57 +346,58 @@ class _BalanceCardState extends State<_BalanceCard> {
     if (days != 0 && before != null) points = [(from, before.$2), ...points];
     // La courbe va jusqu'à aujourd'hui (solde actuel), même sans mouvement récent.
     final balanceNow = (widget.dash['balance'] as num).toDouble();
-    if (points.isNotEmpty || curve.isNotEmpty) points = [...points, (DateTime.now(), balanceNow)];
-    final change = points.length >= 2 ? points.last.$2 - points.first.$2 : 0.0;
-    final balance = balanceNow.round();
-    return GlassCard.section(
+    if (curve.isNotEmpty) points = [...points, (DateTime.now(), balanceNow)];
+    final change = points.length >= 2 ? (points.last.$2 - points.first.$2).round() : 0;
+    final up = change >= 0;
+    return VCard(
+      gradient: const LinearGradient(
+        // 160deg : du haut un peu à gauche vers le bas un peu à droite.
+        begin: Alignment(-0.34, -1),
+        end: Alignment(0.34, 1),
+        colors: [Color(0xFF1A1A3E), V.s1],
+        stops: [0, 0.7],
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Solde fictif', style: Fp.body(12.5, color: Fp.muted)),
-          const SizedBox(height: 2),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Expanded(child: Text(money(balance, widget.currency), style: Fp.title(28))),
-              if (points.length >= 2)
-                Text(
-                  signedMoney(change.round(), widget.currency),
-                  style: Fp.body(13.5, weight: FontWeight.w700, color: change >= 0 ? Fp.win : Fp.loss),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 70,
-            width: double.infinity,
-            child: points.length >= 2
-                ? CustomPaint(
-                    painter: _CurvePainter([for (final p in points) p.$2], change >= 0 ? Fp.win : Fp.loss),
-                  )
-                : Center(
-                    child: Text(
-                      'La courbe apparaîtra après tes premiers paris.',
-                      style: Fp.body(12, color: Fp.text4),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const VKicker('Solde fictif'),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(fcfa(balanceNow.round(), widget.currency), style: V.big()),
                     ),
-                  ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final (i, r) in ranges.indexed)
-                Padding(
-                  padding: EdgeInsets.zero,
-                  child: ChoiceChip(
-                    label: Text(r.$1),
-                    selected: i == range,
-                    showCheckmark: false,
-                    onSelected: (_) => setState(() => range = i),
+                  ],
+                ),
+              ),
+              if (points.length >= 2)
+                VChip(
+                  '${up ? '+' : '−'}${fcfa(change.abs(), widget.currency)} · ${ranges[range].$1}',
+                  kind: up ? VChipKind.up : VChipKind.dn,
+                  arrow: Transform.rotate(
+                    angle: up ? 0 : math.pi,
+                    child: const VIc(VIcon.up, size: 12, stroke: 2.4),
                   ),
                 ),
             ],
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 90,
+            child: points.length >= 2
+                ? CustomPaint(painter: _CurvePainter([for (final p in points) p.$2]))
+                : Center(child: Text('La courbe apparaîtra après tes premiers paris.', style: V.mu_(12))),
+          ),
+          const SizedBox(height: 6),
+          VSeg(
+            items: [for (final r in ranges) r.$1],
+            selected: range,
+            onSelect: (i) => setState(() => range = i),
           ),
         ],
       ),
@@ -339,18 +406,16 @@ class _BalanceCardState extends State<_BalanceCard> {
 }
 
 class _CurvePainter extends CustomPainter {
-  _CurvePainter(this.values, this.color);
+  _CurvePainter(this.values);
   final List<double> values;
-  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final lo = values.reduce(math.min), hi = values.reduce(math.max);
     final span = hi - lo == 0 ? 1.0 : hi - lo;
-    Offset at(int i) => Offset(
-      size.width * i / (values.length - 1),
-      size.height - 4 - (values[i] - lo) / span * (size.height - 8),
-    );
+    // Comme la maquette : de 10 (plus haut) à 84 (plus bas) sur 90.
+    Offset at(int i) =>
+        Offset(size.width * i / (values.length - 1), size.height * (84 - (values[i] - lo) / span * 74) / 90);
     final line = Path()..moveTo(at(0).dx, at(0).dy);
     for (var i = 1; i < values.length; i++) {
       line.lineTo(at(i).dx, at(i).dy);
@@ -365,25 +430,34 @@ class _CurvePainter extends CustomPainter {
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [color.withValues(alpha: 0.28), color.withValues(alpha: 0)],
+          colors: [V.vi.withValues(alpha: 0.35), V.vi.withValues(alpha: 0)],
         ).createShader(Offset.zero & size),
     );
     canvas.drawPath(
       line,
       Paint()
-        ..color = color
+        ..color = V.vi
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.2
         ..strokeJoin = StrokeJoin.round,
     );
+    final end = at(values.length - 1);
+    canvas.drawCircle(end, 4, Paint()..color = Colors.white);
+    canvas.drawCircle(
+      end,
+      4,
+      Paint()
+        ..color = V.vi
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
   }
 
   @override
-  bool shouldRepaint(_CurvePainter old) => old.values != values || old.color != color;
+  bool shouldRepaint(_CurvePainter old) => old.values != values;
 }
 
-/// Quatre indicateurs : rendement et paris gagnés sur 30 jours, moteur annoncé contre réalisé,
-/// mises de la semaine (le budget viendra avec « Mon plan de jeu »).
+/// Grille 2 × 2 : rendement, paris gagnés, moteur, plan de jeu.
 class _Indicators extends StatelessWidget {
   const _Indicators({required this.dash, required this.currency});
   final Json dash;
@@ -393,122 +467,152 @@ class _Indicators extends StatelessWidget {
   Widget build(BuildContext context) {
     final m = dash['last_30_days'] as Json;
     final e = dash['engine'] as Json;
-    final st = dash['stakes'] as Json;
+    final plan = dash['play_plan'] as Json?;
     final yield_ = (m['yield'] as num?)?.toDouble();
     final settled = m['settled'] as int;
+    final won = m['won'] as int;
     final announced = (e['announced'] as num?)?.toDouble();
     final observed = (e['observed'] as num?)?.toDouble();
-    final week = st['week'] as int, prev = st['previous_week'] as int;
-    Widget tile(String label, String value, String sub, {Color color = Fp.text}) => Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: Fp.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Fp.line12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: Fp.body(11.5, color: Fp.muted)),
-          const SizedBox(height: 3),
-          Text(value, style: Fp.title(19, color: color)),
-          const SizedBox(height: 2),
-          Text(sub, maxLines: 2, style: Fp.body(11, color: Fp.text4, height: 1.3)),
-        ],
-      ),
-    );
+    final budget = plan?['weekly_budget'] as int?;
+    final weekStaked = ((plan?['week'] as Json?)?['staked'] as int?) ?? 0;
+    Widget tile(VIcon icon, String label, String value, String sub, {Color? color, VoidCallback? onTap}) =>
+        VCard2(
+          onTap: onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  VIc(icon, size: 15, color: V.mu),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(label, style: V.mu_())),
+                ],
+              ),
+              const SizedBox(height: 6),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(value, style: V.b(19, color ?? V.tx)),
+              ),
+              const SizedBox(height: 2),
+              Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: V.mu_()),
+            ],
+          ),
+        );
     final tiles = [
       tile(
-        'Rendement 30 j',
+        VIcon.bars,
+        'Rendement',
         yield_ == null ? '—' : '${yield_ >= 0 ? '+' : '−'}${percent(yield_.abs(), decimals: 1)}',
-        settled == 0
-            ? 'aucun pari réglé'
-            : '$settled pari${settled > 1 ? 's' : ''} réglé${settled > 1 ? 's' : ''}',
-        color: yield_ == null ? Fp.text : (yield_ >= 0 ? Fp.win : Fp.loss),
-      ),
-      tile('Paris gagnés 30 j', settled == 0 ? '—' : '${m['won']} sur $settled', 'remboursés exclus'),
-      tile(
-        'Moteur sur mes paris',
-        announced == null || observed == null ? '—' : '${percent(observed)} réalisé',
-        announced == null
-            ? 'pas encore de sélection réglée'
-            : 'annoncé ${percent(announced)} · ${e['selections']} sél.',
+        settled == 0 ? 'aucun pari réglé · 30 j' : 'sur ${fcfa(m['staked'] as int, currency)} misés',
+        color: yield_ == null ? null : (yield_ >= 0 ? V.mint : V.coral),
       ),
       tile(
-        'Mises de la semaine',
-        money(week, currency),
-        prev == 0 ? '7 derniers jours' : 'semaine d\'avant : ${money(prev, currency)}',
-        color: prev > 0 && week >= 2 * prev ? Fp.warning : Fp.text,
+        VIcon.trophy,
+        'Paris gagnés',
+        settled == 0 ? '—' : '$won / $settled',
+        settled == 0 ? '30 j' : '${_pct(won / settled)} · 30 j',
+      ),
+      tile(
+        VIcon.target,
+        'Moteur',
+        announced == null || observed == null ? '—' : '${_pct(observed)} / ${_pct(announced)}',
+        'réalisé / annoncé',
+      ),
+      tile(
+        VIcon.shield,
+        'Plan de jeu',
+        fcfa(weekStaked, currency),
+        budget == null ? 'misés · fixer un budget' : 'sur ${fcfa(budget, currency)} cette sem.',
+        color: budget != null && weekStaked >= budget ? V.amber : null,
+        onTap: () => _push(context, const PlayPlanScreen()),
       ),
     ];
-    return LayoutBuilder(
-      builder: (context, c) {
-        final cols = c.maxWidth >= 640 ? 4 : 2;
-        final w = (c.maxWidth - 10 * (cols - 1)) / cols;
-        return Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [for (final t in tiles) SizedBox(width: w, child: t)],
-        );
-      },
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        children: [
+          for (var r = 0; r < 2; r++) ...[
+            if (r > 0) const SizedBox(height: 8),
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: tiles[2 * r]),
+                  const SizedBox(width: 8),
+                  Expanded(child: tiles[2 * r + 1]),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
 
-class _BetRow extends StatelessWidget {
-  const _BetRow({required this.bet, required this.chances, this.live = false});
-  final Bet bet;
+/// Carte d'un match en direct de mes paris (230 de large, liseré vert si je gagne).
+class _LiveCard extends StatelessWidget {
+  const _LiveCard({required this.sel, required this.chances});
+  final BetSel sel;
   final Map<int, Json> chances;
-  final bool live;
 
   @override
   Widget build(BuildContext context) {
-    final first = bet.selections.first;
-    final name = bet.selections.length == 1
-        ? fullLabel(first.market, first.line, first.selection, home: first.homeTeam, away: first.awayTeam)
-        : 'Combiné de ${bet.selections.length}';
-    final match = bet.selections.length == 1 ? '${first.homeTeam} – ${first.awayTeam}' : null;
-    final c = couponChances(bet, chances);
-    final liveSel = bet.selections.where((s) => s.state == 'live').firstOrNull;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: GlassCard.section(
-        onTap: () => context.read<AppState>().openTab(HomeTab.paris),
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Row(
+    final s = sel;
+    final (chip, kind) = switch (s.now) {
+      'win' || 'half_win' => ('gagnant', VChipKind.up),
+      'loss' || 'half_loss' => ('perdant', VChipKind.dn),
+      'push' || 'void' => ('remboursé', VChipKind.eq),
+      _ => (null, VChipKind.eq),
+    };
+    final p = ((chances[s.matchId]?['markets'] as Map?)?['${s.market}|${s.line}|${s.selection}'] as num?)
+        ?.toDouble();
+    final label = _lc(selectionLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam));
+    return SizedBox(
+      width: 230,
+      child: VCard2(
+        border: kind == VChipKind.up ? const Color(0xFF1D5A44) : null,
+        onTap: () => _push(context, MatchScreen(matchId: s.matchId)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            Row(
+              children: [
+                const VDot(),
+                const SizedBox(width: 10),
+                Text(
+                  '${s.minute ?? ''}${s.extra != null ? '+${s.extra}' : ''}\'',
+                  style: V.t(11.5, w: FontWeight.w800, color: V.mint),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    s.competition == null ? '' : competitionName(s.competition!),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: V.mu_(),
+                  ),
+                ),
+                if (chip != null) ...[const SizedBox(width: 10), VChip(chip, kind: kind)],
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final (team, goals) in [(s.homeTeam, s.score?[0]), (s.awayTeam, s.score?[1])])
+              Row(
                 children: [
-                  Text(name, style: Fp.body(14, weight: FontWeight.w700)),
-                  if (match != null) Text(match, style: Fp.body(12, color: Fp.muted)),
-                  if (live && liveSel != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 3),
-                      child: Text(
-                        '${liveSel.homeTeam} ${liveSel.score?[0] ?? '-'}–${liveSel.score?[1] ?? '-'} '
-                        '${liveSel.awayTeam} · ${liveSel.minute ?? ''}${liveSel.extra != null ? '+${liveSel.extra}' : ''}\'',
-                        style: Fp.body(12.5, weight: FontWeight.w700, color: Fp.loss),
-                      ),
-                    ),
-                  if (c != null)
-                    Text(
-                      'chance de tenir : ${percent(c.$2)}',
-                      style: Fp.body(12, color: c.$2 >= c.$1 ? Fp.win : Fp.textSoft),
-                    ),
+                  Expanded(
+                    child: Text(team, maxLines: 1, overflow: TextOverflow.ellipsis, style: V.b()),
+                  ),
+                  Text('${goals ?? '-'}', style: V.b()),
                 ],
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(odds(bet.totalOdds), style: Fp.body(15, weight: FontWeight.w700)),
-                Text(
-                  '${money(bet.stake, bet.currency)} → ${money(bet.potentialPayout, bet.currency)}',
-                  style: Fp.body(11.5, color: Fp.muted),
-                ),
-              ],
+            const SizedBox(height: 6),
+            Text(
+              p == null ? label : '$label · tient à ${_pct(p)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: V.mu_(),
             ),
           ],
         ),
@@ -517,145 +621,213 @@ class _BetRow extends StatelessWidget {
   }
 }
 
-class _Agenda extends StatelessWidget {
-  const _Agenda({required this.items});
-  final List<BetSel> items;
+/// Ligne « mes paris en cours » : anneau de chance, titre, détails, gain possible.
+class _BetLine extends StatelessWidget {
+  const _BetLine({required this.bet, required this.chances, required this.montantes});
+  final Bet bet;
+  final Map<int, Json> chances;
+  final List<Json> montantes;
 
   @override
-  Widget build(BuildContext context) => GlassCard.section(
-    child: Column(
-      children: [
-        for (final s in items)
-          InkWell(
-            onTap: () =>
-                Navigator.of(context)
-                    .push(MaterialPageRoute(builder: (_) => MatchScreen(matchId: s.matchId))),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 7),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 92,
-                    child: Text(
-                      '${shortDate(s.kickoffAt!.toLocal())}\n${hourMinute(s.kickoffAt!.toLocal())}',
-                      style: Fp.body(12, color: Fp.muted, height: 1.3),
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      '${s.homeTeam} – ${s.awayTeam}',
-                      style: Fp.body(13.5, weight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
+  Widget build(BuildContext context) {
+    final b = bet;
+    final first = b.selections.first;
+    final n = b.selections.length;
+    final cur = b.currency;
+    final validated = b.selections.where((s) => s.result == 'win' || s.result == 'half_win').length;
+    // Palier de montante : « Montante n° 9 · palier 3 ».
+    String? montante;
+    for (final m in montantes) {
+      for (final s in (m['steps'] as List).cast<Json>()) {
+        if (s['bet_id'] == b.id) montante = 'Montante n° ${m['id']} · palier ${s['number']}';
+      }
+    }
+    final title =
+        montante ??
+        (n == 1
+            ? selectionLabel(
+                first.market,
+                first.line,
+                first.selection,
+                home: first.homeTeam,
+                away: first.awayTeam,
+              )
+            : 'Combiné · $n sélections');
+    final sub = n == 1
+        ? '${first.homeTeam} – ${first.awayTeam} · ${fcfa(b.stake, cur)}'
+        : '${fcfa(b.stake, cur)} · cote ${odds(b.totalOdds)} · $validated sur $n validée${validated > 1 ? 's' : ''}';
+    final chance = couponChances(b, chances)?.$2;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => context.read<AppState>().openTab(HomeTab.paris),
+      child: Row(
+        children: [
+          chance == null
+              ? Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(color: V.s3, shape: BoxShape.circle),
+                  alignment: Alignment.center,
+                  child: Text('—', style: V.b(11)),
+                )
+              : VRing(chance, size: 44, inner: 34, fontSize: 11),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: V.b()),
+                Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: V.mu_()),
+              ],
             ),
           ),
-      ],
-    ),
-  );
+          const SizedBox(width: 10),
+          Text(fcfa(b.potentialPayout, cur), style: V.b()),
+        ],
+      ),
+    );
+  }
 }
 
-class _EngineAbove extends StatelessWidget {
-  const _EngineAbove({required this.items});
+/// « Occasions du jour » : sélections où le moteur dépasse la cote, puis l'alerte de cote.
+class _Occasions extends StatefulWidget {
+  const _Occasions({required this.items});
   final List<Json> items;
 
   @override
-  Widget build(BuildContext context) => GlassCard.section(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Matchs des prochaines 36 heures où le moteur est plus confiant que la cote '
-          '(sélections nationales à part). Une information, pas un conseil.',
-          style: Fp.body(12, color: Fp.muted, height: 1.4),
-        ),
-        for (final a in items)
-          InkWell(
-            onTap: () =>
-                Navigator.of(context)
-                    .push(MaterialPageRoute(builder: (_) => MatchScreen(matchId: a['match_id'] as int))),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 9),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          fullLabel(
-                            a['market'] as String,
-                            (a['line'] ?? '') as String,
-                            a['selection'] as String,
-                            home: a['home'] as String,
-                            away: a['away'] as String,
-                          ),
-                          style: Fp.body(13.5, weight: FontWeight.w700),
-                        ),
-                        Text(
-                          [
-                            competitionName(a['competition'] as String),
-                            '${a['home']} – ${a['away']}',
-                            if (parseDate(a['kickoff_at']) case final k?) hourMinute(k.toLocal()),
-                          ].join(' · '),
-                          style: Fp.body(12, color: Fp.muted),
-                        ),
-                        const SizedBox(height: 4),
-                        GapBadge(
-                          engine: (a['engine'] as num).toDouble(),
-                          implied: (a['implied'] as num).toDouble(),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(odds(a['odds']), style: Fp.body(15, weight: FontWeight.w700)),
-                ],
-              ),
-            ),
-          ),
-      ],
-    ),
-  );
+  State<_Occasions> createState() => _OccasionsState();
 }
 
+class _OccasionsState extends State<_Occasions> {
+  bool all = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = widget.items;
+    return VCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          VHead(
+            'Occasions du jour',
+            link: items.length > 3 ? (all ? 'Moins' : 'Toutes') : null,
+            onLink: () => setState(() => all = !all),
+          ),
+          if (items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Aucune sélection des 36 prochaines heures où le moteur dépasse la cote.',
+                style: V.mu_(),
+              ),
+            )
+          else
+            VList(children: [for (final a in all ? items : items.take(3)) _OccasionLine(a: a)]),
+          VBtn2(
+            'Créer une alerte de cote',
+            icon: VIcon.bell,
+            onTap: () => _push(context, const OddsAlertsScreen()),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OccasionLine extends StatelessWidget {
+  const _OccasionLine({required this.a});
+  final Json a;
+
+  @override
+  Widget build(BuildContext context) {
+    final home = a['home'] as String, away = a['away'] as String;
+    final engine = (a['engine'] as num).toDouble(), implied = (a['implied'] as num).toDouble();
+    final label = _lc(
+      selectionLabel(
+        a['market'] as String,
+        (a['line'] ?? '') as String,
+        a['selection'] as String,
+        home: home,
+        away: away,
+      ),
+    );
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _push(context, MatchScreen(matchId: a['match_id'] as int)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('$home – $away', maxLines: 1, overflow: TextOverflow.ellipsis, style: V.b()),
+                Text(
+                  '$label · ${_pct(engine)} / ${_pct(implied)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: V.mu_(),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          VGapChip(engine: engine, implied: implied),
+          const SizedBox(width: 10),
+          VOdd(odds(a['odds'])),
+        ],
+      ),
+    );
+  }
+}
+
+/// « Coupons du jour » : trois cases, cote et pastille moteur contre cote.
 class _Daily extends StatelessWidget {
   const _Daily({required this.coupons});
   final List<Json> coupons;
 
   @override
-  Widget build(BuildContext context) => GlassCard.section(
+  Widget build(BuildContext context) => VCard(
+    onTap: () => _push(context, const DailyCouponsScreen()),
     child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final c in coupons)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${c['profile_label'] ?? c['profile']}',
-                    style: Fp.body(14, weight: FontWeight.w700),
+        const VKicker('Coupons du jour'),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            for (final (i, c) in coupons.take(3).indexed) ...[
+              if (i > 0) const SizedBox(width: 6),
+              Expanded(
+                child: VCard2(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${c['profile_label'] ?? c['profile']}', style: V.mu_()),
+                      Text(odds(c['total_odds']), style: V.b()),
+                      if (c['probability'] is num && c['total_odds'] != null) ...[
+                        const SizedBox(height: 4),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: VGapChip(
+                            engine: (c['probability'] as num).toDouble(),
+                            implied: 1 / double.parse('${c['total_odds']}'),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                if (c['probability'] is num && c['total_odds'] != null) ...[
-                  GapBadge(
-                    engine: (c['probability'] as num).toDouble(),
-                    implied: 1 / double.parse('${c['total_odds']}'),
-                  ),
-                  const SizedBox(width: 10),
-                ],
-                Text('cote ${odds(c['total_odds'])}', style: Fp.body(14, weight: FontWeight.w700)),
-              ],
-            ),
-          ),
+              ),
+            ],
+          ],
+        ),
       ],
     ),
   );
 }
 
-/// Ma montante : palier, et le gain et le risque côte à côte (si ça passe, si j'arrête, si ça
-/// rate).
+/// « Montante n° 9 » : paliers en barres, puis si ça passe, si j'arrête, si ça rate.
 class _Montante extends StatelessWidget {
   const _Montante({required this.m, required this.currency});
   final Json m;
@@ -666,52 +838,62 @@ class _Montante extends StatelessWidget {
     final steps = (m['steps'] as List).cast<Json>();
     final current = m['current_step'] as int? ?? 1;
     final step = steps.where((s) => s['number'] == current).firstOrNull;
-    final pass = (m['final_payout_range'] as List?)?.cast<num>();
     final stake = (step?['stake'] as num?)?.toInt();
+    final payout =
+        (step?['potential_payout'] as num?)?.toInt() ??
+        ((step?['payout_range'] as List?)?.first as num?)?.toInt();
+    final cashable = (m['cashable'] as num? ?? 0).toInt();
     Widget col(String label, String value, Color color) => Expanded(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: Fp.body(11.5, color: Fp.muted)),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            textAlign: TextAlign.center,
-            style: Fp.body(13.5, weight: FontWeight.w700, color: color),
-          ),
+          Text(label, style: V.mu_()),
+          Text(value, style: V.b(13.5, color)),
         ],
       ),
     );
-    return GlassCard.section(
+    return VCard(
+      onTap: () => context.read<AppState>().openTab(HomeTab.montante),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              for (final s in steps)
-                Expanded(
-                  child: Container(
-                    height: 8,
-                    margin: const EdgeInsets.symmetric(horizontal: 2),
-                    decoration: BoxDecoration(
-                      color: switch (s['result']) {
-                        'win' => Fp.win,
-                        'loss' => Fp.loss,
-                        _ => s['number'] == current ? Fp.accent : Fp.line12,
-                      },
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
+              Expanded(child: VKicker('Montante n° ${m['id']}')),
+              Text('palier $current sur ${steps.length}', style: V.mu_()),
             ],
           ),
-          const SizedBox(height: 8),
-          Text('Palier $current sur ${steps.length}', style: Fp.body(14, weight: FontWeight.w700)),
           const SizedBox(height: 10),
           Row(
             children: [
-              col('Si tout passe', pass == null ? '—' : money(pass.first, currency), Fp.win),
-              col('Si j\'arrête', money((m['cashable'] as num?) ?? 0, currency), Fp.text),
-              col('Si ça rate', stake == null ? '—' : '−${money(stake, currency)}', Fp.loss),
+              for (final (i, s) in steps.indexed) ...[
+                if (i > 0) const SizedBox(width: 4),
+                Expanded(
+                  child: Container(
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: switch (s['result']) {
+                        'won' || 'win' => V.mint,
+                        'lost' || 'loss' => V.coral,
+                        _ => s['number'] == current ? V.vi : V.s3,
+                      },
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              col(
+                'si ça passe',
+                payout == null || stake == null ? '—' : '+${fcfa(payout - stake, currency)}',
+                V.mint,
+              ),
+              col('si j\'arrête', fcfa(cashable, currency), V.tx),
+              col('si ça rate', stake == null ? '—' : '−${fcfa(stake, currency)}', V.coral),
             ],
           ),
         ],
@@ -720,77 +902,54 @@ class _Montante extends StatelessWidget {
   }
 }
 
+/// « Où le moteur tient parole (30 j) » : barre du réalisé, trait ambre de l'annoncé.
 class _Markets extends StatelessWidget {
   const _Markets({required this.rows});
   final List<Json> rows;
 
   @override
-  Widget build(BuildContext context) => GlassCard.section(
+  Widget build(BuildContext context) => VCard(
     child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const VKicker('Où le moteur tient parole (30 j)'),
         for (final r in rows)
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.only(top: 9),
             child: Row(
               children: [
-                Expanded(child: Text(marketTitle(r['key'] as String), style: Fp.body(13.5))),
-                Text(
-                  'annoncé ${percent((r['announced'] as num).toDouble())}',
-                  style: Fp.body(12, color: Fp.muted),
+                SizedBox(
+                  width: 110,
+                  child: Text(
+                    marketTitle(r['key'] as String),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: V.t(12.5, color: V.mu),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: VGauge(
+                    value: (r['rate'] as num).toDouble(),
+                    mark: (r['announced'] as num).toDouble(),
+                    color: switch (r['gap']) {
+                      'low' => V.coral,
+                      'high' => V.mint,
+                      _ => V.vi,
+                    },
+                  ),
                 ),
                 const SizedBox(width: 10),
                 SizedBox(
-                  width: 92,
-                  child: Text(
-                    'réalisé ${percent((r['rate'] as num).toDouble())}',
-                    textAlign: TextAlign.right,
-                    style: Fp.body(
-                      12.5,
-                      weight: FontWeight.w700,
-                      color: switch (r['gap']) {
-                        'low' => Fp.loss,
-                        'high' => Fp.win,
-                        _ => Fp.text,
-                      },
-                    ),
-                  ),
+                  width: 46,
+                  child: Text(_pct((r['rate'] as num).toDouble()), textAlign: TextAlign.right, style: V.b()),
                 ),
               ],
             ),
           ),
+        const SizedBox(height: 8),
+        Text('trait ambre : chance annoncée · barre : réalisé', style: V.mu_()),
       ],
-    ),
-  );
-}
-
-class _StartCard extends StatelessWidget {
-  const _StartCard({required this.icon, required this.title, required this.text, required this.onTap});
-  final IconData icon;
-  final String title;
-  final String text;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: GlassCard.section(
-      onTap: onTap,
-      child: Row(
-        children: [
-          Icon(icon, color: Fp.accentLight),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: Fp.body(14.5, weight: FontWeight.w700)),
-                Text(text, style: Fp.body(12.5, color: Fp.muted, height: 1.35)),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right_rounded, color: Fp.muted),
-        ],
-      ),
     ),
   );
 }

@@ -16,8 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from footprono.accounts.models import User, Wallet, WalletEntry
 from footprono.accounts.plans import market_allowed
-from footprono.bookmaker import service
+from footprono.bookmaker import play_plan, service
 from footprono.bookmaker.models import Bet, BetSelection
+from footprono.bookmaker.record import _group
 from footprono.football.models import Competition, Match, MatchStatus, Season, Team
 from footprono.ingestion.reference import NATIONS_BY_CODE
 
@@ -111,6 +112,24 @@ async def _stakes(session: AsyncSession, user_id: int, now: datetime) -> dict[st
     return {"week": int(row[0]), "previous_week": int(row[1])}
 
 
+async def _markets_30(session: AsyncSession, user_id: int, now: datetime) -> list[dict[str, Any]]:
+    """« Où le moteur tient parole (30 j) » : par marché, chance annoncée contre part gagnée
+    de mes sélections des paris réglés ces 30 derniers jours (comme « Mon bilan »)."""
+    rows = (
+        await session.execute(
+            select(BetSelection.market, BetSelection.result, BetSelection.model_probability)
+            .join(Bet, Bet.id == BetSelection.bet_id)
+            .where(
+                Bet.user_id == user_id,
+                Bet.status == "settled",
+                Bet.settled_at >= now - timedelta(days=30),
+                BetSelection.result != "pending",
+            )
+        )
+    ).all()
+    return _group([(m, r, p) for m, r, p in rows])
+
+
 async def engine_above_odds(
     session: AsyncSession, user: User, now: datetime, limit: int = ABOVE_LIMIT
 ) -> list[dict[str, Any]]:
@@ -190,7 +209,10 @@ async def dashboard(
         "curve": await _curve(session, user.id),
         "last_30_days": await _last_30(session, user.id, now),
         "engine": await _engine(session, user.id),
+        "markets_30": await _markets_30(session, user.id, now),
         "stakes": await _stakes(session, user.id, now),
         "engine_above_odds": await engine_above_odds(session, user, now),
+        # Mon plan de jeu (maquette 30) : budget et mises de la semaine (lundi 0 h).
+        "play_plan": await play_plan.summary(session, user, now),
         "gap_min": GAP_MIN,
     }

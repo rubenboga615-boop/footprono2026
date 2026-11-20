@@ -412,6 +412,7 @@ class BetSel {
       homeTeam = j['home_team'] as String? ?? 'Domicile',
       awayTeam = j['away_team'] as String? ?? 'Extérieur',
       kickoffAt = parseDate(j['kickoff_at']),
+      competition = j['competition'] as String?,
       state = j['state'] as String? ?? 'upcoming',
       minute = j['minute'] as int?,
       extra = j['extra'] as int?,
@@ -437,6 +438,9 @@ class BetSel {
   final List<int?>? score;
   final String awayTeam;
   final DateTime? kickoffAt;
+
+  /// Code du championnat (cartes « en direct pour moi »).
+  final String? competition;
   final int matchId;
   final String market;
   final String line;

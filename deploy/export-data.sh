@@ -12,7 +12,7 @@ cd "$DIR/deploy"
 mkdir -p "$DIR/exports"
 PERSONAL=(users wallets wallet_entries bets bet_selections montantes montante_steps
     notifications push_devices payments subscription_events beta_events
-    admin_actions admin_jobs admin_job_lines
+    admin_actions admin_jobs admin_job_lines play_plans odds_alerts odds_alert_hits
     # Réglages de la console : contiennent le nom secret du canal ntfy des alertes (audit
     # du 20/11/2026, point E ; qui l'a peut envoyer de fausses alertes au fondateur).
     app_settings)

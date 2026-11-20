@@ -10,7 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from footprono import __version__, alerts
 from footprono.accounts.reminders import send_premium_reminders
-from footprono.bookmaker import engine_compare, live_coupons, playable, settlement, smart_coupon
+from footprono.bookmaker import (
+    engine_compare,
+    live_coupons,
+    odds_alerts,
+    playable,
+    settlement,
+    smart_coupon,
+)
 from footprono.bookmaker.kickoff import send_kickoff_reminders
 from footprono.cache.redis import create_redis
 from footprono.console import jobs as console_jobs
@@ -160,6 +167,8 @@ async def _collect_odds() -> dict[str, Any]:
         await engine.dispose()
     # Le calendrier vient d'être synchronisé : nouveaux matchs prédits sans attendre.
     predict_if_needed.delay()
+    # Cotes nouvelles : alertes de cote des joueurs.
+    check_odds_alerts.delay()
     return {
         "odds": {k: v for k, v in report.items() if k != "unmapped_bets"},
         "injuries": injuries,
@@ -530,6 +539,31 @@ async def _kickoff_reminders() -> dict[str, Any]:
     try:
         async with create_session_factory(engine)() as session:
             sent = await send_kickoff_reminders(session)
+            await notifications.publish_pending(session, redis, push)
+    finally:
+        await redis.aclose()
+        if push is not None:
+            await push.aclose()
+        await engine.dispose()
+    return {"status": "ok", "sent": sent}
+
+
+@celery_app.task(name="footprono.odds_alerts")
+@tracked("odds_alerts")
+def check_odds_alerts() -> dict[str, Any]:
+    """Alertes de cote des joueurs (bookmaker/odds_alerts.py) : après chaque relevé des
+    cotes, et toutes les 30 minutes (alertes retenues pendant la nuit du joueur)."""
+    return asyncio.run(_check_odds_alerts())
+
+
+async def _check_odds_alerts() -> dict[str, Any]:
+    settings = get_settings()
+    engine = create_engine(settings)
+    redis = create_redis(settings)
+    push = push_sender_or_none(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            sent = await odds_alerts.check(session)
             await notifications.publish_pending(session, redis, push)
     finally:
         await redis.aclose()

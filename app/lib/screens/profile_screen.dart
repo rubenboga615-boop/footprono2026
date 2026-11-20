@@ -14,6 +14,8 @@ import 'auth_screen.dart' show countries;
 import 'merited_screen.dart';
 import 'notifications_screen.dart';
 import 'premium_screen.dart';
+import 'odds_alerts_screen.dart';
+import 'play_plan_screen.dart';
 import 'record_screen.dart';
 import 'reliability_screen.dart';
 import 'server_dialog.dart';
@@ -343,6 +345,9 @@ class ProfileScreen extends StatelessWidget {
                         ),
                       // Nouveau visage, étape B : « Moi » regroupe Mon bilan, Fiabilité, Classement.
                       _Item(title: 'Mon bilan', onTap: () => open(const RecordScreen())),
+                      // Maquettes 29 et 30 du nouveau visage.
+                      _Item(title: 'Mon plan de jeu', onTap: () => open(const PlayPlanScreen())),
+                      _Item(title: 'Mes alertes de cote', onTap: () => open(const OddsAlertsScreen())),
                       _Item(title: 'Fiabilité du moteur', onTap: () => open(const ReliabilityScreen())),
                       // Ancien bouton de l'écran Matchs (retiré : maquette du 07/11/2026).
                       _Item(title: 'Classement mérité', onTap: () => open(const MeritedScreen())),

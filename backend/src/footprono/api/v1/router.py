@@ -13,6 +13,7 @@ from footprono.api.v1 import (
     montantes,
     notifications,
     payments,
+    play,
     predictions,
     smart_coupons,
 )
@@ -29,6 +30,7 @@ api_router.include_router(beta.router)
 api_router.include_router(montantes.router)
 api_router.include_router(notifications.router)
 api_router.include_router(payments.router)
+api_router.include_router(play.router)
 api_router.include_router(football.router)
 api_router.include_router(predictions.router)
 api_router.include_router(smart_coupons.router)

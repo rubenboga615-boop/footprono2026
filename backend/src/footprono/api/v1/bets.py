@@ -23,7 +23,7 @@ from footprono.bookmaker.schemas import (
 )
 from footprono.bookmaker.service import key
 from footprono.core.errors import NotFoundError
-from footprono.football.models import Match, Team
+from footprono.football.models import Competition, Match, Season, Team
 
 router = APIRouter(tags=["bookmaker virtuel"])
 
@@ -153,12 +153,16 @@ async def _bet_out(session: SessionDep, bet: Bet) -> BetOut:
     )
     home, away = aliased(Team), aliased(Team)
     rows = await session.execute(
-        select(Match, home.name, away.name)
+        select(Match, home.name, away.name, Competition.code)
         .join(home, home.id == Match.home_team_id)
         .join(away, away.id == Match.away_team_id)
+        .join(Season, Season.id == Match.season_id)
+        .join(Competition, Competition.id == Season.competition_id)
         .where(Match.id.in_([s.match_id for s in selections]))
     )
-    info = {m.id: (m, h, a) for m, h, a in rows.tuples()}
+    found = rows.tuples().all()
+    info = {m.id: (m, h, a) for m, h, a, _ in found}
+    codes = {m.id: c for m, _, _, c in found}
     counts = await settlement.finished_counts(
         session, [(info[s.match_id][0], s.market) for s in selections if s.match_id in info]
     )
@@ -168,6 +172,7 @@ async def _bet_out(session: SessionDep, bet: Bet) -> BetOut:
         if s.match_id in info:
             match, item.home_team, item.away_team = info[s.match_id]
             item.kickoff_at = match.kickoff_at
+            item.competition = codes[s.match_id]
             # Suivi comme chez un bookmaker : à venir, en cours (minute, score) ou terminé.
             state = smart_coupon.live_state(
                 {"result": s.result, "market": s.market, "line": s.line, "selection": s.selection},

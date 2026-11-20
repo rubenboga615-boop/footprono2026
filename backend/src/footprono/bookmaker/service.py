@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from footprono.accounts import service as accounts
 from footprono.accounts.models import User
 from footprono.accounts.plans import require_market
-from footprono.bookmaker import live_coupons
+from footprono.bookmaker import live_coupons, play_plan
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.bookmaker.odds_math import combined_odds
 from footprono.core.errors import AppError, NotFoundError
@@ -292,6 +292,8 @@ async def place_bet(
         )
     for s in selections:
         require_market(user, s.market, now)
+    # Mon plan de jeu : pause, mise maximale, budget et limite de perte de la semaine.
+    await play_plan.check_bet(session, user, stake, now)
     # (sélection, cote, bookmaker, relevé de la cote, chance du moteur)
     chosen: list[tuple[SelectionIn, Decimal, str, int | None, float | None]] = []
     for s in selections:

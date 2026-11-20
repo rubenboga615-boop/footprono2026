@@ -88,6 +88,12 @@ class ApiClient {
     timeout,
   );
 
+  Future<dynamic> patch(String path, [Object? body]) => _watch(
+    path,
+    () => _http.patch(uri(path), headers: _headers, body: jsonEncode(body ?? const {})),
+    timeout,
+  );
+
   Future<dynamic> _watch(String path, Future<http.Response> Function() request, Duration wait) async {
     final watch = observer;
     if (watch == null) return _send(request, wait);

@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'dart:ui';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -22,12 +20,14 @@ import 'screens/daily_coupons_screen.dart';
 import 'screens/matches_screen.dart';
 import 'screens/montante_screen.dart';
 import 'screens/notifications_screen.dart';
+import 'screens/odds_alerts_screen.dart';
+import 'screens/play_plan_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/today_screen.dart';
 import 'widgets/common.dart' show guard;
 import 'state/app_state.dart';
 import 'theme.dart';
-import 'widgets/nav_icons.dart';
+import 'widgets/visage.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -256,9 +256,11 @@ class HomeShellState extends State<HomeShell> {
       go(_state.montanteMode ? HomeTab.montante : HomeTab.paris);
       return;
     }
-    final page = _state.openedKind == 'daily_coupons'
-        ? const DailyCouponsScreen()
-        : const NotificationsScreen();
+    final page = switch (_state.openedKind) {
+      'daily_coupons' => const DailyCouponsScreen(),
+      'odds_alert' => const OddsAlertsScreen(),
+      _ => const NotificationsScreen(),
+    } as Widget;
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
@@ -313,41 +315,44 @@ class HomeShellState extends State<HomeShell> {
         if (mounted) setState(() => index = HomeTab.montante);
       });
     }
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      // Le contenu défile sous la barre flottante (listes : marge basse de 110).
-      extendBody: true,
-      body: IndexedStack(
-        index: index,
-        children: [
-          // Onglets cachés sans minuteurs (TickerMode) : « Mes paris » se rechargeait chaque
-          // minute même liste des matchs affichée (vérification du 12/11/2026, 17 h 20).
-          for (var i = 0; i < pages.length; i++)
-            TickerMode(
-              enabled: i == index,
-              child: KeyedSubtree(key: ValueKey('$i-${_generation[i]}'), child: pages[i]),
+    // Rappel « une heure dans l'appli » du plan de jeu (maquette 30).
+    return PlayReminder(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        // Le contenu défile sous la barre flottante (listes : marge basse de 110).
+        extendBody: true,
+        body: IndexedStack(
+          index: index,
+          children: [
+            // Onglets cachés sans minuteurs (TickerMode) : « Mes paris » se rechargeait chaque
+            // minute même liste des matchs affichée (vérification du 12/11/2026, 17 h 20).
+            for (var i = 0; i < pages.length; i++)
+              TickerMode(
+                enabled: i == index,
+                child: KeyedSubtree(key: ValueKey('$i-${_generation[i]}'), child: pages[i]),
+              ),
+          ],
+        ),
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Mode Montante : le palier composé depuis les matchs s'ouvre par-dessus.
+            if (mode && index == HomeTab.matchs && state.coupon.isNotEmpty) const _PalierBar(),
+            _FloatingNav(
+              index: index,
+              onTap: go,
+              badges: {HomeTab.create: state.coupon.length, HomeTab.moi: state.unread},
+              tabs: mode ? const [HomeTab.montante, HomeTab.matchs, HomeTab.moi] : null,
             ),
-        ],
-      ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Mode Montante : le palier composé depuis les matchs s'ouvre par-dessus.
-          if (mode && index == HomeTab.matchs && state.coupon.isNotEmpty) const _PalierBar(),
-          _FloatingNav(
-            index: index,
-            onTap: go,
-            badges: {HomeTab.create: state.coupon.length, HomeTab.moi: state.unread},
-            tabs: mode ? const [HomeTab.montante, HomeTab.matchs, HomeTab.moi] : null,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Barre de navigation flottante des maquettes : capsule en verre, onglet
-/// choisi encadré de violet.
+/// Barre du bas des maquettes « nouveau visage » (.nav) : capsule flottante de 66, coins 24,
+/// fond rgba(19,26,42,.96), liseré #222C44 ; « + » central en carré violet de 56 surélevé.
 class _FloatingNav extends StatelessWidget {
   const _FloatingNav({required this.index, required this.onTap, required this.badges, this.tabs});
   final int index;
@@ -358,58 +363,47 @@ class _FloatingNav extends StatelessWidget {
   /// Matchs, Moi.
   final List<int>? tabs;
 
-  // Nouveau visage, étape B (plan du 20/11/2026) : Aujourd'hui · Matchs · Créer · Paris · Moi.
   static const _items = {
-    HomeTab.today: (NavGlyph.today, 'Aujourd\'hui'),
-    HomeTab.matchs: (NavGlyph.matchs, 'Matchs'),
-    HomeTab.create: (NavGlyph.create, 'Créer'),
-    HomeTab.paris: (NavGlyph.bookmaker, 'Paris'),
-    HomeTab.moi: (NavGlyph.profil, 'Moi'),
-    HomeTab.montante: (NavGlyph.montante, 'Montante'),
+    HomeTab.today: (VIcon.home, 'Aujourd\'hui'),
+    HomeTab.matchs: (VIcon.matchs, 'Matchs'),
+    HomeTab.create: (VIcon.plus, 'Créer'),
+    HomeTab.paris: (VIcon.ticket, 'Paris'),
+    HomeTab.moi: (VIcon.user, 'Moi'),
+    HomeTab.montante: (VIcon.stairs, 'Montante'),
   };
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
-      // Barre des maquettes du 07/11/2026 : #15112A, coins 28, liseré #2A2347, 72 de haut.
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(
-              height: 72,
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xF215112A),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: Fp.line12),
-              ),
-              child: Row(
-                children: [
-                  for (final (n, i) in (tabs ?? const [0, 1, 2, 3, 4]).indexed) ...[
-                    if (n > 0) const SizedBox(width: 4),
-                    Expanded(
-                      child: _NavItem(
+        padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+        child: Container(
+          height: 66,
+          decoration: BoxDecoration(
+            color: const Color(0xF5131A2A),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: V.navBorder),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              for (final i in tabs ?? const [0, 1, 2, 3, 4])
+                i == HomeTab.create
+                    ? _Fab(
+                        // Mon coupon et la Montante s'ouvrent depuis « Créer ».
+                        selected: i == index || index == HomeTab.coupon || index == HomeTab.montante,
+                        badge: badges[i] ?? 0,
+                        onTap: () => onTap(i),
+                      )
+                    : _NavItem(
                         icon: _items[i]!.$1,
                         label: _items[i]!.$2,
-                        // Mon coupon et la Montante s'ouvrent depuis « Créer » : « Créer » reste allumé.
-                        selected:
-                            i == index ||
-                            (tabs == null &&
-                                i == HomeTab.create &&
-                                (index == HomeTab.coupon || index == HomeTab.montante)),
+                        selected: i == index,
                         badge: badges[i] ?? 0,
-                        badgeColor: i == HomeTab.moi ? Fp.loss : Fp.accent,
                         onTap: () => onTap(i),
                       ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+            ],
           ),
         ),
       ),
@@ -417,68 +411,86 @@ class _FloatingNav extends StatelessWidget {
   }
 }
 
+/// ``.nav .fab`` : 56 × 56, coins 18, violet, remonté de 26, ombre violette.
+class _Fab extends StatelessWidget {
+  const _Fab({required this.selected, required this.badge, required this.onTap});
+  final bool selected;
+  final int badge;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    label: 'Créer',
+    child: Transform.translate(
+      offset: const Offset(0, -13),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Badge(
+          isLabelVisible: badge > 0,
+          label: Text('$badge'),
+          backgroundColor: V.coral,
+          offset: const Offset(2, -4),
+          child: Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: V.vi,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: const [BoxShadow(color: Color(0x737C5CFF), offset: Offset(0, 8), blurRadius: 20)],
+            ),
+            child: const Center(child: VIc(VIcon.plus, size: 24, stroke: 2.2, color: Colors.white)),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// ``.nav span`` : icône 21 au trait, libellé 10,5 600 ; gris mu2, onglet actif en blanc.
 class _NavItem extends StatelessWidget {
   const _NavItem({
     required this.icon,
     required this.label,
     required this.selected,
     required this.badge,
-    required this.badgeColor,
     required this.onTap,
   });
-  final NavGlyph icon;
+  final VIcon icon;
   final String label;
   final bool selected;
   final int badge;
-  final Color badgeColor;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    // Maquettes du 07/11/2026 : onglet actif en violet clair, les autres en gris violacé.
-    final color = selected ? Fp.lilac : Fp.muted;
-    // « Créer » (étape B) : bouton central mis en avant, carré violet et « + » blanc.
-    final Widget glyph = icon == NavGlyph.create
-        ? Container(
-            width: 40,
-            height: 30,
-            decoration: BoxDecoration(
-              color: Fp.accent,
-              borderRadius: BorderRadius.circular(11),
-              boxShadow: [BoxShadow(color: Fp.accent.withValues(alpha: 0.45), blurRadius: 14)],
-            ),
-            child: const Center(child: NavIcon(NavGlyph.create, color: Colors.white, size: 20)),
-          )
-        : NavIcon(icon, color: color);
+    final color = selected ? V.tx : V.mu2;
     return Semantics(
       button: true,
       selected: selected,
       label: label,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 54, minHeight: 56),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Badge(
                 isLabelVisible: badge > 0,
                 label: Text('$badge'),
-                backgroundColor: badgeColor,
-                // Lisible sur le violet comme sur le rose (maquettes : chiffre sombre sur rose).
-                textColor: badgeColor == Fp.loss ? Fp.background : Colors.white,
-                child: glyph,
+                backgroundColor: V.coral,
+                child: VIc(icon, size: 21, color: color),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 3),
               ExcludeSemantics(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    style: Fp.body(11, weight: FontWeight.w500, color: color),
-                  ),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: V.t(10.5, w: FontWeight.w600, color: color),
                 ),
               ),
             ],

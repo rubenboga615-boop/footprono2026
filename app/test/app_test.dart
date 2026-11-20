@@ -97,6 +97,67 @@ class FakeServer {
       },
     ],
     'gap_min': 0.03,
+    'markets_30': [
+      {'key': 'DC', 'won': 10, 'lost': 1, 'push': 0, 'rate': 0.91, 'announced': 0.82, 'gap': 'ok'},
+      {'key': 'HT_1X2', 'won': 1, 'lost': 3, 'push': 0, 'rate': 0.25, 'announced': 0.71, 'gap': 'low'},
+    ],
+    'play_plan': {
+      'weekly_budget': 5000,
+      'loss_limit': null,
+      'max_stake': null,
+      'reminder': false,
+      'pause_until': null,
+      'pending': null,
+      'pending_applies_at': null,
+      'week': {'start': '2026-10-05T00:00:00Z', 'staked': 3500, 'lost': 0},
+    },
+  };
+
+  /// Plan de jeu (PUT /me/play-plan) et alertes de cote (maquettes 29 et 30).
+  final planUpdates = <Map<String, dynamic>>[];
+  final alertCalls = <String>[];
+  Map<String, dynamic> oddsAlerts = {
+    'alerts': [
+      {
+        'id': 1,
+        'match_id': 7,
+        'home': 'Lens',
+        'away': 'Lyon',
+        'competition': 'LIGUE_1',
+        'open': true,
+        'market': 'BTTS',
+        'line': '',
+        'selection': 'yes',
+        'label': 'les deux équipes marquent',
+        'target_odds': 1.95,
+        'start_odds': 1.85,
+        'odds': 1.85,
+        'engine': 0.58,
+        'active': true,
+        'triggered_at': null,
+      },
+    ],
+    'gap': {'id': 2, 'min_gap': 0.08, 'active': true},
+    'hits': [
+      {
+        'id': 5,
+        'alert_id': 2,
+        'match_id': 7,
+        'home': 'Lens',
+        'away': 'Lyon',
+        'open': true,
+        'market': 'OU',
+        'line': '2.5',
+        'selection': 'under',
+        'label': 'moins de 2,5 buts',
+        'from_odds': 1.79,
+        'odds': 1.92,
+        'engine': 0.59,
+        'implied': 0.5208,
+        'at': '2026-10-10T07:12:00Z',
+      },
+    ],
+    'gaps': [0.05, 0.08, 0.1],
   };
   Map<int, Map<String, dynamic>> betsById = {};
 
@@ -1018,6 +1079,23 @@ class FakeServer {
         body = [];
       case 'GET /me/dashboard':
         body = dashboard;
+      case final c when c.startsWith('PATCH /me/odds-alerts/') || c.startsWith('DELETE /me/odds-alerts/'):
+        alertCalls.add('$c ${r.body}');
+        body = {'id': 1};
+      case 'GET /me/play-plan':
+        body = dashboard['play_plan'];
+      case 'PUT /me/play-plan':
+        final b = (jsonDecode(r.body) as Map).cast<String, dynamic>();
+        planUpdates.add(b);
+        body = {...(dashboard['play_plan'] as Map), ...b};
+        dashboard = {...dashboard, 'play_plan': body};
+      case 'POST /me/play-plan/pause':
+        body = {...(dashboard['play_plan'] as Map), 'pause_until': '2026-10-11T08:00:00Z'};
+      case 'GET /me/odds-alerts':
+        body = oddsAlerts;
+      case 'PUT /me/odds-alerts/gap' || 'POST /me/odds-alerts':
+        alertCalls.add('${r.method} $path ${r.body}');
+        body = {'id': 9};
       case 'GET /me/record':
         Map<String, dynamic> band(double low, int n, double a, double imp, double obs) => {
           'low': low,
@@ -2159,7 +2237,7 @@ void main() {
     await tester.tap(find.text('Mode Montante'));
     await tester.pumpAndSettle();
     expect(server.montanteMode, isFalse);
-    expect(find.text('Créer'), findsOneWidget);
+    expect(find.bySemanticsLabel('Créer'), findsOneWidget); // bouton « + » de la barre
     expect(find.text('Paris'), findsOneWidget);
   });
 
@@ -3717,30 +3795,35 @@ void main() {
     ]);
   });
 
-  testWidgets('étape B : barre Aujourd\'hui · Matchs · Créer · Paris · Moi, tableau de bord', (tester) async {
+  testWidgets('maquette 35 : barre du bas et tableau de bord complet', (tester) async {
     final (state, server) = await startApp(tester, loggedIn: true, startTab: HomeTab.today);
     await tester.binding.setSurfaceSize(const Size(430, 2600));
     await tester.pumpAndSettle();
-    for (final label in ['Aujourd\'hui', 'Matchs', 'Créer', 'Paris', 'Moi']) {
+    for (final label in ['Aujourd\'hui', 'Matchs', 'Paris', 'Moi']) {
       expect(find.text(label), findsWidgets);
     }
-    // Solde et ses 4 indicateurs, sans compteurs inventés.
-    expect(find.text(money(98000)), findsOneWidget);
+    expect(find.bySemanticsLabel('Créer'), findsOneWidget); // « + » central, sans libellé
+    // En-tête, solde et ses 4 indicateurs, sans compteurs inventés.
+    expect(find.text('Tableau de bord'), findsOneWidget);
+    expect(find.text('98${nbsp}000${nbsp}F'), findsOneWidget);
     expect(find.textContaining('La courbe apparaîtra'), findsNothing); // courbe jusqu'à aujourd'hui
-    expect(find.text('3 sur 6'), findsOneWidget); // paris gagnés sur 30 jours
-    expect(find.text('56$nbsp% réalisé'), findsOneWidget); // moteur sur mes paris
-    expect(find.textContaining('annoncé 61$nbsp%'), findsOneWidget);
-    // Le moteur au-dessus de la cote : pastille et rappel « pas un conseil ».
-    expect(find.text('LE MOTEUR AU-DESSUS DE LA COTE'), findsOneWidget);
+    expect(find.text('3 / 6'), findsOneWidget); // paris gagnés sur 30 jours
+    expect(find.text('56$nbsp% / 61$nbsp%'), findsOneWidget); // moteur : réalisé / annoncé
+    expect(find.text('3${nbsp}500${nbsp}F'), findsOneWidget); // plan de jeu : misés cette semaine
+    expect(find.text('sur 5${nbsp}000${nbsp}F cette sem.'), findsOneWidget);
+    // Occasions du jour : pastille et alerte de cote.
+    expect(find.text('OCCASIONS DU JOUR'), findsOneWidget);
     expect(find.text('+5 pts'), findsOneWidget);
-    expect(find.textContaining('pas un conseil'), findsOneWidget);
+    expect(find.text('Créer une alerte de cote'), findsOneWidget);
+    // Où le moteur tient parole (30 j) : réalisé par marché.
+    expect(find.text('OÙ LE MOTEUR TIENT PAROLE (30 J)'), findsOneWidget);
+    expect(find.text('91$nbsp%'), findsOneWidget);
     // Le joueur a déjà des paris : pas de cartes « Pour commencer ».
     expect(find.text('POUR COMMENCER'), findsNothing);
     expect(server.calls, contains('GET /me/dashboard'));
 
     // « Créer » : tous les outils ; Mon coupon ouvre sa page, « Créer » reste allumé.
-    await tester.tap(find.text('Créer'));
-    await tester.pumpAndSettle();
+    await tab(tester, HomeTab.create);
     for (final tool in [
       'Mon coupon',
       'Coupon intelligent',
@@ -3757,6 +3840,46 @@ void main() {
     expect(state.montanteMode, isFalse);
   });
 
+  testWidgets('maquette 30 : mon plan de jeu, budget modifié', (tester) async {
+    final (_, server) = await startApp(tester, loggedIn: true, startTab: HomeTab.today);
+    await tester.binding.setSurfaceSize(const Size(430, 2600));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Plan de jeu'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mon plan de jeu'), findsOneWidget);
+    expect(find.text('misés sur 5${nbsp}000${nbsp}F prévus'), findsOneWidget);
+    expect(find.text('70$nbsp%'), findsOneWidget);
+    expect(find.text('Faire une pause'), findsOneWidget);
+    expect(find.textContaining('ne se relèvent qu\'au bout de 24 h'), findsOneWidget);
+    await tester.tap(find.text('Budget par semaine'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '4000');
+    await tester.tap(find.text('Enregistrer'));
+    await tester.pumpAndSettle();
+    expect(server.planUpdates, [
+      {'weekly_budget': 4000},
+    ]);
+    expect(find.text('misés sur 4${nbsp}000${nbsp}F prévus'), findsOneWidget);
+  });
+
+  testWidgets('maquette 29 : mes alertes de cote', (tester) async {
+    final (_, server) = await startApp(tester, loggedIn: true, startTab: HomeTab.today);
+    await tester.binding.setSurfaceSize(const Size(430, 2600));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Créer une alerte de cote'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mes alertes de cote'), findsOneWidget);
+    expect(find.text('≥ 1,95'), findsOneWidget);
+    expect(find.text('1,85 (54$nbsp%)'), findsOneWidget);
+    expect(find.text('dès qu\'un pari dépasse la cote de 8 points'), findsOneWidget);
+    expect(find.text('cote 1,79 → 1,92'), findsOneWidget);
+    expect(find.text('Ajouter au coupon'), findsOneWidget);
+    expect(find.text('Au plus une alerte par match, jamais entre 23 h et 8 h.'), findsOneWidget);
+    await tester.tap(find.text('5 points'));
+    await tester.pumpAndSettle();
+    expect(server.alertCalls.single, contains('"min_gap":0.05'));
+  });
+
   testWidgets('étape B : nouveau joueur, trois cartes de départ au lieu de zéros', (tester) async {
     final (_, server) = await startApp(tester, loggedIn: true, startTab: HomeTab.today);
     server.dashboard = {
@@ -3768,10 +3891,14 @@ void main() {
     };
     server.bets = [];
     server.freshPlayer = true;
+    server.dashboard = {
+      ...server.dashboard,
+      'last_30_days': {'settled': 0, 'won': 0, 'staked': 0, 'returned': 0, 'yield': null},
+    };
     await tab(tester, HomeTab.matchs);
     await tab(tester, HomeTab.today);
     expect(find.text('POUR COMMENCER'), findsOneWidget);
     expect(find.text('Un premier pari, en argent fictif'), findsOneWidget);
-    expect(find.text('LE MOTEUR AU-DESSUS DE LA COTE'), findsNothing); // section vide : cachée
+    expect(find.text('OCCASIONS DU JOUR'), findsOneWidget); // dit franchement qu'il n'y en a pas
   });
 }
