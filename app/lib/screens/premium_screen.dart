@@ -10,6 +10,7 @@ import '../desktop/layout.dart';
 import '../format.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import 'create_screen.dart' show HomeTab;
 import '../widgets/common.dart';
 import '../widgets/maquette.dart';
 
@@ -94,7 +95,7 @@ void openPremium(BuildContext context) {
   final plan = context.read<AppState>().me?.plan;
   if (plan == null) {
     Navigator.of(context).popUntil((r) => r.isFirst);
-    context.read<AppState>().openTab(4);
+    context.read<AppState>().openTab(HomeTab.moi);
     return;
   }
   openPremiumPurchase(context, plan);

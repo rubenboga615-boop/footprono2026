@@ -12,6 +12,7 @@ import '../format.dart';
 import '../labels.dart';
 import '../screens/bookmaker_screen.dart';
 import '../screens/coupon_screen.dart';
+import '../screens/create_screen.dart';
 import '../screens/match_screen.dart';
 import '../screens/matches_screen.dart';
 import '../screens/merited_screen.dart';
@@ -19,6 +20,7 @@ import '../screens/montante_screen.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/daily_coupons_screen.dart';
 import '../screens/profile_screen.dart';
+import '../screens/today_screen.dart';
 import '../screens/record_screen.dart';
 import '../screens/reliability_screen.dart';
 import '../screens/smart_coupon_screen.dart';
@@ -28,7 +30,9 @@ import '../theme.dart';
 import 'layout.dart';
 
 enum DeskSection {
+  aujourdhui('Aujourd\'hui', Icons.space_dashboard_outlined, 'Jouer'),
   matchs('Matchs', Icons.sports_soccer_rounded, 'Jouer'),
+  creer('Créer', Icons.add_circle_outline_rounded, 'Jouer'),
   coupon('Mon coupon', Icons.confirmation_number_outlined, 'Jouer'),
   jour('Coupons du jour', Icons.today_rounded, 'Jouer'),
   intelligent('Coupon intelligent', Icons.auto_awesome_rounded, 'Jouer'),
@@ -46,7 +50,9 @@ enum DeskSection {
   final String group;
 
   Widget get root => switch (this) {
+    aujourdhui => const TodayScreen(),
     matchs => const MatchesScreen(),
+    creer => const CreateScreen(),
     coupon => const CouponScreen(),
     jour => const DailyCouponsScreen(),
     intelligent => const SmartCouponScreen(),
@@ -78,7 +84,7 @@ const _modeSections = {
 };
 
 class DesktopShellState extends State<DesktopShell> {
-  DeskSection section = DeskSection.matchs;
+  DeskSection section = DeskSection.aujourdhui;
   bool _mode = false;
   // Chaque visite d'une rubrique repart de sa page d'accueil (paris placés entre-temps).
   GlobalKey<NavigatorState> _nav = GlobalKey<NavigatorState>();

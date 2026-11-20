@@ -14,6 +14,7 @@ import 'auth_screen.dart' show countries;
 import 'merited_screen.dart';
 import 'notifications_screen.dart';
 import 'premium_screen.dart';
+import 'record_screen.dart';
 import 'reliability_screen.dart';
 import 'server_dialog.dart';
 
@@ -340,6 +341,8 @@ class ProfileScreen extends StatelessWidget {
                             _ => () => _webPushHelp(context, web),
                           },
                         ),
+                      // Nouveau visage, étape B : « Moi » regroupe Mon bilan, Fiabilité, Classement.
+                      _Item(title: 'Mon bilan', onTap: () => open(const RecordScreen())),
                       _Item(title: 'Fiabilité du moteur', onTap: () => open(const ReliabilityScreen())),
                       // Ancien bouton de l'écran Matchs (retiré : maquette du 07/11/2026).
                       _Item(title: 'Classement mérité', onTap: () => open(const MeritedScreen())),

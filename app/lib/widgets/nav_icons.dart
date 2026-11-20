@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 /// Icônes au trait de la barre du bas, redessinées d'après la maquette v2 (grille de 24,
 /// trait de 1,8) : Matchs, Coupon, Montante, Bookmaker, Profil.
-enum NavGlyph { matchs, coupon, montante, bookmaker, profil }
+enum NavGlyph { matchs, coupon, montante, bookmaker, profil, today, create }
 
 class NavIcon extends StatelessWidget {
   const NavIcon(this.glyph, {super.key, required this.color, this.size = 22});
@@ -92,6 +92,25 @@ class _NavIconPainter extends CustomPainter {
           pen,
         );
         canvas.drawCircle(const Offset(16, 13.5), 1.4, pen);
+      case NavGlyph.today:
+        // Maison (nouveau visage, étape B : « Aujourd'hui »).
+        canvas.drawPath(
+          Path()
+            ..moveTo(4, 11)
+            ..lineTo(12, 4)
+            ..lineTo(20, 11)
+            ..lineTo(20, 20)
+            ..lineTo(14.5, 20)
+            ..lineTo(14.5, 14.5)
+            ..lineTo(9.5, 14.5)
+            ..lineTo(9.5, 20)
+            ..lineTo(4, 20)
+            ..close(),
+          pen,
+        );
+      case NavGlyph.create:
+        canvas.drawLine(const Offset(12, 5), const Offset(12, 19), pen..strokeWidth = 2.4);
+        canvas.drawLine(const Offset(5, 12), const Offset(19, 12), pen);
       case NavGlyph.profil:
         canvas.drawCircle(const Offset(12, 8), 4, pen);
         canvas.drawPath(

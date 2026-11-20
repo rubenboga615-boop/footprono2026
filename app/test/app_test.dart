@@ -11,6 +11,7 @@ import 'package:footprono/widgets/team_logo.dart';
 import 'package:footprono/format.dart';
 import 'package:footprono/desktop/desktop_shell.dart';
 import 'package:footprono/main.dart';
+import 'package:footprono/screens/create_screen.dart' show HomeTab;
 import 'package:footprono/screens/daily_coupons_screen.dart';
 import 'package:footprono/screens/notifications_screen.dart';
 import 'package:footprono/screens/live_coupon_screen.dart';
@@ -66,6 +67,37 @@ class FakeServer {
 
   /// GET /montantes et GET /bets/{id} (paris des paliers).
   List<Map<String, dynamic>> montantes = [];
+  bool freshPlayer = false; // nouveau joueur : aucun pari réglé (tableau de bord)
+  // Tableau de bord « Aujourd'hui » (étape B) : courbe, 30 jours, moteur, mises, au-dessus de la cote.
+  Map<String, dynamic> dashboard = {
+    'balance': 98000,
+    'currency': 'XOF',
+    'curve': [
+      {'day': '2026-10-01', 'balance': 100000},
+      {'day': '2026-10-05', 'balance': 96500},
+      {'day': '2026-10-09', 'balance': 98000},
+    ],
+    'last_30_days': {'settled': 6, 'won': 3, 'staked': 6000, 'returned': 5400, 'yield': -0.1},
+    'engine': {'selections': 9, 'announced': 0.61, 'observed': 0.56},
+    'stakes': {'week': 3000, 'previous_week': 1000},
+    'engine_above_odds': [
+      {
+        'match_id': 7,
+        'kickoff_at': '2026-10-10T19:00:00Z',
+        'competition': 'LIGUE_1',
+        'home': 'Lens',
+        'away': 'Lyon',
+        'market': 'OU',
+        'line': '2.5',
+        'selection': 'under',
+        'odds': '2.10',
+        'bookmaker': '1xBet',
+        'engine': 0.53,
+        'implied': 0.4762,
+      },
+    ],
+    'gap_min': 0.03,
+  };
   Map<int, Map<String, dynamic>> betsById = {};
 
   /// Suivi des montantes (M1, M2) et Fiabilité des montantes (M4).
@@ -984,6 +1016,8 @@ class FakeServer {
         body = bets;
       case 'GET /me/wallet/entries':
         body = [];
+      case 'GET /me/dashboard':
+        body = dashboard;
       case 'GET /me/record':
         Map<String, dynamic> band(double low, int n, double a, double imp, double obs) => {
           'low': low,
@@ -995,7 +1029,9 @@ class FakeServer {
           'enough': n >= 20,
         };
         body = {
-          'bets': {'settled': 26, 'open': 1, 'won': 16, 'lost': 10, 'push': 0, 'partial': 0},
+          'bets': freshPlayer
+              ? {'settled': 0, 'open': 0, 'won': 0, 'lost': 0, 'push': 0, 'partial': 0}
+              : {'settled': 26, 'open': 1, 'won': 16, 'lost': 10, 'push': 0, 'partial': 0},
           'staked': 30000,
           'returned': 33000,
           'profit': 3000,
@@ -1198,6 +1234,7 @@ Future<(AppState, FakeServer)> startApp(
   GoogleAuthBridge? google,
   bool googleRedirectPending = false,
   bool betaAvailable = false,
+  int startTab = HomeTab.matchs,
 }) async {
   SharedPreferences.setMockInitialValues({
     if (loggedIn) 'token': 'jeton',
@@ -1219,7 +1256,18 @@ Future<(AppState, FakeServer)> startApp(
   await tester.pumpWidget(FootProbaApp(state: state));
   await state.init();
   await tester.pumpAndSettle();
+  // Nouveau visage, étape B : l'application s'ouvre sur « Aujourd'hui » ; les tests des autres
+  // écrans partent de la liste des matchs, comme avant.
+  if (loggedIn && startTab != HomeTab.today && find.byType(HomeShell).evaluate().isNotEmpty) {
+    await tab(tester, startTab);
+  }
   return (state, server);
+}
+
+/// Ouvre un onglet de la barre du bas (ou Mon coupon, la Montante, ouverts depuis « Créer »).
+Future<void> tab(WidgetTester tester, int i) async {
+  tester.state<HomeShellState>(find.byType(HomeShell)).go(i);
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -1247,6 +1295,9 @@ void main() {
     await tester.tap(find.text('Se connecter'));
     await tester.pumpAndSettle();
     expect(state.me?.displayName, 'Kossi');
+    // Nouveau visage, étape B : l'application s'ouvre sur « Aujourd'hui ».
+    expect(find.text('Aujourd\'hui'), findsWidgets);
+    await tab(tester, HomeTab.matchs);
     expect(find.text('Lyon'), findsOneWidget); // carte du match (nouvelle interface)
     expect(find.text('41$nbsp%'), findsOneWidget);
     expect(find.text('1,85'), findsOneWidget); // cote du bookmaker sous la chance
@@ -1278,7 +1329,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Retour'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Coupon'));
+    await tab(tester, HomeTab.coupon);
     await tester.pumpAndSettle();
     expect(find.text('Victoire Lens'), findsOneWidget);
     // Maquette C3 : « 1 850 F (+850) », mise comprise puis bénéfice net en vert.
@@ -1308,7 +1359,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Retour'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Coupon'));
+    await tab(tester, HomeTab.coupon);
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Vider'));
     await tester.tap(find.text('Vider'));
@@ -1329,7 +1380,7 @@ void main() {
   ) async {
     await startApp(tester, loggedIn: true, premium: true);
     await tester.binding.setSurfaceSize(const Size(430, 2600));
-    await tester.tap(find.text('Coupon'));
+    await tab(tester, HomeTab.coupon);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coupon intelligent'));
     await tester.pumpAndSettle();
@@ -1369,7 +1420,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(430, 2600));
     // Éteint : ni moteur 2 sur la fiche, ni deuxième coupon.
     expect(server.compareEngines, isFalse);
-    await tester.tap(find.text('Profil').last);
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Comparer les deux moteurs'), 200);
     await tester.tap(find.text('Comparer les deux moteurs'));
@@ -1378,7 +1429,7 @@ void main() {
     expect(state.compareEngines, isTrue);
 
     // K2 : la fiche de match, moteur 1 et moteur 2 côte à côte.
-    await tester.tap(find.text('Matchs').last);
+    await tab(tester, HomeTab.matchs);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
@@ -1390,7 +1441,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // K3 : deux coupons, chacun avec son bouton.
-    await tester.tap(find.text('Coupon'));
+    await tab(tester, HomeTab.coupon);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coupon intelligent'));
     await tester.pumpAndSettle();
@@ -1522,7 +1573,7 @@ void main() {
 
   testWidgets('classement mérité depuis le profil : saison terminée la plus récente', (tester) async {
     await startApp(tester, loggedIn: true);
-    await tester.tap(find.text('Profil'));
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Classement mérité'), 200);
     await tester.pumpAndSettle();
@@ -1570,7 +1621,7 @@ void main() {
     };
     server.bets = [bet(58, 2), bet(57, null)];
     await tester.binding.setSurfaceSize(const Size(430, 2400));
-    await tester.tap(find.text('Mes paris'));
+    await tab(tester, HomeTab.paris);
     await tester.pumpAndSettle();
     expect(find.text('MOTEUR 2'), findsOneWidget); // le pari composé à la main : rien
     expect(find.text('MOTEUR 1'), findsNothing);
@@ -1579,7 +1630,7 @@ void main() {
   testWidgets('Mon bilan : rendement, annoncé contre réalisé, rappel de jeu responsable', (tester) async {
     await startApp(tester, loggedIn: true);
     await tester.binding.setSurfaceSize(const Size(430, 2400));
-    await tester.tap(find.text('Mes paris'));
+    await tab(tester, HomeTab.paris);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Mon bilan'));
     await tester.pumpAndSettle();
@@ -1622,7 +1673,7 @@ void main() {
   ) async {
     final (state, server) = await startApp(tester, loggedIn: true, premium: true);
     await tester.binding.setSurfaceSize(const Size(430, 2600));
-    await tester.tap(find.text('Coupon'));
+    await tab(tester, HomeTab.coupon);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coupon intelligent'));
     await tester.pumpAndSettle();
@@ -1764,6 +1815,8 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpAndSettle();
     expect(find.byType(DesktopShell), findsOneWidget);
+    expect(find.text('Aujourd\'hui'), findsWidgets); // rubrique d'ouverture (étape B)
+    await tab(tester, HomeTab.matchs);
     expect(find.text('Fiabilité du moteur'), findsOneWidget); // menu
     expect(find.text('Les deux\nmarquent'), findsOneWidget); // en-tête du tableau
     expect(find.text('57$nbsp%'), findsWidgets);
@@ -1799,7 +1852,7 @@ void main() {
     expect(find.text('Tes paris fictifs réglés, visibles par toi seul.'), findsOneWidget);
 
     // Montante : le plan devient un escalier.
-    await tester.tap(find.text('Montante'));
+    await tab(tester, HomeTab.montante);
     await tester.pumpAndSettle();
     expect(find.text('PALIER 1'), findsOneWidget);
     expect(find.text('PALIER'), findsNothing); // en-tête du tableau du téléphone
@@ -1839,7 +1892,7 @@ void main() {
       },
     ];
     await tester.binding.setSurfaceSize(const Size(430, 2400));
-    await tester.tap(find.text('Montante').last);
+    await tab(tester, HomeTab.montante);
     await tester.pumpAndSettle();
     await tester.tap(find.textContaining('Suggestions du moteur', findRichText: true));
     await tester.pumpAndSettle();
@@ -1961,7 +2014,7 @@ void main() {
       'min_finished': 30,
     };
     await tester.binding.setSurfaceSize(const Size(430, 2400));
-    await tester.tap(find.text('Montante').last);
+    await tab(tester, HomeTab.montante);
     await tester.pumpAndSettle();
     expect(find.text('Hull – Middlesbrough'), findsOneWidget);
     expect(find.textContaining('8 nov'), findsOneWidget);
@@ -2067,7 +2120,7 @@ void main() {
   ) async {
     final (state, server) = await startApp(tester, loggedIn: true, premium: true);
     // Activé dans le Profil : réglage du compte, l'application ouvre sur la montante.
-    await tester.tap(find.text('Profil').last);
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Mode Montante'), 200);
     await tester.tap(find.text('Mode Montante'));
@@ -2080,7 +2133,7 @@ void main() {
     expect(find.text('Nombre de paliers'), findsOneWidget); // onglet Montante (aucune en cours)
 
     // Une cote touchée dans les matchs : « Mon palier » s'ouvre par-dessus.
-    await tester.tap(find.text('Matchs').last);
+    await tab(tester, HomeTab.matchs);
     await tester.pumpAndSettle();
     expect(find.textContaining('Mon palier'), findsNothing);
     await tester.tap(find.text('Lens').first);
@@ -2100,14 +2153,14 @@ void main() {
     state.clearCoupon();
 
     // Désactivé : l'application redevient complète.
-    await tester.tap(find.text('Profil').last);
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Mode Montante'), 200);
     await tester.tap(find.text('Mode Montante'));
     await tester.pumpAndSettle();
     expect(server.montanteMode, isFalse);
-    expect(find.text('Coupon'), findsOneWidget);
-    expect(find.text('Mes paris'), findsOneWidget);
+    expect(find.text('Créer'), findsOneWidget);
+    expect(find.text('Paris'), findsOneWidget);
   });
 
   testWidgets('notifications push : téléphone enregistré, notification touchée, déconnexion', (tester) async {
@@ -2165,7 +2218,7 @@ void main() {
     await tester.pumpWidget(FootProbaApp(state: state));
     await state.init();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Profil'));
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.textContaining('Passer Premium'), 200);
     await tester.tap(find.textContaining('Passer Premium'));
@@ -2194,7 +2247,7 @@ void main() {
     await tester.pumpWidget(FootProbaApp(state: state));
     await state.init();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Profil'));
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.textContaining('Passer Premium'), 200);
     await tester.tap(find.textContaining('Passer Premium'));
@@ -2236,7 +2289,7 @@ void main() {
     await tester.pumpWidget(FootProbaApp(state: state));
     await state.init();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Profil'));
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.textContaining('Passer Premium'), 200);
     await tester.tap(find.textContaining('Passer Premium'));
@@ -2270,7 +2323,7 @@ void main() {
     await tester.pumpWidget(FootProbaApp(state: state));
     await state.init();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Mes paris'));
+    await tab(tester, HomeTab.paris);
     await tester.pumpAndSettle();
     expect(find.textContaining('296'), findsOneWidget);
     expect(find.textContaining('-3,6'), findsOneWidget);
@@ -2287,7 +2340,7 @@ void main() {
     await tester.pumpWidget(FootProbaApp(state: state));
     await state.init();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Mes paris'));
+    await tab(tester, HomeTab.paris);
     await tester.pumpAndSettle();
     expect(find.textContaining('Cotes momentanément indisponibles'), findsOneWidget);
     // Retour des cotes : le bandeau disparaît.
@@ -2313,7 +2366,7 @@ void main() {
     await tester.pumpWidget(FootProbaApp(state: state));
     await state.init();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Profil'));
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.textContaining('Passer Premium'), 200);
     await tester.tap(find.textContaining('Passer Premium'));
@@ -2348,7 +2401,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(web.key, 'BCle-publique');
     expect(server.devices, isEmpty); // rien avant le geste du joueur
-    await tester.tap(find.text('Profil'));
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     expect(find.text('Notifications sur cet appareil'), findsOneWidget);
     await tester.ensureVisible(find.text('Activer'));
@@ -2361,7 +2414,7 @@ void main() {
 
   testWidgets('version web : rien proposé sans clé du serveur ; iPhone dans Safari guidé', (tester) async {
     final (state, _) = await startApp(tester, loggedIn: true, webPush: FakeWebPush());
-    await tester.tap(find.text('Profil'));
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     expect(find.text('Notifications sur cet appareil'), findsNothing);
     state.webPushStatus.value = WebPushStatus.install;
@@ -2377,7 +2430,7 @@ void main() {
     tester,
   ) async {
     final (state, server) = await startApp(tester, loggedIn: true, premium: true);
-    await tester.tap(find.text('Coupon'));
+    await tab(tester, HomeTab.coupon);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coupon intelligent'));
     await tester.pumpAndSettle();
@@ -2439,7 +2492,7 @@ void main() {
   ) async {
     await startApp(tester, loggedIn: true);
     await tester.binding.setSurfaceSize(const Size(430, 2400));
-    await tester.tap(find.text('Coupon'));
+    await tab(tester, HomeTab.coupon);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coupons du jour'));
     await tester.pumpAndSettle();
@@ -2460,7 +2513,7 @@ void main() {
     server.compareEngines = true;
     await state.refreshMe();
     await tester.binding.setSurfaceSize(const Size(430, 3000));
-    await tester.tap(find.text('Coupon'));
+    await tab(tester, HomeTab.coupon);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coupons du jour'));
     await tester.pumpAndSettle();
@@ -2477,7 +2530,7 @@ void main() {
       if (call.method == 'Clipboard.setData') copied.add((call.arguments as Map)['text'] as String);
       return null;
     });
-    await tester.tap(find.text('Coupon'));
+    await tab(tester, HomeTab.coupon);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coupons du jour'));
     await tester.pumpAndSettle();
@@ -2587,7 +2640,7 @@ void main() {
 
   testWidgets('profil : notification des coupons du jour désactivée puis réactivée', (tester) async {
     final (state, server) = await startApp(tester, loggedIn: true);
-    await tester.tap(find.text('Profil'));
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     final toggle = find.text('Coupons du jour, chaque matin');
     await tester.ensureVisible(toggle);
@@ -2606,7 +2659,7 @@ void main() {
     tester,
   ) async {
     final (state, server) = await startApp(tester, loggedIn: true);
-    await tester.tap(find.text('Profil'));
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     expect(find.text('Aider à améliorer FootProba'), findsNothing); // période de test fermée
 
@@ -3006,7 +3059,7 @@ void main() {
   testWidgets('administrateur : aucun outil d\'administration dans l\'application', (tester) async {
     final (_, server) = await startApp(tester, loggedIn: true);
     server.admin = true;
-    await tester.tap(find.text('Profil'));
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     // Tout passe par FootProba Console : l'application reste celle d'un joueur.
     expect(find.text('Administration'), findsNothing);
@@ -3015,7 +3068,7 @@ void main() {
 
   testWidgets('Coupon intelligent : réservé à Premium', (tester) async {
     await startApp(tester, loggedIn: true);
-    await tester.tap(find.text('Coupon'));
+    await tab(tester, HomeTab.coupon);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coupon intelligent'));
     await tester.pumpAndSettle();
@@ -3096,7 +3149,7 @@ void main() {
         return true;
       },
     );
-    await tester.tap(find.text('Profil'));
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Se déconnecter'), 200);
     await tester.pumpAndSettle();
@@ -3245,7 +3298,7 @@ void main() {
         return true;
       },
     );
-    await tester.tap(find.text('Profil'));
+    await tab(tester, HomeTab.moi);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Lier mon compte Google'), 200);
     await tester.pumpAndSettle();
@@ -3629,7 +3682,7 @@ void main() {
         'Équilibré': {'size': 2, 'probability': 0.36, 'odds': '2.6', 'locked': true, 'selections': []},
       },
     };
-    await tester.tap(find.text('Coupon').last);
+    await tab(tester, HomeTab.coupon);
     await tester.pumpAndSettle();
     expect(find.text('Coupon en direct · 2 matchs'), findsOneWidget);
     await tester.tap(find.text('Coupon en direct · 2 matchs'));
@@ -3662,5 +3715,63 @@ void main() {
       {'match_id': 11, 'market': 'DC', 'line': '', 'selection': '1X', 'odds': '1.10'},
       {'match_id': 12, 'market': 'OU', 'line': '2.5', 'selection': 'under', 'odds': '1.22'},
     ]);
+  });
+
+  testWidgets('étape B : barre Aujourd\'hui · Matchs · Créer · Paris · Moi, tableau de bord', (tester) async {
+    final (state, server) = await startApp(tester, loggedIn: true, startTab: HomeTab.today);
+    await tester.binding.setSurfaceSize(const Size(430, 2600));
+    await tester.pumpAndSettle();
+    for (final label in ['Aujourd\'hui', 'Matchs', 'Créer', 'Paris', 'Moi']) {
+      expect(find.text(label), findsWidgets);
+    }
+    // Solde et ses 4 indicateurs, sans compteurs inventés.
+    expect(find.text(money(98000)), findsOneWidget);
+    expect(find.textContaining('La courbe apparaîtra'), findsNothing); // courbe jusqu'à aujourd'hui
+    expect(find.text('3 sur 6'), findsOneWidget); // paris gagnés sur 30 jours
+    expect(find.text('56$nbsp% réalisé'), findsOneWidget); // moteur sur mes paris
+    expect(find.textContaining('annoncé 61$nbsp%'), findsOneWidget);
+    // Le moteur au-dessus de la cote : pastille et rappel « pas un conseil ».
+    expect(find.text('LE MOTEUR AU-DESSUS DE LA COTE'), findsOneWidget);
+    expect(find.text('+5 pts'), findsOneWidget);
+    expect(find.textContaining('pas un conseil'), findsOneWidget);
+    // Le joueur a déjà des paris : pas de cartes « Pour commencer ».
+    expect(find.text('POUR COMMENCER'), findsNothing);
+    expect(server.calls, contains('GET /me/dashboard'));
+
+    // « Créer » : tous les outils ; Mon coupon ouvre sa page, « Créer » reste allumé.
+    await tester.tap(find.text('Créer'));
+    await tester.pumpAndSettle();
+    for (final tool in [
+      'Mon coupon',
+      'Coupon intelligent',
+      'Coupons du jour',
+      'Grosse cote',
+      'Montante',
+      'Coupon en direct',
+    ]) {
+      expect(find.text(tool), findsWidgets);
+    }
+    await tester.tap(find.text('Mon coupon'));
+    await tester.pumpAndSettle();
+    expect(tester.state<HomeShellState>(find.byType(HomeShell)).index, HomeTab.coupon);
+    expect(state.montanteMode, isFalse);
+  });
+
+  testWidgets('étape B : nouveau joueur, trois cartes de départ au lieu de zéros', (tester) async {
+    final (_, server) = await startApp(tester, loggedIn: true, startTab: HomeTab.today);
+    server.dashboard = {
+      ...server.dashboard,
+      'curve': [
+        {'day': '2026-10-09', 'balance': 100000},
+      ],
+      'engine_above_odds': <Object>[],
+    };
+    server.bets = [];
+    server.freshPlayer = true;
+    await tab(tester, HomeTab.matchs);
+    await tab(tester, HomeTab.today);
+    expect(find.text('POUR COMMENCER'), findsOneWidget);
+    expect(find.text('Un premier pari, en argent fictif'), findsOneWidget);
+    expect(find.text('LE MOTEUR AU-DESSUS DE LA COTE'), findsNothing); // section vide : cachée
   });
 }

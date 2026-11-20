@@ -10,6 +10,7 @@ import '../labels.dart';
 import '../main.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import 'create_screen.dart' show HomeTab;
 import '../widgets/engine_vs_odds.dart';
 import '../widgets/common.dart';
 import '../widgets/engine_compare.dart';
@@ -1096,7 +1097,7 @@ class _MontanteViewState extends State<MontanteView> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).popUntil((r) => r.isFirst);
-                HomeShellState.of(context)?.go(0);
+                HomeShellState.of(context)?.go(HomeTab.matchs);
                 showMessage('Choisis 1 à 3 sélections, puis « Utiliser pour le palier » dans le coupon.');
               },
               child: const Text('Composer moi-même depuis les matchs'),

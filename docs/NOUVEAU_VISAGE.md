@@ -56,6 +56,57 @@ Pas fait ici :
 6. Boutons de cote faciles à toucher (44 px) sur la fiche d'un match.
 7. Sur le web : vérifier que « ✓ » (Fiabilité) et « ★ » (matchs de mes paris, version ordinateur) ne s'affichent pas en carrés vides. Ces deux signes étaient déjà là avant, et la police Inter de l'application ne les contient pas.
 
-## Points du plan à confirmer avant les étapes B et C
+## Étape B : barre du bas et tableau de bord (version 1.2.0)
+
+- **Barre du bas** : Aujourd'hui · Matchs · **Créer** (bouton central violet) · Paris · Moi.
+  - Les numéros d'onglets sont nommés (`app/lib/home_tab.dart`).
+  - Mon coupon et la Montante s'ouvrent depuis « Créer », barre visible, « Créer » allumé.
+  - Mode Montante : seulement Montante, Matchs et Moi, comme avant.
+  - Version ordinateur : rubriques « Aujourd'hui » (à l'ouverture) et « Créer » ajoutées au menu.
+- **Créer** (`screens/create_screen.dart`) : Mon coupon, Coupon intelligent, Coupons du jour, Grosse cote, Montante, Coupon en direct, avec « Premium » sur les outils réservés.
+- **Moi** : le Profil, avec en plus Mon bilan, à côté de la Fiabilité et du Classement mérité.
+- **Aujourd'hui** (`screens/today_screen.dart`), uniquement avec des données qui existent :
+  - le solde et sa courbe sur 7 j, 30 j, 3 mois ou tout (mouvements du portefeuille, nouvelle route `GET /me/dashboard`) ;
+  - 4 indicateurs :
+    - rendement sur 30 jours ;
+    - paris gagnés sur 30 jours ;
+    - moteur annoncé contre réalisé sur mes sélections ;
+    - mises de la semaine (en ambre si elles ont doublé ; le budget viendra avec « Mon plan de jeu ») ;
+  - « En direct pour moi » : score, minute et chance de tenir ;
+  - mes paris en cours ;
+  - les matchs à venir de mes paris ;
+  - « Le moteur au-dessus de la cote » :
+    - 36 prochaines heures, 3 points ou plus, un écart par match ;
+    - sélections nationales exclues, marchés de la formule du joueur ;
+    - avec « une information, pas un conseil » ;
+  - les coupons du jour avec leur pastille ;
+  - la montante : si tout passe, si j'arrête, si ça rate ;
+  - la justesse du moteur par marché.
+  - **Section vide = cachée** : il n'y a pas d'écran « rien de valable » (règle du fondateur).
+  - **Nouveau joueur** : trois cartes de départ au lieu de zéros (premier pari, coupons du jour, fiabilité).
+- **Tests** :
+  - `backend/tests/test_dashboard.py` ;
+  - deux tests « étape B » dans `app/test/app_test.dart` ;
+  - les tests existants partent de Matchs comme avant (`startApp(startTab:)`, aide `tab()`).
+- **Captures** : `docs/maquettes/15-etape-B/captures-etape-B.png`.
+
+### À vérifier par le testeur (étape B)
+1. L'application s'ouvre sur « Aujourd'hui » ; la barre affiche Aujourd'hui, Matchs, Créer (violet au centre), Paris, Moi.
+2. Solde : la courbe va jusqu'à aujourd'hui ; 7 j, 30 j, 3 mois et Tout changent la période et l'écart affiché.
+3. Les 4 indicateurs correspondent à Mon bilan et à Mes paris (rendement sur 30 jours, paris gagnés, moteur annoncé contre réalisé, mises de la semaine).
+4. « Le moteur au-dessus de la cote » :
+   - jamais de match de sélections ;
+   - écart de 3 points ou plus ;
+   - un toucher ouvre la fiche du match.
+5. Pendant un match d'un de mes paris : il apparaît dans « En direct pour moi » avec le score, la minute et la chance de tenir.
+6. « Créer » :
+   - chaque outil s'ouvre ;
+   - Mon coupon garde le compteur ;
+   - « Grosse cote » ouvre le Coupon intelligent sur ce profil.
+7. Mode Montante activé : Montante, Matchs, Moi seulement. Désactivé : la barre complète revient.
+8. Compte neuf (aucun pari) : trois cartes « Pour commencer ».
+9. Version ordinateur : « Aujourd'hui » à l'ouverture, « Créer » dans le menu.
+
+## Points du plan à confirmer avant l'étape C
 - **Écrans « rien de valable » et « Pas d'occasion aujourd'hui »** (écrans 5 et 16 du plan). Le fondateur avait demandé de ne jamais faire d'écran « rien de valable » ni « Attendre un meilleur pari ». Il faut sa confirmation avant de les coder.
 - **Premium « 30 jours / 3 mois »** (écran 25) : l'offre 3 mois avait été remise à plus tard avec le point A. À confirmer.

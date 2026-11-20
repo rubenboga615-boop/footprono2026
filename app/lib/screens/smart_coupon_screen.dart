@@ -10,6 +10,7 @@ import '../format.dart';
 import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import 'create_screen.dart' show HomeTab;
 import '../widgets/common.dart';
 import '../widgets/engine_compare.dart';
 import '../widgets/engine_vs_odds.dart';
@@ -22,7 +23,10 @@ import 'share_coupon.dart';
 /// Coupon intelligent : la sélection la plus sûre de chaque match (selon le profil),
 /// sur une période au choix, avec de vraies cotes et des faits pour chaque choix.
 class SmartCouponScreen extends StatefulWidget {
-  const SmartCouponScreen({super.key});
+  const SmartCouponScreen({super.key, this.initialProfile});
+
+  /// Profil choisi à l'ouverture (écran « Créer » : « Grosse cote » ouvre ce profil).
+  final String? initialProfile;
 
   static const profiles = [
     ('sur', 'Sûr', '75 à 92 % chacune'),
@@ -172,6 +176,11 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
       result = m.result;
       result2 = m.result2;
       composedAt = m.composedAt;
+    }
+    final wanted = SmartCouponScreen.profiles.indexWhere((p) => p.$1 == widget.initialProfile);
+    if (wanted >= 0 && wanted != profile) {
+      profile = wanted;
+      result = result2 = null;
     }
     _loadPlayed();
   }
@@ -1467,7 +1476,7 @@ Future<void> addSelectionsToCoupon(
         label: 'Voir mon coupon',
         onPressed: () {
           navigatorKey.currentState?.popUntil((r) => r.isFirst);
-          state.openTab(1);
+          state.openTab(HomeTab.coupon);
         },
       ),
     );

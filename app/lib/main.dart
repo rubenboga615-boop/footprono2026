@@ -17,11 +17,13 @@ import 'push.dart';
 import 'screens/auth_screen.dart';
 import 'screens/bookmaker_screen.dart';
 import 'screens/coupon_screen.dart';
+import 'screens/create_screen.dart';
 import 'screens/daily_coupons_screen.dart';
 import 'screens/matches_screen.dart';
 import 'screens/montante_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/today_screen.dart';
 import 'widgets/common.dart' show guard;
 import 'state/app_state.dart';
 import 'theme.dart';
@@ -107,13 +109,19 @@ class HomeShellState extends State<HomeShell> {
 
   // Coupon, Montante et Bookmaker sont rechargés à chaque visite (paris
   // placés ou réglés entre-temps) ; la liste des matchs garde ses filtres.
-  final _generation = List.filled(5, 0);
+  // Nouveau visage, étape B : Aujourd'hui, Matchs, Créer, Paris, Moi, puis Mon coupon et la
+  // Montante (ouverts depuis « Créer », barre visible) : voir [HomeTab].
+  final _generation = List.filled(7, 0);
   late final AppState _state = context.read<AppState>();
   int _openedSeen = 0;
 
   @override
   void initState() {
     super.initState();
+    if (_state.pendingTab case final t?) {
+      index = t;
+      _state.pendingTab = null;
+    }
     _state.notificationOpened.addListener(_openNotifications);
     _state.tabRequest.addListener(_openTab);
     _state.update.addListener(_offerUpdate);
@@ -245,7 +253,7 @@ class HomeShellState extends State<HomeShell> {
     // suivi du coupon dans Mes paris (retour du testeur du 12/11/2026).
     if (const {'bet_kickoff', 'bet_live', 'bet_settled'}.contains(_state.openedKind)) {
       Navigator.of(context).popUntil((r) => r.isFirst);
-      go(_state.montanteMode ? 2 : 3);
+      go(_state.montanteMode ? HomeTab.montante : HomeTab.paris);
       return;
     }
     final page = _state.openedKind == 'daily_coupons'
@@ -260,11 +268,13 @@ class HomeShellState extends State<HomeShell> {
     final desk = _desk.currentState;
     if (desk != null) {
       const sections = [
+        DeskSection.aujourdhui,
         DeskSection.matchs,
-        DeskSection.coupon,
-        DeskSection.montante,
+        DeskSection.creer,
         DeskSection.bookmaker,
         DeskSection.profil,
+        DeskSection.coupon,
+        DeskSection.montante,
       ];
       desk.open(sections[i]);
       return;
@@ -272,9 +282,12 @@ class HomeShellState extends State<HomeShell> {
     if (i == index) return;
     setState(() {
       index = i;
-      if (i >= 1 && i <= 3) _generation[i]++;
+      // Rechargés à chaque visite : Aujourd'hui, Paris, Mon coupon, Montante.
+      if (const {HomeTab.today, HomeTab.paris, HomeTab.coupon, HomeTab.montante}.contains(i)) {
+        _generation[i]++;
+      }
     });
-    if (i == 3 || i == 4) context.read<AppState>().refreshMe().catchError((_) {});
+    if (i == HomeTab.paris || i == HomeTab.moi) context.read<AppState>().refreshMe().catchError((_) {});
   }
 
   @override
@@ -282,14 +295,22 @@ class HomeShellState extends State<HomeShell> {
     final state = context.watch<AppState>();
     // Version ordinateur : menu à gauche à la place de la barre flottante.
     if (MediaQuery.sizeOf(context).width >= desktopMinWidth) return DesktopShell(key: _desk);
-    const pages = [MatchesScreen(), CouponScreen(), MontanteListScreen(), BookmakerScreen(), ProfileScreen()];
-    // Mode Montante (14/11/2026) : ouvre sur la montante ; Coupon et Mes paris cachés.
+    const pages = [
+      TodayScreen(),
+      MatchesScreen(),
+      CreateScreen(),
+      BookmakerScreen(),
+      ProfileScreen(),
+      CouponScreen(),
+      MontanteListScreen(),
+    ];
+    // Mode Montante (14/11/2026) : ouvre sur la montante ; seulement Montante, Matchs et Moi.
     final mode = state.montanteMode;
     final switchedOn = mode && !_mode;
     _mode = mode;
-    if (switchedOn || (mode && (index == 1 || index == 3))) {
+    if (switchedOn || (mode && !const {HomeTab.matchs, HomeTab.moi, HomeTab.montante}.contains(index))) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => index = 2);
+        if (mounted) setState(() => index = HomeTab.montante);
       });
     }
     return Scaffold(
@@ -312,12 +333,12 @@ class HomeShellState extends State<HomeShell> {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Mode Montante : le palier composé depuis les matchs s'ouvre par-dessus.
-          if (mode && index == 0 && state.coupon.isNotEmpty) const _PalierBar(),
+          if (mode && index == HomeTab.matchs && state.coupon.isNotEmpty) const _PalierBar(),
           _FloatingNav(
             index: index,
             onTap: go,
-            badges: [0, state.coupon.length, 0, 0, state.unread],
-            tabs: mode ? const [2, 0, 4] : null,
+            badges: {HomeTab.create: state.coupon.length, HomeTab.moi: state.unread},
+            tabs: mode ? const [HomeTab.montante, HomeTab.matchs, HomeTab.moi] : null,
           ),
         ],
       ),
@@ -331,19 +352,21 @@ class _FloatingNav extends StatelessWidget {
   const _FloatingNav({required this.index, required this.onTap, required this.badges, this.tabs});
   final int index;
   final ValueChanged<int> onTap;
-  final List<int> badges;
+  final Map<int, int> badges;
 
-  /// Onglets montrés (index des pages) ; tous si null. Mode Montante : Montante, Matchs, Profil.
+  /// Onglets montrés (index des pages) ; les 5 de la barre si null. Mode Montante : Montante,
+  /// Matchs, Moi.
   final List<int>? tabs;
 
-  static const _items = [
-    (NavGlyph.matchs, 'Matchs'),
-    (NavGlyph.coupon, 'Coupon'),
-    (NavGlyph.montante, 'Montante'),
-    // « Mes paris » : le nom dit ce qu'on y trouve (rapport UX du 07/11/2026).
-    (NavGlyph.bookmaker, 'Mes paris'),
-    (NavGlyph.profil, 'Profil'),
-  ];
+  // Nouveau visage, étape B (plan du 20/11/2026) : Aujourd'hui · Matchs · Créer · Paris · Moi.
+  static const _items = {
+    HomeTab.today: (NavGlyph.today, 'Aujourd\'hui'),
+    HomeTab.matchs: (NavGlyph.matchs, 'Matchs'),
+    HomeTab.create: (NavGlyph.create, 'Créer'),
+    HomeTab.paris: (NavGlyph.bookmaker, 'Paris'),
+    HomeTab.moi: (NavGlyph.profil, 'Moi'),
+    HomeTab.montante: (NavGlyph.montante, 'Montante'),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -366,15 +389,20 @@ class _FloatingNav extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  for (final (n, i) in (tabs ?? [for (var k = 0; k < _items.length; k++) k]).indexed) ...[
+                  for (final (n, i) in (tabs ?? const [0, 1, 2, 3, 4]).indexed) ...[
                     if (n > 0) const SizedBox(width: 4),
                     Expanded(
                       child: _NavItem(
-                        icon: _items[i].$1,
-                        label: _items[i].$2,
-                        selected: i == index,
-                        badge: badges[i],
-                        badgeColor: i == 4 ? Fp.loss : Fp.accent,
+                        icon: _items[i]!.$1,
+                        label: _items[i]!.$2,
+                        // Mon coupon et la Montante s'ouvrent depuis « Créer » : « Créer » reste allumé.
+                        selected:
+                            i == index ||
+                            (tabs == null &&
+                                i == HomeTab.create &&
+                                (index == HomeTab.coupon || index == HomeTab.montante)),
+                        badge: badges[i] ?? 0,
+                        badgeColor: i == HomeTab.moi ? Fp.loss : Fp.accent,
                         onTap: () => onTap(i),
                       ),
                     ),
@@ -409,7 +437,19 @@ class _NavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     // Maquettes du 07/11/2026 : onglet actif en violet clair, les autres en gris violacé.
     final color = selected ? Fp.lilac : Fp.muted;
-    final Widget glyph = NavIcon(icon, color: color);
+    // « Créer » (étape B) : bouton central mis en avant, carré violet et « + » blanc.
+    final Widget glyph = icon == NavGlyph.create
+        ? Container(
+            width: 40,
+            height: 30,
+            decoration: BoxDecoration(
+              color: Fp.accent,
+              borderRadius: BorderRadius.circular(11),
+              boxShadow: [BoxShadow(color: Fp.accent.withValues(alpha: 0.45), blurRadius: 14)],
+            ),
+            child: const Center(child: NavIcon(NavGlyph.create, color: Colors.white, size: 20)),
+          )
+        : NavIcon(icon, color: color);
     return Semantics(
       button: true,
       selected: selected,

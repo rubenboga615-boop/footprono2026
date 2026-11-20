@@ -6,6 +6,7 @@ import '../api/models.dart';
 import '../format.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import 'create_screen.dart' show HomeTab;
 import '../widgets/common.dart';
 import 'daily_coupons_screen.dart';
 
@@ -137,7 +138,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             // Matchs d'un coupon : le suivi dans Mes paris.
                             if (_betKinds.contains(n['kind']) && context.mounted) {
                               Navigator.of(context).popUntil((r) => r.isFirst);
-                              state.openTab(3);
+                              state.openTab(HomeTab.paris);
                             }
                           },
                     child: Row(

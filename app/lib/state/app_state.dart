@@ -11,6 +11,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../format.dart';
+import '../home_tab.dart';
 import '../labels.dart';
 import '../theme.dart';
 import '../update/installer.dart';
@@ -409,8 +410,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// Onglet à ouvrir quand l'écran principal apparaît (« Voir les matchs du jour » de l'accueil).
+  int? pendingTab;
+
   void closeWelcome() {
     welcome = false;
+    pendingTab = HomeTab.matchs;
     notifyListeners();
   }
 

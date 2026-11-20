@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, status
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import func, select
 from sqlalchemy.orm import aliased
 
@@ -296,6 +297,15 @@ async def my_bets_summary(user: CurrentUserDep, session: SessionDep) -> dict[str
 async def my_record(user: CurrentUserDep, session: SessionDep) -> dict[str, Any]:
     """Mon bilan : rendement, réussite par marché et championnat, annoncé contre réalisé."""
     return await player_record(session, user.id)
+
+
+@router.get("/me/dashboard")
+async def my_dashboard(user: CurrentUserDep, session: SessionDep) -> Any:
+    """Tableau de bord « Aujourd'hui » (nouveau visage, étape B) : courbe du solde, 30 derniers
+    jours, moteur annoncé contre réalisé, mises de la semaine, moteur au-dessus de la cote."""
+    from footprono.bookmaker.dashboard import dashboard
+
+    return jsonable_encoder(await dashboard(session, user))
 
 
 @router.get("/bets/{bet_id}", response_model=BetOut)

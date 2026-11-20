@@ -14,6 +14,7 @@ import '../format.dart';
 import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import 'create_screen.dart' show HomeTab;
 import '../widgets/common.dart';
 import 'premium_screen.dart';
 
@@ -417,7 +418,7 @@ class _ComboSheet extends StatelessWidget {
                 showMessage(msg);
                 if (msg == 'Ajouté au coupon') {
                   Navigator.of(context).popUntil((r) => r.isFirst);
-                  state.openTab(1);
+                  state.openTab(HomeTab.coupon);
                 }
               },
               style: FilledButton.styleFrom(
