@@ -10,6 +10,7 @@ import '../labels.dart';
 import '../main.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../widgets/visage.dart';
 import 'create_screen.dart' show HomeTab;
 import '../widgets/engine_vs_odds.dart';
 import '../widgets/common.dart';
@@ -242,114 +243,104 @@ class _CreateMontanteState extends State<_CreateMontante> {
     // Ordinateur : la place ne manque pas, le plan (escalier) reste affiché.
     final desktop = DesktopScope.of(context);
     final showPlan = editRanges || desktop;
-    Widget label(String text) => Padding(
-      padding: const EdgeInsets.only(top: 14, bottom: 8),
-      child: Text(
-        text,
-        style: Fp.body(13, color: Fp.muted, weight: FontWeight.w600),
-      ),
-    );
-    Widget kv(String k, String v, {Color color = Fp.text}) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(k, style: Fp.body(13.5, color: Fp.muted)),
-          ),
-          Text(
-            v,
-            style: Fp.body(15, weight: FontWeight.w700, color: color),
-          ),
-        ],
-      ),
-    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Maquette N7 (07/11/2026).
-        const MTitle('Nouvelle', 'montante', 26),
-        const SizedBox(height: 6),
+        // Maquette 17 : mise de départ, nombre de paliers et cote par palier en sélecteurs,
+        // puis le résumé honnête (si tout passe, chance d'aller au bout, si un palier rate).
+        Text.rich(
+          const TextSpan(
+            children: [
+              TextSpan(text: 'Nouvelle '),
+              TextSpan(
+                text: 'montante',
+                style: TextStyle(color: V.vi2),
+              ),
+            ],
+          ),
+          style: V.t(24, w: FontWeight.w800, ls: -0.4),
+        ),
         Text(
           'Tu remises tout le gain de chaque palier sur le suivant. Un pari perdu arrête la montante.',
-          style: Fp.body(14, color: Fp.muted, height: 1.4),
+          style: V.t(12.5, color: V.mu),
         ),
-        label('Mise de départ (argent fictif)'),
-        TextField(
-          controller: start,
-          keyboardType: TextInputType.number,
-          // « 5 000 » comme la maquette : chiffres groupés pendant la saisie.
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            TextInputFormatter.withFunction((_, v) {
-              final text = v.text.isEmpty ? '' : thousands(int.parse(v.text));
-              return TextEditingValue(
-                text: text,
-                selection: TextSelection.collapsed(offset: text.length),
-              );
-            }),
-          ],
-          onChanged: (_) => setState(() {}),
-          style: Fp.title(22),
-          decoration: InputDecoration(
-            suffixText: currencyLabel(currency),
-            suffixStyle: Fp.body(13, color: Fp.muted),
-            filled: true,
-            fillColor: Fp.background,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Fp.line),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Fp.accent2, width: 1.5),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final v in const [1000, 5000, 10000, 25000])
-              MChip(
-                thousands(v),
-                selected: stake == v,
-                onTap: () => setState(() => start.text = thousands(v)),
+        VCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const VKicker('Mise de départ'),
+              VSeg(
+                bg: V.s1,
+                items: [
+                  for (final v in const [2000, 5000, 10000]) thousands(v),
+                  const [2000, 5000, 10000].contains(stake) ? 'Autre' : thousands(stake),
+                ],
+                selected: switch (stake) {
+                  2000 => 0,
+                  5000 => 1,
+                  10000 => 2,
+                  _ => 3,
+                },
+                onSelect: (i) => i < 3
+                    ? setState(() => start.text = thousands(const [2000, 5000, 10000][i]))
+                    : _otherStake(currency),
               ),
-          ],
-        ),
-        label('Nombre de paliers'),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (var n = 4; n <= 8; n++)
-              MChip(
-                '$n',
-                selected: count == n,
-                onTap: () => setState(() {
-                  count = n;
+              const SizedBox(height: 12),
+              const VKicker('Nombre de paliers'),
+              VSeg(
+                bg: V.s1,
+                items: const ['4', '6', '8'],
+                selected: switch (count) {
+                  4 => 0,
+                  6 => 1,
+                  _ => 2,
+                },
+                onSelect: (i) => setState(() {
+                  count = const [4, 6, 8][i];
                   _apply();
                 }),
               ),
-          ],
-        ),
-        label('Cote de chaque palier'),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final (i, (a, b, _)) in presets.indexed)
-              MChip(
-                '${odds(a)}–${odds(b)}',
-                selected: preset == i,
-                onTap: () => setState(() {
+              const SizedBox(height: 12),
+              const VKicker('Cote par palier'),
+              VSeg(
+                bg: V.s1,
+                items: [for (final (a, b, _) in presets) '${odds(a)}–${odds(b)}'],
+                selected: preset ?? -1,
+                onSelect: (i) => setState(() {
                   preset = i;
                   _apply();
                 }),
               ),
-          ],
+            ],
+          ),
+        ),
+        VCard(
+          child: VList(
+            children: [
+              if (goal != null)
+                Row(
+                  children: [
+                    const Expanded(child: Text('Si tout passe')),
+                    Text(
+                      goal[0] == goal[1] ? '${_range(goal)} F' : '≈ ${_about(goal)} F',
+                      style: V.b(13.5, V.mint),
+                    ),
+                  ],
+                ),
+              Row(
+                children: [
+                  const Expanded(child: Text('Chance d\'aller au bout')),
+                  Text('≈ ${percent(chance, decimals: chance < 0.1 ? 1 : 0)}', style: V.b()),
+                ],
+              ),
+              Row(
+                children: [
+                  const Expanded(child: Text('Si un palier rate')),
+                  Text('−${thousands(stake)} F', style: V.b(13.5, V.coral)),
+                ],
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 4),
         if (!desktop)
@@ -406,27 +397,44 @@ class _CreateMontanteState extends State<_CreateMontante> {
               ],
             ),
           ),
-        MCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (goal != null)
-                kv('Objectif', goal[0] == goal[1] ? '${_range(goal)} F' : '${_about(goal)} F environ'),
-              kv('Chance d\'aller au bout', _outOf100(chance).toLowerCase(), color: Fp.warning),
-              const SizedBox(height: 4),
-              _SecureCard(
-                on: secureOn,
-                pct: secure,
-                onChanged: (v) => setState(() => secureOn = v),
-                onPct: (v) => setState(() => secure = v),
-              ),
-            ],
+        VCard(
+          child: _SecureCard(
+            on: secureOn,
+            pct: secure,
+            onChanged: (v) => setState(() => secureOn = v),
+            onPct: (v) => setState(() => secure = v),
           ),
         ),
-        const SizedBox(height: 16),
-        MButton('Lancer la montante', busy: busy, onPressed: busy || stake < 100 ? null : _create),
+        VBtn(busy ? 'Création…' : 'Créer la montante', onTap: busy || stake < 100 ? null : _create),
       ],
     );
+  }
+
+  /// « Autre » : une mise de départ au choix.
+  Future<void> _otherStake(String currency) async {
+    final ctrl = TextEditingController(text: '$stake');
+    final v = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: V.s1,
+        title: Text('Mise de départ', style: V.b(16)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(suffixText: currencyLabel(currency)),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, int.tryParse(ctrl.text)),
+            child: const Text('Valider'),
+          ),
+        ],
+      ),
+    );
+    if (v != null && v > 0 && mounted) setState(() => start.text = thousands(v));
   }
 }
 
@@ -804,7 +812,6 @@ class _MontanteViewState extends State<MontanteView> {
     }
 
     String pct(Object? v) => v == null ? '—' : percent((v as num).toDouble(), decimals: 1);
-    final won = steps.where((s) => stateOf(s) == _StepState.won).length;
     final stakeNow = current?['stake'] as int? ?? m['cashable'] as int;
 
     String betLabel(Bet b) => b.selections.length == 1
@@ -826,90 +833,65 @@ class _MontanteViewState extends State<MontanteView> {
               BackChevron(onTap: () => Navigator.of(context).maybePop()),
               const SizedBox(width: 4),
             ],
-            const Expanded(child: MTitle('Ma', 'montante', 26)),
-            if (!active) montanteTag(m['status'] as String),
+            Expanded(
+              child: Text.rich(
+                const TextSpan(
+                  children: [
+                    TextSpan(text: 'Ma '),
+                    TextSpan(
+                      text: 'montante',
+                      style: TextStyle(color: V.vi2),
+                    ),
+                  ],
+                ),
+                style: V.t(24, w: FontWeight.w800, ls: -0.4),
+              ),
+            ),
+            if (!active) ...[montanteTag(m['status'] as String), const SizedBox(width: 6)],
+            VChip('n° ${m['id']}', kind: VChipKind.vi),
           ],
         ),
-        const SizedBox(height: 12),
-        // Maquette v2 : où en est la montante, d'un coup d'œil.
-        GlassCard.section(
+        // Maquette 15 : palier et plage, la mise en jeu, puis si ça passe / si j'arrête / si ça rate.
+        VCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          active ? 'Mise actuelle' : (m['status'] == 'lost' ? 'Résultat' : 'Encaissé'),
-                          style: Fp.body(12, color: Fp.muted),
-                        ),
-                        Text(
-                          active
-                              ? '${thousands(stakeNow)} F'
-                              : m['status'] == 'lost'
-                              ? 'perdue'
-                              : '${thousands(m['cashable'] as int)} F',
-                          style: Fp.body(
-                            30,
-                            weight: FontWeight.w800,
-                            color: !active && m['status'] == 'lost' ? Fp.lossText : Fp.text,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (goal != null)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text('Objectif', style: Fp.body(12, color: Fp.muted)),
-                        Text(
-                          goal[0] == goal[1] ? '${_range(goal)} F' : '${_about(goal)} F environ',
-                          style: Fp.body(18, weight: FontWeight.w700),
-                        ),
-                        if (goal[0] != goal[1])
-                          Text(
-                            'entre ${_range(goal, sep: ' et ')} F',
-                            style: Fp.body(11, color: Fp.text3),
-                          ),
-                      ],
-                    ),
-                ],
+              VKicker(
+                'Palier ${m['current_step']} sur ${steps.length}'
+                '${current != null && active ? ' · plage ${odds(current['odds_min'])}–${odds(current['odds_max'])}' : ''}',
               ),
-              const SizedBox(height: 12),
-              // Maquette C2 : barre fine, violet sur #241E3D. Sans sa propre annonce : le texte
-              // « Palier 1 sur 6 » dessous la dit (sinon toute la page devenait une « barre de
-              // progression » pour le lecteur d'écran, et ses boutons disparaissaient).
-              ExcludeSemantics(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
-                  child: LinearProgressIndicator(
-                    value: steps.isEmpty ? 0 : (active ? (m['current_step'] as int) : won) / steps.length,
-                    minHeight: 6,
-                    backgroundColor: Fp.line10,
-                    color: Fp.accent,
+              Text(
+                active
+                    ? '${thousands(stakeNow)} F'
+                    : m['status'] == 'lost'
+                    ? 'perdue'
+                    : '${thousands(m['cashable'] as int)} F',
+                style: V.big(!active && m['status'] == 'lost' ? V.coral : V.tx),
+              ),
+              Text(
+                active
+                    ? 'en jeu · départ ${thousands(m['start_stake'] as int)} F (argent fictif)'
+                    : 'encaissé',
+                style: V.mu_(),
+              ),
+              if (active && current != null) _Outcomes(montante: m, current: current),
+              if (goal != null && active)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Objectif ${goal[0] == goal[1] ? '${_range(goal)} F' : '${_about(goal)} F environ'}',
+                    style: V.mu_(),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Palier ${m['current_step']} sur ${steps.length} · départ '
-                '${money(m['start_stake'] as int, currency)} (argent fictif)',
-                style: Fp.body(12, color: Fp.muted),
-              ),
-              // Le chiffre qui compte pour le joueur, en haut (maquette C2 : encadré ambre).
+              // Le chiffre qui compte pour le joueur : la chance d'aller au bout.
               if ((m['chance_by_odds'] ?? m['chance_by_model']) case final num chance when active)
                 Container(
                   margin: const EdgeInsets.only(top: 10),
-                  padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Fp.warningBg,
+                    color: V.amberbg,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Fp.warningLine),
+                    border: Border.all(color: const Color(0xFF5A4417)),
                   ),
                   child: Text.rich(
                     TextSpan(
@@ -926,7 +908,7 @@ class _MontanteViewState extends State<MontanteView> {
                         ),
                       ],
                     ),
-                    style: Fp.body(13, color: Fp.warning, height: 1.4),
+                    style: V.t(12, color: const Color(0xFFFFE0A8)).copyWith(height: 1.45),
                   ),
                 ),
             ],
@@ -934,30 +916,24 @@ class _MontanteViewState extends State<MontanteView> {
         ),
         // Maquette M3 : ce qui est en jeu au palier en cours, en clair. Le joueur décide :
         // l'application ne dit jamais « continue » ni « arrête ».
-        if (active && current != null) _AtStake(montante: m, current: current, currency: currency),
-        if (active) ...[
-          const SizedBox(height: 12),
-          GlassCard.section(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('C\'est quoi, une montante ?', style: Fp.body(14, weight: FontWeight.w700)),
-                const SizedBox(height: 6),
-                Text(
-                  'Tu mises ${money(m['start_stake'] as int, currency)}. Si tu gagnes, tu remises tout le gain '
-                  'au palier suivant. Un seul pari perdu et la montante s\'arrête : tout ce qui a été misé '
-                  'est perdu. Tu peux encaisser à tout moment.',
-                  style: Fp.body(13, color: Fp.muted, height: 1.4),
-                ),
-              ],
-            ),
-          ),
-        ],
-        const SizedBox(height: 12),
-        GlassCard.section(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+        // Paliers en pastilles (vert gagné, violet en cours), puis le détail de chaque palier.
+        VCard(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: [
+                  for (final s in steps)
+                    switch (stateOf(s)) {
+                      _StepState.won => VChip('${s['number']}', kind: VChipKind.up, arrow: null),
+                      _StepState.lost => VChip('${s['number']}', kind: VChipKind.dn),
+                      _StepState.current => VChip('${s['number']}', kind: VChipKind.vi),
+                      _ => VChip('${s['number']}', kind: VChipKind.eq),
+                    },
+                ],
+              ),
               for (final s in steps)
                 _StepLine(
                   number: s['number'] as int,
@@ -1032,52 +1008,30 @@ class _MontanteViewState extends State<MontanteView> {
             ),
           ],
           if (waiting) ...[
-            const SizedBox(height: 12),
-            Semantics(
-              button: true,
-              label: 'Choisir le pari',
-              child: Material(
-                color: Colors.transparent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: Color(0x8CAE9BFF)),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: _suggestions,
-                  child: Ink(
-                    color: Fp.accentAlpha(0.12),
-                    padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.star_outline_rounded, size: 18, color: Color(0xFFE4D8FD)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: ExcludeSemantics(
-                            child: Text.rich(
-                              TextSpan(
-                                style: Fp.body(13, color: Fp.textStrong, height: 1.4),
-                                children: [
-                                  TextSpan(
-                                    text: 'Suggestions du moteur',
-                                    style: Fp.body(13, weight: FontWeight.w800),
-                                  ),
-                                  TextSpan(
-                                    text:
-                                        ' pour le palier ${current['number']} (mise '
-                                        '${money(current['stake'] as int, currency)}, cote '
-                                        '${odds(current['odds_min'])} à ${odds(current['odds_max'])}), selon les '
-                                        'mêmes règles que le Coupon intelligent.',
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const Icon(Icons.chevron_right_rounded, color: Fp.lilac),
-                      ],
-                    ),
+            VBtn('Voir les paris proposés', onTap: _suggestions),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _suggestions,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      const TextSpan(
+                        text: 'Suggestions du moteur',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      TextSpan(
+                        text:
+                            ' pour le palier ${current['number']} (mise '
+                            '${money(current['stake'] as int, currency)}, cote '
+                            '${odds(current['odds_min'])} à ${odds(current['odds_max'])}), selon les mêmes '
+                            'règles que le Coupon intelligent.',
+                      ),
+                    ],
                   ),
+                  textAlign: TextAlign.center,
+                  style: V.mu_(),
                 ),
               ),
             ),
@@ -1087,12 +1041,7 @@ class _MontanteViewState extends State<MontanteView> {
             margin: EdgeInsets.zero,
             child: _SecureCard(on: (m['secure_pct'] as int) > 0, pct: m['secure_pct'] as int),
           ),
-          const SizedBox(height: 14),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
-            onPressed: _cashOut,
-            child: FittedBox(child: Text('Arrêter et garder ${thousands(m['cashable'] as int)} F')),
-          ),
+          VBtn2('Encaisser ${thousands(m['cashable'] as int)} F et arrêter', onTap: _cashOut),
           if (waiting)
             TextButton(
               onPressed: () {
@@ -1672,69 +1621,72 @@ String _outOf100(double p) {
 
 /// Maquette M3 : si ça passe, si ça perd, si j'arrête maintenant ; et, sans sécurisation, ce
 /// que 20 % sécurisés depuis le départ auraient déjà mis à l'abri.
-class _AtStake extends StatelessWidget {
-  const _AtStake({required this.montante, required this.current, required this.currency});
+/// Si ça passe, si j'arrête, si ça rate (maquette 15) ; puis, sans sécurisation, ce que 20 %
+/// sécurisés depuis le départ auraient déjà mis à l'abri.
+class _Outcomes extends StatelessWidget {
+  const _Outcomes({required this.montante, required this.current});
   final Json montante;
   final Json current;
-  final String currency;
 
   @override
   Widget build(BuildContext context) {
     final m = montante;
-    final placed = current['bet_id'] != null;
+    final currency = m['currency'] as String;
     final cashable = (m['cashable'] as num? ?? 0).toInt();
     final stake = (current['stake'] as num? ?? 0).toInt();
-    final kept = placed ? cashable : cashable - stake;
-    final win = current['potential_payout'] != null
-        ? money(current['potential_payout'] as num, currency)
-        : '${_range(current['payout_range'] as List?)} F';
-    // Simulation à 20 % sécurisés sur les paliers déjà gagnés (même calcul que le serveur).
+    final payout =
+        (current['potential_payout'] as num?)?.toInt() ??
+        ((current['payout_range'] as List?)?.first as num?)?.toInt();
     int? safe;
     if ((m['secure_pct'] as num? ?? 0) == 0) {
       var rolling = (m['start_stake'] as num).toInt();
       var total = 0;
       for (final s in (m['steps'] as List).cast<Json>()) {
         if (s['result'] != 'won' || s['odds'] == null) continue;
-        final payout = (rolling * double.parse('${s['odds']}')).floor();
-        final next = (payout * 0.8).floor();
-        total += payout - next;
+        final p = (rolling * double.parse('${s['odds']}')).floor();
+        final next = (p * 0.8).floor();
+        total += p - next;
         rolling = next;
       }
       if (total > 0) safe = total;
     }
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: GlassCard.section(
+    Widget box(String label, String value, Color color) => Expanded(
+      child: VCard2(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Ce qui est en jeu au palier ${current['number']}',
-              style: Fp.body(14, weight: FontWeight.w700),
+            Text(label, style: V.mu_()),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(value, style: V.b(13.5, color)),
             ),
-            const SizedBox(height: 4),
-            KeyValue('Si ça passe', win, valueColor: Fp.win, bold: true),
-            KeyValue('Si ça perd', money(kept, currency), valueColor: Fp.lossText, bold: true),
-            if (!placed) KeyValue('Si j\'arrête maintenant', money(cashable, currency), bold: true),
-            if (safe != null) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Fp.warningBg,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Fp.warningLine),
-                ),
-                child: Text(
-                  'Sécurisation à 0 % : rien n\'est gardé si ce palier perd. Avec 20 % sécurisés depuis le '
-                  'départ, ${money(safe, currency)} seraient déjà à l\'abri.',
-                  style: Fp.body(12.5, color: Fp.warning, height: 1.4),
-                ),
-              ),
-            ],
           ],
         ),
       ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            box('Si ça passe', payout == null ? '—' : '+${thousands(payout - stake)}', V.mint),
+            const SizedBox(width: 6),
+            box('Si j\'arrête', thousands(cashable), V.tx),
+            const SizedBox(width: 6),
+            box('Si ça rate', '−${thousands(stake)}', V.coral),
+          ],
+        ),
+        if (safe != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Sécurisation à 0 % : rien n\'est gardé si ce palier perd. Avec 20 % sécurisés depuis le '
+              'départ, ${money(safe, currency)} seraient déjà à l\'abri.',
+              style: V.t(12, color: V.amber),
+            ),
+          ),
+      ],
     );
   }
 }

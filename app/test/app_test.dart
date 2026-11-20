@@ -2127,9 +2127,10 @@ void main() {
     // M1 : bilan, gagnées et perdues ensemble.
     expect(find.textContaining('+68\u00A0143'), findsOneWidget);
     expect(find.textContaining('misés au départ'), findsOneWidget);
-    // M3 : ce qui est en jeu au palier 2 (pas encore de pari) ; 20 % sécurisés : 1 570 F.
-    expect(find.text('Ce qui est en jeu au palier 2'), findsOneWidget);
-    expect(find.text('Si j\'arrête maintenant'), findsOneWidget);
+    // Maquette 15 : palier 2, si ça passe / si j'arrête / si ça rate ; 20 % sécurisés : 1 570 F.
+    expect(find.textContaining('PALIER 2 SUR'), findsOneWidget);
+    expect(find.text('Si j\'arrête'), findsOneWidget);
+    expect(find.text('Si ça rate'), findsOneWidget);
     expect(find.textContaining('1\u00A0570'), findsOneWidget);
 
     // M2 : analyse.
@@ -2234,7 +2235,7 @@ void main() {
     expect(find.text('Mes paris'), findsNothing);
     expect(find.text('Matchs'), findsWidgets);
     expect(find.text('Montante'), findsWidgets);
-    expect(find.text('Nombre de paliers'), findsOneWidget); // onglet Montante (aucune en cours)
+    expect(find.text('NOMBRE DE PALIERS'), findsOneWidget); // onglet Montante (aucune en cours)
 
     // Une cote touchée dans les matchs : « Mon palier » s'ouvre par-dessus.
     await tab(tester, HomeTab.matchs);
