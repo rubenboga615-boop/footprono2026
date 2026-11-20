@@ -26,7 +26,7 @@ from footprono.bookmaker.montante_models import Montante, MontanteStep
 from footprono.core.errors import AppError, NotFoundError
 from footprono.notifications import service as notifications
 
-MIN_STEPS, MAX_STEPS = 4, 8
+MIN_STEPS, MAX_STEPS = 3, 8  # maquette 17 : 3, 4 ou 6 paliers
 DEFAULT_START_STAKE = 5_000
 
 

@@ -1998,7 +1998,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(430, 2400));
     await tab(tester, HomeTab.montante);
     await tester.pumpAndSettle();
-    await tester.tap(find.textContaining('Suggestions du moteur', findRichText: true));
+    await tester.tap(find.text('Voir les paris proposés'));
     await tester.pumpAndSettle();
     expect(find.text('MOTEUR 1'), findsOneWidget);
     expect(find.text('MOTEUR 2'), findsOneWidget);
@@ -2011,7 +2011,7 @@ void main() {
 
     // Montante terminée entre-temps (retour du 17/11) : message clair, pas de suggestions.
     server.montanteFinished = true;
-    await tester.tap(find.textContaining('Suggestions du moteur', findRichText: true));
+    await tester.tap(find.text('Voir les paris proposés'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Cette montante est terminée'), findsOneWidget);
     expect(find.text('Créer une nouvelle montante'), findsOneWidget);
@@ -2120,9 +2120,9 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(430, 2400));
     await tab(tester, HomeTab.montante);
     await tester.pumpAndSettle();
-    expect(find.text('Hull – Middlesbrough'), findsOneWidget);
-    expect(find.textContaining('8 nov'), findsOneWidget);
-    expect(find.textContaining('gagné'), findsWidgets);
+    // Maquette 15 : « Palier 1 · victoire Hull » (l'équipe suffit ; pari gagné : pas de date).
+    expect(find.textContaining(RegExp(r'^Palier 1 · .*Hull')), findsOneWidget);
+    expect(find.textContaining('8 nov'), findsNothing);
 
     // M1 : bilan, gagnées et perdues ensemble.
     expect(find.textContaining('+68\u00A0143'), findsOneWidget);
@@ -2131,7 +2131,6 @@ void main() {
     expect(find.textContaining('PALIER 2 SUR'), findsOneWidget);
     expect(find.text('Si j\'arrête'), findsOneWidget);
     expect(find.text('Si ça rate'), findsOneWidget);
-    expect(find.textContaining('1\u00A0570'), findsOneWidget);
 
     // M2 : analyse.
     await tester.tap(find.text('Voir l\'analyse ›'));

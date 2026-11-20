@@ -45,7 +45,7 @@ async def test_reference_plan_matches_the_validated_example(
     assert plan["steps"][1]["stake_range"] == [8000, 8000]
     too_short = await client.post(
         "/api/v1/montantes",
-        json={"steps": [{"odds_min": "1.5", "odds_max": "1.6"}] * 3},
+        json={"steps": [{"odds_min": "1.5", "odds_max": "1.6"}] * 2},
         headers=await _login(client),
     )
     assert too_short.status_code == 422

@@ -171,7 +171,10 @@ enum VChipKind { up, dn, eq, am, vi }
 
 /// ``.chip`` : pilule 11 gras, marge 4 × 9 ; up menthe, dn corail, eq gris, am ambre, vi violet.
 class VChip extends StatelessWidget {
-  const VChip(this.text, {super.key, this.kind = VChipKind.eq, this.arrow});
+  const VChip(this.text, {super.key, this.kind = VChipKind.eq, this.arrow, this.after});
+
+  /// Signe après le texte (« 1 ✓ » des paliers gagnés, maquette 15).
+  final Widget? after;
   final String text;
   final VChipKind kind;
 
@@ -206,6 +209,13 @@ class VChip extends StatelessWidget {
             text,
             style: V.t(11, w: FontWeight.w700, color: fg).copyWith(height: 1.2),
           ),
+          if (after != null) ...[
+            const SizedBox(width: 4),
+            IconTheme(
+              data: IconThemeData(color: fg),
+              child: after!,
+            ),
+          ],
         ],
       ),
     );
@@ -796,8 +806,16 @@ class VTopBar extends StatelessWidget {
     this.actionLabel,
     this.actionText,
     this.trailing,
+    this.back = true,
+    this.onBack,
   });
   final String title;
+
+  /// Flèche de retour (sans elle, la place reste vide pour garder le titre centré).
+  final bool back;
+
+  /// Retour particulier (par défaut : écran précédent).
+  final VoidCallback? onBack;
 
   /// Élément libre à droite (pastille « gagné », maquette 19).
   final Widget? trailing;
@@ -815,22 +833,24 @@ class VTopBar extends StatelessWidget {
       children: [
         SizedBox(
           width: 40,
-          child: Tooltip(
-            message: 'Retour',
-            excludeFromSemantics: true,
-            child: Semantics(
-              button: true,
-              label: 'Retour',
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => Navigator.of(context).maybePop(),
-                child: const Align(
-                  alignment: Alignment.centerLeft,
-                  child: VIc(VIcon.back, size: 22, color: V.vi2),
+          child: !back
+              ? null
+              : Tooltip(
+                  message: 'Retour',
+                  excludeFromSemantics: true,
+                  child: Semantics(
+                    button: true,
+                    label: 'Retour',
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: onBack ?? () => Navigator.of(context).maybePop(),
+                      child: const Align(
+                        alignment: Alignment.centerLeft,
+                        child: VIc(VIcon.back, size: 22, color: V.vi2),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ),
         ),
         Expanded(
           child: Text(title, textAlign: TextAlign.center, style: V.b(15.5)),
