@@ -1,4 +1,4 @@
-"""Génère docs/maquettes/12-nouveau-visage/index.html : nouveau visage de FootProba."""
+"""Génère docs/maquettes/13-nouveau-visage-b/index.html : nouveau visage de FootProba."""
 import sys
 from pathlib import Path
 
