@@ -155,44 +155,59 @@ class _OddsAlertsScreenState extends State<OddsAlertsScreen> {
         ),
       );
     }
+    // Maquette 29 : carte simple ; le seuil (5, 8 ou 10 points) se règle en la touchant.
+    final gaps = (d['gaps'] as List).cast<num>();
     children.add(
       VCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Tous les championnats', style: V.b(15)),
-                      Text(
-                        'dès qu\'un pari dépasse la cote de ${(gapValue * 100).round()} points',
-                        style: V.mu_(12.5),
-                      ),
-                    ],
-                  ),
+        onTap: () async {
+          final g = await showModalBottomSheet<num>(
+            context: context,
+            backgroundColor: V.s1,
+            builder: (ctx) => SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Prévenir dès que le moteur dépasse la cote de', style: V.b(15)),
+                    const SizedBox(height: 12),
+                    VSeg(
+                      bg: V.s2,
+                      items: [for (final g in gaps) '${(g * 100).round()} points'],
+                      selected: gaps.indexWhere((g) => (g - gapValue).abs() < 1e-6),
+                      onSelect: (i) => Navigator.pop(ctx, gaps[i]),
+                    ),
+                  ],
                 ),
-                VSwitch(
-                  value: gap?['active'] == true,
-                  label: 'Alerte d\'écart',
-                  onChanged: (v) =>
-                      _run(() => state.api.put('/me/odds-alerts/gap', {'min_gap': gapValue, 'active': v})),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            VSeg(
-              bg: V.s2,
-              items: [for (final g in (d['gaps'] as List).cast<num>()) '${(g * 100).round()} points'],
-              selected: (d['gaps'] as List).cast<num>().indexWhere((g) => (g - gapValue).abs() < 1e-6),
-              onSelect: (i) => _run(
-                () => state.api.put('/me/odds-alerts/gap', {
-                  'min_gap': (d['gaps'] as List)[i],
-                  'active': gap?['active'] ?? true,
-                }),
               ),
+            ),
+          );
+          if (g != null) {
+            await _run(
+              () => state.api.put('/me/odds-alerts/gap', {'min_gap': g, 'active': gap?['active'] ?? true}),
+            );
+          }
+        },
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Tous les championnats', style: V.b(15)),
+                  Text(
+                    'dès qu\'un pari dépasse la cote de ${(gapValue * 100).round()} points',
+                    style: V.mu_(12.5),
+                  ),
+                ],
+              ),
+            ),
+            VSwitch(
+              value: gap?['active'] == true,
+              label: 'Alerte d\'écart',
+              onChanged: (v) =>
+                  _run(() => state.api.put('/me/odds-alerts/gap', {'min_gap': gapValue, 'active': v})),
             ),
           ],
         ),

@@ -65,11 +65,104 @@ class FootProbaApp extends StatelessWidget {
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
         scaffoldMessengerKey: messengerKey,
         navigatorKey: navigatorKey,
-        builder: (context, child) => FpBackground(child: WideFrame(child: child ?? const SizedBox())),
+        navigatorObservers: [pushedPages],
+        builder: (context, child) => FpBackground(
+          child: WideFrame(child: _PushedNav(child: child ?? const SizedBox())),
+        ),
         home: const _Root(),
       ),
     );
   }
+}
+
+/// Écrans ouverts par-dessus l'accueil (fiche de match, plan de jeu, pari…) : la barre du bas
+/// des maquettes y reste visible (maquettes 07, 19, 29, 30…). Suivi de la pile des écrans.
+class PushedPages extends NavigatorObserver {
+  /// Un écran au moins est ouvert par-dessus l'accueil.
+  final pushed = ValueNotifier<bool>(false);
+
+  final _stack = <Route<dynamic>>[];
+
+  void _update() {
+    final p = _stack.whereType<PageRoute<dynamic>>().length > 1;
+    // Après l'image en cours : la pile change pendant la construction des écrans.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      pushed.value = p;
+    });
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    // Premier écran d'un nouveau navigateur (application relancée) : pile repartie de zéro.
+    if (previousRoute == null) _stack.clear();
+    _stack.add(route);
+    _update();
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _stack.remove(route);
+    _update();
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _stack.remove(route);
+    _update();
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    final i = oldRoute == null ? -1 : _stack.indexOf(oldRoute);
+    if (newRoute != null) i >= 0 ? _stack[i] = newRoute : _stack.add(newRoute);
+    _update();
+  }
+}
+
+final pushedPages = PushedPages();
+
+/// Barre du bas sur les écrans ouverts par-dessus l'accueil : l'onglet d'où l'on vient reste
+/// en blanc ; toucher un onglet ferme ces écrans et l'ouvre.
+class _PushedNav extends StatelessWidget {
+  const _PushedNav({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+    valueListenable: pushedPages.pushed,
+    builder: (context, pushed, _) {
+      final state = context.watch<AppState>();
+      final mq = MediaQuery.of(context);
+      if (!pushed || !state.loggedIn || state.welcome || mq.size.width >= desktopMinWidth) return child;
+      final mode = state.montanteMode;
+      // Sous le contenu (pas par-dessus) : rien ne se cache derrière la barre, et les feuilles
+      // ou fenêtres s'ouvrent au-dessus d'elle.
+      return Column(
+        children: [
+          Expanded(
+            child: MediaQuery.removePadding(context: context, removeBottom: true, child: child),
+          ),
+          if (mq.viewInsets.bottom == 0)
+            Material(
+              type: MaterialType.transparency,
+              child: ValueListenableBuilder<int>(
+                valueListenable: state.currentTab,
+                builder: (context, index, _) => _FloatingNav(
+                  index: index,
+                  onTap: (i) {
+                    navigatorKey.currentState?.popUntil((r) => r.isFirst);
+                    state.openTab(i);
+                  },
+                  badges: {HomeTab.create: state.coupon.length, HomeTab.moi: state.unread},
+                  tabs: mode ? const [HomeTab.montante, HomeTab.matchs, HomeTab.moi] : null,
+                ),
+              ),
+            ),
+        ],
+      );
+    },
+  );
 }
 
 class _Root extends StatelessWidget {
@@ -295,6 +388,8 @@ class HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    // Onglet en blanc dans la barre des écrans ouverts par-dessus.
+    WidgetsBinding.instance.addPostFrameCallback((_) => state.currentTab.value = index);
     // Version ordinateur : menu à gauche à la place de la barre flottante.
     if (MediaQuery.sizeOf(context).width >= desktopMinWidth) return DesktopShell(key: _desk);
     const pages = [

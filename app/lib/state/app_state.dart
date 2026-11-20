@@ -216,6 +216,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Onglet demandé depuis un écran ouvert par-dessus (ex. « Passer Premium » → Profil).
   final tabRequest = ValueNotifier<int?>(null);
+
+  /// Onglet ouvert de l'accueil (barre du bas des écrans ouverts par-dessus).
+  final currentTab = ValueNotifier<int>(0);
   void openTab(int i) {
     tabRequest.value = null;
     tabRequest.value = i;

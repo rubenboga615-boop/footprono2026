@@ -52,6 +52,19 @@ const _stats = {
 };
 
 /// Titre d'un marché (« Plus/moins de buts »).
+/// Nom court d'un marché (maquette 35, « Où le moteur tient parole ») : les buts d'une équipe,
+/// les handicaps et la 1re mi-temps regroupés.
+String shortMarket(String market) => switch (market) {
+  '1X2' => 'Résultat',
+  'OU' => 'Nombre de buts',
+  'BTTS' => 'Les deux marquent',
+  'TEAM_OU_HOME' || 'TEAM_OU_AWAY' => 'Buts d\'une équipe',
+  'AH' || 'EH' => 'Handicap',
+  'CS' => 'Score exact',
+  'HT_1X2' || 'HT_OU' || 'HT_BTTS' => '1re mi-temps',
+  final m => marketTitle(m),
+};
+
 String marketTitle(String market, {String home = 'Domicile', String away = 'Extérieur'}) {
   switch (market) {
     case '1X2':
@@ -480,6 +493,6 @@ const goalMarkets = {'OU', 'TEAM_OU_HOME', 'TEAM_OU_AWAY', 'HT_OU', 'BTTS', 'HT_
 /// d'équipe (« Bosnie ou nul »).
 String lowerLabel(String s) {
   if (s.isEmpty) return s;
-  const words = {'Victoire', 'Plus', 'Moins', 'Match', 'Les', 'Nul', 'Pas', 'Score', 'Autre'};
+  const words = {'Victoire', 'Plus', 'Moins', 'Match', 'Les', 'Nul', 'Pas', 'Score', 'Autre', 'Oui,', 'Non'};
   return words.contains(s.split(' ').first) ? s[0].toLowerCase() + s.substring(1) : s;
 }

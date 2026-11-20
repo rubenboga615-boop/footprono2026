@@ -2210,6 +2210,8 @@ void main() {
     ).push(MaterialPageRoute(builder: (_) => const ReliabilityScreen()));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Montantes'), 200);
+    await tester.ensureVisible(find.text('Montantes'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Montantes'));
     await tester.pumpAndSettle();
     expect(find.text('62\u00A0%'), findsOneWidget);
@@ -3695,6 +3697,8 @@ void main() {
     ).push(MaterialPageRoute(builder: (_) => const ReliabilityScreen()));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Coupons en direct'), 200);
+    await tester.ensureVisible(find.text('Coupons en direct'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Coupons en direct'));
     await tester.pumpAndSettle();
     expect(find.text('Mi-temps'), findsOneWidget);
@@ -3913,6 +3917,8 @@ void main() {
     expect(find.text('cote 1,79 → 1,92'), findsOneWidget);
     expect(find.text('Ajouter au coupon'), findsOneWidget);
     expect(find.text('Au plus une alerte par match, jamais entre 23 h et 8 h.'), findsOneWidget);
+    await tester.tap(find.text('dès qu\'un pari dépasse la cote de 8 points'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('5 points'));
     await tester.pumpAndSettle();
     expect(server.alertCalls.single, contains('"min_gap":0.05'));

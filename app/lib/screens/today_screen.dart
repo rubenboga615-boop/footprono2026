@@ -189,44 +189,105 @@ class TodayScreen extends StatelessWidget {
     ];
   }
 
-  /// Frise : matchs de mes paris en cours puis à venir, du plus proche au plus lointain.
+  /// Frise (maquette 35) : fin prévue des matchs en cours, puis coup d'envoi des matchs à venir
+  /// (« (palier 3) » pour un pari de montante), du plus proche au plus lointain.
   static List<(String, VDotKind)> _agenda(TodayData d) {
-    final now = DateTime.now();
+    final now = MatchInfo.now().toLocal();
     final seen = <int>{};
-    final sels = [
-      for (final b in d.openBets)
-        for (final s in b.selections)
-          if ((s.state == 'live' || s.state == 'upcoming') && s.kickoffAt != null && seen.add(s.matchId)) s,
-    ]..sort((a, b) => a.kickoffAt!.compareTo(b.kickoffAt!));
-    String day(DateTime k) {
-      final today = DateTime(now.year, now.month, now.day);
-      final kd = DateTime(k.year, k.month, k.day);
-      final diff = kd.difference(today).inDays;
-      if (diff == 0) return k.hour >= 18 ? 'Ce soir' : 'Aujourd\'hui';
-      if (diff == 1) return 'Demain';
-      return shortDate(k).split(' ').first;
-    }
-
-    return [
-      for (final s in sels.take(5))
-        if (s.state == 'live')
-          (
-            'En cours · ${s.homeTeam} – ${s.awayTeam} (${s.minute ?? ''}${s.extra != null ? '+${s.extra}' : ''}\')',
-            VDotKind.green,
-          )
-        else
-          (
-            '${day(s.kickoffAt!.toLocal())} ${hourMinute(s.kickoffAt!.toLocal())} · ${s.homeTeam} – ${s.awayTeam}',
+    // Palier de montante de chaque pari (« Sam. 20:45 · Lens – Lyon (palier 3) »).
+    final step = <int, int>{
+      for (final m in d.montantes)
+        if (m['status'] == 'active')
+          for (final s in (m['steps'] as List).cast<Json>())
+            if (s['bet_id'] case final int id) id: s['number'] as int,
+    };
+    final rows = <(DateTime, String, VDotKind)>[];
+    // Paris de montante d'abord : un match commun garde la mention « (palier N) ».
+    for (final b in [
+      ...d.openBets.where((b) => step.containsKey(b.id)),
+      ...d.openBets.where((b) => !step.containsKey(b.id)),
+    ]) {
+      for (final s in b.selections) {
+        if (s.kickoffAt == null || !seen.add(s.matchId)) continue;
+        final k = s.kickoffAt!.toLocal();
+        final match = '${s.homeTeam} – ${s.awayTeam}';
+        if (s.state == 'live') {
+          // Fin prévue : coup d'envoi + 1 h 55 (deux mi-temps, la pause et le temps additionnel).
+          final end = k.add(const Duration(minutes: 115));
+          final de = RegExp(r'^[AEIOUYÉÈÊÂÎÔaeiouyéèêâîô]').hasMatch(s.homeTeam) ? 'd\'' : 'de ';
+          rows.add((end, '${_day(end, now)} ${hourMinute(end)} · fin $de$match', VDotKind.plain));
+        } else if (s.state == 'upcoming') {
+          final n = step[b.id];
+          rows.add((
+            k,
+            '${_day(k, now)} ${hourMinute(k)} · $match${n == null ? '' : ' (palier $n)'}',
             VDotKind.plain,
-          ),
-    ];
+          ));
+        }
+      }
+    }
+    rows.sort((x, y) => x.$1.compareTo(y.$1));
+    return [for (final r in rows.take(5)) (r.$2, r.$3)];
+  }
+
+  /// « Ce soir », « Aujourd'hui », « Demain », sinon « Sam. ».
+  static String _day(DateTime k, DateTime now) {
+    final diff = DateTime(k.year, k.month, k.day).difference(DateTime(now.year, now.month, now.day)).inDays;
+    if (diff == 0) return k.hour >= 18 ? 'Ce soir' : 'Aujourd\'hui';
+    if (diff == 1) return 'Demain';
+    final d = shortDate(k).split(' ').first;
+    return '${d[0].toUpperCase()}${d.substring(1)}';
   }
 
   /// « Où le moteur tient parole (30 j) » : marchés avec une chance annoncée, les plus joués.
-  static List<Json> _markets(TodayData d) => [
-    for (final m in ((d.dash['markets_30'] as List?) ?? const []).cast<Json>())
-      if (m['announced'] != null && m['rate'] != null) m,
-  ].take(4).toList();
+  /// Maquette 35 : noms courts (« Buts d'une équipe », « Handicap », « 1re mi-temps ») ; les
+  /// marchés du même nom court sont additionnés (chance annoncée pondérée par les sélections).
+  static List<Json> _markets(TodayData d) {
+    final groups = <String, List<Json>>{};
+    for (final m in ((d.dash['markets_30'] as List?) ?? const []).cast<Json>()) {
+      if (m['announced'] == null || m['rate'] == null) continue;
+      groups.putIfAbsent(shortMarket(m['key'] as String), () => []).add(m);
+    }
+    final out = <Json>[];
+    for (final MapEntry(key: name, value: rows) in groups.entries) {
+      if (rows.length == 1) {
+        out.add({...rows.single, 'name': name});
+        continue;
+      }
+      var won = 0, lost = 0;
+      var weighted = 0.0;
+      for (final r in rows) {
+        final w = r['won'] as int, l = r['lost'] as int;
+        won += w;
+        lost += l;
+        weighted += (r['announced'] as num) * (w + l);
+      }
+      final n = won + lost;
+      if (n == 0) continue;
+      final announced = weighted / n;
+      // Même règle que le serveur : écart au-delà de deux écarts-types du hasard (10 sélections au moins).
+      final spread = 2 * math.sqrt(math.max(announced * (1 - announced), 1e-9) / n);
+      final rate = won / n;
+      out.add({
+        'name': name,
+        'won': won,
+        'lost': lost,
+        'rate': rate,
+        'announced': announced,
+        'gap': n < 10
+            ? null
+            : rate < announced - spread
+            ? 'low'
+            : rate > announced + spread
+            ? 'high'
+            : null,
+      });
+    }
+    out.sort(
+      (x, y) => ((y['won'] as int) + (y['lost'] as int)).compareTo((x['won'] as int) + (x['lost'] as int)),
+    );
+    return out.take(4).toList();
+  }
 
   /// Nouveau joueur : cartes de départ au lieu de compteurs à zéro.
   List<Widget> _starter(BuildContext context) {
@@ -653,8 +714,11 @@ class _BetLine extends StatelessWidget {
                 away: first.awayTeam,
               )
             : 'Combiné · $n sélections');
+    // Palier de montante pas encore joué : la date du match (maquette 35 « Lens – Lyon · sam. 20:45 »).
+    final k = first.kickoffAt?.toLocal();
     final sub = n == 1
-        ? '${first.homeTeam} – ${first.awayTeam} · ${fcfa(b.stake, cur)}'
+        ? '${first.homeTeam} – ${first.awayTeam} · '
+              '${montante != null && first.state == 'upcoming' && k != null ? '${shortDate(k).split(' ').first.toLowerCase()} ${hourMinute(k)}' : fcfa(b.stake, cur)}'
         : '${fcfa(b.stake, cur)} · cote ${odds(b.totalOdds)} · $validated sur $n validée${validated > 1 ? 's' : ''}';
     final chance = couponChances(b, chances)?.$2;
     return GestureDetector(
@@ -677,7 +741,7 @@ class _BetLine extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: V.b()),
-                Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: V.mu_()),
+                Text(sub, maxLines: 2, overflow: TextOverflow.ellipsis, style: V.mu_()),
               ],
             ),
           ),
@@ -763,7 +827,7 @@ class _OccasionLine extends StatelessWidget {
                 Text('$home – $away', maxLines: 1, overflow: TextOverflow.ellipsis, style: V.b()),
                 Text(
                   '$label · ${_pct(engine)} / ${_pct(implied)}',
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: V.mu_(),
                 ),
@@ -839,9 +903,14 @@ class _Montante extends StatelessWidget {
     final current = m['current_step'] as int? ?? 1;
     final step = steps.where((s) => s['number'] == current).firstOrNull;
     final stake = (step?['stake'] as num?)?.toInt();
+    // Pari du palier placé : gain exact ; sinon à la cote du milieu de la plage, arrondi (comme l'écran 15).
+    final placed = (step?['potential_payout'] as num?)?.toInt();
+    final lo = double.tryParse('${step?['odds_min']}'), hi = double.tryParse('${step?['odds_max']}');
     final payout =
-        (step?['potential_payout'] as num?)?.toInt() ??
-        ((step?['payout_range'] as List?)?.first as num?)?.toInt();
+        placed ??
+        (stake == null || lo == null || hi == null
+            ? null
+            : stake + ((stake * (lo + hi) / 2 - stake) / 100).round() * 100);
     final cashable = (m['cashable'] as num? ?? 0).toInt();
     Widget col(String label, String value, Color color) => Expanded(
       child: Column(
@@ -921,7 +990,7 @@ class _Markets extends StatelessWidget {
                 SizedBox(
                   width: 110,
                   child: Text(
-                    marketTitle(r['key'] as String),
+                    r['name'] as String,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: V.t(12.5, color: V.mu),
