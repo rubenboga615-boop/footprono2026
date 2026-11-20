@@ -1483,8 +1483,8 @@ void main() {
     await tester.ensureVisible(find.text('Composer le coupon'));
     await tester.tap(find.text('Composer le coupon'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Changer').first);
-    await tester.tap(find.text('Changer').first);
+    await tester.ensureVisible(find.byKey(const ValueKey('change-0')));
+    await tester.tap(find.byKey(const ValueKey('change-0'))); // toucher une sélection : la changer
     await tester.pumpAndSettle();
     await tester.tap(find.text('Retirer sans remplacer'));
     await tester.pumpAndSettle();
@@ -1571,6 +1571,13 @@ void main() {
     await tester.ensureVisible(find.text('Composer le coupon'));
     await tester.tap(find.text('Composer le coupon'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Réglages')); // les exclusions sont dans les réglages
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('1 match déjà dans tes paris'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('1 match déjà dans tes paris'), findsOneWidget);
   });
 
@@ -1786,9 +1793,9 @@ void main() {
     // Règle du coupon expliquée (cotes reçues en texte, comme du serveur).
     expect(find.textContaining('jusqu\'à dépasser la cote visée'), findsOneWidget);
 
-    // Un seul bouton « Changer » par sélection (rapport du 07/11/2026), cinq choix.
-    await tester.ensureVisible(find.text('Changer').first);
-    await tester.tap(find.text('Changer').first);
+    // Toucher une sélection pour la changer (maquette 11), cinq choix.
+    await tester.ensureVisible(find.byKey(const ValueKey('change-0')));
+    await tester.tap(find.byKey(const ValueKey('change-0')));
     await tester.pumpAndSettle();
     expect(find.text('Retirer sans remplacer'), findsOneWidget);
     expect(find.text('Exclure ce championnat (Ligue 1)'), findsOneWidget);
@@ -1804,9 +1811,9 @@ void main() {
       find.textContaining(RegExp(r'Chance de ce coupon : 62,0\s%\s\(le meilleur : 63,5\s%\)')),
       findsOneWidget,
     );
-    await tester.ensureVisible(find.text('Un autre coupon'));
+    await tester.ensureVisible(find.text('Autre coupon'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Un autre coupon'));
+    await tester.tap(find.text('Autre coupon'));
     await tester.pumpAndSettle();
     expect(server.smartQueries.last['variant'], '1');
 
@@ -2528,11 +2535,11 @@ void main() {
     await tester.tap(find.text('Composer le coupon'));
     await tester.pumpAndSettle();
     expect(server.smartQueries.single, {'profile': 'equilibre', 'period': 'weekend', 'size': '3'});
-    expect(find.text('Victoire Lens'), findsOneWidget); // cote à droite (maquette C4)
-    expect(find.textContaining('Coupon proposé · Équilibré · 1 sélection'), findsOneWidget);
+    expect(find.textContaining('victoire Lens'), findsOneWidget); // maquette 11
+    expect(find.text('1 SÉLECTION · COTE'), findsOneWidget);
     expect(find.text('• Forme (5 derniers) : Lens VNDVV, Lyon DNVVN'), findsOneWidget);
     // Maquette P1 : moteur et cote côte à côte (62 % contre 54 %), sans promesse.
-    expect(find.text('Selon la cote'), findsOneWidget);
+    expect(find.textContaining('trait jaune : selon la cote'), findsOneWidget);
     expect(find.textContaining('Le moteur est un peu plus confiant que la cote'), findsOneWidget);
     expect(find.textContaining('L\'écart ne garantit rien'), findsOneWidget);
 
@@ -3825,7 +3832,7 @@ void main() {
     // « Créer » : tous les outils ; Mon coupon ouvre sa page, « Créer » reste allumé.
     await tab(tester, HomeTab.create);
     for (final tool in [
-      'Mon coupon',
+      'Composer moi-même',
       'Coupon intelligent',
       'Coupons du jour',
       'Grosse cote',
@@ -3834,6 +3841,15 @@ void main() {
     ]) {
       expect(find.text(tool), findsWidgets);
     }
+    expect(find.text('En test'), findsOneWidget); // coupon en direct encore en essai
+    // Coupon vide : « Composer moi-même » ouvre les matchs ; avec des sélections : Mon coupon.
+    await tester.tap(find.text('Composer moi-même'));
+    await tester.pumpAndSettle();
+    expect(tester.state<HomeShellState>(find.byType(HomeShell)).index, HomeTab.matchs);
+    await tester.tap(find.text('1,85').first);
+    await tester.pumpAndSettle();
+    await tab(tester, HomeTab.create);
+    expect(find.text('1 sélection en attente.'), findsOneWidget);
     await tester.tap(find.text('Mon coupon'));
     await tester.pumpAndSettle();
     expect(tester.state<HomeShellState>(find.byType(HomeShell)).index, HomeTab.coupon);

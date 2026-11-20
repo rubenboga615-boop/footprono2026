@@ -10,6 +10,7 @@ import '../format.dart';
 import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../widgets/visage.dart';
 import 'create_screen.dart' show HomeTab;
 import '../widgets/common.dart';
 import '../widgets/engine_compare.dart';
@@ -113,6 +114,9 @@ class _SmartMemory {
 _SmartMemory? _memory;
 
 class _SmartCouponScreenState extends State<SmartCouponScreen> {
+  /// Maquette 11 : après « Composer », le résultat seul ; « Réglages » ramène au formulaire.
+  bool settings = true;
+
   int profile = 1;
   int period = 5; // Prochaine journée : jamais vide pendant une trêve
   int size = 3;
@@ -294,6 +298,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
       if (mounted) {
         setState(() {
           result = r;
+          if (r['coupon'] != null) settings = false;
           result2 = r2 is Json ? r2 : null;
           error2 = r2 is Json ? null : r2;
           composedAt = DateTime.now();
@@ -517,6 +522,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
     final alternatives = ((result?['alternatives'] as List?) ?? const []).cast<Json>();
     final message = result?['message'] as String?;
     final days = [for (var i = 0; i < 10; i++) _today().add(Duration(days: i))];
+    if (premium && coupon != null && !settings) return _resultView(context, coupon, alternatives);
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
@@ -825,6 +831,252 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
   }
 
   static List<Json> _sels(Json coupon) => (coupon['selections'] as List).cast<Json>();
+
+  /// Résultat, copie de la maquette 11 : profil en sélecteur, cote et écart, jauge du moteur
+  /// avec le trait de la cote, avertissement quand le moteur est moins confiant, sélections,
+  /// « Autre coupon » et « Ajouter ».
+  Widget _resultView(BuildContext context, Json coupon, List<Json> alternatives) {
+    final sels = _sels(coupon);
+    final p = (coupon['probability'] as num).toDouble();
+    final implied = (coupon['implied_probability'] as num).toDouble();
+    final below = p < implied - 0.03;
+    final label = '${result?['profile_label'] ?? ''}';
+    // Sûr · Équilibré · Audacieux (maquette) ; Grosse cote seulement quand elle est choisie.
+    final named = [for (final pr in SmartCouponScreen.profiles.take(_big ? 4 : 3)) pr.$2];
+    String pc(double v) => percent(v, decimals: v < 0.1 ? 1 : 0);
+    return VPage(
+      children: [
+        VTopBar(
+          'Coupon intelligent',
+          actionText: 'Réglages',
+          onAction: () => setState(() => settings = true),
+        ),
+        const SizedBox(height: 6),
+        VSeg(
+          items: named,
+          selected: profile,
+          onSelect: busy
+              ? (_) {}
+              : (i) {
+                  setState(() => profile = i);
+                  _generate();
+                },
+        ),
+        if (result2 != null || error2 != null)
+          const Padding(
+            padding: EdgeInsets.only(top: 12),
+            child: Align(alignment: Alignment.centerLeft, child: EngineTag(1)),
+          ),
+        VCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        VKicker('${sels.length} sélection${sels.length > 1 ? 's' : ''} · cote'),
+                        Text(odds(coupon['total_odds']), style: V.big()),
+                      ],
+                    ),
+                  ),
+                  VGapChip(engine: p, implied: implied),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text('Moteur ${pc(p)}${_big && p > 0 ? ' · ${chanceInWords(p)}' : ''}', style: V.mu_(12.5)),
+              const SizedBox(height: 8),
+              VGauge(value: p, mark: implied, height: 10),
+              const SizedBox(height: 4),
+              Text('trait jaune : selon la cote, ${pc(implied)}', style: V.mu_(12.5)),
+              if (!below)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    p >= implied + 0.03
+                        ? 'Le moteur est un peu plus confiant que la cote (${pc(p)} contre ${pc(implied)}). '
+                              'L\'écart ne garantit rien : c\'est une chance, pas une certitude.'
+                        : 'Le moteur et la cote disent à peu près la même chose (${pc(p)} contre ${pc(implied)}).',
+                    style: V.mu_(12),
+                  ),
+                ),
+              if (below)
+                Container(
+                  margin: const EdgeInsets.only(top: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: V.amberbg,
+                    border: Border.all(color: const Color(0xFF5A4417)),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        const TextSpan(
+                          text: 'Le moteur est moins confiant que le bookmaker',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        TextSpan(
+                          text:
+                              ' sur ce coupon (${pc(p)} contre ${pc(implied)}). À long terme, ce genre de '
+                              'coupon fait perdre. Essaie une autre période, ou passe ton tour.',
+                        ),
+                      ],
+                    ),
+                    style: V.t(12, color: const Color(0xFFFFE0A8)).copyWith(height: 1.45),
+                  ),
+                ),
+              if (_rule(result!) case final r?) ...[const SizedBox(height: 8), Text(r, style: V.mu_())],
+              // Grosse cote : la vérité sur la chance, et le risque des marges multipliées.
+              if (_big && p > 0) ...[
+                const SizedBox(height: 8),
+                Text(truthPhrase(p, double.parse('${coupon['total_odds']}')), style: V.b(13)),
+              ],
+              if (_big || sels.length >= 6) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Coupon à gros risque : le bookmaker prend une marge d\'environ 5 à 8 % sur chaque cote, '
+                  'et ces marges se multiplient avec le nombre de sélections. Argent fictif.',
+                  style: V.t(12, color: V.amber),
+                ),
+              ],
+            ],
+          ),
+        ),
+        VCard(
+          child: VList(
+            children: [
+              for (final (i, s) in sels.indexed)
+                GestureDetector(
+                  key: ValueKey('change-$i'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: busy ? null : () => _change(s),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${s['home']} – ${s['away']}', style: V.b()),
+                            Text(
+                              [
+                                _lower(
+                                  selectionLabel(
+                                    s['market'] as String,
+                                    (s['line'] ?? '') as String,
+                                    s['selection'] as String,
+                                    home: s['home'] as String,
+                                    away: s['away'] as String,
+                                  ),
+                                ),
+                                if (parseDate(s['kickoff_at'])?.toLocal() case final k?)
+                                  '${shortDate(k).split(' ').first.toLowerCase()} ${hourMinute(k)}',
+                              ].join(' · '),
+                              style: V.mu_(),
+                            ),
+                            // Pourquoi ce choix, en une ligne par raison (forme, absences…).
+                            for (final r in ((s['reasons'] as List?) ?? const []).cast<String>())
+                              Text('• $r', style: V.mu_(11)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      VGapChip(
+                        engine: (s['model_probability'] as num).toDouble(),
+                        implied: 1 / double.parse('${s['odds']}'),
+                        nation: isNation(s['competition'] as String?),
+                      ),
+                      const SizedBox(width: 10),
+                      VOdd(odds(s['odds'])),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Row(
+            children: [
+              Expanded(child: VBtn2('Autre coupon', onTap: busy ? () {} : () => _generate(another: true))),
+              const SizedBox(width: 8),
+              Expanded(
+                child: below
+                    ? VBtn2(
+                        adding ?? 'Ajouter quand même',
+                        muted: true,
+                        onTap: busy ? () {} : () => _addToCoupon(sels, big: _big),
+                      )
+                    : VBtn(
+                        adding ?? 'Ajouter au coupon',
+                        height: 44,
+                        top: 8,
+                        onTap: busy ? null : () => _addToCoupon(sels, big: _big),
+                      ),
+              ),
+            ],
+          ),
+        ),
+        if (composing) const SlowWait(),
+        const SizedBox(height: 6),
+        Text('Touche une sélection pour la changer.', textAlign: TextAlign.center, style: V.mu_()),
+        const SizedBox(height: 8),
+        // Proposition du 07/11/2026 : pas le même coupon pour tous ; le joueur le sait.
+        Text(
+          [
+            'Composé pour toi parmi les meilleurs de la période : les autres joueurs reçoivent des '
+                'coupons proches, pas forcément les mêmes.',
+            if (coupon['best_probability'] case final num b when b - p >= 0.0005)
+              'Chance de ce coupon : ${percent(p, decimals: 1)} (le meilleur : ${percent(b.toDouble(), decimals: 1)}).',
+          ].join(' '),
+          style: V.mu_(),
+        ),
+        Center(
+          child: TextButton(
+            onPressed: () => shareCoupon(context, sels, coupon, label, big: _big),
+            child: const Text('Partager en image'),
+          ),
+        ),
+        if (result2 != null || error2 != null)
+          _Engine2Coupon(
+            result: result2,
+            error: error2,
+            label: label,
+            adding: adding,
+            onAdd: busy ? null : (s) => _addToCoupon(s, engine: 2),
+          ),
+        Center(
+          child: Tooltip(
+            message: 'Coupons du jour',
+            child: TextButton(
+              onPressed: () =>
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen())),
+              child: const Text('Voir les coupons du jour et leur bilan'),
+            ),
+          ),
+        ),
+        if (alternatives.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          const VKicker('Autres choix (moins sûrs)'),
+          for (final s in alternatives)
+            VCard(
+              child: _SelectionRow(
+                s,
+                trailing: IconButton(
+                  tooltip: 'Ajouter au coupon',
+                  icon: const Icon(Icons.add_circle_outline_rounded, color: V.vi2),
+                  onPressed: busy ? null : () => _addToCoupon([s]),
+                ),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  static String _lower(String s) => s.isEmpty ? s : s[0].toLowerCase() + s.substring(1);
 }
 
 class _CouponCard extends StatelessWidget {

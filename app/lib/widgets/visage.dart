@@ -643,8 +643,11 @@ class _LogoPainter extends CustomPainter {
 
 /// ``.btn2`` : bouton secondaire 44, coins 14, liseré.
 class VBtn2 extends StatelessWidget {
-  const VBtn2(this.text, {super.key, this.icon, required this.onTap});
+  const VBtn2(this.text, {super.key, this.icon, required this.onTap, this.muted = false});
   final String text;
+
+  /// Texte gris (« Ajouter quand même », maquette 11).
+  final bool muted;
   final VIcon? icon;
   final VoidCallback onTap;
 
@@ -785,9 +788,12 @@ class VInfo extends StatelessWidget {
 
 /// En-tête d'un écran ouvert par-dessus : flèche retour violette, titre centré, action à droite.
 class VTopBar extends StatelessWidget {
-  const VTopBar(this.title, {super.key, this.action, this.onAction, this.actionLabel});
+  const VTopBar(this.title, {super.key, this.action, this.onAction, this.actionLabel, this.actionText});
   final String title;
   final VIcon? action;
+
+  /// Action en texte gris (« Réglages », maquette 11).
+  final String? actionText;
   final VoidCallback? onAction;
   final String? actionLabel;
 
@@ -798,15 +804,19 @@ class VTopBar extends StatelessWidget {
       children: [
         SizedBox(
           width: 40,
-          child: Semantics(
-            button: true,
-            label: 'Retour',
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => Navigator.of(context).maybePop(),
-              child: const Align(
-                alignment: Alignment.centerLeft,
-                child: VIc(VIcon.back, size: 22, color: V.vi2),
+          child: Tooltip(
+            message: 'Retour',
+            excludeFromSemantics: true,
+            child: Semantics(
+              button: true,
+              label: 'Retour',
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => Navigator.of(context).maybePop(),
+                child: const Align(
+                  alignment: Alignment.centerLeft,
+                  child: VIc(VIcon.back, size: 22, color: V.vi2),
+                ),
               ),
             ),
           ),
@@ -814,23 +824,33 @@ class VTopBar extends StatelessWidget {
         Expanded(
           child: Text(title, textAlign: TextAlign.center, style: V.b(15.5)),
         ),
-        SizedBox(
-          width: 40,
-          child: action == null
-              ? null
-              : Semantics(
-                  button: true,
-                  label: actionLabel,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onAction,
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: VIc(action!, size: 22, color: V.vi2),
+        if (actionText != null)
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onAction,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(actionText!, style: V.t(13.5, color: V.mu)),
+            ),
+          )
+        else
+          SizedBox(
+            width: 40,
+            child: action == null
+                ? null
+                : Semantics(
+                    button: true,
+                    label: actionLabel,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: onAction,
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: VIc(action!, size: 22, color: V.vi2),
+                      ),
                     ),
                   ),
-                ),
-        ),
+          ),
       ],
     ),
   );
