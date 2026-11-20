@@ -475,3 +475,11 @@ String? marketHelp(String market) => switch (market) {
 /// (rapport du 06/11/2026) ; signalés « en observation » (décision du 07/11/2026). Même liste
 /// que le serveur (smart_coupon.GOAL_MARKETS).
 const goalMarkets = {'OU', 'TEAM_OU_HOME', 'TEAM_OU_AWAY', 'HT_OU', 'BTTS', 'HT_BTTS', 'ODD_EVEN'};
+
+/// Libellé en minuscule au début (« moins de 2,5 buts »), sauf s'il commence par un nom
+/// d'équipe (« Bosnie ou nul »).
+String lowerLabel(String s) {
+  if (s.isEmpty) return s;
+  const words = {'Victoire', 'Plus', 'Moins', 'Match', 'Les', 'Nul', 'Pas', 'Score', 'Autre'};
+  return words.contains(s.split(' ').first) ? s[0].toLowerCase() + s.substring(1) : s;
+}

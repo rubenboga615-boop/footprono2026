@@ -11,9 +11,8 @@ import '../format.dart';
 import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
-import '../widgets/engine_vs_odds.dart';
 import '../widgets/common.dart';
-import '../widgets/maquette.dart';
+import '../widgets/visage.dart';
 import 'daily_coupons_screen.dart';
 import 'live_coupon_screen.dart';
 import 'smart_coupon_screen.dart';
@@ -93,6 +92,48 @@ class _CouponScreenState extends State<CouponScreen> {
   void dispose() {
     stake.dispose();
     super.dispose();
+  }
+
+  /// « Cotes relues il y a 2 min » : le relevé le plus ancien des sélections.
+  static String _readAgo(List<CouponItem> items) {
+    final times = [for (final c in items) c.offer.fetchedAt].whereType<DateTime>().toList();
+    if (times.isEmpty) return 'Cotes relues au moment de placer';
+    final oldest = times.reduce((a, b) => a.isBefore(b) ? a : b);
+    final min = DateTime.now().difference(oldest).inMinutes;
+    return min < 1
+        ? 'Cotes relues à l\'instant'
+        : min < 60
+        ? 'Cotes relues il y a $min min'
+        : min < 24 * 60
+        ? 'Cotes relues il y a ${min ~/ 60} h'
+        : 'Cotes relues le ${shortDate(oldest.toLocal())}';
+  }
+
+  /// « Autre » : une mise au choix.
+  Future<void> _otherStake(String currency) async {
+    final ctrl = TextEditingController(text: stake.text);
+    final v = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: V.s1,
+        title: Text('Mise', style: V.b(16)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(suffixText: currencyLabel(currency)),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, int.tryParse(ctrl.text)),
+            child: const Text('Valider'),
+          ),
+        ],
+      ),
+    );
+    if (v != null && v > 0 && mounted) setState(() => stake.text = '$v');
   }
 
   /// Cote totale arrondie au millième, gain au franc inférieur (comme le serveur).
@@ -284,11 +325,6 @@ class _CouponScreenState extends State<CouponScreen> {
     }
   }
 
-  void _addStake(int v) {
-    final current = int.tryParse(stake.text.replaceAll(RegExp(r'\D'), '')) ?? 0;
-    setState(() => stake.text = '${current + v}');
-  }
-
   /// « Vider » demande confirmation (essai du 07/11/2026 : 10 sélections effacées d'un appui).
   Future<void> _confirmClear(AppState state, int count) async {
     final ok = await showDialog<bool>(
@@ -329,7 +365,6 @@ class _CouponScreenState extends State<CouponScreen> {
     final probs = items.map((c) => c.offer.modelProbability).toList();
     final modelProb = probs.contains(null) ? null : probs.fold<double>(1, (p, v) => p * v!);
     final step = useStep;
-    String pct(double p) => percent(p, decimals: p < 0.995 ? 1 : 0);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -340,12 +375,31 @@ class _CouponScreenState extends State<CouponScreen> {
           child: ListView(
             padding: pagePadding(context, 26, 120, maxWidth: 1080),
             children: [
-              // Maquette C3 du 07/11/2026 : titre et solde fictif dans une pastille.
+              // Maquette 13 du nouveau visage : « Mon coupon », « Vider » à droite.
               Row(
                 children: [
-                  Expanded(child: MTitle('Mon', state.montanteMode ? 'palier' : 'coupon', 26)),
-                  if (me != null)
-                    Tooltip(message: 'Solde fictif', child: MOutlinePill(money(me.balance, currency))),
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          const TextSpan(text: 'Mon '),
+                          TextSpan(
+                            text: state.montanteMode ? 'palier' : 'coupon',
+                            style: const TextStyle(color: V.vi2),
+                          ),
+                        ],
+                      ),
+                      style: V.t(24, w: FontWeight.w800, ls: -0.4),
+                    ),
+                  ),
+                  if (items.isNotEmpty)
+                    GestureDetector(
+                      onTap: busy ? null : () => _confirmClear(state, items.length),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Text('Vider', style: V.t(13.5, color: V.mu)),
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -420,178 +474,147 @@ class _CouponScreenState extends State<CouponScreen> {
                     // Maquette N6 : match commencé, dit en haut avec son nom, et « Retirer ce match ».
                     for (final c in items.where((c) => c.blocked))
                       _StartedWarning(item: c, onRemove: busy ? null : () => state.removeFromCoupon(c)),
-                    GlassCard.section(
-                      padding: const EdgeInsets.fromLTRB(14, 0, 6, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                    VCard(
+                      top: 0,
+                      child: VList(
                         children: [
-                          for (final (i, c) in items.indexed) ...[
-                            if (i > 0) const Divider(height: 1, color: Fp.divider),
+                          for (final c in items)
                             _SelectionRow(item: c, onRemove: busy ? null : () => state.removeFromCoupon(c)),
-                          ],
                         ],
                       ),
                     ),
                   ],
                   [
-                    const SizedBox(height: 12),
-                    GlassCard.section(
+                    // Cote totale et chance du moteur en anneau (maquette 13).
+                    VCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _Line(
-                            'Cote totale · ${items.length} sélection${items.length > 1 ? 's' : ''}',
-                            odds(total),
-                            valueStyle: Fp.body(20, weight: FontWeight.w800),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    VKicker(
+                                      'Cote totale${items.length > 1 ? ' · ${items.length} sélections' : ''}',
+                                    ),
+                                    Text(odds(total), style: V.big()),
+                                  ],
+                                ),
+                              ),
+                              if (modelProb != null) VRing(modelProb),
+                            ],
                           ),
-                          _Line(
-                            'Chance selon le moteur',
-                            modelProb == null
-                                ? '—'
-                                : [pct(modelProb), if (modelProb > 0) chanceInWords(modelProb)].join(' · '),
-                            valueStyle: Fp.body(14, weight: FontWeight.w700),
-                          ),
+                          const SizedBox(height: 4),
                           Text(
-                            'Selon la cote 1xBet : ${pct(1 / total)} (marge du bookmaker comprise)',
-                            style: Fp.body(11.5, color: Fp.muted),
+                            [
+                              'Selon la cote : ${percent(1 / total)}.',
+                              if (modelProb != null && modelProb > 0)
+                                'Selon le moteur, ce coupon passe ${chanceInWords(modelProb)}.',
+                            ].join(' '),
+                            style: V.mu_(12),
                           ),
                           if (state.couponBig && modelProb != null && modelProb > 0 && amount > 0) ...[
                             const SizedBox(height: 6),
-                            Text(
-                              truthPhrase(modelProb, total, stake: amount),
-                              style: Fp.body(12.5, weight: FontWeight.w700, height: 1.4),
-                            ),
+                            Text(truthPhrase(modelProb, total, stake: amount), style: V.b(12.5)),
                           ],
-                          const SizedBox(height: 4),
                           if (items.length >= 6)
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.only(top: 6),
                               child: Text(
                                 '${items.length} sélections : même des choix sûrs, une fois multipliés, font un '
                                 'coupon risqué.',
-                                style: Fp.body(12, color: Fp.warning, height: 1.4),
+                                style: V.t(12, color: V.amber),
                               ),
                             ),
+                        ],
+                      ),
+                    ),
+                    // Mise, puis le gain ET le risque côte à côte.
+                    VCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                           if (step == null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              'Mise (argent fictif)',
-                              style: Fp.body(12, weight: FontWeight.w600, color: Fp.muted),
-                            ),
-                            const SizedBox(height: 6),
-                            // Maquette C3 : champ sombre, la devise à droite dans le champ.
-                            TextField(
-                              controller: stake,
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                              onChanged: (_) => setState(() {}),
-                              style: Fp.body(16, weight: FontWeight.w700),
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: Fp.background,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                                suffixText: currencyLabel(currency),
-                                suffixStyle: Fp.body(13, color: Fp.muted),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(color: Fp.line12),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(color: Fp.accent2),
-                                ),
-                              ),
-                            ),
+                            const VKicker('Mise'),
                             const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 6,
+                            Row(
                               children: [
-                                for (final v in const [500, 1000, 5000])
-                                  FpChip('+${thousands(v)}', selected: false, onTap: () => _addStake(v)),
+                                for (final (i, v) in const [500, 1000, 2000].indexed) ...[
+                                  if (i > 0) const SizedBox(width: 6),
+                                  Expanded(
+                                    child: _StakeBox(
+                                      thousands(v),
+                                      on: amount == v,
+                                      onTap: () => setState(() => stake.text = '$v'),
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: _StakeBox(
+                                    const [500, 1000, 2000].contains(amount) ? 'Autre' : thousands(amount),
+                                    on: !const [500, 1000, 2000].contains(amount),
+                                    onTap: () => _otherStake(currency),
+                                  ),
+                                ),
                               ],
                             ),
                           ] else
                             _Line('Mise imposée par la montante', money(step.stake, currency)),
                           const SizedBox(height: 10),
-                          // Mise comprise, puis le bénéfice net (essai du 07/11/2026 : « Gain possible
-                          // 1 200 F » laissait croire que l'on gagnait 1 200 F en plus de sa mise).
-                          // Maquette C3 : ce qui revient au joueur, mise comprise, et le bénéfice en vert
-                          // (essai du 07/11/2026 : « Gain possible » laissait croire à un gain en plus).
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 5),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    'Tu récupères si tout passe',
-                                    style: Fp.body(13, color: Fp.muted),
-                                  ),
-                                ),
-                                Text.rich(
-                                  TextSpan(
+                          Row(
+                            children: [
+                              Expanded(
+                                child: VCard2(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      TextSpan(text: '${thousands(payout)} F '),
-                                      TextSpan(
-                                        text: '(+${thousands(math.max(0, payout - amount))})',
-                                        style: const TextStyle(color: Fp.win),
+                                      Text('Si ça passe', style: V.mu_()),
+                                      Text(
+                                        '+${thousands(math.max(0, payout - amount))} F',
+                                        style: V.b(13.5, V.mint),
                                       ),
+                                      Text('tu récupères ${thousands(payout)} F', style: V.mu_(10.5)),
                                     ],
                                   ),
-                                  style: Fp.body(15, weight: FontWeight.w700),
                                 ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: VCard2(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Si ça rate', style: V.mu_()),
+                                      Text('−${thousands(amount)} F', style: V.b(13.5, V.coral)),
+                                      Text('la mise est perdue', style: V.mu_(10.5)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          if (items.length >= 6)
-                            Text(
-                              '${items.length} sélections : même des choix sûrs, une fois multipliés, font un '
-                              'coupon risqué.',
-                              style: Fp.body(12.5, color: Fp.warning, height: 1.4),
-                            ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 96,
-                          height: 48,
-                          child: OutlinedButton(
-                            onPressed: busy ? null : () => _confirmClear(state, items.length),
-                            style: OutlinedButton.styleFrom(
-                              shape: const StadiumBorder(),
-                              side: const BorderSide(color: Fp.line),
-                              padding: EdgeInsets.zero,
-                            ),
-                            child: Text('Vider', style: Fp.body(15, weight: FontWeight.w600)),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: SizedBox(
-                            height: 52,
-                            child: FilledButton(
-                              onPressed: busy || (step != null && items.length > 3) ? null : _confirmPlace,
-                              style: FilledButton.styleFrom(shape: const StadiumBorder()),
-                              child: busy
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                    )
-                                  : FittedBox(
-                                      child: Text(
-                                        step != null
-                                            ? 'Jouer le palier ${step.step}'
-                                            : 'Placer le pari · ${thousands(amount)} F',
-                                        style: Fp.body(16, weight: FontWeight.w700),
-                                      ),
-                                    ),
-                            ),
-                          ),
-                        ),
-                      ],
+                    VBtn(
+                      busy
+                          ? 'Envoi…'
+                          : step != null
+                          ? 'Jouer le palier ${step.step}'
+                          : 'Placer · ${thousands(amount)} F',
+                      onTap: busy || (step != null && items.length > 3) ? null : _confirmPlace,
+                    ),
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: busy ? null : _refreshOdds,
+                      child: Text(
+                        '${_readAgo(items)} · argent fictif · toucher pour relire',
+                        textAlign: TextAlign.center,
+                        style: V.mu_(),
+                      ),
                     ),
                     for (final s in steps) ...[
                       const SizedBox(height: 12),
@@ -603,13 +626,6 @@ class _CouponScreenState extends State<CouponScreen> {
                         onChanged: (v) => setState(() => useStep = v ? s : null),
                       ),
                     ],
-                    const SizedBox(height: 6),
-                    Center(
-                      child: TextButton(
-                        onPressed: busy ? null : _refreshOdds,
-                        child: const Text('Mettre à jour les cotes'),
-                      ),
-                    ),
                   ],
                   leftWidth: 520,
                 ),
@@ -673,47 +689,33 @@ class _SelectionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = item;
     final model = c.offer.modelProbability;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+    final label = selectionLabel(
+      c.offer.market,
+      c.offer.line,
+      c.offer.selection,
+      home: c.match.home.name,
+      away: c.match.away.name,
+    );
+    // Maquette 13 : match en gras, sélection dessous, pastille et cote à droite ; glisser vers
+    // la gauche (ou la croix) pour retirer.
+    return Dismissible(
+      key: ValueKey('${c.match.id}-${c.offer.key}'),
+      direction: onRemove == null ? DismissDirection.none : DismissDirection.endToStart,
+      onDismissed: (_) => onRemove?.call(),
       child: Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  fullLabel(
-                    c.offer.market,
-                    c.offer.line,
-                    c.offer.selection,
-                    home: c.match.home.name,
-                    away: c.match.away.name,
-                  ),
-                  style: Fp.body(14.5, weight: FontWeight.w800),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  [
-                    '${c.match.home.name} – ${c.match.away.name}',
-                    if (model != null) 'moteur ${percent(model)}',
-                  ].join(' · '),
-                  style: Fp.body(12, color: Fp.text2),
-                ),
-                if (model != null && c.offer.odds > 1)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: GapBadge(
-                      engine: model,
-                      implied: 1 / c.offer.odds,
-                      nation: isNation(c.match.competition),
-                    ),
-                  ),
+                Text('${c.match.home.name} – ${c.match.away.name}', style: V.b()),
+                Text(lowerLabel(label), style: V.mu_()),
                 if (c.blocked)
                   Padding(
                     padding: const EdgeInsets.only(top: 3),
                     child: Text(
                       'Match commencé : paris fermés, retire-le du coupon',
-                      style: Fp.body(11.5, color: Fp.warning, weight: FontWeight.w700),
+                      style: V.t(11.5, w: FontWeight.w700, color: V.amber),
                     ),
                   ),
                 if (explainSelection(
@@ -724,19 +726,26 @@ class _SelectionRow extends StatelessWidget {
                       away: c.match.away.name,
                     )
                     case final e?)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 3),
-                    child: Text(e, style: Fp.body(11.5, color: Fp.lilac, height: 1.35)),
-                  ),
+                  Text(e, style: V.mu_(11)),
               ],
             ),
           ),
+          if (model != null && c.offer.odds > 1) ...[
+            const SizedBox(width: 8),
+            VGapChip(engine: model, implied: 1 / c.offer.odds, nation: isNation(c.match.competition)),
+          ],
           const SizedBox(width: 10),
-          Text(odds(c.offer.odds), style: Fp.body(15, weight: FontWeight.w800)),
-          IconButton(
-            tooltip: 'Retirer',
-            onPressed: onRemove,
-            icon: const Icon(Icons.close_rounded, size: 20, color: Fp.text2),
+          Text(odds(c.offer.odds), style: V.b(15)),
+          Tooltip(
+            message: 'Retirer',
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onRemove,
+              child: const Padding(
+                padding: EdgeInsets.only(left: 8, top: 6, bottom: 6),
+                child: Text('×', style: TextStyle(color: V.mu2, fontSize: 18, height: 1)),
+              ),
+            ),
           ),
         ],
       ),
@@ -744,12 +753,39 @@ class _SelectionRow extends StatelessWidget {
   }
 }
 
+/// Case de mise (``.odd.sp``) : violette quand elle est choisie.
+class _StakeBox extends StatelessWidget {
+  const _StakeBox(this.text, {required this.on, required this.onTap});
+  final String text;
+  final bool on;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: on,
+    child: GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: on ? V.vi : V.s2, borderRadius: BorderRadius.circular(12)),
+        child: FittedBox(
+          child: Text(
+            text,
+            style: V.t(14, w: FontWeight.w800, color: on ? Colors.white : V.tx),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 /// Ligne libellé / valeur de la carte de mise.
 class _Line extends StatelessWidget {
-  const _Line(this.label, this.value, {this.valueStyle});
+  const _Line(this.label, this.value);
   final String label;
   final String value;
-  final TextStyle? valueStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -765,7 +801,7 @@ class _Line extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.end,
-              style: valueStyle ?? Fp.body(14, weight: FontWeight.w700),
+              style: Fp.body(14, weight: FontWeight.w700),
             ),
           ),
         ],

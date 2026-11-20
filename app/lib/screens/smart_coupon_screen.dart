@@ -962,7 +962,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                             Text('${s['home']} – ${s['away']}', style: V.b()),
                             Text(
                               [
-                                _lower(
+                                lowerLabel(
                                   selectionLabel(
                                     s['market'] as String,
                                     (s['line'] ?? '') as String,
@@ -1075,8 +1075,6 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
       ],
     );
   }
-
-  static String _lower(String s) => s.isEmpty ? s : s[0].toLowerCase() + s.substring(1);
 }
 
 class _CouponCard extends StatelessWidget {

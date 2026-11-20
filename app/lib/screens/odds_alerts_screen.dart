@@ -16,8 +16,6 @@ import 'search_screen.dart';
 
 String _pct(double p) => '${(p * 100).round()}$nbsp%';
 
-String _lc(String s) => s.isEmpty ? s : s[0].toLowerCase() + s.substring(1);
-
 class OddsAlertsScreen extends StatefulWidget {
   const OddsAlertsScreen({super.key});
 
@@ -216,7 +214,7 @@ class _OddsAlertsScreenState extends State<OddsAlertsScreen> {
                 style: V.t(10.5, w: FontWeight.w700, color: V.mint, ls: 0.8),
               ),
               const SizedBox(height: 4),
-              Text('${h['home']} – ${h['away']} · ${_lc(h['label'] as String)}', style: V.b(15)),
+              Text('${h['home']} – ${h['away']} · ${lowerLabel(h['label'] as String)}', style: V.b(15)),
               const SizedBox(height: 6),
               Row(
                 children: [

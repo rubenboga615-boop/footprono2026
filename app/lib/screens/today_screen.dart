@@ -77,8 +77,6 @@ class TodayData {
 String fcfa(num v, [String currency = 'XOF']) =>
     '${thousands(v)}$nbsp${const {'XOF', 'XAF'}.contains(currency) ? 'F' : currency}';
 
-String _lc(String s) => s.isEmpty ? s : s[0].toLowerCase() + s.substring(1);
-
 String _pct(double p) => '${(p * 100).round()}$nbsp%';
 
 void _push(BuildContext context, Widget page) =>
@@ -568,7 +566,9 @@ class _LiveCard extends StatelessWidget {
     };
     final p = ((chances[s.matchId]?['markets'] as Map?)?['${s.market}|${s.line}|${s.selection}'] as num?)
         ?.toDouble();
-    final label = _lc(selectionLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam));
+    final label = lowerLabel(
+      selectionLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam),
+    );
     return SizedBox(
       width: 230,
       child: VCard2(
@@ -742,7 +742,7 @@ class _OccasionLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final home = a['home'] as String, away = a['away'] as String;
     final engine = (a['engine'] as num).toDouble(), implied = (a['implied'] as num).toDouble();
-    final label = _lc(
+    final label = lowerLabel(
       selectionLabel(
         a['market'] as String,
         (a['line'] ?? '') as String,

@@ -10,6 +10,8 @@ import '../format.dart';
 import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../widgets/visage.dart';
+import 'bet_screen.dart';
 import '../widgets/common.dart';
 import '../widgets/engine_compare.dart';
 import '../widgets/live_chances.dart';
@@ -68,17 +70,23 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
     }
   }
 
+  /// Chances du direct des matchs en cours de mes paris (anneaux, maquette 18).
+  Map<int, Json> chances = {};
+
   Future<(List<Bet>, List<Json>, Json?)> _load(ApiClient api) async {
     final results = await Future.wait([
       api.get('/bets', {'limit': 100}),
       api.get('/me/wallet/entries', {'limit': 100}),
       _summary(api),
     ]);
-    return (
-      [for (final b in results[0] as List) Bet(b as Json)],
-      (results[1] as List).cast<Json>(),
-      results[2] as Json?,
-    );
+    final bets = [for (final b in results[0] as List) Bet(b as Json)];
+    chances = await loadLiveChances(api, {
+      for (final b in bets)
+        if (b.status == 'open')
+          for (final s in b.selections)
+            if (s.state == 'live') s.matchId,
+    });
+    return (bets, (results[1] as List).cast<Json>(), results[2] as Json?);
   }
 
   /// Totaux de tous les paris (la liste n'en charge que 100) ; null avec un serveur
@@ -142,141 +150,107 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
               child: ListView(
                 padding: pagePadding(context, 26, 120),
                 children: [
-                  const TwoToneTitle('Mes', 'paris'),
-                  const SizedBox(height: 16),
+                  // Maquette 18 : « Mes paris », En cours · Réglés · Solde, une carte par pari,
+                  // le solde en bas.
+                  Text.rich(
+                    const TextSpan(
+                      children: [
+                        TextSpan(text: 'Mes '),
+                        TextSpan(
+                          text: 'paris',
+                          style: TextStyle(color: V.vi2),
+                        ),
+                      ],
+                    ),
+                    style: V.t(24, w: FontWeight.w800, ls: -0.4),
+                  ),
+                  const SizedBox(height: 10),
                   const OddsDownBanner(),
-                  MCard(
-                    margin: EdgeInsets.zero,
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  VSeg(
+                    items: ['En cours ${open.length}', 'Réglés', 'Solde'],
+                    selected: tab,
+                    onSelect: (i) => setState(() => tab = i),
+                  ),
+                  if (tab == 0) ...[
+                    _BetList(bets: open, chances: chances, empty: 'Aucun pari en cours.'),
+                    if (settled.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      const VKicker('Derniers paris réglés'),
+                      _BetList(bets: settled.take(3).toList(), chances: chances, empty: ''),
+                    ],
+                  ] else if (tab == 1)
+                    _BetList(bets: settled, chances: chances, empty: 'Aucun pari réglé pour l\'instant.')
+                  else if (entries.isEmpty)
+                    const Padding(padding: EdgeInsets.only(top: 12), child: EmptyState('Aucun mouvement.'))
+                  else
+                    VCard(
+                      child: VList(
+                        children: [for (final e in entries) _EntryRow(e: e, currency: currency)],
+                      ),
+                    ),
+                  VCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Maquette I : solde, puis En jeu · 30 jours · Paris sur une ligne.
-                        Text('Solde (argent fictif)', style: Fp.body(13, color: Fp.muted)),
-                        const SizedBox(height: 2),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text.rich(
-                            TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: me != null ? thousands(me.balance) : '—',
-                                  style: Fp.title(34, weight: FontWeight.w800),
-                                ),
-                                TextSpan(
-                                  text: ' ${currencyLabel(currency)}',
-                                  style: Fp.body(13, color: Fp.muted, weight: FontWeight.w600),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 14,
-                          runSpacing: 4,
-                          children: [
-                            for (final (label, value, color) in [
-                              ('En jeu', '${thousands(atStake)} F', Fp.text),
-                              (
-                                '30 jours',
-                                '${month > 0
-                                    ? '+'
-                                    : month < 0
-                                    ? '−'
-                                    : ''}${thousands(month.abs())} F',
-                                month > 0 ? Fp.win : (month < 0 ? Fp.loss : Fp.text),
-                              ),
-                              ('Paris', thousands(count), Fp.text),
-                              // Rapport du 09/11/2026 : « −48,1 % » après 3 paris alarmait sans rien
-                              // dire. En dessous de 20 paris réglés, le rendement n'est pas affiché.
-                              if (roi != null && settledCount >= 20)
-                                (
-                                  'Rendement',
-                                  '${roi >= 0 ? '+' : ''}${percent(roi, decimals: 1)}',
-                                  roi >= 0 ? Fp.win : Fp.loss,
-                                ),
-                            ])
-                              Text.rich(
-                                TextSpan(
-                                  style: Fp.body(13, color: Fp.muted),
-                                  children: [
-                                    TextSpan(text: '$label '),
-                                    TextSpan(
-                                      text: value,
-                                      style: Fp.body(13, weight: FontWeight.w700, color: color),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                          ],
-                        ),
-                        if (roi != null && settledCount > 0 && settledCount < 20) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            'Rendement : trop peu de paris réglés pour conclure ($settledCount sur 20).',
-                            style: Fp.body(12, color: Fp.muted),
-                          ),
-                        ],
-                        const SizedBox(height: 14),
                         Row(
                           children: [
                             Expanded(
-                              child: MButton(
-                                'Mon bilan',
-                                secondary: true,
-                                onPressed: () =>
-                                    Navigator.of(context)
-                                        .push(MaterialPageRoute(builder: (_) => const RecordScreen())),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const VKicker('Solde fictif'),
+                                  Text(me != null ? '${thousands(me.balance)} F' : '—', style: V.b(18)),
+                                ],
                               ),
                             ),
-                            if (me != null && me.balance < 1000) ...[
-                              const SizedBox(width: 10),
-                              Expanded(child: MButton('Recharger', onPressed: _refill)),
-                            ],
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                const VKicker('Ce mois'),
+                                Text(
+                                  '${month > 0
+                                      ? '+'
+                                      : month < 0
+                                      ? '−'
+                                      : ''}${thousands(month.abs())} F',
+                                  style: V.b(13.5, month > 0 ? V.mint : (month < 0 ? V.coral : V.tx)),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
-                        if (me != null && me.balance < 1000) ...[
-                          const SizedBox(height: 6),
+                        const SizedBox(height: 6),
+                        Text(
+                          [
+                            'En jeu ${thousands(atStake)} F',
+                            '${thousands(count)} paris',
+                            if (roi != null && settledCount >= 20)
+                              'rendement ${roi >= 0 ? '+' : ''}${percent(roi, decimals: 1)}',
+                          ].join(' · '),
+                          style: V.mu_(),
+                        ),
+                        if (roi != null && settledCount > 0 && settledCount < 20)
                           Text(
-                            'Recharge possible une fois par semaine.',
-                            style: Fp.body(11.5, color: Fp.text3),
+                            'Rendement : trop peu de paris réglés pour conclure ($settledCount sur 20).',
+                            style: V.mu_(11),
                           ),
-                        ],
+                        Row(
+                          children: [
+                            VLink(
+                              'Mon bilan ›',
+                              onTap: () =>
+                                  Navigator.of(context)
+                                      .push(MaterialPageRoute(builder: (_) => const RecordScreen())),
+                            ),
+                            const Spacer(),
+                            if (me != null && me.balance < 1000) VLink('Recharger', onTap: _refill),
+                          ],
+                        ),
+                        if (me != null && me.balance < 1000)
+                          Text('Recharge possible une fois par semaine.', style: V.mu_(11)),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  SegmentTabs(
-                    labels: ['En cours (${open.length})', 'Réglés', 'Mouvements'],
-                    selected: tab,
-                    onSelected: (i) => setState(() => tab = i),
-                  ),
-                  const SizedBox(height: 12),
-                  if (tab == 0) ...[
-                    _BetList(bets: open, empty: 'Aucun pari en cours.'),
-                    // Maquette v2 : les derniers paris réglés sous les paris en cours.
-                    if (settled.isNotEmpty) ...[
-                      const SectionTitle('Derniers paris réglés'),
-                      _BetList(bets: settled.take(3).toList(), empty: ''),
-                    ],
-                  ] else if (tab == 1)
-                    _BetList(bets: settled, empty: 'Aucun pari réglé pour l\'instant.')
-                  else if (entries.isEmpty)
-                    const EmptyState('Aucun mouvement.')
-                  else
-                    MCard(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-                      child: Column(
-                        children: [
-                          for (final (i, e) in entries.indexed) ...[
-                            if (i > 0) const Divider(height: 1, thickness: 1, color: Fp.divider),
-                            _EntryRow(e: e, currency: currency),
-                          ],
-                        ],
-                      ),
-                    ),
                 ],
               ),
             );
@@ -288,24 +262,22 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
 }
 
 class _BetList extends StatelessWidget {
-  const _BetList({required this.bets, required this.empty});
+  const _BetList({required this.bets, required this.empty, required this.chances});
   final List<Bet> bets;
   final String empty;
+  final Map<int, Json> chances;
 
   @override
   Widget build(BuildContext context) {
-    if (bets.isEmpty) return EmptyState(empty, icon: Icons.sports_score_rounded);
-    // Maquette I : une carte par pari.
+    if (bets.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: EmptyState(empty, icon: Icons.sports_score_rounded),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final (i, b) in bets.indexed)
-          MCard(
-            margin: EdgeInsets.only(top: i == 0 ? 0 : 12),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: _BetRow(bet: b),
-          ),
-      ],
+      children: [for (final b in bets) _BetRow(bet: b, chances: chances)],
     );
   }
 }
@@ -317,94 +289,124 @@ String betKind(Bet b) {
   return n == 1 ? 'Simple' : 'Coupon · $n sélections';
 }
 
-Widget betTag(Bet b) {
+/// Pastille d'état d'un pari (maquettes 18 et 19) : gagné, perdu, en cours…
+Widget betStatusChip(Bet b) {
   final label = betStatusLabel(b.status, b.outcome);
-  return switch (b.outcome) {
-    'won' || 'partial' => Tag.win(label),
-    'lost' => Tag.loss(label),
-    // Maquette C7 : « En cours » en ambre.
-    _ when b.status == 'open' => Tag(label, color: Fp.warning, background: Fp.warningBg),
-    _ => Tag(label, color: Fp.textSoft),
-  };
+  return VChip(
+    label.toLowerCase(),
+    kind: switch (b.outcome) {
+      'won' || 'partial' => VChipKind.up,
+      'lost' => VChipKind.dn,
+      _ when b.status == 'open' => VChipKind.am,
+      _ => VChipKind.eq,
+    },
+  );
 }
 
+Widget betTag(Bet b) => betStatusChip(b);
+
+/// Carte d'un pari (maquette 18) : titre, « n° · mise · cote » ; combiné en cours : anneau de
+/// la chance de passer maintenant et une pastille par sélection.
 class _BetRow extends StatelessWidget {
-  const _BetRow({required this.bet});
+  const _BetRow({required this.bet, required this.chances});
   final Bet bet;
+  final Map<int, Json> chances;
 
   @override
   Widget build(BuildContext context) {
     final b = bet;
-    final title = b.selections.length == 1
-        ? () {
-            final s = b.selections.single;
-            return '${s.homeTeam} – ${s.awayTeam} · '
-                '${fullLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam)}';
-          }()
-        : b.selections.map((s) => '${s.homeTeam} – ${s.awayTeam}').join(', ');
-    return InkWell(
-      onTap: () => showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        // Rapport du 09/11/2026 : un pari de 7 sélections ne tenait pas, sans signe qu'on
-        // pouvait faire défiler. Fiche jusqu'à 90 % de l'écran, barre de défilement visible.
-        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.9),
-        builder: (_) => SafeArea(
-          child: _ScrollHint(
-            child: (controller) => SingleChildScrollView(
-              controller: controller,
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-              child: BetCard(bet: b, plain: true),
-            ),
-          ),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(betKind(b), style: Fp.body(13, color: Fp.muted)),
+    final n = b.selections.length;
+    final first = b.selections.first;
+    final label = selectionLabel(
+      first.market,
+      first.line,
+      first.selection,
+      home: first.homeTeam,
+      away: first.awayTeam,
+    );
+    final title = b.montanteStepId != null
+        ? 'Montante · ${n == 1 ? label : 'combiné de $n'}'
+        : n == 1
+        ? 'Simple · ${lowerLabel(label)}'
+        : 'Combiné · $n sélections';
+    final sub = [
+      'n° ${b.id}',
+      if (n == 1) '${first.homeTeam} – ${first.awayTeam}',
+      '${thousands(b.stake)} F',
+      odds(b.totalOdds),
+      if (b.status != 'open' && b.payout != null && b.payout! > 0) 'rendu ${thousands(b.payout!)} F',
+    ].join(' · ');
+    final c = b.status == 'open' ? couponChances(b, chances) : null;
+    final open = b.status == 'open';
+    Widget trailing;
+    if (open && n > 1 && c != null) {
+      trailing = VRing(c.$2, size: 52, inner: 40, fontSize: 12);
+    } else if (open && n == 1) {
+      final s = first;
+      trailing = switch (s.now) {
+        'win' || 'half_win' => VChip(c == null ? 'gagnant' : 'gagnant ${percent(c.$2)}', kind: VChipKind.up),
+        'loss' ||
+        'half_loss' => VChip(c == null ? 'perdant' : 'perdant ${percent(c.$2)}', kind: VChipKind.dn),
+        _ => VChip(s.state == 'live' ? 'en cours' : 'à venir', kind: VChipKind.eq),
+      };
+    } else {
+      trailing = betStatusChip(b);
+    }
+    return VCard(
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BetScreen(bet: b))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: V.b(15)),
+                    Text(sub, style: V.mu_(12.5)),
+                  ],
                 ),
-                // Comparaison des moteurs (18/11/2026) : de quel moteur vient ce pari.
-                if (b.engine != null) ...[EngineTag(b.engine!), const SizedBox(width: 6)],
-                betTag(b),
+              ),
+              if (b.engine != null) ...[EngineTag(b.engine!), const SizedBox(width: 6)],
+              trailing,
+            ],
+          ),
+          if (open && n > 1) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final s in b.selections)
+                  switch (s.result) {
+                    'win' || 'half_win' => VChip(
+                      s.homeTeam,
+                      kind: VChipKind.up,
+                      arrow: const VIc(VIcon.check, size: 12, stroke: 2.4),
+                    ),
+                    'loss' || 'half_loss' => VChip(s.homeTeam, kind: VChipKind.dn),
+                    _ when s.state == 'live' => VChip(
+                      '${s.homeTeam} ${s.score?[0] ?? '-'}-${s.score?[1] ?? '-'} · ${s.minute ?? ''}\'',
+                      kind: VChipKind.vi,
+                      arrow: const VDot(),
+                    ),
+                    _ => VChip(
+                      '${s.homeTeam}${s.kickoffAt == null ? '' : ' ${shortDate(s.kickoffAt!.toLocal()).split(' ').first.toLowerCase()}'}',
+                      kind: VChipKind.eq,
+                    ),
+                  },
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Fp.body(15, weight: FontWeight.w700),
+              c == null
+                  ? betProgress(b)
+                  : 'Chance de passer : ${percent(c.$1)} au départ → ${percent(c.$2)} maintenant',
+              style: V.mu_(12.5),
             ),
-            const SizedBox(height: 4),
-            Text(
-              '${money(b.stake, b.currency)} · cote ${odds(b.totalOdds)}'
-              '${b.status == 'open'
-                  ? ' · gain possible ${money(b.potentialPayout, b.currency)}'
-                  : b.payout != null && b.payout! > 0
-                  ? ' · rendu ${money(b.payout!, b.currency)}'
-                  : ''}',
-              style: Fp.body(13, color: Fp.muted),
-            ),
-            if (b.status == 'open' && b.selections.length > 1) ...[
-              const SizedBox(height: 10),
-              ProbBar(
-                b.selections.where((s) => s.result == 'win' || s.result == 'half_win').length /
-                    b.selections.length,
-                height: 5,
-                color: Fp.win,
-              ),
-              const SizedBox(height: 8),
-              Text(betProgress(b), style: Fp.body(13, color: Fp.muted)),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }

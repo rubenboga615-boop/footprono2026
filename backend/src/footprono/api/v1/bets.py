@@ -313,6 +313,67 @@ async def my_dashboard(user: CurrentUserDep, session: SessionDep) -> Any:
     return jsonable_encoder(await dashboard(session, user))
 
 
+@router.get("/bets/{bet_id}/history")
+async def bet_history(bet_id: int, user: CurrentUserDep, session: SessionDep) -> Any:
+    """Histoire du pari (maquette 19) : placé, puis les notifications qui le concernent
+    (coups d'envoi, buts, validations, retards, « tout se joue sur… »), puis le règlement."""
+    from sqlalchemy import or_
+
+    from footprono.notifications.models import Notification
+
+    bet = await session.get(Bet, bet_id)
+    if bet is None or bet.user_id != user.id:
+        raise NotFoundError(f"pari {bet_id} introuvable")
+    notes = (
+        await session.scalars(
+            select(Notification)
+            .where(
+                Notification.user_id == user.id,
+                or_(
+                    Notification.data["bet_id"].astext == str(bet.id),
+                    Notification.data["events"].contains([{"bet_id": bet.id}]),
+                ),
+            )
+            .order_by(Notification.created_at, Notification.id)
+        )
+    ).all()
+    out: list[dict[str, Any]] = []
+    if bet.placed_at is not None:
+        out.append({"at": bet.placed_at, "kind": "placed", "text": "placé", "tone": "plain"})
+    for n in notes:
+        tone = (
+            "green"
+            if n.kind in ("bet_settled",) and (n.data or {}).get("outcome") in ("won", "partial")
+            else "red"
+            if (n.data or {}).get("outcome") == "lost"
+            else "plain"
+        )
+        out.append(
+            {"at": n.created_at, "kind": n.kind, "text": n.title, "detail": n.body, "tone": tone}
+        )
+    if (
+        bet.status == "settled"
+        and bet.settled_at is not None
+        and not any(e["kind"] == "bet_settled" for e in out)
+    ):
+        out.append(
+            {
+                "at": bet.settled_at,
+                "kind": "settled",
+                "text": {"won": "gagné", "lost": "perdu", "partial": "gagné en partie"}.get(
+                    bet.outcome or "", "remboursé"
+                ),
+                "detail": None,
+                "tone": "green"
+                if bet.outcome in ("won", "partial")
+                else "red"
+                if bet.outcome == "lost"
+                else "plain",
+            }
+        )
+    return jsonable_encoder({"events": out})
+
+
 @router.get("/bets/{bet_id}", response_model=BetOut)
 async def get_bet(bet_id: int, user: CurrentUserDep, session: SessionDep) -> BetOut:
     bet = await session.get(Bet, bet_id)

@@ -788,8 +788,19 @@ class VInfo extends StatelessWidget {
 
 /// En-tête d'un écran ouvert par-dessus : flèche retour violette, titre centré, action à droite.
 class VTopBar extends StatelessWidget {
-  const VTopBar(this.title, {super.key, this.action, this.onAction, this.actionLabel, this.actionText});
+  const VTopBar(
+    this.title, {
+    super.key,
+    this.action,
+    this.onAction,
+    this.actionLabel,
+    this.actionText,
+    this.trailing,
+  });
   final String title;
+
+  /// Élément libre à droite (pastille « gagné », maquette 19).
+  final Widget? trailing;
   final VIcon? action;
 
   /// Action en texte gris (« Réglages », maquette 11).
@@ -824,7 +835,9 @@ class VTopBar extends StatelessWidget {
         Expanded(
           child: Text(title, textAlign: TextAlign.center, style: V.b(15.5)),
         ),
-        if (actionText != null)
+        if (trailing != null)
+          trailing!
+        else if (actionText != null)
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: onAction,

@@ -1082,6 +1082,24 @@ class FakeServer {
       case final c when c.startsWith('PATCH /me/odds-alerts/') || c.startsWith('DELETE /me/odds-alerts/'):
         alertCalls.add('$c ${r.body}');
         body = {'id': 1};
+      case final c when c.startsWith('GET /bets/') && c.endsWith('/history'):
+        body = {
+          'events': [
+            {'at': '2026-11-15T19:14:00Z', 'kind': 'placed', 'text': 'placé', 'tone': 'plain'},
+            {
+              'at': '2026-11-17T00:48:00Z',
+              'kind': 'bet_live',
+              'text': '2 sur 3, tout se joue sur Bosnie',
+              'tone': 'green',
+            },
+            {
+              'at': '2026-11-17T21:40:00Z',
+              'kind': 'bet_settled',
+              'text': 'gagné, 3 836 F crédités',
+              'tone': 'green',
+            },
+          ],
+        };
       case 'GET /me/play-plan':
         body = dashboard['play_plan'];
       case 'PUT /me/play-plan':
@@ -1409,14 +1427,15 @@ void main() {
     await tester.pumpAndSettle();
     await tab(tester, HomeTab.coupon);
     await tester.pumpAndSettle();
-    expect(find.text('Victoire Lens'), findsOneWidget);
-    // Maquette C3 : « 1 850 F (+850) », mise comprise puis bénéfice net en vert.
-    expect(find.textContaining('Tu récupères si tout passe'), findsOneWidget);
-    expect(find.text('1${nbsp}850 F (+850)'), findsOneWidget);
+    expect(find.text('victoire Lens'), findsOneWidget);
+    // Maquette 13 : gain ET risque côte à côte, ce qui revient au joueur dessous.
+    expect(find.text('+850 F'), findsOneWidget);
+    expect(find.text('tu récupères 1${nbsp}850 F'), findsOneWidget);
+    expect(find.text('−1${nbsp}000 F'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Placer le pari · 1${nbsp}000 F'));
+    await tester.ensureVisible(find.text('Placer · 1${nbsp}000 F'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Placer le pari · 1${nbsp}000 F'));
+    await tester.tap(find.text('Placer · 1${nbsp}000 F'));
     await tester.pumpAndSettle();
     // Maquette N5 : récapitulatif, puis « Confirmer ».
     expect(find.text('Placer ce pari ?'), findsOneWidget);
@@ -1538,9 +1557,9 @@ void main() {
     expect(state.couponEngine, 2);
     await tester.tap(find.byTooltip('Retour'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Placer le pari · 1${nbsp}000 F'));
+    await tester.ensureVisible(find.text('Placer · 1${nbsp}000 F'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Placer le pari · 1${nbsp}000 F'));
+    await tester.tap(find.text('Placer · 1${nbsp}000 F'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Confirmer · 1${nbsp}000 F'));
     await tester.pumpAndSettle();
@@ -1717,7 +1736,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(430, 2400));
     await tab(tester, HomeTab.paris);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Mon bilan'));
+    await tester.tap(find.text('Mon bilan ›'));
     await tester.pumpAndSettle();
     expect(find.text(signedMoney(3000)), findsOneWidget);
     expect(
@@ -1839,7 +1858,7 @@ void main() {
     expect(state.couponBig, isTrue);
     await tester.tap(find.text('Voir mon coupon'));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(TextField, '500'), findsOneWidget);
+    expect(find.text('Placer · 500 F'), findsOneWidget); // mise proposée de 500 F
     expect(find.textContaining('Sur 10 coupons de 500 F'), findsOneWidget);
   });
 
@@ -3641,7 +3660,7 @@ void main() {
     await tester.tap(find.text('C\'est parti : Lens - Lyon'));
     await tester.pumpAndSettle();
     expect(find.text('C\'est parti : Lens - Lyon'), findsNothing); // liste refermée
-    expect(find.textContaining('En cours ('), findsWidgets); // onglet Mes paris
+    expect(find.textContaining('En cours '), findsWidgets); // onglet Mes paris
   });
 
   testWidgets('fiabilité des coupons en direct : entrée si publié, annoncé contre gagné par moment', (
@@ -3792,9 +3811,9 @@ void main() {
     expect(find.textContaining('à placer avant la 50e minute'), findsOneWidget);
     expect(find.textContaining('a commencé'), findsNothing); // pas « paris fermés »
 
-    await tester.ensureVisible(find.textContaining('Placer le pari').first);
+    await tester.ensureVisible(find.textContaining('Placer · ').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.textContaining('Placer le pari').first);
+    await tester.tap(find.textContaining('Placer · ').first);
     await tester.pumpAndSettle();
     await tester.tap(find.textContaining('Confirmer').last);
     await tester.pumpAndSettle();
