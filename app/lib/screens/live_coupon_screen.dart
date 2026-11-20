@@ -70,7 +70,7 @@ class _LiveCouponScreenState extends State<LiveCouponScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1F1709),
+                          color: Fp.warningBg,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -323,14 +323,14 @@ class _ComboSheet extends StatelessWidget {
               margin: const EdgeInsets.only(top: 12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF12301F),
+                color: Fp.winBg,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFF1F5B3A)),
+                border: Border.all(color: Fp.winLine),
               ),
               child: Text(
                 'Chance selon le moteur : ${chancePercent(combo.probability)} · environ $tenths sur 10.\n'
                 'Calculée avec le score et la minute de chaque match. Vérifiée sur 13 347 matchs passés.',
-                style: Fp.body(13, color: const Color(0xFFC9F5D9), height: 1.4),
+                style: Fp.body(13, color: Fp.winSoft, height: 1.4),
               ),
             ),
             for (final s in combo.selections)
@@ -371,9 +371,9 @@ class _ComboSheet extends StatelessWidget {
                 margin: const EdgeInsets.only(top: 12),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1F1709),
+                  color: Fp.warningBg,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFF6B4F1D)),
+                  border: Border.all(color: Fp.warningLine),
                 ),
                 child: Text(
                   'Le moteur est moins confiant que la cote : ${chancePercent(combo.probability)} contre '
@@ -387,9 +387,9 @@ class _ComboSheet extends StatelessWidget {
                 margin: const EdgeInsets.only(top: 12),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1F1709),
+                  color: Fp.warningBg,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFF6B4F1D)),
+                  border: Border.all(color: Fp.warningLine),
                 ),
                 child: Text(
                   'Cotes indicatives : relevées chez un autre bookmaker, elles peuvent différer de 1xBet de '

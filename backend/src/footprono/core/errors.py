@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from footprono.core.logging import request_id_var
@@ -81,7 +82,17 @@ async def _validation_error_handler(request: Request, exc: Exception) -> JSONRes
     )
 
 
+def _out_of_range(exc: Exception) -> bool:
+    """Identifiant trop grand pour la base (« 99999999999999999999 » dans une adresse)."""
+    return isinstance(exc, DBAPIError) and "out of int32 range" in str(exc.orig)
+
+
 async def _unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    if _out_of_range(exc):
+        # Audit du 20/11/2026 (point 10) : « introuvable » plutôt qu'une erreur 500.
+        return JSONResponse(
+            error_body("not_found", "introuvable"), status_code=status.HTTP_404_NOT_FOUND
+        )
     logger.exception("unhandled_error", extra={"path": request.url.path})
     return JSONResponse(
         error_body("internal_error", "Un problème est survenu. Réessaie dans un instant."),
@@ -100,4 +111,5 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AppError, _app_error_handler)
     app.add_exception_handler(StarletteHTTPException, _http_error_handler)
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
+    app.add_exception_handler(DBAPIError, _unhandled_error_handler)
     app.add_exception_handler(Exception, _unhandled_error_handler)

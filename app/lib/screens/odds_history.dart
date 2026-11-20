@@ -66,7 +66,7 @@ class OddsHistoryScreen extends StatelessWidget {
                             Tag(
                               '${down ? '▼' : '▲'} ${odds(first)} → ${odds(last)}',
                               color: down ? Fp.win : Fp.loss,
-                              background: down ? const Color(0xFF12301F) : const Color(0xFF3A1620),
+                              background: down ? Fp.winBg : Fp.lossBg,
                             ),
                         ],
                       ),

@@ -122,9 +122,9 @@ class EnginesReliabilityScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                     decoration: BoxDecoration(
-                      color: enough ? Fp.card : const Color(0xFF1F1709),
+                      color: enough ? Fp.card : Fp.warningBg,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: enough ? Fp.line10 : const Color(0xFF6B4F1D)),
+                      border: Border.all(color: enough ? Fp.line10 : Fp.warningLine),
                     ),
                     child: Text(
                       enough

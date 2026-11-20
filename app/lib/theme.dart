@@ -4,37 +4,48 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-// Nouvelle interface validée le 07/11/2026 (docs/maquettes/LISEZ-MOI.md) : fond #0E0B1A,
-// cartes #1A1530, violet #6D4AFF / #7C5CFF, texte secondaire #A9A3C2, vert #4ADE80,
-// rose #FF8A9B, ambre #E7C98A, police Inter.
+// Nouveau visage, étape A (plan du 20/11/2026, docs/maquettes/12-nouveau-visage) : fond bleu
+// nuit #0B0F1A, cartes #131A2A, cartes internes #1B2438, lignes #26314A ; violet #7C5CFF pour
+// les actions seulement ; menthe #34E0A1 = au-dessus de la cote ou gagné ; corail #FF6B7A =
+// sous la cote ou perdu ; ambre #FFC56B = prudence ; ciel #5AB8FF = équipe extérieure.
 class Fp {
-  static const background = Color(0xFF0E0B1A);
-  static const accent = Color(0xFF6D4AFF);
-  static const accent2 = Color(0xFF7C5CFF); // contour de l'issue encadrée
+  static const background = Color(0xFF0B0F1A);
+  static const accent = Color(0xFF7C5CFF);
+  static const accent2 = Color(0xFF9479FF); // contour de l'issue encadrée
   // Texte violet sur fond sombre (« du jour »).
-  static const accentLight = Color(0xFFA78BFA);
-  static const lilac = Color(0xFFB9B2FF); // liens, pastilles
-  static const card = Color(0xFF1A1530);
-  static const cardHigh = Color(0xFF2B2060); // case choisie, rond des initiales
+  static const accentLight = Color(0xFFAE9BFF);
+  static const lilac = Color(0xFFB8AEFF); // liens, pastilles
+  static const card = Color(0xFF131A2A);
+  static const cardHigh = Color(0xFF1B2438); // carte interne, case choisie, initiales
   static const text = Color(0xFFFFFFFF);
-  static const muted = Color(0xFFA9A3C2);
+  static const muted = Color(0xFF9AA4BD);
   static const text2 = muted;
   static const text3 = muted;
-  static const text4 = Color(0xFF8C86A6);
-  static const textSoft = Color(0xFFC9C3F0);
-  static const textStrong = Color(0xFFE4E0F7);
-  static const win = Color(0xFF4ADE80);
-  static const loss = Color(0xFFFF8A9B);
-  static const lossText = Color(0xFFFF8A9B);
-  static const warning = Color(0xFFE7C98A);
+  static const text4 = Color(0xFF7D88A3);
+  static const textSoft = Color(0xFFC7CFE2);
+  static const textStrong = Color(0xFFE3E8F4);
+  static const win = Color(0xFF34E0A1);
+  static const loss = Color(0xFFFF6B7A);
+  static const lossText = Color(0xFFFF6B7A);
+  static const warning = Color(0xFFFFC56B);
+  static const sky = Color(0xFF5AB8FF); // équipe extérieure
+  // Encadrés teintés : fond, bordure et texte (au-dessus, sous la cote, prudence).
+  static const winBg = Color(0xFF0E2A24);
+  static const winLine = Color(0xFF1C5A47);
+  static const winSoft = Color(0xFFBDF5DF);
+  static const lossBg = Color(0xFF2E141B);
+  static const lossLine = Color(0xFF6B2A36);
+  static const lossSoft = Color(0xFFFFC9D0);
+  static const warningBg = Color(0xFF2A2212);
+  static const warningLine = Color(0xFF6B5427);
   static const glass = card;
-  static const fill = Color(0xFF0E0B1A); // case sombre sur une carte
-  static const fill6 = Color(0xFF15112A);
-  static const fill7 = Color(0xFF15112A);
-  static const line = Color(0xFF3A3260);
-  static const line12 = Color(0xFF2A2347);
-  static const line10 = Color(0xFF241E3D);
-  static const divider = Color(0xFF241E3D);
+  static const fill = Color(0xFF0B0F1A); // case sombre sur une carte
+  static const fill6 = Color(0xFF10172A);
+  static const fill7 = Color(0xFF10172A);
+  static const line = Color(0xFF34405C);
+  static const line12 = Color(0xFF26314A);
+  static const line10 = Color(0xFF1F2840);
+  static const divider = Color(0xFF1F2840);
 
   static Color accentAlpha(double a) => accent.withValues(alpha: a);
   static final accentSoft = accentAlpha(0.16);
@@ -52,6 +63,8 @@ class Fp {
     color: color,
     letterSpacing: size >= 20 ? -0.01 * size : 0,
     height: 1.15,
+    // Chiffres de même largeur : cotes, scores et montants alignés (étape A, 20/11/2026).
+    fontFeatures: const [FontFeature.tabularFigures()],
   );
 
   static TextStyle body(
@@ -68,6 +81,7 @@ class Fp {
     // Sans l'espacement hérité du thème Material (0,25) : le texte fait la même largeur que
     // dans la maquette validée le 07/11/2026 (il était environ 5 % plus large).
     letterSpacing: 0,
+    fontFeatures: const [FontFeature.tabularFigures()],
   );
 
   static final radius14 = BorderRadius.circular(14);
@@ -78,7 +92,7 @@ class Fp {
       brightness: Brightness.dark,
       primary: accent,
       onPrimary: Colors.white,
-      surface: const Color(0xFF12101A),
+      surface: const Color(0xFF0F1524),
       onSurface: text,
       error: loss,
     );
@@ -86,7 +100,7 @@ class Fp {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: Colors.transparent,
-      canvasColor: const Color(0xFF15121F),
+      canvasColor: const Color(0xFF111827),
       fontFamily: bodyFont,
       textTheme: ThemeData.dark().textTheme.apply(fontFamily: bodyFont, bodyColor: text, displayColor: text),
       appBarTheme: AppBarTheme(
@@ -102,7 +116,7 @@ class Fp {
         fillColor: background,
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        hintStyle: body(15, color: const Color(0x80A9A3C2)),
+        hintStyle: body(15, color: const Color(0x809AA4BD)),
         labelStyle: body(14, color: muted),
         prefixIconColor: text2,
         suffixIconColor: text2,
@@ -170,10 +184,10 @@ class Fp {
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? Colors.white : const Color(0xFFE9E6F2),
+          (s) => s.contains(WidgetState.selected) ? Colors.white : const Color(0xFFE6EAF3),
         ),
         trackColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? accent : const Color(0xFF3A3550),
+          (s) => s.contains(WidgetState.selected) ? accent : const Color(0xFF2E3A55),
         ),
         trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
@@ -231,7 +245,7 @@ class WideFrame extends StatelessWidget {
           child: Container(
             width: maxWidth,
             decoration: const BoxDecoration(
-              color: Color(0x8C060509), // fond assombri derrière la colonne
+              color: Color(0x8C05070D), // fond assombri derrière la colonne
               border: Border.symmetric(vertical: BorderSide(color: Fp.line)),
             ),
             child: MediaQuery(
@@ -306,7 +320,7 @@ class GradientCard extends StatelessWidget {
   static const gradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xE63C1E78), Color(0xEB140E28)],
+    colors: [Color(0xE62A2370), Color(0xEB111829)],
   );
 
   @override
@@ -675,13 +689,10 @@ class Tag extends StatelessWidget {
   final IconData? icon;
 
   /// Gagné : fond vert, texte sombre.
-  const Tag.win(this.text, {super.key}) : color = Fp.win, background = const Color(0xFF12301F), icon = null;
+  const Tag.win(this.text, {super.key}) : color = Fp.win, background = Fp.winBg, icon = null;
 
   /// Perdu : fond rose, texte sombre.
-  const Tag.loss(this.text, {super.key})
-    : color = Fp.lossText,
-      background = const Color(0xFF3A1620),
-      icon = null;
+  const Tag.loss(this.text, {super.key}) : color = Fp.lossText, background = Fp.lossBg, icon = null;
 
   @override
   Widget build(BuildContext context) {
@@ -877,7 +888,7 @@ class TeamCircle extends StatelessWidget {
       ),
       child: Text(
         code,
-        style: Fp.title(size * 0.32, weight: FontWeight.w600, color: const Color(0xFFE9E6F2)),
+        style: Fp.title(size * 0.32, weight: FontWeight.w600, color: const Color(0xFFE6EAF3)),
       ),
     );
   }
@@ -935,7 +946,7 @@ class ProbBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: best ? Fp.accentAlpha(0.2) : Fp.fill,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: best ? const Color(0x8CA78BFA) : Fp.line10),
+        border: Border.all(color: best ? const Color(0x8CAE9BFF) : Fp.line10),
       ),
       child: Column(
         children: [
@@ -1053,7 +1064,7 @@ class FpField extends StatelessWidget {
 
 /// Résultat d'un match passé, G / N / P (maquette R) : fond sombre teinté, lettre en couleur.
 (Color, Color, String) formColors(Object? result) => switch (result) {
-  'W' => (const Color(0xFF12301F), Fp.win, 'G'),
-  'L' => (const Color(0xFF3A1620), Fp.loss, 'P'),
-  _ => (const Color(0xFF2E2A45), Fp.lilac, 'N'),
+  'W' => (Fp.winBg, Fp.win, 'G'),
+  'L' => (Fp.lossBg, Fp.loss, 'P'),
+  _ => (const Color(0xFF232D45), Fp.lilac, 'N'),
 };

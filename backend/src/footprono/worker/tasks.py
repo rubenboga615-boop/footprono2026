@@ -42,9 +42,9 @@ async def _settle(engine: AsyncEngine, settings: Settings) -> dict[str, Any]:
     redis = create_redis(settings)
     push = push_sender_or_none(settings)
     try:
-        if await redis.exists(catchup.LOCK):
-            # « Tout rattraper » en cours : c'est lui qui règle, en une notification de
-            # synthèse par joueur (sinon une notification par pari, au milieu de la nuit).
+        if await redis.exists(catchup.SETTLE_LOCK):
+            # « Tout rattraper » en train de régler (étape 2) : c'est lui qui règle, en une
+            # notification de synthèse par joueur (sinon une par pari, au milieu de la nuit).
             return {"skipped": "rattrapage en cours"}
         async with create_session_factory(engine)() as session:
             report = await settlement.settle_bets(session, redis=redis, push=push)

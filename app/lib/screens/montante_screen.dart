@@ -10,6 +10,7 @@ import '../labels.dart';
 import '../main.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../widgets/engine_vs_odds.dart';
 import '../widgets/common.dart';
 import '../widgets/engine_compare.dart';
 import '../widgets/maquette.dart';
@@ -467,7 +468,7 @@ class _SecureCard extends StatelessWidget {
                     onChanged: onChanged,
                     activeTrackColor: Fp.accent,
                     activeThumbColor: Colors.white,
-                    inactiveTrackColor: const Color(0xFF3A3550),
+                    inactiveTrackColor: const Color(0xFF2E3A55),
                     inactiveThumbColor: Colors.white,
                     trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
                   ),
@@ -905,9 +906,9 @@ class _MontanteViewState extends State<MontanteView> {
                   margin: const EdgeInsets.only(top: 10),
                   padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1F1709),
+                    color: Fp.warningBg,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF6B4F1D)),
+                    border: Border.all(color: Fp.warningLine),
                   ),
                   child: Text.rich(
                     TextSpan(
@@ -1038,7 +1039,7 @@ class _MontanteViewState extends State<MontanteView> {
                 color: Colors.transparent,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: Color(0x8CA78BFA)),
+                  side: const BorderSide(color: Color(0x8CAE9BFF)),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
@@ -1072,7 +1073,7 @@ class _MontanteViewState extends State<MontanteView> {
                             ),
                           ),
                         ),
-                        const Icon(Icons.chevron_right_rounded, color: Color(0xFFC9B2F8)),
+                        const Icon(Icons.chevron_right_rounded, color: Fp.lilac),
                       ],
                     ),
                   ),
@@ -1131,7 +1132,7 @@ class _StepLine extends StatelessWidget {
   Widget build(BuildContext context) {
     // Maquette C2 : numéro dans une étiquette (encadré violet pour le palier en cours),
     // étiquette d'état à droite (verte, rose ou violette).
-    const green = (Color(0xFF12301F), Fp.win), pink = (Color(0xFF3A1620), Fp.loss);
+    const green = (Fp.winBg, Fp.win), pink = (Fp.lossBg, Fp.loss);
     final (status, tag) = switch (state) {
       _StepState.won => ('Gagné', green),
       _StepState.lost => ('Perdu', pink),
@@ -1440,9 +1441,9 @@ class _SuggestionsScreenState extends State<SuggestionsScreen> {
                     margin: const EdgeInsets.only(top: 12),
                     padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1F1709),
+                      color: Fp.warningBg,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFF6B4F1D)),
+                      border: Border.all(color: Fp.warningLine),
                     ),
                     child: Text(
                       'Rien de bon pour ce palier aujourd\'hui : pour chaque pari de la plage, le moteur '
@@ -1608,9 +1609,21 @@ class _SuggestionCard extends StatelessWidget {
                         );
                       },
                     ),
-                  Text(
-                    'moteur ${percent(model)} · selon la cote ${percent(implied, decimals: 1)}',
-                    style: Fp.body(13, color: Fp.muted),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        'moteur ${percent(model)} · selon la cote ${percent(implied, decimals: 1)}',
+                        style: Fp.body(13, color: Fp.muted),
+                      ),
+                      GapBadge(
+                        engine: model,
+                        implied: implied,
+                        nation: sels.any((x) => isNation(matches[x['match_id']]?.competition)),
+                      ),
+                    ],
                   ),
                   // Décision du 07/11/2026 : gardée mais expliquée (et montrée après les autres).
                   if (s['engine_below_odds'] == true)
@@ -1707,9 +1720,9 @@ class _AtStake extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1F1709),
+                  color: Fp.warningBg,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF6B4F1D)),
+                  border: Border.all(color: Fp.warningLine),
                 ),
                 child: Text(
                   'Sécurisation à 0 % : rien n\'est gardé si ce palier perd. Avec 20 % sécurisés depuis le '

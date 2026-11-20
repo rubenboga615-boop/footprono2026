@@ -23,6 +23,7 @@ deux fois (le règlement ne touche qu'aux paris encore ouverts). Lancé depuis l
 """
 
 import math
+import secrets
 from collections.abc import Callable
 from datetime import UTC, datetime, time, timedelta
 from typing import Any
@@ -42,8 +43,43 @@ from footprono.ingestion.sources.api_football import UNPLAYED_STATUSES
 from footprono.notifications.push import sender_or_none as push_sender_or_none
 from footprono.predictions import service as prediction_service
 
+# Audit du 20/11/2026 (point D) : un rattrapage arrêté brutalement bloquait le règlement
+# normal une heure, et le verrou pouvait être effacé par un autre rattrapage.
+# - LOCK : un seul rattrapage à la fois ; durée courte, prolongée à chaque étape ; effacé
+#   seulement par son propriétaire (jeton comparé).
+# - SETTLE_LOCK : le règlement normal n'est sauté que pendant l'étape 2 (règlement).
 LOCK = "catch_up:lock"
-LOCK_SECONDS = 3600
+LOCK_SECONDS = 900
+SETTLE_LOCK = "catch_up:settling"
+SETTLE_LOCK_SECONDS = 600
+_RELEASE = (
+    "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) end return 0"
+)
+_EXTEND = (
+    "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('expire', KEYS[1], "
+    "ARGV[2]) end return 0"
+)
+
+
+class _Steps:
+    """Étapes du rattrapage : chaque nouvelle étape prolonge le verrou (s'il est encore le
+    nôtre) ; le verrou du règlement n'est posé que pendant l'étape 2."""
+
+    def __init__(self, redis: Any, token: str, step: Callable[[int], None]) -> None:
+        self.redis, self.token, self._step = redis, token, step
+
+    async def __call__(self, i: int) -> None:
+        self._step(i)
+        await self.redis.eval(_EXTEND, 1, LOCK, self.token, LOCK_SECONDS)
+        if i == 2:
+            await self.redis.set(SETTLE_LOCK, self.token, ex=SETTLE_LOCK_SECONDS)
+        else:
+            await self.release(SETTLE_LOCK)
+
+    async def release(self, key: str) -> None:
+        await self.redis.eval(_RELEASE, 1, key, self.token)
+
+
 # Drapeau posé par le suivi du direct quand il s'arrête faute de quota : le premier passage
 # qui retrouve du quota lance le rattrapage.
 QUOTA_STOPPED_FLAG = "catch_up:live_quota_stopped"
@@ -156,12 +192,15 @@ async def run(
     now = now or datetime.now(UTC)
     redis = create_redis(settings)
     try:
-        if not await redis.set(LOCK, now.isoformat(), nx=True, ex=LOCK_SECONDS):
+        token = secrets.token_hex(8)
+        if not await redis.set(LOCK, token, nx=True, ex=LOCK_SECONDS):
             raise CatchUpRefusedError("un rattrapage est déjà en cours")
+        steps = _Steps(redis, token, step)
         try:
-            return await _run(settings, factory, redis, tasks, log, step, check_stop, now)
+            return await _run(settings, factory, redis, tasks, log, steps, check_stop, now)
         finally:
-            await redis.delete(LOCK)
+            await steps.release(SETTLE_LOCK)
+            await steps.release(LOCK)
     finally:
         await redis.aclose()
 
@@ -172,11 +211,11 @@ async def _run(
     redis: Any,
     tasks: Any,
     log: Callable[[str], None],
-    step: Callable[[int], None],
+    step: "_Steps",
     check_stop: Callable[[], None],
     now: datetime,
 ) -> dict[str, Any]:
-    step(0)
+    await step(0)
     async with factory() as session:
         plan = await assess(session, settings, now)
     for line in describe(plan):
@@ -191,7 +230,7 @@ async def _run(
     used = 0
 
     check_stop()
-    step(1)
+    await step(1)
     if plan["late"]:
         async with factory() as session:
             followed = await live.follow_live(session, settings, now, log, catch_up=True)
@@ -206,7 +245,7 @@ async def _run(
         log("Aucun match en retard.")
 
     check_stop()
-    step(2)
+    await step(2)
     push = push_sender_or_none(settings)
     try:
         async with factory() as session:
@@ -237,7 +276,7 @@ async def _run(
     )
 
     check_stop()
-    step(3)
+    await step(3)
     if plan["odds_due"]:
         odds = await tasks._collect_odds()
         used += int((odds.get("odds") or {}).get("requests") or 0)
@@ -248,12 +287,12 @@ async def _run(
         log("Cotes à jour.")
 
     check_stop()
-    step(4)
+    await step(4)
     report["predictions"] = await tasks._predict_upcoming(only_if_needed=True)
     log(f"Prédictions : {report['predictions'].get('status', 'faites')}")
 
     check_stop()
-    step(5)
+    await step(5)
     async with factory() as session:
         due = await _daily_coupons_due(session, now)
     if due:
@@ -266,11 +305,11 @@ async def _run(
         log("Coupons du jour : rien à faire.")
 
     check_stop()
-    step(6)
+    await step(6)
     report["reliability"] = await tasks._warm_reliability()
     report["engine_chances"] = await tasks._engine_chances()
 
-    step(7)
+    await step(7)
     async with factory() as session:
         left = await live.late_matches(session, now)
         open_bets = await session.scalar(select(func.count()).where(Bet.status == "open")) or 0

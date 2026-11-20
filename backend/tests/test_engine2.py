@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.bookmaker import service, smart_coupon
@@ -296,6 +297,17 @@ async def test_engines_reliability_records_settles_and_judges(
     assert recorded == 2
     assert sorted(p.engine for p in proposals) == [1, 2]
     assert all(p.source == "coupon" for p in proposals)
+    # Audit du 20/11/2026 (point B) : un autre coupon le même jour ne compte pas (une voix
+    # par joueur, par moteur et par jour), et le joueur est gardé.
+    for profile in ("sur", "audacieux"):
+        await client.get(
+            "/api/v1/smart-coupon", params={**params, "profile": profile, "engine": 1},
+            headers=headers,
+        )  # fmt: skip
+    async with db_factory() as session:
+        again = (await session.scalars(select(EngineProposal))).all()
+    assert len(again) == 2
+    assert all(p.user_id is not None and p.day is not None for p in again)
 
     # Résultats : domicile 2-0 dans les deux matchs ; propositions réglées à 1 000 F.
     async with db_factory() as session:
@@ -373,3 +385,25 @@ async def test_bet_keeps_the_engine_that_proposed_it(
         b["id"]: b["engine"] for b in (await client.get("/api/v1/bets", headers=headers)).json()
     }
     assert listed == {two.json()["id"]: 2, plain.json()["id"]: None}
+
+
+async def test_stale_engine_proposals_expire(db_factory: Any) -> None:
+    """Audit du 20/11/2026 (point B) : une proposition sans résultat après 14 jours n'est
+    plus relue à chaque règlement."""
+    from decimal import Decimal
+
+    from footprono.bookmaker import engine_compare
+    from footprono.bookmaker.smart_models import EngineProposal
+
+    old = NOW - timedelta(days=15)
+    async with db_factory() as session:
+        session.add(
+            EngineProposal(
+                engine=1, source="coupon", key="vieux", selections=[], total_odds=Decimal("2"),
+                probability=0.5, proposed_at=old, status="pending",
+            )
+        )  # fmt: skip
+        await session.commit()
+        assert await engine_compare.settle_proposals(session, NOW) == 0
+        row = (await session.scalars(select(EngineProposal))).one()
+    assert row.status == "expired"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Export des données football du serveur pour les études du moteur, SANS données
 # personnelles : comptes, portefeuilles, paris, montantes, notifications, appareils,
-# paiements, abonnements, mode bêta et journal de la console sont exportés vides
+# paiements, abonnements, mode bêta, journal et réglages de la console sont exportés vides
 # (structure seulement). À lancer sur le serveur :
 #   ssh root@IP 'bash -s' < deploy/export-data.sh
 # Le fichier arrive dans /opt/footprono/exports/ ; le récupérer avec scp.
@@ -12,7 +12,10 @@ cd "$DIR/deploy"
 mkdir -p "$DIR/exports"
 PERSONAL=(users wallets wallet_entries bets bet_selections montantes montante_steps
     notifications push_devices payments subscription_events beta_events
-    admin_actions admin_jobs admin_job_lines)
+    admin_actions admin_jobs admin_job_lines
+    # Réglages de la console : contiennent le nom secret du canal ntfy des alertes (audit
+    # du 20/11/2026, point E ; qui l'a peut envoyer de fausses alertes au fondateur).
+    app_settings)
 args=()
 for t in "${PERSONAL[@]}"; do args+=(--exclude-table-data="$t"); done
 OUT="footprono-donnees-$(date +%Y%m%d).dump"

@@ -445,7 +445,8 @@ class _CompactListState extends State<_CompactList> {
   }
 }
 
-/// « ⚽ 23' Calvert-Lewin · ⚽ 51' Son · 🟥 81' Udinese » (maquette D1).
+/// « 23' Calvert-Lewin · 51' Son · carton rouge 81' Udinese » (maquette D1 ; sans emoji
+/// depuis l'étape A du nouveau visage, 20/11/2026).
 String liveFacts(Json? summary, MatchInfo m) {
   if (summary == null) return '';
   String when(Json e) {
@@ -456,9 +457,9 @@ String liveFacts(Json? summary, MatchInfo m) {
   String who(Json e) => '${e['player'] ?? (e['side'] == 'away' ? m.away.name : m.home.name)}';
   final items = [
     for (final g in (summary['goals'] as List? ?? const []).cast<Json>())
-      (g['minute'] as int? ?? 0, '⚽ ${when(g)} ${who(g)}${g['own_goal'] == true ? ' (c.s.c.)' : ''}'),
+      (g['minute'] as int? ?? 0, '${when(g)} ${who(g)}${g['own_goal'] == true ? ' (c.s.c.)' : ''}'),
     for (final r in (summary['reds'] as List? ?? const []).cast<Json>())
-      (r['minute'] as int? ?? 0, '🟥 ${when(r)} ${who(r)}'),
+      (r['minute'] as int? ?? 0, 'carton rouge ${when(r)} ${who(r)}'),
   ]..sort((a, b) => a.$1.compareTo(b.$1));
   return items.map((i) => i.$2).join(' · ');
 }
@@ -555,7 +556,7 @@ class _MatchCard extends StatelessWidget {
         color: Fp.card,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: live ? const BorderSide(color: Color(0xFF1F5B3A)) : BorderSide.none,
+          side: live ? const BorderSide(color: Fp.winLine) : BorderSide.none,
         ),
         clipBehavior: Clip.antiAlias,
         // Rapport du 10/11/2026 : pour un lecteur d'écran, la carte était un « groupe » et le

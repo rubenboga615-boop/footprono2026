@@ -59,12 +59,12 @@ void main() {
       {'Titulaire'},
     );
     expect(rows.map((r) => r.halfTime ?? '${r.icon} ${r.main}${r.score == null ? '' : ' ${r.score}'}'), [
-      '⚽ Défenseur 0-1',
-      '❌ Tireur',
+      'goal Défenseur 0-1',
+      'missed Tireur',
       '0-1',
-      '🔁 Titulaire → Entrant',
-      '📺 VAR : but refusé',
-      '🟥 Expulsé',
+      'sub Titulaire → Entrant',
+      'var VAR : but refusé',
+      'red Expulsé',
     ]);
     expect(rows.first.more, 'contre son camp');
     // Score réel 1-0 : le but contre son camp était compté pour l'autre camp.

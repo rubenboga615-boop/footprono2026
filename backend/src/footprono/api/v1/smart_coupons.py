@@ -84,7 +84,9 @@ async def generate(
         # jouée ou non, puis réglée (bilan à mise fixe).
         from footprono.bookmaker import engine_compare
 
-        await engine_compare.record_proposals(session, engine, "coupon", [out["coupon"]])
+        await engine_compare.record_proposals(
+            session, engine, "coupon", [out["coupon"]], user_id=user.id
+        )
         await session.commit()
     return out
 

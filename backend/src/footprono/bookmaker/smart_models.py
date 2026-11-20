@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     SmallInteger,
@@ -106,7 +107,19 @@ class EngineProposal(Base):
     Les coupons du jour sont déjà gardés dans ``smart_coupons`` (colonne ``engine``)."""
 
     __tablename__ = "engine_proposals"
-    __table_args__ = (UniqueConstraint("engine", "source", "key"),)
+    __table_args__ = (
+        UniqueConstraint("engine", "source", "key"),
+        # Une proposition par joueur, par moteur et par jour (audit du 20/11/2026, point B).
+        Index(
+            "uq_engine_proposals_user_day",
+            "engine",
+            "source",
+            "user_id",
+            "day",
+            unique=True,
+            postgresql_where=text("user_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     engine: Mapped[int] = mapped_column(SmallInteger)  # 1 ou 2
@@ -118,10 +131,13 @@ class EngineProposal(Base):
     total_odds: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     probability: Mapped[float] = mapped_column(Float)
     proposed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    # pending, won, lost, partial, void
+    # pending, won, lost, partial, void, expired (sans résultat après 14 jours)
     status: Mapped[str] = mapped_column(String(8), default="pending", index=True)
     payout: Mapped[int | None] = mapped_column(Integer)  # gain pour la mise fixe (STAKE)
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Joueur qui a demandé la proposition (vide pour les plus anciennes) et jour UTC.
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    day: Mapped[date | None] = mapped_column(Date)
 
 
 class EngineMatchChances(Base):

@@ -21,7 +21,7 @@ from footprono.core.errors import NotFoundError
 from footprono.engine.markets import Selection, offered
 from footprono.football.models import Competition, Match, MatchStatus
 from footprono.football.schemas import MatchOut
-from footprono.ingestion.reference import CUPS_BY_CODE, NATIONS_BY_CODE
+from footprono.ingestion.reference import COMPETITIONS_BY_CODE, CUPS_BY_CODE, NATIONS_BY_CODE
 from footprono.predictions.models import MatchPrediction, PredictionRun
 from footprono.predictions.publication import publication
 from footprono.predictions.reliability import cache_key, reliability_report
@@ -197,11 +197,19 @@ async def list_prediction_runs(
     return list(runs.all())
 
 
+# Vues publiques de la Fiabilité : celles que l'application demande (audit du 20/11/2026,
+# point A). Changer « since » ou « recent » forçait un calcul complet de 13 à 14 s à chaque
+# appel, sans connexion : ces réglages sont réservés à l'administrateur.
+PUBLIC_RECENT = 20
+PUBLIC_COMPETITIONS = frozenset({"BIG5", *COMPETITIONS_BY_CODE, *CUPS_BY_CODE, *NATIONS_BY_CODE})
+
+
 @router.get("/reliability")
 async def reliability(
     session: SessionDep,
     redis: RedisDep,
     settings: SettingsDep,
+    user: OptionalUserDep,
     competition: str | None = None,
     since: Annotated[date | None, Query(description="matchs joués à partir de cette date")] = None,
     recent: Annotated[int, Query(ge=0, le=100)] = 20,
@@ -209,8 +217,13 @@ async def reliability(
     """Fiabilité publique : prédictions faites avant les matchs face aux résultats (gratuit).
 
     Calcul gardé quelques minutes (6 à 7 s à chaque ouverture en production, essai du
-    06/11/2026) : les chiffres ne changent qu'au règlement des matchs."""
+    06/11/2026) : les chiffres ne changent qu'au règlement des matchs. Hors administrateur,
+    seules les vues de l'application : « since » ignoré, « recent » à 20, championnat connu."""
     code = competition.upper() if competition else None
+    if user is None or user.role != "admin":
+        since, recent = None, PUBLIC_RECENT
+        if code is not None and code not in PUBLIC_COMPETITIONS:
+            raise NotFoundError(f"championnat {competition} inconnu")
     ttl = settings.reliability_cache_seconds
     key = cache_key(code, since, recent)  # vues par défaut préparées par le worker
     cached = None

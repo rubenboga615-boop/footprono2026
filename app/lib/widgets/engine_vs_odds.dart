@@ -6,21 +6,107 @@ import 'package:flutter/material.dart';
 import '../format.dart';
 import '../theme.dart';
 
-/// Où se place le moteur par rapport à la cote : au moins 2 points sous, au moins 2 points
-/// au-dessus, ou d'accord (même règle que la montante et le coupon en direct).
+/// Où se place le moteur par rapport à la cote, en points arrondis (étape A du nouveau
+/// visage, 20/11/2026) : 3 points ou plus au-dessus, 3 points ou plus en dessous, sinon
+/// d'accord (« ≈ cote », de −2 à +2).
 enum OddsSide { below, agree, above }
 
-OddsSide oddsSide(double engine, double implied) => engine <= implied - 0.02
-    ? OddsSide.below
-    : engine >= implied + 0.02
-    ? OddsSide.above
-    : OddsSide.agree;
+/// Écart moteur − cote en points entiers (75 % contre 81 % : −6).
+int gapPoints(double engine, double implied) => ((engine - implied) * 100).round();
+
+OddsSide oddsSide(double engine, double implied) {
+  final pts = gapPoints(engine, implied);
+  return pts <= -3
+      ? OddsSide.below
+      : pts >= 3
+      ? OddsSide.above
+      : OddsSide.agree;
+}
 
 Color oddsSideColor(OddsSide side) => switch (side) {
-  OddsSide.below => Fp.warning,
+  OddsSide.below => Fp.loss,
   OddsSide.above => Fp.win,
   OddsSide.agree => Fp.muted,
 };
+
+/// Pastille unique « moteur contre cote », sur chaque sélection, coupon, proposition :
+/// « ▲ +5 pts » (menthe), « ≈ cote » (gris), « ▼ −6 pts » (corail). Sélections nationales :
+/// un écart en faveur du moteur reste ambre (prudence), car ces écarts n'ont pas tenu en vrai
+/// (audit du 18/11/2026 : 21 % et 33 % gagnés).
+class GapBadge extends StatelessWidget {
+  const GapBadge({super.key, required this.engine, required this.implied, this.nation = false});
+  final double engine;
+  final double implied;
+  final bool nation;
+
+  @override
+  Widget build(BuildContext context) {
+    final side = oddsSide(engine, implied);
+    final pts = gapPoints(engine, implied);
+    final color = nation && side == OddsSide.above ? Fp.warning : oddsSideColor(side);
+    // Flèches et « ≈ » dessinés : ces signes ne sont pas dans la police Inter de l'application
+    // (réduite aux caractères latins) et s'afficheraient en carrés vides sur le web.
+    final label = switch (side) {
+      OddsSide.above => '+$pts pts',
+      OddsSide.below => '−${-pts} pts',
+      OddsSide.agree => 'cote',
+    };
+    final mark = switch (side) {
+      OddsSide.above => Icon(Icons.arrow_drop_up_rounded, size: 18, color: color),
+      OddsSide.below => Icon(Icons.arrow_drop_down_rounded, size: 18, color: color),
+      OddsSide.agree => CustomPaint(size: const Size(12, 10), painter: _ApproxPainter(color)),
+    };
+    return Tooltip(
+      message:
+          'Moteur ${percent(engine)}, selon la cote ${percent(implied)}'
+          '${nation && side == OddsSide.above ? ' · sélections : le moteur surestime souvent ses chances' : ''}',
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(4, 3, 8, 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(width: 18, child: Center(child: mark)),
+            if (side == OddsSide.agree) const SizedBox(width: 2),
+            Text(
+              label,
+              style: Fp.body(11.5, weight: FontWeight.w700, color: color),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// « ≈ » dessiné (deux vagues).
+class _ApproxPainter extends CustomPainter {
+  const _ApproxPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final pen = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round;
+    for (final y in [size.height * 0.32, size.height * 0.72]) {
+      final w = size.width;
+      final path = Path()
+        ..moveTo(0, y)
+        ..quadraticBezierTo(w * 0.25, y - 2.4, w * 0.5, y)
+        ..quadraticBezierTo(w * 0.75, y + 2.4, w, y);
+      canvas.drawPath(path, pen);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ApproxPainter old) => old.color != color;
+}
 
 /// Barres « Le moteur » et « Selon la cote », puis une phrase : ambre si le moteur est sous
 /// la cote, vert s'il est au-dessus (« ne garantit rien »), gris s'ils sont d'accord.
@@ -39,14 +125,14 @@ class EngineVsOdds extends StatelessWidget {
     final (text, bg, border) = switch (side) {
       OddsSide.below => (
         'Le moteur est moins confiant que la cote sur $what : $e contre $c.',
-        const Color(0xFF1F1709),
-        const Color(0xFF6B4F1D),
+        Fp.lossBg,
+        Fp.lossLine,
       ),
       OddsSide.above => (
         'Le moteur est un peu plus confiant que la cote ($e contre $c). L\'écart ne garantit rien : '
             '$what perd environ $loses fois sur 10.',
-        const Color(0xFF12301F),
-        const Color(0xFF1F5B3A),
+        Fp.winBg,
+        Fp.winLine,
       ),
       OddsSide.agree => ('Le moteur et la cote sont d\'accord ($e et $c).', Fp.card, Fp.line10),
     };
@@ -85,7 +171,7 @@ class EngineVsOdds extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         bar('Le moteur', engine, color),
-        bar('Selon la cote', implied, Fp.lilac),
+        bar('Selon la cote', implied, Fp.warning),
         Container(
           margin: const EdgeInsets.only(top: 10),
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
@@ -99,8 +185,8 @@ class EngineVsOdds extends StatelessWidget {
             style: Fp.body(
               12.5,
               color: switch (side) {
-                OddsSide.below => Fp.warning,
-                OddsSide.above => const Color(0xFFC9F5D9),
+                OddsSide.below => Fp.lossSoft,
+                OddsSide.above => Fp.winSoft,
                 OddsSide.agree => Fp.text2,
               },
               height: 1.4,
@@ -112,39 +198,33 @@ class EngineVsOdds extends StatelessWidget {
   }
 }
 
-/// Pastille « moteur 75 % · cote 81 % » d'une sélection.
+/// Pastille d'une sélection : la même pastille « moteur contre cote » partout.
 class OddsPill extends StatelessWidget {
-  const OddsPill({super.key, required this.engine, required this.implied});
+  const OddsPill({super.key, required this.engine, required this.implied, this.nation = false});
   final double engine;
   final double implied;
+  final bool nation;
 
   @override
-  Widget build(BuildContext context) {
-    final color = oddsSideColor(oddsSide(engine, implied));
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(8)),
-      child: Text(
-        'moteur ${percent(engine)} · cote ${percent(implied)}',
-        style: Fp.body(11.5, weight: FontWeight.w700, color: color),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => GapBadge(engine: engine, implied: implied, nation: nation);
 }
 
-/// Étiquette « au-dessus de la cote », « d'accord avec la cote », « ⚠ sous la cote ».
+/// Pastille d'un coupon dont on connaît seulement le côté (coupons du jour).
 class OddsSideTag extends StatelessWidget {
-  const OddsSideTag(this.side, {super.key});
+  const OddsSideTag(this.side, {super.key, this.engine, this.implied});
   final OddsSide side;
+  final double? engine;
+  final double? implied;
 
   @override
   Widget build(BuildContext context) {
+    if (engine != null && implied != null) return GapBadge(engine: engine!, implied: implied!);
     final color = oddsSideColor(side);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
       child: Text(switch (side) {
-        OddsSide.below => '⚠ sous la cote',
+        OddsSide.below => 'sous la cote',
         OddsSide.above => 'au-dessus de la cote',
         OddsSide.agree => 'd\'accord avec la cote',
       }, style: Fp.body(11.5, weight: FontWeight.w700, color: color)),

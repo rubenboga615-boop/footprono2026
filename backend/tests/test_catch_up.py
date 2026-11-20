@@ -253,3 +253,31 @@ async def test_late_match_without_news_says_results_are_late(
     assert note.title == "Résultats en retard"
     assert "ils arriveront dès que possible" in note.body
     assert "heure à confirmer" not in note.body
+
+
+async def test_catch_up_lock_belongs_to_its_run() -> None:
+    """Audit du 20/11/2026 (point D) : le verrou est court et prolongé à chaque étape, le
+    règlement normal n'attend que pendant l'étape 2, et un verrou étranger n'est pas effacé."""
+    from footprono.cache.redis import create_redis
+
+    redis = create_redis(make_settings())
+    try:
+        await redis.delete(catchup.LOCK, catchup.SETTLE_LOCK)
+        await redis.set(catchup.LOCK, "mon-jeton", ex=60)
+        steps = catchup._Steps(redis, "mon-jeton", lambda _i: None)
+        await steps(1)
+        assert await redis.ttl(catchup.LOCK) > 60  # prolongé
+        assert not await redis.exists(catchup.SETTLE_LOCK)
+        await steps(2)
+        assert await redis.get(catchup.SETTLE_LOCK) == "mon-jeton"
+        await steps(3)
+        assert not await redis.exists(catchup.SETTLE_LOCK)
+        # Verrou repris par un autre rattrapage : ni prolongé, ni effacé.
+        await redis.set(catchup.LOCK, "autre", ex=60)
+        await steps(4)
+        await steps.release(catchup.LOCK)
+        assert await redis.get(catchup.LOCK) == "autre"
+        assert await redis.ttl(catchup.LOCK) <= 60
+    finally:
+        await redis.delete(catchup.LOCK, catchup.SETTLE_LOCK)
+        await redis.aclose()

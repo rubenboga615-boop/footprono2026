@@ -362,7 +362,7 @@ class _FloatingNav extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xF215112A),
                 borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: const Color(0xFF2A2347)),
+                border: Border.all(color: Fp.line12),
               ),
               child: Row(
                 children: [

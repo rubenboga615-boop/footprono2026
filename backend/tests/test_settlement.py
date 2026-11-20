@@ -641,3 +641,43 @@ def test_all_won_pays_exactly_the_announced_payout() -> None:
     # Remboursé ou demi-gagné : produit exact des facteurs, comme avant.
     mixed = [Grade("win", Decimal("1.11")), Grade("push", Decimal(1))]
     assert bet_outcome(2000, mixed, total) == ("won", 2220)
+
+
+async def test_score_corrected_twice_with_empty_wallet_pays_once(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+) -> None:
+    """Audit du 20/11/2026 (point C) : gagné, solde vidé, corrigé en perdu (rien repris),
+    puis corrigé de nouveau en gagné : le gain n'est pas versé une 2ᵉ fois."""
+    from sqlalchemy import update
+
+    from footprono.bookmaker.settlement import settle_bets
+
+    headers = await _login(client)
+    bet = (
+        await client.post(
+            "/api/v1/bets",
+            json={"stake": 10_000, "selections": [_sel(world["m1"], "1X2", "home")]},
+            headers=headers,
+        )
+    ).json()
+    await _finish(db_factory, world["m1"], (2, 0), "api_football")
+    async with db_factory() as session:
+        await settle_bets(session)
+        await session.execute(
+            update(Wallet).where(Wallet.user_id == world["user_id"]).values(balance=0)
+        )
+        await session.commit()
+    await _finish(db_factory, world["m1"], (1, 1), "football_data")  # perdu : rien à reprendre
+    async with db_factory() as session:
+        await settle_bets(session)
+    await _finish(db_factory, world["m1"], (2, 0), "football_data")  # de nouveau gagné
+    async with db_factory() as session:
+        await settle_bets(session)
+        wallet = await session.get(Wallet, world["user_id"])
+        b = await session.get(Bet, bet["id"])
+    assert wallet is not None
+    assert b is not None
+    assert (b.outcome, b.payout) == ("won", 18_500)
+    assert wallet.balance == 0  # avant : 18 500 F versés une 2ᵉ fois

@@ -355,8 +355,9 @@ class _DailyCouponCard extends StatelessWidget {
                   style: Fp.body(12.5, color: Fp.text2),
                 ),
               ),
-              OddsSideTag(
-                oddsSide((c['probability'] as num).toDouble(), 1 / double.parse('${c['total_odds']}')),
+              GapBadge(
+                engine: (c['probability'] as num).toDouble(),
+                implied: 1 / double.parse('${c['total_odds']}'),
               ),
             ],
           ),
@@ -365,9 +366,9 @@ class _DailyCouponCard extends StatelessWidget {
               margin: const EdgeInsets.only(top: 8),
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
               decoration: BoxDecoration(
-                color: const Color(0xFF1F1709),
+                color: Fp.warningBg,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF6B4F1D)),
+                border: Border.all(color: Fp.warningLine),
               ),
               child: Text(note!, style: Fp.body(12.5, color: Fp.warning, height: 1.4)),
             ),

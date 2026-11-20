@@ -371,7 +371,7 @@ Future<T?> guard<T>(
     } else if (context.mounted) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(e.message), backgroundColor: const Color(0xFF3A1430)));
+        ..showSnackBar(SnackBar(content: Text(e.message), backgroundColor: Fp.lossBg));
     }
     return null;
   }

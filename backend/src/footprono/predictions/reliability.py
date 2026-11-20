@@ -357,43 +357,77 @@ def _versus_closing(
 # 17/11/2026 : +11 à +18 points dans les Coupons intelligents, Israël - Autriche 74 % contre
 # 56 %), ces écarts tiennent-ils ? Dernière cote jouable d'avant le coup d'envoi (1xBet, sinon
 # Bet365), chance selon la cote = 1 / cote, comme dans l'application.
-_PRE_KICKOFF_1X2 = text(
+_PRE_KICKOFF_ODDS = text(
     """
-    SELECT DISTINCT ON (o.match_id, o.bookmaker, o.value)
-           o.match_id, o.bookmaker, o.value, o.price
+    SELECT DISTINCT ON (o.match_id, o.bookmaker, o.bet, o.value)
+           o.match_id, o.bookmaker, o.bet, o.value, o.price
     FROM bookmaker_odds o JOIN matches m ON m.id = o.match_id
-    WHERE o.match_id = ANY(:ids) AND o.bet = 'Match Winner'
+    WHERE o.match_id = ANY(:ids)
+      AND o.bet IN ('Match Winner', 'Double Chance', 'Goals Over/Under', 'Both Teams Score')
       AND o.bookmaker IN ('1xBet', 'Bet365') AND o.fetched_at < m.kickoff_at
-    ORDER BY o.match_id, o.bookmaker, o.value, o.fetched_at DESC
+    ORDER BY o.match_id, o.bookmaker, o.bet, o.value, o.fetched_at DESC
     """
 )
 GAP_BANDS = ((0.05, 0.10), (0.10, 0.15), (0.15, None))
 GAP_STAKE = 1000
+# Marchés mesurés pour les sélections (audit du 20/11/2026, point 3 : pas seulement le
+# résultat du match). Pour chacun : pari du bookmaker, puis (valeur, chance du moteur,
+# gagné ?) par issue, calculés depuis les probabilités publiées et le score.
+GAP_MARKETS: dict[str, tuple[str, str]] = {
+    "1X2": ("Match Winner", "Résultat du match"),
+    "DC": ("Double Chance", "Double chance"),
+    "OU|2.5": ("Goals Over/Under", "Plus/moins de 2,5 buts"),
+    "BTTS": ("Both Teams Score", "Les deux équipes marquent"),
+}
 
 
-async def nations_vs_odds(session: AsyncSession, rows: list[Scored]) -> dict[str, Any] | None:
-    """Sélections nationales, résultat du match : écart « moteur - cote » annoncé (moteur au
-    moins 5 points au-dessus), contre la part réellement gagnée et le bilan à mise fixe."""
-    nation_rows = [r for r in rows if r.competition in NATIONS_BY_CODE]
-    if not nation_rows:
-        return None
-    odds: dict[int, dict[str, dict[int, float]]] = {}
-    slots = {"Home": 0, "Draw": 1, "Away": 2}
-    result = await session.execute(_PRE_KICKOFF_1X2, {"ids": [r.match_id for r in nation_rows]})
-    for mid, book, value, price in result.all():
-        if value in slots:
-            odds.setdefault(mid, {}).setdefault(book, {})[slots[value]] = float(price)
+def _gap_issues(r: Scored, market: str) -> list[tuple[str, float, bool]]:
+    """(valeur du bookmaker, chance du moteur, gagnée) de chaque issue d'un marché."""
+    o = r.outcome
+    if market == "1X2":
+        h, d, a = r.probs["1X2"]
+        return [("Home", h, o["1X2"] == 0), ("Draw", d, o["1X2"] == 1), ("Away", a, o["1X2"] == 2)]
+    if market == "DC":
+        h, d, a = r.probs["1X2"]
+        res = o["1X2"]
+        return [
+            ("Home/Draw", h + d, res in (0, 1)),
+            ("Draw/Away", d + a, res in (1, 2)),
+            ("Home/Away", h + a, res in (0, 2)),
+        ]
+    if market == "OU|2.5" and "OU|2.5" in r.probs:
+        over, under = r.probs["OU|2.5"]
+        return [("Over 2.5", over, o["OU|2.5"] == 0), ("Under 2.5", under, o["OU|2.5"] == 1)]
+    if market == "BTTS" and "BTTS" in r.probs:
+        yes, no = r.probs["BTTS"]
+        return [("Yes", yes, o["BTTS"] == 0), ("No", no, o["BTTS"] == 1)]
+    return []
+
+
+def _gap_bands(
+    rows: list[Scored], odds: dict[int, dict[str, dict[str, dict[str, float]]]], market: str
+) -> list[dict[str, Any]]:
+    bet = GAP_MARKETS[market][0]
     bands: list[dict[str, Any]] = [
         {"from": lo, "to": hi, "n": 0, "engine": 0.0, "implied": 0.0, "won": 0, "profit": 0}
         for lo, hi in GAP_BANDS
     ]
-    for r in nation_rows:
+    for r in rows:
+        issues = _gap_issues(r, market)
         books = odds.get(r.match_id, {})
-        prices = next((books[b] for b in ("1xBet", "Bet365") if len(books.get(b, {})) == 3), None)
+        prices = next(
+            (
+                books[b][bet]
+                for b in ("1xBet", "Bet365")
+                if issues and all(v in books.get(b, {}).get(bet, {}) for v, _, _ in issues)
+            ),
+            None,
+        )
         if prices is None:
             continue
-        for k in range(3):
-            p, implied = r.probs["1X2"][k], 1 / prices[k]
+        for value, p, won in issues:
+            price = prices[value]
+            implied = 1 / price
             gap = p - implied
             band = next(
                 (b for b in bands if gap >= b["from"] and (b["to"] is None or gap < b["to"])),
@@ -401,12 +435,11 @@ async def nations_vs_odds(session: AsyncSession, rows: list[Scored]) -> dict[str
             )
             if band is None:
                 continue
-            won = r.outcome["1X2"] == k
             band["n"] += 1
             band["engine"] += p
             band["implied"] += implied
             band["won"] += won
-            band["profit"] += round(GAP_STAKE * prices[k]) - GAP_STAKE if won else -GAP_STAKE
+            band["profit"] += round(GAP_STAKE * price) - GAP_STAKE if won else -GAP_STAKE
     out = []
     for b in bands:
         n = b["n"]
@@ -419,7 +452,30 @@ async def nations_vs_odds(session: AsyncSession, rows: list[Scored]) -> dict[str
                 "profit": b["profit"],
             }
         )  # fmt: skip
-    return {"stake": GAP_STAKE, "matches": len(nation_rows), "bands": out}
+    return out
+
+
+async def nations_vs_odds(session: AsyncSession, rows: list[Scored]) -> dict[str, Any] | None:
+    """Sélections nationales : écart « moteur - cote » annoncé (moteur au moins 5 points
+    au-dessus), contre la part réellement gagnée et le bilan à mise fixe. ``bands`` : résultat
+    du match (comme avant) ; ``markets`` : chaque marché mesuré (audit du 20/11/2026)."""
+    nation_rows = [r for r in rows if r.competition in NATIONS_BY_CODE]
+    if not nation_rows:
+        return None
+    odds: dict[int, dict[str, dict[str, dict[str, float]]]] = {}
+    result = await session.execute(_PRE_KICKOFF_ODDS, {"ids": [r.match_id for r in nation_rows]})
+    for mid, book, bet, value, price in result.all():
+        odds.setdefault(mid, {}).setdefault(book, {}).setdefault(bet, {})[value] = float(price)
+    markets = [
+        {"market": m, "label": label, "bands": _gap_bands(nation_rows, odds, m)}
+        for m, (_bet, label) in GAP_MARKETS.items()
+    ]
+    return {
+        "stake": GAP_STAKE,
+        "matches": len(nation_rows),
+        "bands": markets[0]["bands"],
+        "markets": markets,
+    }
 
 
 async def load_scored(

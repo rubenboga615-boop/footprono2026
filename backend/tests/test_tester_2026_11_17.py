@@ -104,12 +104,19 @@ class _Session:
     """Cotes d'avant-match simulées (1xBet) pour deux matchs de sélections."""
 
     async def execute(self, *_a: Any, **_k: Any) -> _Rows:
+        mw, dc = "Match Winner", "Double Chance"
         return _Rows(
             [
-                (1, "1xBet", "Home", 1.80), (1, "1xBet", "Draw", 3.60), (1, "1xBet", "Away", 4.50),
-                (2, "1xBet", "Home", 1.80), (2, "1xBet", "Draw", 3.60), (2, "1xBet", "Away", 4.50),
+                (m, "1xBet", mw, v, p)
+                for m in (1, 2)
+                for v, p in (("Home", 1.80), ("Draw", 3.60), ("Away", 4.50))
             ]
-        )  # fmt: skip
+            + [
+                (m, "1xBet", dc, v, p)
+                for m in (1, 2)
+                for v, p in (("Home/Draw", 1.30), ("Draw/Away", 2.10), ("Home/Away", 1.25))
+            ]
+        )
 
 
 async def test_nations_engine_versus_odds_in_reliability() -> None:
@@ -142,4 +149,10 @@ async def test_nations_engine_versus_odds_in_reliability() -> None:
     assert middle["implied"] == round(1 / 1.80, 4)
     assert middle["won"] == 0.5
     assert middle["profit"] == 800 - 1000  # 1 800 rendus, 2 000 misés
+    # Audit du 20/11/2026 (point 3) : les autres marchés aussi. Double chance « 1X » :
+    # 88 % pour le moteur contre 1 / 1,30 = 76,9 % (+11 points) ; gagnée une fois sur deux.
+    dc = next(m for m in out["markets"] if m["market"] == "DC")
+    assert dc["bands"][1]["selections"] == 2
+    assert dc["bands"][1]["won"] == 0.5
+    assert {m["market"] for m in out["markets"]} == {"1X2", "DC", "OU|2.5", "BTTS"}
     assert await reliability.nations_vs_odds(_Session(), [league]) is None  # type: ignore[arg-type]

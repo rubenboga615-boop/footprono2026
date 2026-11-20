@@ -169,7 +169,7 @@ class _LiveTabState extends State<LiveTab> {
                       padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: const Color(0xFF6B4F1D)),
+                        border: Border.all(color: Fp.warningLine),
                       ),
                       child: Row(
                         children: [
@@ -233,7 +233,7 @@ class _LiveTabState extends State<LiveTab> {
         textAlign: home ? TextAlign.left : TextAlign.right,
       ),
     );
-    final icon = Text(r.icon, style: const TextStyle(fontSize: 15));
+    final icon = EventIcon(r.icon);
     final score = Text(r.score ?? '', style: Fp.body(14, weight: FontWeight.w700));
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -448,6 +448,38 @@ String minuteText(Json e) {
   return '${e['minute'] ?? ''}${extra != null && extra > 0 ? '+$extra' : ''}\'';
 }
 
+/// Icône dessinée d'un fait de match (plus d'emoji, étape A du nouveau visage) : « goal »,
+/// « missed » (penalty manqué), « yellow », « red », « sub » (remplacement), « var ».
+class EventIcon extends StatelessWidget {
+  const EventIcon(this.kind, {super.key, this.size = 16});
+  final String kind;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget card(Color c) => Container(
+      width: size * 0.62,
+      height: size * 0.86,
+      decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(2.5)),
+    );
+    return SizedBox(
+      width: size + 2,
+      height: size + 2,
+      child: Center(
+        child: switch (kind) {
+          'goal' => Icon(Icons.sports_soccer_rounded, size: size, color: Fp.text),
+          'missed' => Icon(Icons.block_rounded, size: size, color: Fp.loss),
+          'yellow' => card(Fp.warning),
+          'red' => card(Fp.loss),
+          'sub' => Icon(Icons.swap_horiz_rounded, size: size, color: Fp.sky),
+          'var' => Icon(Icons.tv_rounded, size: size, color: Fp.muted),
+          _ => const SizedBox.shrink(),
+        },
+      ),
+    );
+  }
+}
+
 class TimelineRow {
   TimelineRow({
     this.minute = '',
@@ -510,7 +542,7 @@ List<TimelineRow> timeline(List<Json> events, Set<String> starters, {(int, int)?
           TimelineRow(
             minute: minuteText(e),
             side: side,
-            icon: '⚽',
+            icon: 'goal',
             main: player ?? 'But',
             more: switch (detail) {
               'Penalty' => 'penalty',
@@ -526,27 +558,29 @@ List<TimelineRow> timeline(List<Json> events, Set<String> starters, {(int, int)?
           TimelineRow(
             minute: minuteText(e),
             side: side,
-            icon: '❌',
+            icon: 'missed',
             main: player ?? '',
             more: 'penalty manqué',
           ),
         );
       case 'Card':
         final red = detail.toLowerCase().contains('red') || detail.toLowerCase().contains('second');
-        out.add(TimelineRow(minute: minuteText(e), side: side, icon: red ? '🟥' : '🟨', main: player ?? ''));
+        out.add(
+          TimelineRow(minute: minuteText(e), side: side, icon: red ? 'red' : 'yellow', main: player ?? ''),
+        );
       case 'subst':
         final (out_, in_) = assist != null && starters.contains(assist) && !starters.contains(player)
             ? (assist, player)
             : (player, assist);
         out.add(
-          TimelineRow(minute: minuteText(e), side: side, icon: '🔁', main: '${out_ ?? '?'} → ${in_ ?? '?'}'),
+          TimelineRow(minute: minuteText(e), side: side, icon: 'sub', main: '${out_ ?? '?'} → ${in_ ?? '?'}'),
         );
       case 'Var':
         out.add(
           TimelineRow(
             minute: minuteText(e),
             side: side,
-            icon: '📺',
+            icon: 'var',
             main: 'VAR : ${detail.isEmpty ? 'décision' : varLabel(detail)}',
             more: player,
           ),
@@ -627,14 +661,14 @@ class _Pitch extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF12301F),
+        color: Fp.winBg,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF1F5B3A)),
+        border: Border.all(color: Fp.winLine),
       ),
       child: Column(
         children: [
           for (final r in top) row(r, Fp.accent, Colors.white),
-          if (top.isNotEmpty && bottom.isNotEmpty) const Divider(color: Color(0xFF1F5B3A), height: 14),
+          if (top.isNotEmpty && bottom.isNotEmpty) const Divider(color: Fp.winLine, height: 14),
           for (final r in bottom) row(r, Fp.loss, const Color(0xFF3A0D16)),
         ],
       ),

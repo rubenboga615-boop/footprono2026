@@ -120,7 +120,7 @@ async def step_suggestions(
         # jouées ou non, puis réglées (bilan à mise fixe).
         from footprono.bookmaker import engine_compare
 
-        await engine_compare.record_proposals(session, engine, "montante", found)
+        await engine_compare.record_proposals(session, engine, "montante", found, user_id=user.id)
         await session.commit()
     return {
         "step": step.number,

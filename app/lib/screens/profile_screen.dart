@@ -689,7 +689,7 @@ class _Toggle extends StatelessWidget {
         onChanged: onChanged,
         activeTrackColor: Fp.accent,
         activeThumbColor: Colors.white,
-        inactiveTrackColor: const Color(0xFF3A3550),
+        inactiveTrackColor: const Color(0xFF2E3A55),
         inactiveThumbColor: Colors.white,
         trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
@@ -835,7 +835,7 @@ class _BetaItem extends StatelessWidget {
                       spacing: 6,
                       children: [
                         Text('Aider à améliorer FootProba', style: Fp.body(15, weight: FontWeight.w700)),
-                        const Tag('TEST', color: Fp.warning, background: Color(0xFF1F1709)),
+                        const Tag('TEST', color: Fp.warning, background: Fp.warningBg),
                       ],
                     ),
                     const SizedBox(height: 3),

@@ -7,13 +7,13 @@ import '../theme.dart';
 /// Couleurs de la maquette (rgba écrits comme dans la maquette).
 abstract final class M {
   static const card = Fp.card;
-  static const border = Color(0xFF2A2347);
+  static const border = Fp.line12;
   static const hlBorder = Fp.accent2;
   static const hlTop = Fp.cardHigh;
   static const muted = Fp.muted;
   static const small = Fp.muted;
-  static const line = Color(0xFF241E3D);
-  static const line10 = Color(0xFF241E3D);
+  static const line = Fp.line10;
+  static const line10 = Fp.line10;
   static const head = Fp.muted;
   static const lock = Fp.lilac;
   static const green = Fp.win;

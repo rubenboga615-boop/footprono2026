@@ -323,7 +323,7 @@ Widget betTag(Bet b) {
     'won' || 'partial' => Tag.win(label),
     'lost' => Tag.loss(label),
     // Maquette C7 : « En cours » en ambre.
-    _ when b.status == 'open' => Tag(label, color: Fp.warning, background: const Color(0xFF1F1709)),
+    _ when b.status == 'open' => Tag(label, color: Fp.warning, background: Fp.warningBg),
     _ => Tag(label, color: Fp.textSoft),
   };
 }

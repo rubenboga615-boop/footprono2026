@@ -1134,6 +1134,7 @@ class _SelectionRow extends StatelessWidget {
                 child: OddsPill(
                   engine: (s['model_probability'] as num).toDouble(),
                   implied: 1 / double.parse('${s['odds']}'),
+                  nation: isNation(s['competition'] as String?),
                 ),
               ),
               // Score de la sélection réglée (rapport du 09/11/2026 : seulement « Gagné »).

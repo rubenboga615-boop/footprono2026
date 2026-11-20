@@ -199,7 +199,7 @@ async def test_reliability_counts_only_predictions_made_before_kickoff(
     versus = {v["market"]: v for v in report["versus_closing_odds"]}
     assert versus["1X2"]["matches"] == n
 
-    other = (await client.get("/api/v1/reliability", params={"competition": "L1"})).json()
+    other = (await client.get("/api/v1/reliability", params={"competition": "LIGUE_1"})).json()
     assert other["matches"] == 0
     # « 5 grands championnats » : les mêmes pronostics que l'audit de tous les marchés.
     big5 = (await client.get("/api/v1/reliability", params={"competition": "big5"})).json()
@@ -367,8 +367,8 @@ async def test_reliability_page_kept_a_few_minutes(
     from .conftest import make_settings
 
     app.state.settings = make_settings(reliability_cache_seconds=60)
-    params = {"competition": "ZZZ_CACHE_TEST", "recent": 3}
-    await app.state.redis.delete("reliability:v1:ZZZ_CACHE_TEST::3")
+    params = {"competition": "NED", "recent": 20}
+    await app.state.redis.delete("reliability:v1:NED::20")
     first = (await client.get("/api/v1/reliability", params=params)).json()
 
     async def fail(*_: Any, **__: Any) -> Any:
@@ -376,7 +376,13 @@ async def test_reliability_page_kept_a_few_minutes(
 
     monkeypatch.setattr(route, "reliability_report", fail)
     assert (await client.get("/api/v1/reliability", params=params)).json() == first
-    await app.state.redis.delete("reliability:v1:ZZZ_CACHE_TEST::3")
+    # Audit du 20/11/2026 (point A) : « since » et « recent » ne forcent plus un calcul complet
+    # pour le public ; ils retombent sur la vue de l'application, gardée en mémoire.
+    forced = {**params, "since": "2026-03-07", "recent": 7}
+    assert (await client.get("/api/v1/reliability", params=forced)).json() == first
+    unknown = await client.get("/api/v1/reliability", params={"competition": "ZZZ"})
+    assert unknown.status_code == 404
+    await app.state.redis.delete("reliability:v1:NED::20")
 
 
 async def test_reliability_default_views_prepared_in_advance(

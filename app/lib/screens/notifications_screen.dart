@@ -153,7 +153,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Expanded(
-                                    child: Text('${n['title']}', style: Fp.body(16, weight: FontWeight.w700)),
+                                    child: Text(
+                                      withoutEmoji('${n['title']}'),
+                                      style: Fp.body(16, weight: FontWeight.w700),
+                                    ),
                                   ),
                                   const SizedBox(width: 8),
                                   Text(_ago(when), style: Fp.body(12, color: Fp.text2)),
@@ -167,7 +170,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 ],
                               ),
                               const SizedBox(height: 4),
-                              Text('${n['body']}', style: Fp.body(14, color: Fp.textStrong, height: 1.4)),
+                              Text(
+                                withoutEmoji('${n['body']}'),
+                                style: Fp.body(14, color: Fp.textStrong, height: 1.4),
+                              ),
                             ],
                           ),
                         ),

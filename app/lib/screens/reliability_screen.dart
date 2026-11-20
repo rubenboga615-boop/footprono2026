@@ -762,8 +762,8 @@ class _Verdict extends StatelessWidget {
   Widget build(BuildContext context) {
     // Maquette C5 : encadré ambre (pas encore juste) ou vert (règle respectée).
     final (bg, border, color) = ok
-        ? (const Color(0xFF12301F), const Color(0xFF1F5B3A), const Color(0xFFC9F5D9))
-        : (const Color(0xFF1F1709), const Color(0xFF6B4F1D), Fp.warning);
+        ? (Fp.winBg, Fp.winLine, Fp.winSoft)
+        : (Fp.warningBg, Fp.warningLine, Fp.warning);
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
       decoration: BoxDecoration(
@@ -1007,7 +1007,7 @@ class _RecentRow extends StatelessWidget {
 }
 
 /// Barre « annoncé » des maquettes (#6B6490).
-const _announced = Color(0xFF6B6490);
+const _announced = Color(0xFF5D6888);
 
 /// Sélections nationales (retour du testeur du 17/11/2026) : quand le moteur est plus
 /// confiant que la cote, la part réellement gagnée tient-elle ? Par écart annoncé, avec le

@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from footprono.accounts import service as accounts
-from footprono.accounts.models import User, Wallet
+from footprono.accounts.models import User, Wallet, WalletEntry
 from footprono.bookmaker import live_alerts, montante
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.engine.counts import booking_points_markets, count_markets
@@ -621,8 +621,18 @@ async def _correct(
 
     Argent fictif : un débit ne peut pas rendre le solde négatif ; il est limité
     au solde disponible (le reste est indiqué dans la note).
+
+    L'écart part de ce qui a **vraiment** été versé pour ce pari (gain et corrections déjà
+    passés sur le solde), pas du gain noté sur le pari : avec un solde vide, une reprise
+    incomplète suivie d'une nouvelle correction ne paie plus le gain deux fois (audit du
+    20/11/2026, point C).
     """
-    delta = payout - (bet.payout or 0)
+    paid = await session.scalar(
+        select(func.coalesce(func.sum(WalletEntry.amount), 0)).where(
+            WalletEntry.bet_id == bet.id, WalletEntry.kind.in_(("payout", "correction"))
+        )
+    )
+    delta = payout - int(paid or 0)
     wallet = await session.get(Wallet, bet.user_id, with_for_update=True)
     assert wallet is not None
     applied = max(delta, -wallet.balance)

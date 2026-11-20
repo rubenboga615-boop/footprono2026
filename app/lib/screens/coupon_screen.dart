@@ -11,6 +11,7 @@ import '../format.dart';
 import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../widgets/engine_vs_odds.dart';
 import '../widgets/common.dart';
 import '../widgets/maquette.dart';
 import 'daily_coupons_screen.dart';
@@ -395,12 +396,12 @@ class _CouponScreenState extends State<CouponScreen> {
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1F1709),
+                    color: Fp.warningBg,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF6B4F1D)),
+                    border: Border.all(color: Fp.warningLine),
                   ),
                   child: Text(
-                    '⏱ Sélections en direct : à placer avant la '
+                    'Sélections en direct : à placer avant la '
                     '${items.where((c) => c.live).map((c) => c.closesAt ?? 50).reduce(math.min)}e minute. '
                     'La cote est relue au moment de placer.',
                     style: Fp.body(13, color: Fp.warning, height: 1.35),
@@ -698,6 +699,15 @@ class _SelectionRow extends StatelessWidget {
                   ].join(' · '),
                   style: Fp.body(12, color: Fp.text2),
                 ),
+                if (model != null && c.offer.odds > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: GapBadge(
+                      engine: model,
+                      implied: 1 / c.offer.odds,
+                      nation: isNation(c.match.competition),
+                    ),
+                  ),
                 if (c.blocked)
                   Padding(
                     padding: const EdgeInsets.only(top: 3),
@@ -716,7 +726,7 @@ class _SelectionRow extends StatelessWidget {
                     case final e?)
                   Padding(
                     padding: const EdgeInsets.only(top: 3),
-                    child: Text(e, style: Fp.body(11.5, color: const Color(0xFFC9B2F8), height: 1.35)),
+                    child: Text(e, style: Fp.body(11.5, color: Fp.lilac, height: 1.35)),
                   ),
               ],
             ),
@@ -831,9 +841,9 @@ class _StartedWarning extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 12),
     padding: const EdgeInsets.fromLTRB(12, 11, 12, 6),
     decoration: BoxDecoration(
-      color: const Color(0xFF3A1620),
+      color: Fp.lossBg,
       borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: const Color(0xFF6B2333)),
+      border: Border.all(color: Fp.lossLine),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -850,7 +860,7 @@ class _StartedWarning extends StatelessWidget {
               ),
             ],
           ),
-          style: Fp.body(13, color: const Color(0xFFFFD0D7), height: 1.4),
+          style: Fp.body(13, color: Fp.lossSoft, height: 1.4),
         ),
         TextButton(
           onPressed: onRemove,

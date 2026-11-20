@@ -325,6 +325,14 @@ const competitionNames = {
 
 String competitionName(String code) => competitionNames[code.toUpperCase()] ?? code;
 
+/// Sélections nationales (mêmes codes que le serveur, ingestion/reference) : leurs écarts
+/// moteur / cote n'ont pas tenu en vrai (audit du 18/11/2026), pastille en prudence.
+const nationCodes = {
+  'CAN', 'CANQ', 'WC', 'WCQ_AFR', 'WCQ_EUR', 'WCQ_SAM', 'EURO', 'EUROQ', 'UNL', 'COPA', 'AMICAL', //
+};
+
+bool isNation(String? code) => code != null && nationCodes.contains(code.toUpperCase());
+
 /// Rang d'importance d'une compétition (ordre de [competitionNames] : les 5 grands championnats
 /// d'abord), pour ranger les filtres autrement que par code.
 int competitionRank(String code) {

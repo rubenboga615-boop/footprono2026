@@ -10,7 +10,9 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../api/client.dart';
 import '../api/models.dart';
+import '../format.dart';
 import '../labels.dart';
+import '../theme.dart';
 import '../update/installer.dart';
 import 'beta_reporter.dart';
 
@@ -30,7 +32,7 @@ void showMessage(String text, {bool error = false, SnackBarAction? action}) {
         // Avec un bouton, le message resterait affiché indéfiniment : il disparaît quand même.
         persist: false,
         duration: Duration(seconds: action == null ? 4 : 6),
-        backgroundColor: error ? const Color(0xFF3A1430) : null,
+        backgroundColor: error ? Fp.lossBg : null,
       ),
     );
 }
@@ -1111,7 +1113,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (data['title'] == null) return;
     unread += 1;
     notifyListeners();
-    showMessage('${data['title']} — ${data['body'] ?? ''}');
+    showMessage(withoutEmoji('${data['title']} — ${data['body'] ?? ''}'));
     // Un pari réglé change le solde.
     unawaited(refreshMe().catchError((_) {}));
   }

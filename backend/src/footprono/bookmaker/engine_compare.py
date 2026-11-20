@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,6 +33,8 @@ MIN_PROPOSALS = 200
 # Chances relevées pour les matchs qui commencent dans les prochaines heures (relevé toutes
 # les 10 minutes : la dernière avant le coup d'envoi reste).
 CHANCES_AHEAD = timedelta(hours=3)
+# Proposition encore en attente après ce délai : « expired », hors du bilan.
+STALE_AFTER = timedelta(days=14)
 OUTCOMES = ("home", "draw", "away")
 SOURCES = {
     "coupon": "Coupon intelligent",
@@ -55,10 +57,15 @@ async def record_proposals(
     source: str,
     proposals: Sequence[dict[str, Any]],
     now: datetime | None = None,
+    user_id: int | None = None,
 ) -> int:
     """Enregistre des propositions (``selections``, ``total_odds``, probabilité) d'un moteur ;
-    la même proposition le même jour ne compte qu'une fois. Renvoie le nombre de nouvelles."""
+    la même proposition le même jour ne compte qu'une fois. Demandée par un joueur : seule
+    la première du jour compte, par moteur et par source (audit du 20/11/2026, point B : un
+    seul joueur ne peut plus décider du verdict). Renvoie le nombre de nouvelles."""
     now = now or datetime.now(UTC)
+    if user_id is not None:
+        proposals = [p for p in proposals if p.get("selections")][:1]
     rows = []
     for p in proposals:
         sels = p.get("selections") or []
@@ -85,6 +92,8 @@ async def record_proposals(
                 "probability": float(p.get("probability", p.get("model_probability", 0.0))),
                 "proposed_at": now,
                 "status": "pending",
+                "user_id": user_id,
+                "day": now.date(),
             }
         )
     if not rows:
@@ -92,7 +101,7 @@ async def record_proposals(
     result = await session.execute(
         insert(EngineProposal)
         .values(rows)
-        .on_conflict_do_nothing(index_elements=["engine", "source", "key"])
+        .on_conflict_do_nothing()  # même pari du jour, ou déjà une proposition du joueur
         .returning(EngineProposal.id)
     )
     return len(result.all())
@@ -103,6 +112,13 @@ async def settle_proposals(session: AsyncSession, now: datetime | None = None) -
     perdue), avec les règles des paris ; gain pour une mise de ``STAKE``."""
     now = now or datetime.now(UTC)
     done = 0
+    # Audit du 20/11/2026 (point B) : une proposition dont un match n'a jamais de résultat
+    # (reporté, données manquantes) n'est plus relue à chaque règlement ; hors du bilan.
+    await session.execute(
+        update(EngineProposal)
+        .where(EngineProposal.status == "pending", EngineProposal.proposed_at < now - STALE_AFTER)
+        .values(status="expired", settled_at=now)
+    )
     pending = await session.scalars(
         select(EngineProposal).where(EngineProposal.status == "pending")
     )

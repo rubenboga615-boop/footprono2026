@@ -1185,10 +1185,14 @@ class OddsButton extends StatelessWidget {
       // Cote d'avant le match : plus jouable une fois le match commencé.
       return Container(
         width: expand ? double.infinity : null,
-        constraints: const BoxConstraints(minWidth: 58),
+        // 44 px au moins pour le doigt (étape A du nouveau visage ; avant : 35 px).
+        constraints: const BoxConstraints(minWidth: 58, minHeight: 44),
+        alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(color: Fp.line12, borderRadius: BorderRadius.circular(12)),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               odds(offer.odds),
@@ -1212,9 +1216,12 @@ class OddsButton extends StatelessWidget {
         onTap: () => addToCoupon(context, match, offer),
         child: Container(
           width: expand ? double.infinity : null,
-          constraints: const BoxConstraints(minWidth: 58),
+          constraints: const BoxConstraints(minWidth: 58, minHeight: 44),
+          alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(odds(offer.odds), style: Fp.body(15, weight: FontWeight.w700)),
               // 1xBet : dit en haut de l'écran ; le bookmaker de secours est nommé.
@@ -1272,11 +1279,7 @@ class _EnginePicks extends StatelessWidget {
   final MatchInfo match;
 
   static const _colors = {'sur': Fp.win, 'equilibre': Fp.lilac, 'audacieux': Fp.loss};
-  static const _backgrounds = {
-    'sur': Color(0xFF12301F),
-    'equilibre': Fp.cardHigh,
-    'audacieux': Color(0xFF3A1620),
-  };
+  static const _backgrounds = {'sur': Fp.winBg, 'equilibre': Fp.cardHigh, 'audacieux': Fp.lossBg};
 
   @override
   Widget build(BuildContext context) {

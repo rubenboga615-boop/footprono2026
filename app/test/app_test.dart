@@ -2446,7 +2446,7 @@ void main() {
     expect(find.text('62$nbsp%'), findsOneWidget); // la chance reste visible
     // Maquette P2 : chance selon la cote sur chaque carte, et la place du moteur.
     expect(find.textContaining('selon la cote : '), findsNWidgets(3));
-    expect(find.text('⚠ sous la cote'), findsOneWidget); // Audacieux 30 % à 3,10 (32 %)
+    expect(find.text('cote'), findsWidgets); // « ≈ cote » : Audacieux 30 % à 3,10 (32 %), −2 points
     expect(find.text('Sélections et code 1xBet dans Premium'), findsNWidgets(3));
     expect(find.text('Copier'), findsNothing);
     expect(find.text('Débloquer les coupons du jour'), findsOneWidget);
@@ -2775,7 +2775,7 @@ void main() {
     // Le match de mon pari en premier, marqué ★, avec buteurs et carton rouge.
     final cards = tester.widgetList<Text>(find.textContaining('★ ')).map((t) => t.data).toList();
     expect(cards.where((t) => t != null && t.startsWith('★ ') && !t.contains('en haut')), hasLength(1));
-    expect(find.text('⚽ 12\' Krstović · ⚽ 77\' Lucca · 🟥 81\' Lyon'), findsOneWidget);
+    expect(find.text('12\' Krstović · 77\' Lucca · carton rouge 81\' Lyon'), findsOneWidget);
     expect(find.text('50\u00a0%'), findsOneWidget);
     expect(find.textContaining('Chances en direct · avant le match'), findsOneWidget);
     expect(find.text('● MT'), findsOneWidget);
@@ -3498,9 +3498,9 @@ void main() {
     });
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('🟢 C\'est parti : Lens - Lyon'));
+    await tester.tap(find.text('C\'est parti : Lens - Lyon'));
     await tester.pumpAndSettle();
-    expect(find.text('🟢 C\'est parti : Lens - Lyon'), findsNothing); // liste refermée
+    expect(find.text('C\'est parti : Lens - Lyon'), findsNothing); // liste refermée
     expect(find.textContaining('En cours ('), findsWidgets); // onglet Mes paris
   });
 

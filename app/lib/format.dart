@@ -172,3 +172,16 @@ String groupedPhone(String number) {
   ];
   return '${m.group(1)} ${pairs.join(' ')}';
 }
+
+/// Texte d'une notification sans emoji (étape A du nouveau visage, 20/11/2026 : les
+/// notifications envoyées sur le téléphone peuvent en garder, pas l'application).
+String withoutEmoji(String text) => text
+    .replaceAll(
+      RegExp(
+        r'[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{23E9}-\u{23FA}]',
+        unicode: true,
+      ),
+      '',
+    )
+    .replaceAll(RegExp(r'\s{2,}'), ' ')
+    .trim();

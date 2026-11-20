@@ -167,7 +167,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   style: FilledButton.styleFrom(
                     shape: const StadiumBorder(),
                     backgroundColor: const Color(0xFF25D366),
-                    foregroundColor: const Color(0xFF0E0B1A),
+                    foregroundColor: Fp.background,
                     textStyle: Fp.body(16, weight: FontWeight.w700),
                   ),
                 ),
@@ -882,7 +882,7 @@ class CountryPicker extends StatelessWidget {
         DropdownButtonFormField<String>(
           isExpanded: true,
           initialValue: value,
-          dropdownColor: const Color(0xFF1A1626),
+          dropdownColor: Fp.card,
           borderRadius: Fp.radius14,
           decoration: const InputDecoration(
             prefixIcon: Icon(Icons.public_rounded, size: 20),
@@ -913,7 +913,7 @@ class DialPicker extends StatelessWidget {
     return PopupMenuButton<String>(
       tooltip: 'Indicatif du pays',
       initialValue: value,
-      color: const Color(0xFF1A1626),
+      color: Fp.card,
       onSelected: onChanged,
       itemBuilder: (_) => [
         for (final e in countries.entries)
