@@ -10,6 +10,7 @@ import '../api/models.dart';
 import '../format.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../widgets/visage.dart';
 import '../widgets/live_chances.dart';
 import 'live_coupon_screen.dart';
 
@@ -138,26 +139,39 @@ class _LiveTabState extends State<LiveTab> {
       score: now.$1 == null || now.$2 == null ? null : (now.$1!, now.$2!),
     );
     return [
+      // Maquette 8 : « Mon pari » et « Chances maintenant » d'abord, puis la chronologie.
+      if (m.isLive) LiveChancesCard(match: m, before: widget.before),
       if (rows.isEmpty)
         Text(
           m.isLive ? 'Pas encore d\'événement dans ce match.' : 'Pas de détails pour ce match.',
           style: Fp.body(13, color: Fp.muted),
         )
       else
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          decoration: BoxDecoration(color: Fp.card, borderRadius: BorderRadius.circular(18)),
+        // Maquette 8 : « Chronologie » en frise, pastille verte pour un but, corail pour un rouge.
+        VCard(
+          top: 0,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final (i, r) in rows.reversed.indexed) ...[
-                if (i > 0) const Divider(height: 1, color: Fp.divider),
-                _row(r),
-              ],
+              const VKicker('Chronologie'),
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: Container(
+                  padding: const EdgeInsets.only(left: 12),
+                  decoration: const BoxDecoration(
+                    border: Border(left: BorderSide(color: V.line, width: 2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [for (final r in rows) _row(r)],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
-      const SizedBox(height: 12),
-      if (m.isLive) LiveChancesCard(match: m, before: widget.before),
+
       if (liveWindow(m.apiStatus, m.liveMinute) case (_, final closes))
         ValueListenableBuilder<LiveCoupons?>(
           valueListenable: context.read<AppState>().liveCoupons,
@@ -205,59 +219,74 @@ class _LiveTabState extends State<LiveTab> {
   }
 
   Widget _row(TimelineRow r) {
-    if (r.halfTime != null) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Center(
-          child: Text(
+    final dot = r.halfTime != null
+        ? V.s3
+        : r.icon == 'goal'
+        ? V.mint
+        : r.icon == 'red'
+        ? V.coral
+        : V.s3;
+    final Widget body = r.halfTime != null
+        ? Text(
             'MI-TEMPS · ${r.halfTime}',
-            style: Fp.body(12, weight: FontWeight.w700, color: Fp.muted).copyWith(letterSpacing: 1),
+            style: V.t(12, w: FontWeight.w700, color: V.mu, ls: 1),
+          )
+        : Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 40,
+                child: Text(
+                  r.minute,
+                  style: V.t(12.5, w: FontWeight.w700, color: V.mu),
+                ),
+              ),
+              EventIcon(r.icon),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: r.main,
+                        style: TextStyle(fontWeight: r.bold ? FontWeight.w700 : FontWeight.w500),
+                      ),
+                      if (r.more != null)
+                        TextSpan(
+                          text: ' ${r.more}',
+                          style: const TextStyle(color: V.mu),
+                        ),
+                      if (r.side == 'away')
+                        const TextSpan(
+                          text: ' (ext.)',
+                          style: TextStyle(color: V.mu2),
+                        ),
+                    ],
+                  ),
+                  style: V.t(12.5),
+                ),
+              ),
+              if (r.score != null) Text(r.score!, style: V.b(12.5)),
+            ],
+          );
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: body),
+        Positioned(
+          left: -20,
+          top: 9,
+          child: Container(
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
+              color: dot,
+              shape: BoxShape.circle,
+              border: Border.all(color: V.bg, width: 2),
+            ),
           ),
         ),
-      );
-    }
-    final home = r.side != 'away';
-    final minute = Text(
-      r.minute,
-      style: Fp.body(13.5, weight: FontWeight.w700, color: Fp.muted),
-    );
-    final text = Expanded(
-      child: Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(
-              text: r.main,
-              style: Fp.body(14, weight: r.bold ? FontWeight.w700 : FontWeight.w500),
-            ),
-            if (r.more != null)
-              TextSpan(
-                text: ' ${r.more}',
-                style: Fp.body(13, color: Fp.muted),
-              ),
-          ],
-        ),
-        textAlign: home ? TextAlign.left : TextAlign.right,
-      ),
-    );
-    final icon = EventIcon(r.icon);
-    final score = Text(r.score ?? '', style: Fp.body(14, weight: FontWeight.w700));
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        children: home
-            ? [SizedBox(width: 48, child: minute), icon, const SizedBox(width: 10), text, score]
-            : [
-                score,
-                const SizedBox(width: 8),
-                text,
-                const SizedBox(width: 10),
-                icon,
-                SizedBox(
-                  width: 48,
-                  child: Align(alignment: Alignment.centerRight, child: minute),
-                ),
-              ],
-      ),
+      ],
     );
   }
 

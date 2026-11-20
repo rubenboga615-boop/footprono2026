@@ -2939,7 +2939,7 @@ void main() {
     }
 
     await open();
-    expect(find.text('Chances en direct'), findsNothing); // pas encore publiées
+    expect(find.text('CHANCES MAINTENANT'), findsNothing); // pas encore publiées
     navigatorKey.currentState!.pop();
     await tester.pumpAndSettle();
 
@@ -3052,16 +3052,18 @@ void main() {
     expect(find.text('MI-TEMPS · 1-0'), findsOneWidget);
     expect(find.text('2-1'), findsOneWidget);
     expect(find.textContaining('passe de Aaronson'), findsOneWidget);
-    expect(find.text('Maddison → Bentancur'), findsOneWidget);
+    expect(find.textContaining('Maddison → Bentancur', findRichText: true), findsOneWidget);
     expect(find.text('45+2\''), findsOneWidget);
-    expect(find.text('Chances en direct'), findsOneWidget);
-    expect(find.text('63\''), findsOneWidget);
-    expect(find.text('78\u00a0%'), findsOneWidget);
+    expect(find.text('CHANCES MAINTENANT'), findsOneWidget);
+    expect(find.textContaining('78\u00a0%', findRichText: true), findsOneWidget);
     // 2-1 : la ligne suit le score (plus de 3,5 = encore au moins un but) ; plus de 4,5 n'est
     // pas envoyée, donc pas de « deux buts » (12/11/2026).
     expect(find.text('Encore au moins un but'), findsOneWidget);
     expect(find.text('31\u00a0%'), findsOneWidget);
-    expect(find.text('Ta sélection : moins de 3,5 buts — 69\u00a0% de chances de tenir'), findsOneWidget);
+    // Maquette 8 : « Mon pari », anneau de la chance de tenir.
+    expect(find.text('MON PARI · MOINS DE 3,5 BUTS'), findsOneWidget);
+    expect(find.text('69\u00a0%'), findsOneWidget);
+    expect(find.text('de chances de tenir'), findsOneWidget);
     expect(find.text('Plus de 3,5 buts'), findsNothing);
     expect(find.textContaining('Encore au moins deux buts'), findsNothing);
     expect(find.textContaining('ce n\'est pas un conseil de pari'), findsOneWidget);
@@ -3462,7 +3464,7 @@ void main() {
     expect(find.text('3 – 1'), findsOneWidget);
     expect(find.text('EN DIRECT · 70\''), findsOneWidget);
     expect(find.text('Mis à jour à l\'instant'), findsOneWidget);
-    expect(find.text('91 %'), findsOneWidget); // chances du relevé, sans requête
+    expect(find.textContaining('91', findRichText: true), findsWidgets); // chances du relevé, sans requête
     expect(state.unread, 0); // un relevé n'est pas une notification
     // L'onglet En direct (statistiques) ; sous l'écran, la liste voit le match commencer et
     // lit une fois mes paris en cours (★).

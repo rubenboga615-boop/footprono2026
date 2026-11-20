@@ -11,6 +11,7 @@ import '../format.dart';
 import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import 'visage.dart';
 
 /// Chances du moment des matchs demandés : {match: {minute, extra, markets: {clé: chance}}} ;
 /// vide si non publiées ou en cas d'erreur (l'écran reste tel qu'avant le direct).
@@ -165,7 +166,7 @@ class _LiveChancesCardState extends State<LiveChancesCard> {
         for (final b in bets)
           if (b.status == 'open')
             for (final s in b.selections)
-              if (s.matchId == widget.match.id && s.market == 'OU' && s.result == 'pending') s,
+              if (s.matchId == widget.match.id && s.result == 'pending') s,
       ];
       if (mounted) setState(() => mine = found);
     } on Object {
@@ -191,113 +192,164 @@ class _LiveChancesCardState extends State<LiveChancesCard> {
       final home = p('1X2||home'), draw = p('1X2||draw'), away = p('1X2||away');
       if (j == null || home == null || draw == null || away == null) return const SizedBox.shrink();
       final m = widget.match;
-      final extra = (j['extra'] as int? ?? 0) > 0 ? '+${j['extra']}' : '';
-      final best = [home, draw, away].reduce((a, b) => a > b ? a : b);
-      Widget cell(String label, double v) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: Fp.background,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: v == best ? Fp.accent2 : Fp.background, width: 1.5),
-          ),
-          child: Column(
-            children: [
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Fp.body(13, color: Fp.muted),
-              ),
-              Text(chancePercent(v), style: Fp.body(17, weight: FontWeight.w800)),
-            ],
-          ),
-        ),
-      );
       // Ligne qui suit le score (demande du fondateur du 12/11/2026) : à 2-0, « encore au moins
       // un but » = plus de 2,5 ; au-delà de 5,5, rien plutôt qu'un chiffre faux.
       final goals = (m.liveHome ?? 0) + (m.liveAway ?? 0);
       double? overLine(double line) => line > 5.5 ? null : p('OU|${line.toStringAsFixed(1)}|over');
       final one = overLine(goals + 0.5), two = overLine(goals + 1.5);
       final none = goals == 0;
-      final lines = <(String, double, bool)>[
-        for (final s in mine)
-          if ((double.tryParse(s.line) ?? 9) <= 5.5)
-            if (overLine(double.parse(s.line)) case final o?)
-              (
-                'Ta sélection : ${selectionLabel('OU', s.line, s.selection).toLowerCase()} — '
-                    '${chancePercent(s.selection == 'over' ? o : 1 - o)} de chances de tenir',
-                -1,
-                true,
-              ),
-        if (one != null) (none ? 'Au moins un but dans le match' : 'Encore au moins un but', one, false),
-        if (two != null)
-          (none ? 'Au moins deux buts dans le match' : 'Encore au moins deux buts', two, false),
-      ];
       final b = widget.before;
-      return Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Fp.card, borderRadius: BorderRadius.circular(18)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
+      final minute = (j['minute'] as num?)?.toInt() ?? m.liveMinute ?? 0;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Maquette 8 : « Mon pari » en premier, avec sa chance de tenir.
+          for (final s in mine)
+            if (p('${s.market}|${s.line}|${s.selection}') ??
+                    (s.market == 'OU' && s.selection == 'under'
+                        ? (p('OU|${s.line}|over') == null ? null : 1 - p('OU|${s.line}|over')!)
+                        : null)
+                case final now?)
+              _MyBetCard(sel: s, now: now, minute: minute, match: m),
+          VCard(
+            top: mine.isEmpty ? 0 : 12,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Text('Chances en direct', style: Fp.body(17, weight: FontWeight.w700)),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  decoration: BoxDecoration(color: Fp.cardHigh, borderRadius: BorderRadius.circular(10)),
-                  child: Text(
-                    '${j['minute']}$extra\'',
-                    style: Fp.body(13, weight: FontWeight.w700, color: Fp.lilac),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                cell(m.home.name, home),
-                const SizedBox(width: 8),
-                cell('Nul', draw),
-                const SizedBox(width: 8),
-                cell(m.away.name, away),
-              ],
-            ),
-            for (final (i, (label, v, isMine)) in lines.indexed) ...[
-              SizedBox(height: i == 0 ? 10 : 6),
-              if (isMine)
-                Text(
-                  label,
-                  style: Fp.body(14, weight: FontWeight.w700, color: Fp.win, height: 1.35),
-                )
-              else
+                const VKicker('Chances maintenant'),
+                VBar3(home, draw, away),
+                const SizedBox(height: 6),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: Fp.body(i == lines.length - 1 && two != null ? 13 : 14, color: Fp.muted),
+                    for (final (label, v) in [(m.home.name, home), ('nul', draw), (m.away.name, away)])
+                      Flexible(
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(text: '$label '),
+                              TextSpan(
+                                text: chancePercent(v),
+                                style: const TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: V.t(12, color: V.mu),
+                        ),
                       ),
-                    ),
-                    Text(chancePercent(v), style: Fp.body(15, weight: FontWeight.w700)),
                   ],
                 ),
-            ],
-            const SizedBox(height: 8),
-            Text(
-              [
-                if (b != null) 'Avant le match : ${percent(b.$1)} · ${percent(b.$2)} · ${percent(b.$3)}.',
-                'Recalculé avec le score et la minute ; ce n\'est pas un conseil de pari.',
-              ].join(' '),
-              style: Fp.body(12.5, color: Fp.text2, height: 1.4),
+                if (one != null || two != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: VList(
+                      children: [
+                        if (one != null)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  none ? 'Au moins un but dans le match' : 'Encore au moins un but',
+                                ),
+                              ),
+                              Text(chancePercent(one), style: V.b()),
+                            ],
+                          ),
+                        if (two != null)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  none ? 'Au moins deux buts dans le match' : 'Encore au moins deux buts',
+                                ),
+                              ),
+                              Text(chancePercent(two), style: V.b()),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                Text(
+                  [
+                    if (b != null) 'Avant le match : ${percent(b.$1)} · ${percent(b.$2)} · ${percent(b.$3)}.',
+                    'Recalculé avec le score et la minute ; ce n\'est pas un conseil de pari.',
+                  ].join(' '),
+                  style: V.mu_(),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
+        ],
       );
     },
   );
+}
+
+/// « Mon pari · moins de 2,5 buts » (maquette 8) : anneau de la chance de tenir, chance au
+/// départ et minutes restantes ; liseré vert quand la sélection gagnerait maintenant.
+class _MyBetCard extends StatelessWidget {
+  const _MyBetCard({required this.sel, required this.now, required this.minute, required this.match});
+  final BetSel sel;
+  final double now;
+  final int minute;
+  final MatchInfo match;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = sel;
+    final (chip, kind) = switch (s.now) {
+      'win' || 'half_win' => ('gagnant', VChipKind.up),
+      'loss' || 'half_loss' => ('perdant', VChipKind.dn),
+      'push' || 'void' => ('remboursé', VChipKind.eq),
+      _ => (null, VChipKind.eq),
+    };
+    final label = selectionLabel(s.market, s.line, s.selection, home: match.home.name, away: match.away.name);
+    final left = 90 - minute;
+    return VCard(
+      top: 0,
+      border: kind == VChipKind.up ? const Color(0xFF1D5A44) : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Mon pari · $label'.toUpperCase(),
+                  style: V.t(10.5, w: FontWeight.w700, color: V.mint, ls: 0.8),
+                ),
+              ),
+              if (chip != null) VChip(chip, kind: kind),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              VRing(now),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('de chances de tenir', style: V.t(12.5, color: V.mu)),
+                    Text(
+                      [
+                        if (s.modelProbability != null) '${percent(s.modelProbability!)} au départ',
+                        if (left > 0) 'encore $left min',
+                      ].join(' · '),
+                      style: V.mu_(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ).withBottom(12);
+  }
 }
