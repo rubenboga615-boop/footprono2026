@@ -1,0 +1,30 @@
+Version 2 : cles_attaque, qualite_absente, gardien, rotation
+
+880752 lignes de composition, indicateurs pour 41620 équipes-matchs
+
+14894 matchs prédits avec les deux compositions
+
+## Indicateurs (moyenne, part des matchs non nuls)
+
+- cles_attaque : moyenne 0.131, non nul 67%
+- qualite_absente : moyenne 0.147, non nul 69%
+- gardien : moyenne 0.130, non nul 13%
+- rotation : moyenne 0.198, non nul 90%
+
+## Réglages appris sur 2019-2022 (effet sur les buts attendus)
+
+- cles_attaque : sur les buts de l'équipe x 0.977 pour +0,1 ; sur ceux de l'adversaire x 0.992
+- qualite_absente : sur les buts de l'équipe x 0.995 pour +0,1 ; sur ceux de l'adversaire x 0.998
+- gardien : sur les buts de l'équipe x 0.999 pour +0,1 ; sur ceux de l'adversaire x 1.002
+- rotation : sur les buts de l'équipe x 1.000 pour +0,1 ; sur ceux de l'adversaire x 1.016
+
+## Saisons de test (8128 matchs)
+
+| Marché | Moteur | Moteur + compositions | Écart |
+|---|---|---|---|
+| 1X2 | 0.9720 | 0.9707 | -0.0013 ± 0.0009 |
+| +/-2,5 | 0.6743 | 0.6745 | +0.0003 ± 0.0010 |
+
+Cote de clôture sur les mêmes 8128 matchs : 0.9566 (moteur 0.9720, avec compositions 0.9707) ; écart moteur - clôture +0.0154 ± 0.0030, avec compositions - clôture +0.0141 ± 0.0028
+
+Matchs avec un joueur clé (20 % des buts et passes) ou le gardien absent d'un côté (4548, 56%) : 1X2 -0.0022 ± 0.0014, +/-2,5 +0.0003 ± 0.0016

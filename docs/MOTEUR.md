@@ -1480,3 +1480,29 @@ matchs).
 **Décision** : non retenue en l'état (principe n° 4). Piste d'une version 2 : valeur de
 chaque joueur (note et contribution par 90 minutes sur la saison, gardien à part) et absence
 des seuls joueurs clés.
+
+## Compositions et absences, version 2 (24/11/2026) : gain réel mais trop petit, **non intégrée**
+
+Sortie : [`docs/etudes/2026-11-24/absences-v2-resultats.txt`](etudes/2026-11-24/absences-v2-resultats.txt).
+Valeur de chaque joueur sur les 20 derniers matchs de l'équipe : absence des 3 plus gros
+contributeurs en buts + passes décisives, note des habituels absents au-dessus de la
+moyenne de l'équipe, gardien habituel absent, rotation en contrôle.
+
+| Log loss (test, 8 128 matchs) | Moteur | Moteur + compositions | Écart |
+|---|---|---|---|
+| 1X2 | 0,9720 | 0,9707 | −0,0013 ± 0,0009 |
+| Plus/moins 2,5 | 0,6743 | 0,6745 | +0,0003 ± 0,0010 |
+| 1X2, matchs avec un joueur clé ou le gardien absent (4 548) | | | −0,0022 ± 0,0014 |
+| Écart avec la cote de clôture | +0,0154 | +0,0141 | 8 % de l'écart comblé |
+
+- Le gain sur le 1X2 est cette fois au-delà du hasard, mais petit : 8 % de l'écart avec la
+  clôture. Rien sur les buts.
+- Effet appris : un joueur clé qui apporte 30 % des buts et passes de l'équipe, absent →
+  buts de son équipe environ −7 %. Gardien, qualité des absents, rotation : presque rien.
+- Les compositions officielles arrivent environ 1 h avant le coup d'envoi, après les
+  coupons du jour (8 h) ; il faudrait recalculer les chances à ce moment-là.
+
+**Décision proposée** : ne pas l'intégrer pour l'instant (gain de l'ordre de quelques
+dixièmes de point de réussite, pour un recalcul juste avant chaque match). Le marché
+garde l'essentiel de son avance par d'autres informations. À reconsidérer si les blessés
+connus la veille (`/injuries`, déjà collectés) donnent le même gain avant 8 h.
