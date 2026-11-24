@@ -30,7 +30,8 @@ from footprono.bookmaker import playable, service, smart_coupon
 from footprono.bookmaker.odds_math import combined_odds
 from footprono.bookmaker.rules import automatic
 from footprono.bookmaker.smart_coupon import MIN_ODDS
-from footprono.football.models import Match, MatchStatus
+from footprono.football.models import Competition, Match, MatchStatus, Season
+from footprono.ingestion.reference import UNMEASURED_CODES
 
 HORIZON = timedelta(days=3)
 CLOSE_BEFORE_KICKOFF = timedelta(minutes=15)
@@ -59,10 +60,15 @@ async def _candidates(
         end = day + timedelta(days=smart_coupon.NEXT_ROUND_DAYS)
     matches = (
         await session.scalars(
-            select(Match).where(
+            select(Match)
+            .join(Season, Season.id == Match.season_id)
+            .join(Competition, Competition.id == Season.competition_id)
+            .where(
                 Match.status == MatchStatus.SCHEDULED,
                 Match.kickoff_at.between(start, end),
                 or_(Match.api_status.is_(None), Match.api_status.in_(("NS", "TBD"))),
+                # Ni sélections ni coupes d'Europe : non mesurées face à la cote (24/11/2026).
+                Competition.code.not_in(UNMEASURED_CODES),
             )
         )
     ).all()

@@ -50,6 +50,7 @@ from footprono.core.errors import AppError, NotFoundError
 from footprono.football.analysis import match_analysis
 from footprono.football.models import Competition, Match, MatchStatus, Season, Team
 from footprono.ingestion.live import LIVE_STATUSES
+from footprono.ingestion.reference import UNMEASURED_CODES
 from footprono.notifications import service as notifications
 from footprono.predictions.models import MatchPrediction
 
@@ -161,6 +162,8 @@ async def _matches(
             Match.kickoff_at >= start,
             Match.kickoff_at < end,
             or_(Match.api_status.is_(None), Match.api_status.in_(("NS", "TBD"))),
+            # Ni sélections ni coupes d'Europe : non mesurées face à la cote (24/11/2026).
+            Competition.code.not_in(UNMEASURED_CODES),
         )
         .order_by(Match.kickoff_at, Match.id)
     )

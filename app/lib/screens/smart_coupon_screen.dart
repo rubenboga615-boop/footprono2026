@@ -856,8 +856,8 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
                     p >= implied + 0.03
-                        ? 'Le moteur est un peu plus confiant que la cote (${pc(p)} contre ${pc(implied)}). '
-                              'L\'écart ne garantit rien : c\'est une chance, pas une certitude.'
+                        ? 'Le moteur est plus optimiste que la cote (${pc(p)} contre ${pc(implied)}) : la vraie '
+                              'chance est probablement plus proche de celle du bookmaker.'
                         : 'Le moteur et la cote disent à peu près la même chose (${pc(p)} contre ${pc(implied)}).',
                     style: V.mu_(12),
                   ),

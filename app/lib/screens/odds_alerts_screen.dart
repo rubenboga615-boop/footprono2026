@@ -16,6 +16,11 @@ import 'search_screen.dart';
 
 String _pct(double p) => '${(p * 100).round()}$nbsp%';
 
+/// Décision du fondateur (24/11/2026, avis du testeur) : alertes de cote et « Occasions » du
+/// tableau de bord cachées aux joueurs. Le serveur continue de les calculer en silence pour
+/// mesurer leur résultat ; on ne les rouvre que sur preuve (principe n° 4).
+const oddsAlertsShown = false;
+
 class OddsAlertsScreen extends StatefulWidget {
   const OddsAlertsScreen({super.key});
 

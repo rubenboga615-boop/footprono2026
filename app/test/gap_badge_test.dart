@@ -20,14 +20,14 @@ void main() {
     var t = await badge(tester, 0.59, 0.50);
     expect(t.data, '+9 pts');
     expect(find.byIcon(Icons.arrow_drop_up_rounded), findsOneWidget);
-    expect(t.style!.color, Fp.win);
+    expect(t.style!.color, Fp.warning); // prudence, jamais une raison de jouer (24/11)
     t = await badge(tester, 0.62, 0.64);
     expect(t.data, 'cote');
     expect(t.style!.color, Fp.muted);
     t = await badge(tester, 0.41, 0.53);
     expect(t.data, '−12 pts');
     expect(find.byIcon(Icons.arrow_drop_down_rounded), findsOneWidget);
-    expect(t.style!.color, Fp.loss);
+    expect(t.style!.color, Fp.muted);
   });
 
   testWidgets('sélections nationales : un écart en faveur du moteur reste en prudence', (tester) async {

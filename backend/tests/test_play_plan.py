@@ -9,7 +9,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from footprono.bookmaker import odds_alerts, play_plan
-from footprono.bookmaker.play_models import OddsAlert, PlayPlan
+from footprono.bookmaker.play_models import OddsAlert, OddsAlertHit, PlayPlan
 from footprono.notifications.models import Notification
 
 from .test_bets import NOW, _login, _sel, quote, world  # noqa: F401 (fixture partagée)
@@ -165,7 +165,9 @@ async def test_selection_alert_fires_once_when_odds_reach_target(
     client: AsyncClient,
     db_factory: Factory,
     awake: None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(odds_alerts, "NOTIFY", True)  # envoi réactivé pour le vérifier
     headers = await _login(client)
     await _predict(db_factory, [world["m1"], world["m2"]])
     alert = _sel(world["m1"], "1X2", "home")
@@ -207,7 +209,9 @@ async def test_gap_alert_one_notification_for_several_matches(
     client: AsyncClient,
     db_factory: Factory,
     awake: None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(odds_alerts, "NOTIFY", True)  # envoi réactivé pour le vérifier
     headers = await _login(client)
     await _predict(db_factory, [world["m1"], world["m2"]])
     bad = await client.put("/api/v1/me/odds-alerts/gap", json={"min_gap": 0.07}, headers=headers)
@@ -230,6 +234,30 @@ async def test_gap_alert_one_notification_for_several_matches(
     body = (await client.get("/api/v1/me/odds-alerts", headers=headers)).json()
     assert body["gap"] == {"id": body["gap"]["id"], "min_gap": 0.05, "active": True}
     assert {h["match_id"] for h in body["hits"]} == {world["m1"], world["m2"]}
+
+
+async def test_alerts_measured_silently_never_notified(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+    awake: None,
+) -> None:
+    """Décision du 24/11/2026 : déclenchements enregistrés (mesure), aucune notification, et
+    les anciennes notifications d'alerte ne sont plus listées."""
+    from footprono.notifications import service as notifications
+
+    headers = await _login(client)
+    await _predict(db_factory, [world["m1"], world["m2"]])
+    await client.put("/api/v1/me/odds-alerts/gap", json={"min_gap": 0.05}, headers=headers)
+    async with db_factory() as session:
+        assert await odds_alerts.check(session) == 1
+        assert (await session.scalars(select(Notification))).all() == []
+        assert len((await session.scalars(select(OddsAlertHit))).all()) == 2
+        notifications.add(session, world["user_id"], "odds_alert", "Ancienne alerte", "…")
+        notifications.add(session, world["user_id"], "bet_settled", "Pari réglé", "…")
+        await session.commit()
+    listed = (await client.get("/api/v1/me/notifications", headers=headers)).json()
+    assert [n["kind"] for n in listed] == ["bet_settled"]
 
 
 async def test_alert_owner_only_and_delete(

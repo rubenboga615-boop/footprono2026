@@ -15,7 +15,12 @@ async def test_dashboard_curve_figures_and_engine_above_odds(
     world: dict[str, Any],  # noqa: F811
     client: AsyncClient,
     db_factory: Factory,
+    monkeypatch: Any,
 ) -> None:
+    from footprono.bookmaker import dashboard
+
+    assert dashboard.OCCASIONS_SHOWN is False  # cachées aux joueurs (24/11/2026)
+    monkeypatch.setattr(dashboard, "OCCASIONS_SHOWN", True)  # pour vérifier le calcul
     assert (await client.get("/api/v1/me/dashboard")).status_code == 401
     headers = await _login(client)
     await _predict(db_factory, [world["m1"], world["m2"]])
@@ -50,6 +55,7 @@ async def test_occasions_never_unmeasured_competitions_nor_huge_gaps(
     from footprono.ingestion.reference import CUPS_BY_CODE
 
     assert set(CUPS_BY_CODE) <= set(dashboard.UNMEASURED_CODES)
+    monkeypatch.setattr(dashboard, "OCCASIONS_SHOWN", True)
     headers = await _login(client)
     await _predict(db_factory, [world["m1"], world["m2"]])
     monkeypatch.setattr(dashboard, "GAP_MAX", 0.05)  # écart du monde de test : +6 points

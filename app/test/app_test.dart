@@ -13,6 +13,7 @@ import 'package:footprono/desktop/desktop_shell.dart';
 import 'package:footprono/main.dart';
 import 'package:footprono/screens/create_screen.dart' show HomeTab;
 import 'package:footprono/screens/daily_coupons_screen.dart';
+import 'package:footprono/screens/odds_alerts_screen.dart';
 import 'package:footprono/screens/notifications_screen.dart';
 import 'package:footprono/screens/live_coupon_screen.dart';
 import 'package:footprono/screens/reliability_screen.dart';
@@ -2424,8 +2425,8 @@ void main() {
     expect(find.text('• Forme (5 derniers) : Lens VNDVV, Lyon DNVVN'), findsNothing);
     // Maquette P1 : moteur et cote côte à côte (62 % contre 54 %), sans promesse.
     expect(find.textContaining('trait jaune : selon la cote'), findsOneWidget);
-    expect(find.textContaining('Le moteur est un peu plus confiant que la cote'), findsOneWidget);
-    expect(find.textContaining('L\'écart ne garantit rien'), findsOneWidget);
+    expect(find.textContaining('Le moteur est plus optimiste que la cote'), findsOneWidget);
+    expect(find.textContaining('plus proche de celle du bookmaker'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Ajouter au coupon'));
     await tester.pumpAndSettle();
@@ -3690,10 +3691,9 @@ void main() {
     expect(find.text('56$nbsp% / 61$nbsp%'), findsOneWidget); // moteur : réalisé / annoncé
     expect(find.text('3${nbsp}500${nbsp}F'), findsOneWidget); // plan de jeu : misés cette semaine
     expect(find.text('sur 5${nbsp}000${nbsp}F cette sem.'), findsOneWidget);
-    // Occasions du jour : pastille et alerte de cote.
-    expect(find.text('OCCASIONS DU JOUR'), findsOneWidget);
-    expect(find.text('+5 pts'), findsOneWidget);
-    expect(find.text('Créer une alerte de cote'), findsOneWidget);
+    // Occasions du jour et alerte de cote : cachées aux joueurs (décision du 24/11/2026).
+    expect(find.text('OCCASIONS DU JOUR'), findsNothing);
+    expect(find.text('Créer une alerte de cote'), findsNothing);
     // Où le moteur tient parole (30 j) : réalisé par marché.
     expect(find.text('OÙ LE MOTEUR TIENT PAROLE (30 J)'), findsOneWidget);
     expect(find.text('91$nbsp%'), findsOneWidget);
@@ -3750,11 +3750,15 @@ void main() {
     expect(find.text('misés sur 4${nbsp}000${nbsp}F prévus'), findsOneWidget);
   });
 
-  testWidgets('maquette 29 : mes alertes de cote', (tester) async {
+  testWidgets('maquette 29 : mes alertes de cote (écran gardé, caché aux joueurs)', (tester) async {
     final (_, server) = await startApp(tester, loggedIn: true, startTab: HomeTab.today);
     await tester.binding.setSurfaceSize(const Size(430, 2600));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Créer une alerte de cote'));
+    expect(oddsAlertsShown, isFalse);
+    Navigator.of(
+      tester.element(find.byType(Scaffold).first),
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => const OddsAlertsScreen()));
     await tester.pumpAndSettle();
     expect(find.text('Mes alertes de cote'), findsOneWidget);
     expect(find.text('≥ 1,95'), findsOneWidget);
@@ -3789,7 +3793,7 @@ void main() {
     await tab(tester, HomeTab.today);
     expect(find.text('POUR COMMENCER'), findsOneWidget);
     expect(find.text('Un premier pari, en argent fictif'), findsOneWidget);
-    expect(find.text('OCCASIONS DU JOUR'), findsOneWidget); // dit franchement qu'il n'y en a pas
+    expect(find.text('OCCASIONS DU JOUR'), findsNothing); // cachées (24/11/2026)
   });
 
   testWidgets('nouvelle montante : cotes fixes de la maquette 17 ou en montée (modèle d\'origine)', (

@@ -171,6 +171,11 @@ NATIONS: tuple[NationRef, ...] = (
     NationRef("AMICAL", "Matchs amicaux", 10, official=False),
 )
 NATIONS_BY_CODE = {n.code: n for n in NATIONS}
+# Compétitions où le moteur n'est pas mesuré face à la cote (ou l'est mal) : sélections
+# nationales (audit du 18/11/2026) et coupes d'Europe (Bruges à 50 % contre Liverpool,
+# vérification du 24/11/2026). Pronostics affichés, mais jamais dans les coupons, les
+# suggestions de montante, les occasions ni les alertes d'écart.
+UNMEASURED_CODES = frozenset([*NATIONS_BY_CODE, *CUPS_BY_CODE])
 # Ni championnat ni coupe d'Europe : hors des modèles et contrôles des championnats.
 NON_LEAGUE_CODES: tuple[str, ...] = (*CUPS_BY_CODE, *NATIONS_BY_CODE)
 

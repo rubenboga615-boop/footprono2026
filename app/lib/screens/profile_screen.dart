@@ -328,7 +328,8 @@ class ProfileScreen extends StatelessWidget {
                       _Item(title: 'Mon bilan', onTap: () => open(const RecordScreen())),
                       // Maquettes 29 et 30 du nouveau visage.
                       _Item(title: 'Mon plan de jeu', onTap: () => open(const PlayPlanScreen())),
-                      _Item(title: 'Mes alertes de cote', onTap: () => open(const OddsAlertsScreen())),
+                      if (oddsAlertsShown)
+                        _Item(title: 'Mes alertes de cote', onTap: () => open(const OddsAlertsScreen())),
                       _Item(title: 'Fiabilité du moteur', onTap: () => open(const ReliabilityScreen())),
                       // Ancien bouton de l'écran Matchs (retiré : maquette du 07/11/2026).
                       _Item(title: 'Classement mérité', onTap: () => open(const MeritedScreen())),

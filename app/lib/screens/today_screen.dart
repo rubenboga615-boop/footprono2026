@@ -165,7 +165,7 @@ class TodayScreen extends StatelessWidget {
                           ),
                         ),
                     ],
-                    _Occasions(items: above),
+                    if (oddsAlertsShown) _Occasions(items: above),
                     if (coupons.isNotEmpty) _Daily(coupons: coupons),
                     if (montante != null) _Montante(m: montante, currency: cur),
                     if (markets.isNotEmpty) _Markets(rows: markets),

@@ -20,16 +20,17 @@ from footprono.bookmaker import play_plan, service
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.bookmaker.record import _group
 from footprono.football.models import Competition, Match, MatchStatus, Season, Team
-from footprono.ingestion.reference import CUPS_BY_CODE, NATIONS_BY_CODE
+from footprono.ingestion.reference import UNMEASURED_CODES as _UNMEASURED
 
 GAP_MIN = 0.03  # 3 points, comme la pastille « moteur contre cote »
 # Au-delà, l'écart est bien plus probablement une erreur du moteur qu'une occasion (vérification
 # du 24/11/2026 : Bruges à 50 % contre Liverpool, cote 4,72) : jamais montré comme occasion.
 GAP_MAX = 0.15
+OCCASIONS_SHOWN = False
 # Compétitions où l'« annoncé contre réalisé » face à la cote n'est pas mesuré ou est mauvais :
 # sélections nationales (audit du 18/11) et coupes d'Europe (clubs de championnats différents,
 # vérification du 24/11/2026). Jamais d'occasion ni d'alerte d'écart sur leurs matchs.
-UNMEASURED_CODES = [*NATIONS_BY_CODE, *CUPS_BY_CODE]
+UNMEASURED_CODES = sorted(_UNMEASURED)
 ABOVE_LIMIT = 6
 ABOVE_AHEAD = timedelta(hours=36)
 
@@ -220,7 +221,9 @@ async def dashboard(
         "engine": await _engine(session, user.id),
         "markets_30": await _markets_30(session, user.id, now),
         "stakes": await _stakes(session, user, now),
-        "engine_above_odds": await engine_above_odds(session, user, now),
+        # Occasions cachées aux joueurs (décision du 24/11/2026, principe n° 4 : rien de tel
+        # sans preuve) ; ``engine_above_odds`` reste pour les mesurer.
+        "engine_above_odds": await engine_above_odds(session, user, now) if OCCASIONS_SHOWN else [],
         # Mon plan de jeu (maquette 30) : budget et mises de la semaine (lundi 0 h).
         "play_plan": await play_plan.summary(session, user, now),
         "gap_min": GAP_MIN,

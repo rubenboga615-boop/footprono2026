@@ -23,16 +23,17 @@ OddsSide oddsSide(double engine, double implied) {
       : OddsSide.agree;
 }
 
+// Décision du 24/11/2026 : un moteur plus optimiste que la cote n'est jamais présenté comme une
+// raison de jouer (ses plus gros écarts sont surtout ses erreurs) : ambre, pour prévenir.
+// Moins confiant que la cote : gris, simple information.
 Color oddsSideColor(OddsSide side) => switch (side) {
-  OddsSide.below => Fp.loss,
-  OddsSide.above => Fp.win,
+  OddsSide.below => Fp.muted,
+  OddsSide.above => Fp.warning,
   OddsSide.agree => Fp.muted,
 };
 
 /// Pastille unique « moteur contre cote », sur chaque sélection, coupon, proposition :
-/// « ▲ +5 pts » (menthe), « ≈ cote » (gris), « ▼ −6 pts » (corail). Sélections nationales :
-/// un écart en faveur du moteur reste ambre (prudence), car ces écarts n'ont pas tenu en vrai
-/// (audit du 18/11/2026 : 21 % et 33 % gagnés).
+/// « ▲ +5 pts » (ambre : prudence), « ≈ cote » et « ▼ −6 pts » (gris).
 class GapBadge extends StatelessWidget {
   const GapBadge({super.key, required this.engine, required this.implied, this.nation = false});
   final double engine;
@@ -59,7 +60,7 @@ class GapBadge extends StatelessWidget {
     return Tooltip(
       message:
           'Moteur ${percent(engine)}, selon la cote ${percent(implied)}'
-          '${nation && side == OddsSide.above ? ' · sélections : le moteur surestime souvent ses chances' : ''}',
+          '${side == OddsSide.above ? ' · la vraie chance est probablement plus proche de celle du bookmaker' : ''}',
       child: Container(
         padding: const EdgeInsets.fromLTRB(4, 3, 8, 3),
         decoration: BoxDecoration(

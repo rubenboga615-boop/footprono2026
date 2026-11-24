@@ -324,10 +324,19 @@ class VGapChip extends StatelessWidget {
     final pts = ((engine - implied) * 100).round();
     if (pts.abs() < 3) return const VChip('cote', kind: VChipKind.eq, arrow: VApprox());
     final up = pts > 0;
-    return VChip(
-      '${up ? '+' : '−'}${pts.abs()} pts',
-      kind: nation ? VChipKind.am : (up ? VChipKind.up : VChipKind.dn),
-      arrow: VTriangle(up: up),
+    // Décision du 24/11/2026 : un moteur plus optimiste que la cote n'est jamais une raison de
+    // jouer (ses plus gros écarts sont surtout ses erreurs) ; la pastille prévient, en ambre.
+    // Moteur moins confiant que la cote : gris, simple information.
+    return Tooltip(
+      message: up
+          ? 'Le moteur est plus optimiste que la cote : la vraie chance est probablement plus proche '
+                'de celle du bookmaker.'
+          : 'Le moteur est moins confiant que la cote.',
+      child: VChip(
+        '${up ? '+' : '−'}${pts.abs()} pts',
+        kind: up || nation ? VChipKind.am : VChipKind.eq,
+        arrow: VTriangle(up: up),
+      ),
     );
   }
 }

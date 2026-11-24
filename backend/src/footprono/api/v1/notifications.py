@@ -58,7 +58,10 @@ async def list_notifications(
         )
     )
     await session.commit()
-    stmt = select(Notification).where(Notification.user_id == user.id)
+    # Alertes de cote cachées aux joueurs (24/11/2026) : les anciennes ne sont plus montrées.
+    stmt = select(Notification).where(
+        Notification.user_id == user.id, Notification.kind != "odds_alert"
+    )
     if unread:
         stmt = stmt.where(Notification.read_at.is_(None))
     rows = await session.scalars(stmt.order_by(Notification.id.desc()).limit(limit))

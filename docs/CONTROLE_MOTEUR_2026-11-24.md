@@ -57,3 +57,28 @@ marchés »).
 - Outil de mesure (`footprono-engine backtest`) : ne plante plus quand un championnat n'a aucun
   match prédit.
 - Test de bout en bout de la construction automatique : relancé sur Ubuntu 24.04.
+
+## 4. Étape 1 du plan qualité (avis du testeur, décision du fondateur, 24/11/2026)
+
+Rapports du testeur : `docs/AUDIT_ALERTES_ET_REUSSITE_2026-11-24.md`,
+`docs/BULLETIN_REUSSITE_2026-11-24.md`, `docs/AUDIT_VERIF_2026-11-24.md`.
+
+- **Alertes de cote cachées** : page retirée de « Moi », aucune notification envoyée
+  (`odds_alerts.NOTIFY = False`), anciennes notifications d'alerte plus listées. Les
+  déclenchements sont toujours calculés et enregistrés (`odds_alert_hits`) pour les mesurer.
+- **« Occasions du jour » cachées** dans le tableau de bord (`dashboard.OCCASIONS_SHOWN = False`) ;
+  le calcul reste, pour la mesure.
+- **Pastille « moteur contre cote »** : un moteur plus optimiste que la cote est en **ambre**
+  (prudence, « la vraie chance est probablement plus proche de celle du bookmaker »), jamais en
+  vert ; moins confiant : gris. Même phrase dans le Coupon intelligent.
+- **Coupes d'Europe et sélections** retirées des Coupons intelligents, des coupons du jour et des
+  suggestions de montante (`UNMEASURED_CODES`), tant que leur mesure face à la cote n'est pas
+  positive. Leurs pronostics restent visibles sur la fiche du match.
+- CI e2e sur Ubuntu 24.04 ; une seule semaine (depuis lundi) au tableau de bord.
+
+Note : le plan du testeur prévoyait d'essayer les améliorations « dans le moteur 2 ». Le moteur 2
+étant retiré, chaque amélioration sera mesurée hors ligne (backtest contre le moteur 1 et la cote
+de clôture) avant d'entrer dans le moteur 1, sans deuxième moteur dans l'application.
+
+Suite (étape 2) : enregistrer la cote de clôture de chaque sélection proposée, bilan des alertes
+et occasions en silence dans la console, Équilibré manquant.

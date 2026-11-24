@@ -26,7 +26,7 @@ from footprono.bookmaker.live_alerts import quiet, selection_label
 from footprono.bookmaker.play_models import OddsAlert, OddsAlertHit
 from footprono.core.errors import AppError, NotFoundError
 from footprono.football.models import Competition, Match, MatchStatus, Season, Team
-from footprono.ingestion.reference import CUPS_BY_CODE, NATIONS_BY_CODE
+from footprono.ingestion.reference import UNMEASURED_CODES
 from footprono.notifications import service as notifications
 
 MAX_ALERTS = 30
@@ -34,6 +34,11 @@ GAP_MAX = 0.15  # au-delà : jamais d'alerte d'écart (comme les occasions du ta
 GAPS = (0.05, 0.08, 0.10)
 AHEAD = timedelta(hours=36)
 KIND = "odds_alert"
+# Décision du fondateur (24/11/2026, avis du testeur) : les alertes sont cachées aux joueurs.
+# Elles sont toujours calculées et enregistrées (``OddsAlertHit``) pour mesurer leur résultat,
+# mais aucune notification n'est envoyée. On ne les rouvre que sur preuve (bilan positif sur
+# au moins 300 alertes réglées, cote de clôture battue en moyenne).
+NOTIFY = False
 DASH = "\u2013"  # tiret demi-cadratin entre les deux équipes
 
 
@@ -291,7 +296,7 @@ async def check(session: AsyncSession, now: datetime | None = None) -> int:
                         Match.kickoff_at > now,
                         Match.kickoff_at <= now + AHEAD,
                         # Ni sélections ni coupes d'Europe : écarts non mesurés (24/11/2026).
-                        Competition.code.not_in([*NATIONS_BY_CODE, *CUPS_BY_CODE]),
+                        Competition.code.not_in(UNMEASURED_CODES),
                     )
                 )
             ).all()
@@ -325,6 +330,9 @@ async def check(session: AsyncSession, now: datetime | None = None) -> int:
         a.triggered_at = now
         a.active = False
         label = selection_label(a.market, a.line or "", a.selection or "", r[4], r[5])
+        sent += 1
+        if not NOTIFY:
+            continue
         notifications.add(
             session,
             a.user_id,
@@ -334,7 +342,6 @@ async def check(session: AsyncSession, now: datetime | None = None) -> int:
             f"Chance du moteur : {round(p * 100)} %.",
             {"screen": "odds_alerts", "match_id": a.match_id},
         )
-        sent += 1
 
     for a in gap_alerts:
         user = users[a.user_id]
@@ -374,6 +381,9 @@ async def check(session: AsyncSession, now: datetime | None = None) -> int:
         others = len(new) - 1
         plural = "s" if others > 1 else ""
         more = f" (et {others} autre{plural} match{plural})" if others else ""
+        sent += 1
+        if not NOTIFY:
+            continue
         notifications.add(
             session,
             a.user_id,
@@ -383,7 +393,6 @@ async def check(session: AsyncSession, now: datetime | None = None) -> int:
             f"cote {_odds(offer.odds)} ({round(100 / float(offer.odds))} %){more}.",
             {"screen": "odds_alerts", "match_id": mid},
         )
-        sent += 1
     await session.commit()
     return sent
 

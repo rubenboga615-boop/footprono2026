@@ -351,7 +351,7 @@ class HomeShellState extends State<HomeShell> {
     }
     final page = switch (_state.openedKind) {
       'daily_coupons' => const DailyCouponsScreen(),
-      'odds_alert' => const OddsAlertsScreen(),
+      'odds_alert' when oddsAlertsShown => const OddsAlertsScreen(),
       _ => const NotificationsScreen(),
     } as Widget;
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
