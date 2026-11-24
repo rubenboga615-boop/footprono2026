@@ -19,7 +19,7 @@ from sqlalchemy.engine import make_url
 
 from footprono.accounts.cli import _push_test
 from footprono.bookmaker import smart_coupon
-from footprono.console import studies
+from footprono.console import disk, studies
 from footprono.console.jobs import JobContext
 from footprono.console.registry import Action, Param, register
 from footprono.core.errors import AppError
@@ -788,6 +788,31 @@ register(
         risk="lecture",
         run=coverage,
         duration="quelques secondes",
+    )
+)
+
+
+async def disk_usage(ctx: JobContext, params: dict[str, Any]) -> str:
+    async with ctx.factory() as session:
+        report, lines = await disk.run(session, ctx.settings)
+    for line in lines:
+        ctx.log(line)
+    ctx.result = {"database": report["database"], "free": (report["disk"] or {}).get("free")}
+    return lines[0] if lines else "espace disque inconnu"
+
+
+register(
+    Action(
+        id="disk_usage",
+        title="Espace disque",
+        family="Diagnostic",
+        description=(
+            "Ce qui prend de la place sur le serveur (base de données, fichiers bruts des "
+            "sources, sauvegardes, fichiers de la console) et à quelle vitesse ça grossit."
+        ),
+        risk="lecture",
+        run=disk_usage,
+        duration="quelques secondes à 1 min",
     )
 )
 
