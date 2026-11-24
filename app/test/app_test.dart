@@ -1630,7 +1630,7 @@ void main() {
   });
 
   testWidgets('Mon bilan : rendement, annoncé contre réalisé, rappel de jeu responsable', (tester) async {
-    await startApp(tester, loggedIn: true);
+    final (_, server) = await startApp(tester, loggedIn: true);
     await tester.binding.setSurfaceSize(const Size(430, 2400));
     await tab(tester, HomeTab.paris);
     await tester.pumpAndSettle();
@@ -1651,8 +1651,13 @@ void main() {
     expect(find.text('44$nbsp%'), findsOneWidget);
     expect(find.text('27'), findsOneWidget); // Ligue 1 : 16 + 10 + 1 remboursée
     expect(find.text('Ligue 1'), findsOneWidget);
-    expect(find.text('Par cote du coupon'), findsOneWidget);
+    expect(find.text('PAR COTE DU COUPON'), findsOneWidget);
     expect(find.text('20 et plus'), findsOneWidget);
+    // Maquette 21 : période 7 j, 30 j (par défaut), Tout ; demandée au serveur.
+    expect(find.text('RÉSULTAT'), findsOneWidget);
+    await tester.tap(find.text('7 j'));
+    await tester.pumpAndSettle();
+    expect(server.calls.where((c) => c == 'GET /me/record'), hasLength(3)); // Paris, 30 j, 7 j
     expect(find.text('−12${nbsp}000'), findsOneWidget);
   });
 
@@ -1851,7 +1856,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Mon bilan'));
     await tester.pumpAndSettle();
-    expect(find.text('Tes paris fictifs réglés, visibles par toi seul.'), findsOneWidget);
+    expect(find.text('RÉSULTAT'), findsOneWidget);
 
     // Montante : le plan devient un escalier.
     await tab(tester, HomeTab.montante);
@@ -2596,8 +2601,8 @@ void main() {
     await tester.pumpAndSettle();
     final toggle = find.text('Coupons du jour, chaque matin');
     await tester.ensureVisible(toggle);
-    // Interrupteurs : mode Montante, puis coupons du jour.
-    expect(tester.widget<Switch>(find.byType(Switch).at(1)).value, isTrue);
+    // Maquette 20 : réglages, coupons du jour d'abord, mode Montante ensuite.
+    expect(tester.widget<Switch>(find.byType(Switch).at(0)).value, isTrue);
     await tester.tap(toggle);
     await tester.pumpAndSettle();
     expect(server.dailyNotifications, isFalse);

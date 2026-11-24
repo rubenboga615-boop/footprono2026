@@ -81,11 +81,19 @@ def _group(rows: list[tuple[str, str, float | None]]) -> list[dict[str, Any]]:
 
 
 async def player_record(
-    session: AsyncSession, user_id: int, now: datetime | None = None
+    session: AsyncSession, user_id: int, now: datetime | None = None, days: int | None = None
 ) -> dict[str, Any]:
+    """``days`` : seulement les paris réglés depuis ``days`` jours (maquette 21 : 7 j, 30 j,
+    Tout) ; ``None`` : tous."""
     now = now or datetime.now(UTC)
     bets = (await session.scalars(select(Bet).where(Bet.user_id == user_id))).all()
-    settled = [b for b in bets if b.status == "settled"]
+    since = None if days is None else now - timedelta(days=days)
+
+    def in_period(b: Bet) -> bool:
+        return since is None or (b.settled_at or b.placed_at) >= since
+
+    settled = [b for b in bets if b.status == "settled" and in_period(b)]
+    in_ids = {b.id for b in settled}
     staked = sum(b.stake for b in settled)
     returned = sum(b.payout or 0 for b in settled)
     outcomes: defaultdict[str, int] = defaultdict(int)
@@ -106,7 +114,8 @@ async def player_record(
             .where(Bet.user_id == user_id, Bet.status == "settled")
         )
     ).all()
-    graded = [(s, code) for s, code in rows if s.result != "pending"]
+    kept = [(s, code) for s, code in rows if s.bet_id in in_ids]
+    graded = [(s, code) for s, code in kept if s.result != "pending"]
 
     bands = []
     for low, high in BANDS:
@@ -152,8 +161,28 @@ async def player_record(
         "stakes_7d": stakes_7d,
         "stakes_prev_7d": stakes_prev,
         "rising": stakes_prev > 0 and stakes_7d >= RISING_FACTOR * stakes_prev,
-        "by_odds": _by_odds(settled, [s for s, _ in rows]),
+        "by_odds": _by_odds(settled, [s for s, _ in kept]),
+        "days": days,
+        "bars": _bars(settled, now, days),
     }
+
+
+def _bars(settled: list[Bet], now: datetime, days: int | None) -> list[int]:
+    """Résultat net par jour (7 j), par semaine (30 j : 5 barres) ou par mois (Tout : 6
+    derniers mois), du plus ancien au plus récent (maquette 21)."""
+    if days is not None and days <= 7:
+        step, count = timedelta(days=1), 7
+    elif days is not None:
+        step, count = timedelta(days=7), -(-days // 7)
+    else:
+        step, count = timedelta(days=30), 6
+    out = [0] * count
+    for b in settled:
+        age = now - (b.settled_at or b.placed_at)
+        i = int(age / step)
+        if 0 <= i < count:
+            out[count - 1 - i] += (b.payout or 0) - b.stake
+    return out
 
 
 def _by_odds(settled: list[Bet], selections: list[BetSelection]) -> list[dict[str, Any]]:

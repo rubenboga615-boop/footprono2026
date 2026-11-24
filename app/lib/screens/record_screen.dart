@@ -1,147 +1,122 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../desktop/layout.dart';
 import '../api/models.dart';
 import '../format.dart';
 import '../labels.dart';
 import '../state/app_state.dart';
-import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/visage.dart';
 
-/// Mon bilan : les paris fictifs réglés du joueur, visibles par lui seul.
-class RecordScreen extends StatelessWidget {
+/// Mon bilan (maquette 21 du nouveau visage) : période 7 j / 30 j / Tout, résultat en grand
+/// avec ses barres, annoncé contre réalisé par marché ; gardés en plus, dans le même style :
+/// le rappel de jeu responsable, le détail par championnat, par cote du coupon et par niveau
+/// de chance.
+class RecordScreen extends StatefulWidget {
   const RecordScreen({super.key});
+
+  @override
+  State<RecordScreen> createState() => _RecordScreenState();
+}
+
+class _RecordScreenState extends State<RecordScreen> {
+  static const _periods = [(7, '7 j'), (30, '30 j'), (null, 'Tout')];
+  int period = 1;
 
   @override
   Widget build(BuildContext context) {
     final state = context.read<AppState>();
     final currency = state.me?.currency ?? 'XOF';
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SafeArea(
-        child: Loader<Json>(
-          load: () async => await state.api.get('/me/record') as Json,
-          builder: (context, data, reload) => RefreshIndicator(
-            onRefresh: reload,
-            child: ListView(
-              padding: pagePadding(context, 16, 40, maxWidth: 1080),
-              children: [
-                const BackHeader(
-                  'Mon',
-                  'bilan',
-                  subtitle: 'Tes paris fictifs réglés, visibles par toi seul.',
-                ),
-                const SizedBox(height: 16),
-                ...deskColumns(context, _content(data, currency)),
-              ],
-            ),
+    final days = _periods[period].$1;
+    return VPage(
+      children: [
+        const VTopBar('Mon bilan'),
+        VSeg(
+          items: [for (final p in _periods) p.$2],
+          selected: period,
+          onSelect: (i) => setState(() => period = i),
+        ),
+        Loader<Json>(
+          key: ValueKey(days),
+          load: () async =>
+              await state.api.get(days == null ? '/me/record' : '/me/record?days=$days') as Json,
+          builder: (context, data, reload) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: _content(data, currency, days),
           ),
         ),
-      ),
+      ],
     );
   }
 
-  List<Widget> _content(Json data, String currency) {
+  List<Widget> _content(Json data, String currency, int? days) {
     final bets = data['bets'] as Json;
     if ((bets['settled'] as int) == 0) {
       return [
-        EmptyState(
-          (bets['open'] as int) > 0
-              ? 'Aucun pari réglé pour l\'instant : ton bilan apparaîtra après les matchs.'
-              : 'Aucun pari réglé pour l\'instant. Place des paris fictifs pour voir ton bilan.',
-          icon: Icons.insights_rounded,
+        VCard(
+          child: Text(
+            (bets['open'] as int) > 0
+                ? 'Aucun pari réglé sur cette période : ton bilan apparaîtra après les matchs.'
+                : 'Aucun pari réglé sur cette période. Place des paris fictifs pour voir ton bilan.',
+            style: V.t(13.5, color: V.mu),
+          ),
         ),
       ];
     }
-    final profit = data['profit'] as int;
-    final yield_ = (data['yield'] as num?)?.toDouble();
     final bands = (data['calibration'] as List).cast<Json>();
     final best = bands.where((b) => b['enough'] == true).toList()
       ..sort((a, b) => (b['selections'] as int).compareTo(a['selections'] as int));
+    final minBand = data['min_band'] as int;
     return [
-      if (data['rising'] == true) ...[
-        GlassCard.section(
-          highlight: true,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      if (data['rising'] == true)
+        VCard(
+          border: V.amber.withValues(alpha: 0.45),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(Icons.self_improvement_rounded, color: Fp.warning),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Tes mises de la semaine (${money(data['stakes_7d'] as int, currency)}) ont au moins doublé '
-                  'par rapport à la semaine d\'avant (${money(data['stakes_prev_7d'] as int, currency)}). '
-                  'Même en argent fictif, garde la tête froide : Profil → Jeu responsable.',
-                  style: Fp.body(13, color: Fp.textSoft, height: 1.4),
-                ),
+              Text(
+                'JEU RESPONSABLE',
+                style: V.t(10.5, w: FontWeight.w700, color: V.amber, ls: 0.8),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Tes mises de la semaine (${money(data['stakes_7d'] as int, currency)}) ont au moins doublé '
+                'par rapport à la semaine d\'avant (${money(data['stakes_prev_7d'] as int, currency)}). '
+                'Même en argent fictif, garde la tête froide : Moi → Jeu responsable.',
+                style: V.t(13, color: V.tx),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 12),
-      ],
-      GlassCard.section(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Rendement', style: Fp.title(15, weight: FontWeight.w600)),
-            const SizedBox(height: 6),
-            KeyValue('Paris réglés', '${bets['settled']}'),
-            KeyValue(
-              'Gagnés · perdus',
-              // Rapport du 09/11/2026 : « 1 autres » ne disait ni l'accord ni ce que c'était.
-              [
-                '${bets['won']}',
-                '${bets['lost']}',
-                if (bets['push'] as int > 0) '${bets['push']} remboursé${bets['push'] as int > 1 ? 's' : ''}',
-                if (bets['partial'] as int > 0)
-                  '${bets['partial']} en partie gagné${bets['partial'] as int > 1 ? 's' : ''}',
-              ].join(' · '),
-            ),
-            KeyValue('Misé', money(data['staked'] as int, currency)),
-            KeyValue('Récupéré', money(data['returned'] as int, currency)),
-            KeyValue(
-              'Résultat net',
-              signedMoney(profit, currency),
-              valueColor: profit >= 0 ? Fp.win : Fp.loss,
-              bold: true,
-            ),
-            // Même règle que Mes paris (rapport du 10/11/2026 : « −48,1 % » après 3 paris).
-            if (yield_ != null && (bets['settled'] as int) >= 20)
-              KeyValue(
-                'Rendement',
-                '${yield_ >= 0 ? '+' : '−'}${percent(yield_.abs(), decimals: 1)}',
-                valueColor: yield_ >= 0 ? Fp.win : Fp.loss,
-              )
-            else if (yield_ != null)
-              KeyValue('Rendement', 'trop peu de paris (${bets['settled']} sur 20)'),
-            if ((bets['open'] as int) > 0)
-              Text(
-                '${bets['open']} pari${(bets['open'] as int) > 1 ? 's' : ''} en cours non compté${(bets['open'] as int) > 1 ? 's' : ''}.',
-                style: Fp.body(12, color: Fp.text3),
-              ),
-          ],
-        ),
+      _Result(data: data, currency: currency),
+      _Breakdown(
+        'Annoncé contre réalisé',
+        'Marché',
+        (data['by_market'] as List).cast<Json>(),
+        (k) => marketTitle(k),
+        minBand,
+        footer: 'Couleur seulement si l\'écart dépasse le hasard ($minBand sélections au moins).',
       ),
-      const SizedBox(height: 12),
-      GlassCard.section(
+      _Breakdown(
+        'Par championnat',
+        'Championnat',
+        (data['by_competition'] as List).cast<Json>(),
+        competitionName,
+        minBand,
+      ),
+      if (((data['by_odds'] as List?) ?? const []).isNotEmpty)
+        _ByOdds((data['by_odds'] as List).cast<Json>(), currency),
+      VCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Annoncé contre réalisé', style: Fp.title(15, weight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Text(
-              'Chaque sélection (y compris dans un combiné), groupée selon la probabilité du moteur '
-              'au moment du pari.',
-              style: Fp.body(12, color: Fp.text3, height: 1.4),
-            ),
+            const VKicker('Par niveau de chance'),
             if (best.isNotEmpty) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(
                 'Tes sélections annoncées autour de ${percent((best.first['announced'] as num).toDouble())} '
                 'ont gagné ${percent((best.first['observed'] as num).toDouble())} du temps.',
-                style: Fp.body(14, color: Fp.textSoft, weight: FontWeight.w600, height: 1.4),
+                style: V.b(13.5),
               ),
             ],
             if (bands.isEmpty)
@@ -149,41 +124,116 @@ class RecordScreen extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   'Pas encore de sélection réglée avec une probabilité du moteur.',
-                  style: Fp.body(13, color: Fp.text2),
+                  style: V.t(13, color: V.mu),
                 ),
               ),
-            for (final b in bands) _Band(b, data['min_band'] as int),
+            for (final b in bands) _Band(b, minBand),
           ],
         ),
       ),
-      const SizedBox(height: 12),
-      _Breakdown(
-        'Par marché',
-        (data['by_market'] as List).cast<Json>(),
-        (k) => marketTitle(k),
-        data['min_band'] as int,
-      ),
-      const SizedBox(height: 12),
-      _Breakdown(
-        'Par championnat',
-        (data['by_competition'] as List).cast<Json>(),
-        competitionName,
-        data['min_band'] as int,
-      ),
-      if (((data['by_odds'] as List?) ?? const []).isNotEmpty) ...[
-        const SizedBox(height: 12),
-        _ByOdds((data['by_odds'] as List).cast<Json>(), currency),
-      ],
-      const SizedBox(height: 14),
-      Text(
-        'Réalisé : sélections gagnées (demi-gains compris) sur gagnées + perdues ; remboursées à part. '
-        'Annoncé : chance moyenne donnée par le moteur au moment du pari. Rouge ou vert : écart net, '
-        'plus grand que le hasard, sur au moins ${data['min_band']} sélections. '
-        'Selon la cote : 1 / cote, la probabilité que la cote annonce (marge du bookmaker comprise). '
-        'Argent fictif : aucun gain réel.',
-        style: Fp.body(12, color: Fp.text3, height: 1.4),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(4, 12, 4, 0),
+        child: Text(
+          'Réalisé : sélections gagnées (demi-gains compris) sur gagnées + perdues ; remboursées à part. '
+          'Annoncé : chance moyenne donnée par le moteur au moment du pari. Selon la cote : 1 / cote '
+          '(marge du bookmaker comprise). Argent fictif : aucun gain réel.',
+          style: V.t(11.5, color: V.mu2),
+        ),
       ),
     ];
+  }
+}
+
+/// Carte « Résultat » de la maquette 21 : gain ou perte en grand, misé et rendement à droite,
+/// une barre par jour (7 j), par semaine (30 j) ou par mois (Tout), menthe ou corail.
+class _Result extends StatelessWidget {
+  const _Result({required this.data, required this.currency});
+  final Json data;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final bets = data['bets'] as Json;
+    final profit = data['profit'] as int;
+    final yield_ = (data['yield'] as num?)?.toDouble();
+    final bars = ((data['bars'] as List?) ?? const []).cast<int>();
+    final top = bars.fold<int>(1, (m, v) => v.abs() > m ? v.abs() : m);
+    final settled = bets['settled'] as int;
+    // Même règle que Mes paris (rapport du 10/11/2026 : « −48,1 % » après 3 paris).
+    final yieldText = yield_ == null
+        ? null
+        : settled >= 20
+        ? 'rendement ${yield_ >= 0 ? '+' : '−'}${percent(yield_.abs(), decimals: 1)}'
+        : 'rendement : $settled paris sur 20';
+    final parts = [
+      '$settled pari${settled > 1 ? 's' : ''} réglé${settled > 1 ? 's' : ''}',
+      '${bets['won']} gagné${(bets['won'] as int) > 1 ? 's' : ''}',
+      if (bets['push'] as int > 0) '${bets['push']} remboursé${(bets['push'] as int) > 1 ? 's' : ''}',
+      if (bets['partial'] as int > 0)
+        '${bets['partial']} en partie gagné${(bets['partial'] as int) > 1 ? 's' : ''}',
+      if (bets['open'] as int > 0)
+        '${bets['open']} en cours non compté${(bets['open'] as int) > 1 ? 's' : ''}',
+    ];
+    return VCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const VKicker('Résultat'),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        signedMoney(profit, currency),
+                        style: V.big(profit > 0 ? V.mint : (profit < 0 ? V.coral : V.tx)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const SizedBox(height: 14),
+                  Text('misé ${money(data['staked'] as int, currency)}', style: V.mu_(12)),
+                  if (yieldText != null) Text(yieldText, style: V.mu_(12)),
+                ],
+              ),
+            ],
+          ),
+          if (bars.any((v) => v != 0)) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              height: 64,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (final (i, v) in bars.indexed) ...[
+                    if (i > 0) const SizedBox(width: 6),
+                    Expanded(
+                      child: Container(
+                        height: v == 0 ? 3 : 8 + 56 * v.abs() / top,
+                        decoration: BoxDecoration(
+                          color: v > 0 ? V.mint : (v < 0 ? V.coral : V.s3),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Text(parts.join(' · '), style: V.mu_(12)),
+        ],
+      ),
+    );
   }
 }
 
@@ -196,11 +246,11 @@ class _Band extends StatelessWidget {
   Widget build(BuildContext context) {
     double v(String k) => (b[k] as num).toDouble();
     final enough = b['enough'] == true;
-    Widget cell(String label, String value, {Color color = Fp.text}) => Expanded(
+    Widget cell(String label, String value, {Color color = V.tx}) => Expanded(
       child: Column(
         children: [
-          Text(value, style: Fp.title(15, color: color)),
-          Text(label, style: Fp.body(11, color: Fp.text3)),
+          Text(value, style: V.b(15, color)),
+          Text(label, style: V.mu_(11)),
         ],
       ),
     );
@@ -211,21 +261,21 @@ class _Band extends StatelessWidget {
         children: [
           Text(
             'Annoncées ${percent(v('low'))} à ${percent(v('high'))} · ${b['selections']} sélection${(b['selections'] as int) > 1 ? 's' : ''}',
-            style: Fp.body(13, weight: FontWeight.w600),
+            style: V.t(12.5, color: V.mu),
           ),
           const SizedBox(height: 6),
           Row(
             children: [
-              cell('annoncé', percent(v('announced')), color: Fp.accentLight),
-              cell('selon la cote', percent(v('implied')), color: Fp.text2),
-              cell('réalisé', percent(v('observed')), color: enough ? Fp.text : Fp.text3),
+              cell('annoncé', percent(v('announced')), color: V.vi2),
+              cell('selon la cote', percent(v('implied')), color: V.mu),
+              cell('réalisé', percent(v('observed')), color: enough ? V.tx : V.mu2),
             ],
           ),
           if (!enough)
             Text(
               'Moins de $minBand sélections : l\'écart vient surtout du hasard.',
               textAlign: TextAlign.center,
-              style: Fp.body(11, color: Fp.warning),
+              style: V.t(11, color: V.amber),
             ),
         ],
       ),
@@ -236,8 +286,12 @@ class _Band extends StatelessWidget {
 /// Par marché ou par championnat, avec la chance annoncée par le moteur à côté du réalisé
 /// (maquette docs/maquettes/11-bilan-annonce, validée le 17/11/2026).
 class _Breakdown extends StatelessWidget {
-  const _Breakdown(this.title, this.rows, this.label, this.minBand);
+  const _Breakdown(this.title, this.column, this.rows, this.label, this.minBand, {this.footer});
   final String title;
+
+  /// En-tête de la première colonne (« Marché », « Championnat »).
+  final String column;
+  final String? footer;
   final List<Json> rows;
   final String Function(String) label;
   final int minBand;
@@ -247,28 +301,31 @@ class _Breakdown extends StatelessWidget {
     if (rows.isEmpty) return const SizedBox.shrink();
     Widget head(String t, double w) => SizedBox(
       width: w,
-      child: Text(
-        t,
-        textAlign: TextAlign.right,
-        style: Fp.body(11, color: Fp.text3),
-      ),
+      child: Text(t, textAlign: TextAlign.right, style: V.mu_(11)),
     );
-    return GlassCard.section(
+    return VCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          VKicker(title),
+          const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
-                child: Text(title, style: Fp.title(15, weight: FontWeight.w600)),
-              ),
+              Expanded(child: Text(column, style: V.mu_(11))),
               head('sél.', 34),
               head('annoncé', 62),
               head('réalisé', 56),
             ],
           ),
-          const SizedBox(height: 4),
-          for (final r in rows) _BreakdownRow(r, label(r['key'] as String), minBand),
+          for (final r in rows) ...[
+            const Divider(height: 1, thickness: 1, color: V.line),
+            _BreakdownRow(r, label(r['key'] as String), minBand),
+          ],
+          if (footer != null) ...[
+            const Divider(height: 1, thickness: 1, color: V.line),
+            const SizedBox(height: 8),
+            Text(footer!, style: V.mu_(11.5)),
+          ],
         ],
       ),
     );
@@ -289,9 +346,9 @@ class _BreakdownRow extends StatelessWidget {
     final announced = (r['announced'] as num?)?.toDouble();
     final gap = r['gap'] as String?;
     final color = switch (gap) {
-      'low' => Fp.loss,
-      'high' => Fp.win,
-      _ => Fp.accentLight,
+      'low' => V.coral,
+      'high' => V.mint,
+      _ => V.tx,
     };
     // Petit échantillon et grand écart : on prévient que c'est surtout le hasard.
     final fewButFar =
@@ -301,9 +358,9 @@ class _BreakdownRow extends StatelessWidget {
         announced != null &&
         (rate - announced).abs() >= 0.15;
     final note = switch (gap) {
-      'low' => ('Bien en dessous de l\'annoncé', Fp.loss),
-      'high' => ('Bien au-dessus de l\'annoncé', Fp.win),
-      _ when fewButFar => ('Moins de $minBand sélections : l\'écart vient surtout du hasard.', Fp.warning),
+      'low' => ('Bien en dessous de l\'annoncé', V.coral),
+      'high' => ('Bien au-dessus de l\'annoncé', V.mint),
+      _ when fewButFar => ('Moins de $minBand sélections : l\'écart vient surtout du hasard.', V.amber),
       _ => null,
     };
     Widget cell(String t, double w, TextStyle style) => SizedBox(
@@ -311,25 +368,21 @@ class _BreakdownRow extends StatelessWidget {
       child: Text(t, textAlign: TextAlign.right, style: style),
     );
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 9),
       child: Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: Fp.body(14, weight: FontWeight.w600)),
-                if (note != null) Text(note.$1, style: Fp.body(11.5, color: note.$2)),
+                Text(name, style: V.t(13.5)),
+                if (note != null) Text(note.$1, style: V.t(11.5, color: note.$2)),
               ],
             ),
           ),
-          cell('$total', 34, Fp.body(13, color: Fp.text2)),
-          cell(
-            announced == null ? '—' : percent(announced),
-            62,
-            Fp.body(14, color: Fp.accentLight, weight: FontWeight.w700),
-          ),
-          cell(rate == null ? '—' : percent(rate), 56, Fp.body(14, color: color, weight: FontWeight.w700)),
+          cell('$total', 34, V.b(13)),
+          cell(announced == null ? '—' : percent(announced), 62, V.b(13)),
+          cell(rate == null ? '—' : percent(rate), 56, V.b(13, color)),
         ],
       ),
     );
@@ -355,13 +408,13 @@ class _ByOdds extends StatelessWidget {
     Widget cell(String t, {TextAlign align = TextAlign.right, Color? color, bool bold = false}) => Text(
       t,
       textAlign: align,
-      style: Fp.body(12.5, color: color ?? Fp.text, weight: bold ? FontWeight.w700 : FontWeight.w500),
+      style: V.t(12.5, color: color ?? V.tx, w: bold ? FontWeight.w700 : FontWeight.w400),
     );
-    return GlassCard.section(
+    return VCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Par cote du coupon', style: Fp.title(15, weight: FontWeight.w600)),
+          const VKicker('Par cote du coupon'),
           const SizedBox(height: 8),
           Table(
             columnWidths: const {
@@ -375,7 +428,7 @@ class _ByOdds extends StatelessWidget {
               TableRow(
                 children: [
                   for (final (i, h) in ['Cote', 'Paris', 'Gagnés', 'Annoncé', 'Net'].indexed)
-                    cell(h, align: i == 0 ? TextAlign.left : TextAlign.right, color: Fp.text3, bold: true),
+                    cell(h, align: i == 0 ? TextAlign.left : TextAlign.right, color: V.mu),
                 ],
               ),
               for (final r in rows)
@@ -395,7 +448,7 @@ class _ByOdds extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 5),
                       child: cell(
                         "${(r['profit'] as int) >= 0 ? '+' : '−'}${thousands((r['profit'] as int).abs())}",
-                        color: (r['profit'] as int) >= 0 ? Fp.win : Fp.loss,
+                        color: (r['profit'] as int) >= 0 ? V.mint : V.coral,
                         bold: true,
                       ),
                     ),
@@ -407,7 +460,7 @@ class _ByOdds extends StatelessWidget {
           Text(
             '« Annoncé » : chances moyennes données par le moteur pour ces paris. Avec des chances de 3 %, '
             'perdre 10 paris de suite est normal.',
-            style: Fp.body(11, color: Fp.text3, height: 1.4),
+            style: V.mu_(11),
           ),
         ],
       ),

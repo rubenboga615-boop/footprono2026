@@ -106,6 +106,14 @@ async def test_record_counts_only_my_settled_bets(
     assert band["enough"] is True
     assert bands[(0.5, 0.6)]["enough"] is False  # une seule sélection : peu de paris
     assert 0.9 not in [b["announced"] for b in body["calibration"]]  # pari de l'autre joueur
+    assert len(body["bars"]) == 6  # Tout : 6 derniers mois
+
+    # Maquette 21 : 7 derniers jours, seulement le combiné récent ; une barre par jour.
+    week = (await client.get("/api/v1/me/record?days=7", headers=await _login(client))).json()
+    assert week["bets"]["settled"] == 1
+    assert week["profit"] == 4000
+    assert week["bars"] == [0, 0, 0, 0, 0, 4000, 0]
+    assert [m["key"] for m in week["by_market"]] == ["OU", "BTTS"]
 
     # En-tête du bookmaker : tous les paris (pas seulement les 100 chargés), mêmes totaux.
     summary = (await client.get("/api/v1/me/bets-summary", headers=await _login(client))).json()

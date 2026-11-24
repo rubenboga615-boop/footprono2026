@@ -10,6 +10,7 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/maquette.dart';
+import '../widgets/visage.dart';
 import 'auth_screen.dart' show countries;
 import 'merited_screen.dart';
 import 'notifications_screen.dart';
@@ -260,103 +261,126 @@ class ProfileScreen extends StatelessWidget {
                       onRetry: () => guard(context, state.refreshMe),
                     )
                   else ...[
-                    // Maquettes N4 et C6 (07/11/2026) : « Mon profil », puis la carte Premium.
-                    const MTitle('Mon', 'profil', 26),
-                    const SizedBox(height: 4),
-                    const _PlanCard(),
+                    // Maquette 20 du nouveau visage : en-tête du joueur, puis son bilan.
+                    _Header(me: me),
+                    // Achat ou fin proche : la carte Premium reste en haut ; sinon une ligne
+                    // « Prolonger » dans Compte (pas dans la maquette, indispensable).
+                    if (!me.plan.premium || me.plan.daysLeft <= 7) ...[
+                      const SizedBox(height: 12),
+                      const _PlanCard(),
+                    ],
+                    const _RecordCard(),
                   ],
                 ],
                 [
-                  // Maquettes N4 et C6 : lignes en gras sans icône, séparées d'un trait ; les
-                  // réglages du joueur, puis le compte, puis le partage et les pages légales.
-                  // Mode Montante (14/11/2026) : seulement la montante, jusqu'à ce que le joueur l'enlève.
-                  _Group([
-                    _SwitchItem(
-                      title: 'Mode Montante',
-                      value: me?.montanteMode ?? false,
-                      onChanged: me == null ? null : (on) => guard(context, () => state.setMontanteMode(on)),
-                    ),
-                  ]),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 6, 4, 12),
-                    child: Text(
-                      'Seulement la montante : coupons, direct, Grosse cote, Mes paris et Fiabilité sont cachés '
-                      'jusqu\'à ce que tu le désactives. Même moteur, mêmes montantes, même bilan.',
-                      style: Fp.body(12, color: Fp.muted, height: 1.4),
-                    ),
-                  ),
+                  // Maquette 20 : les écrans du joueur, puis RÉGLAGES, puis aide et pages légales,
+                  // puis COMPTE (absent de la maquette, indispensable).
                   ValueListenableBuilder(
                     valueListenable: state.webPushStatus,
-                    builder: (context, web, _) => _Group([
-                      _Item(
-                        // Le badge rouge de l'onglet Profil : dit en clair ici.
-                        title: state.unread > 0
-                            ? 'Notifications · ${state.unread} non lue${state.unread > 1 ? 's' : ''}'
-                            : 'Notifications',
-                        badge: state.unread,
-                        onTap: () => open(const NotificationsScreen()),
-                      ),
-                      _SwitchItem(
-                        title: 'Coupons du jour, chaque matin',
-                        value: me?.dailyCouponsNotifications ?? true,
-                        onChanged: me == null
-                            ? null
-                            : (on) => guard(context, () => state.setDailyCouponsNotifications(on)),
-                      ),
-                      // Demande du fondateur du 12/11/2026 : validé, perdu, but, dernier match.
-                      _Item(
-                        title: 'Pendant mes matchs',
-                        trailing: matchNotificationLabels[me?.matchNotifications ?? 'all'],
-                        onTap: me == null ? null : () => _matchNotifications(context, state),
-                      ),
-                      if (web != WebPushStatus.unavailable)
-                        _Item(
-                          title: 'Notifications sur cet appareil',
-                          trailing: switch (web) {
-                            WebPushStatus.on => 'Activées',
-                            WebPushStatus.denied => 'Refusées',
-                            WebPushStatus.install => 'Écran d\'accueil',
-                            _ => 'Activer',
-                          },
-                          onTap: switch (web) {
-                            WebPushStatus.off => state.enableWebPush,
-                            WebPushStatus.on => null,
-                            _ => () => _webPushHelp(context, web),
-                          },
-                        ),
-                      // Nouveau visage, étape B : « Moi » regroupe Mon bilan, Fiabilité, Classement.
-                      _Item(title: 'Mon bilan', onTap: () => open(const RecordScreen())),
-                      // Maquettes 29 et 30 du nouveau visage.
-                      _Item(title: 'Mon plan de jeu', onTap: () => open(const PlayPlanScreen())),
-                      if (oddsAlertsShown)
-                        _Item(title: 'Mes alertes de cote', onTap: () => open(const OddsAlertsScreen())),
-                      _Item(title: 'Fiabilité du moteur', onTap: () => open(const ReliabilityScreen())),
-                      // Ancien bouton de l'écran Matchs (retiré : maquette du 07/11/2026).
-                      _Item(title: 'Classement mérité', onTap: () => open(const MeritedScreen())),
-                      if (me?.googleLinked ?? false)
-                        _Item(
-                          title: 'Google lié',
-                          trailing: me!.email,
-                          onTap: () => _googleLinked(context, state),
-                        )
-                      else if (me != null && state.google != null)
-                        // Maquette validée le 07/11/2026 : une simple ligne (la grande carte
-                        // prenait plus de place que l'abonnement).
-                        _Item(
-                          title: 'Lier mon compte Google',
-                          onTap: () => guard(context, () async {
-                            if (await state.linkGoogle()) showMessage('Compte Google lié.');
-                          }),
-                        ),
-                      _Item(title: 'Aide · WhatsApp', onTap: () => state.openSupport('Bonjour FootProba, ')),
-                    ]),
+                    builder: (context, web, _) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _Group([
+                          _Item(title: 'Fiabilité du moteur', onTap: () => open(const ReliabilityScreen())),
+                          _Item(title: 'Classement mérité', onTap: () => open(const MeritedScreen())),
+                          if (oddsAlertsShown)
+                            _Item(title: 'Mes alertes de cote', onTap: () => open(const OddsAlertsScreen())),
+                          // La boîte des notifications (la maquette n'a que le réglage).
+                          _Item(
+                            title: 'Mes notifications',
+                            trailing: state.unread > 0
+                                ? '${state.unread} non lue${state.unread > 1 ? 's' : ''}'
+                                : null,
+                            badge: state.unread,
+                            onTap: () => open(const NotificationsScreen()),
+                          ),
+                        ]),
+                        _Group(title: 'Réglages', [
+                          // Demande du fondateur du 12/11/2026 : validé, perdu, but, dernier match.
+                          _Item(
+                            title: 'Notifications pendant mes matchs',
+                            trailing: matchNotificationLabels[me?.matchNotifications ?? 'all'],
+                            onTap: me == null ? null : () => _matchNotifications(context, state),
+                          ),
+                          _SwitchItem(
+                            title: 'Coupons du jour, chaque matin',
+                            value: me?.dailyCouponsNotifications ?? true,
+                            onChanged: me == null
+                                ? null
+                                : (on) => guard(context, () => state.setDailyCouponsNotifications(on)),
+                          ),
+                          if (web != WebPushStatus.unavailable)
+                            _Item(
+                              title: 'Notifications sur cet appareil',
+                              trailing: switch (web) {
+                                WebPushStatus.on => 'Activées',
+                                WebPushStatus.denied => 'Refusées',
+                                WebPushStatus.install => 'Écran d\'accueil',
+                                _ => 'Activer',
+                              },
+                              onTap: switch (web) {
+                                WebPushStatus.off => state.enableWebPush,
+                                WebPushStatus.on => null,
+                                _ => () => _webPushHelp(context, web),
+                              },
+                            ),
+                          _Item(title: 'Mon plan de jeu', onTap: () => open(const PlayPlanScreen())),
+                          // Mode Montante (14/11/2026) : seulement la montante, jusqu'à ce que le
+                          // joueur l'enlève.
+                          _SwitchItem(
+                            title: 'Mode Montante',
+                            subtitle: 'Seulement la montante, le reste caché jusqu\'à ce que tu l\'enlèves.',
+                            value: me?.montanteMode ?? false,
+                            onChanged: me == null
+                                ? null
+                                : (on) => guard(context, () => state.setMontanteMode(on)),
+                          ),
+                        ]),
+                        _Group([
+                          _Item(
+                            title: 'Aide · WhatsApp',
+                            onTap: () => state.openSupport('Bonjour FootProba, '),
+                          ),
+                          _Item(
+                            title: 'Conditions d\'utilisation',
+                            onTap: () => state.openUrl(Uri.parse(state.api.baseUrl).resolve('/conditions')),
+                          ),
+                          _Item(
+                            title: 'Confidentialité',
+                            onTap: () =>
+                                state.openUrl(Uri.parse(state.api.baseUrl).resolve('/confidentialite')),
+                          ),
+                          _Item(title: 'Jeu responsable', onTap: () => _responsible(context)),
+                          if (me != null && me.betaAvailable) _BetaItem(me: me),
+                        ]),
+                      ],
+                    ),
                   ),
-                  _Group([
+                  _Group(title: 'Compte', [
                     if (me != null)
                       _Item(
                         title: me.displayName,
                         subtitle: me.email ?? me.phone,
                         trailing: countries[me.country] ?? me.country,
+                      ),
+                    if (me != null && me.plan.premium && me.plan.daysLeft > 7)
+                      _Item(
+                        title: 'Premium jusqu\'au ${numericDate(me.plan.premiumUntil!.toLocal())}',
+                        trailing: 'Prolonger',
+                        onTap: () => openPremiumPurchase(context, me.plan),
+                      ),
+                    if (me?.googleLinked ?? false)
+                      _Item(
+                        title: 'Google lié',
+                        trailing: me!.email,
+                        onTap: () => _googleLinked(context, state),
+                      )
+                    else if (me != null && state.google != null)
+                      _Item(
+                        title: 'Lier mon compte Google',
+                        onTap: () => guard(context, () async {
+                          if (await state.linkGoogle()) showMessage('Compte Google lié.');
+                        }),
                       ),
                     if (me?.hasPassword ?? true)
                       _Item(title: 'Mot de passe', onTap: () => _changePassword(context, state)),
@@ -371,18 +395,6 @@ class ProfileScreen extends StatelessWidget {
                         onTap: () => showServerDialog(context),
                       ),
                     const _Item(title: 'Langue', trailing: 'Français'),
-                  ]),
-                  _Group([
-                    if (me != null && me.betaAvailable) _BetaItem(me: me),
-                    _Item(
-                      title: 'Conditions d\'utilisation',
-                      onTap: () => state.openUrl(Uri.parse(state.api.baseUrl).resolve('/conditions')),
-                    ),
-                    _Item(
-                      title: 'Confidentialité',
-                      onTap: () => state.openUrl(Uri.parse(state.api.baseUrl).resolve('/confidentialite')),
-                    ),
-                    _Item(title: 'Jeu responsable', onTap: () => _responsible(context)),
                   ]),
                   const SizedBox(height: 12),
                   // Maquette C6 : bouton entouré, texte lilas.
@@ -584,23 +596,133 @@ class _PlanCard extends StatelessWidget {
   }
 }
 
-/// Carte de lignes séparées d'un trait (maquettes C6 et N4).
+/// Carte de lignes séparées d'un trait (maquette 20) ; ``title`` : petit titre (« RÉGLAGES »).
 class _Group extends StatelessWidget {
-  const _Group(this.rows);
+  const _Group(this.rows, {this.title});
   final List<Widget> rows;
+  final String? title;
 
   @override
-  Widget build(BuildContext context) => MCard(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-    child: Column(
-      children: [
-        for (final (i, row) in rows.indexed) ...[
-          if (i > 0) const Divider(height: 1, thickness: 1, color: Fp.divider),
-          row,
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: Container(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
+      decoration: BoxDecoration(
+        color: V.s1,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: V.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (title != null)
+            Padding(padding: const EdgeInsets.only(top: 10, bottom: 2), child: VKicker(title!)),
+          for (final (i, row) in rows.indexed) ...[
+            if (i > 0) const Divider(height: 1, thickness: 1, color: V.line),
+            row,
+          ],
         ],
-      ],
+      ),
     ),
   );
+}
+
+/// En-tête de la maquette 20 : initiales, nom, Premium jusqu'au…, pastille.
+class _Header extends StatelessWidget {
+  const _Header({required this.me});
+  final Me me;
+
+  @override
+  Widget build(BuildContext context) {
+    final plan = me.plan;
+    final words = me.displayName.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final initials = words.isEmpty
+        ? '?'
+        : words.length == 1
+        ? words.first.substring(0, words.first.length.clamp(0, 2)).toUpperCase()
+        : '${words[0][0]}${words[1][0]}'.toUpperCase();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(color: V.vi3, shape: BoxShape.circle),
+            child: Text(initials, style: V.b(16, V.vi2)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(me.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: V.b(18)),
+                Text(
+                  plan.premium && plan.premiumUntil != null
+                      ? 'Premium jusqu\'au ${numericDate(plan.premiumUntil!.toLocal())}'
+                      : 'Version gratuite',
+                  style: V.mu_(12),
+                ),
+              ],
+            ),
+          ),
+          VChip(plan.premium ? 'Premium' : 'Gratuit', kind: plan.premium ? VChipKind.vi : VChipKind.eq),
+        ],
+      ),
+    );
+  }
+}
+
+/// « MON BILAN » de la maquette 20 : résultat des 30 derniers jours ; ouvre Mon bilan.
+class _RecordCard extends StatelessWidget {
+  const _RecordCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.read<AppState>();
+    final currency = state.me?.currency ?? 'XOF';
+    return VCard(
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RecordScreen())),
+      child: Row(
+        children: [
+          Expanded(
+            child: Loader<Json>(
+              load: () async => await state.api.get('/me/record?days=30') as Json,
+              builder: (context, data, _) {
+                final bets = data['bets'] as Json;
+                final profit = data['profit'] as int;
+                final settled = bets['settled'] as int;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const VKicker('Mon bilan'),
+                    const SizedBox(height: 4),
+                    Text(
+                      settled == 0 ? '—' : signedMoney(profit, currency),
+                      style: V.t(
+                        22,
+                        w: FontWeight.w800,
+                        color: profit > 0 ? V.mint : (profit < 0 ? V.coral : V.tx),
+                      ),
+                    ),
+                    Text(
+                      settled == 0
+                          ? '30 derniers jours · aucun pari réglé'
+                          : '30 derniers jours · $settled pari${settled > 1 ? 's' : ''} · '
+                                '${bets['won']} gagné${(bets['won'] as int) > 1 ? 's' : ''}',
+                      style: V.mu_(12),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          Transform.flip(flipX: true, child: const VIc(VIcon.back, size: 15, color: V.vi2, stroke: 2.2)),
+        ],
+      ),
+    );
+  }
 }
 
 class _Item extends StatelessWidget {
@@ -630,9 +752,8 @@ class _Item extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: Fp.body(15, weight: FontWeight.w700)),
-                    if (subtitle case final s? when s.isNotEmpty)
-                      Text(s, style: Fp.body(12, color: Fp.muted)),
+                    Text(title, style: V.t(14.5)),
+                    if (subtitle case final s? when s.isNotEmpty) Text(s, style: V.mu_(12)),
                   ],
                 ),
               ),
@@ -644,16 +765,16 @@ class _Item extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.right,
-                    style: Fp.body(13, color: Fp.muted),
+                    style: V.t(13, color: V.mu),
                   ),
                 ),
               if (badge > 0) ...[
                 const SizedBox(width: 8),
                 Badge(label: Text('$badge'), backgroundColor: Fp.loss, textColor: Fp.background),
               ],
-              if (onTap != null && trailing == null) ...[
-                const SizedBox(width: 8),
-                const Icon(Icons.chevron_right_rounded, size: 18, color: Fp.muted),
+              if (onTap != null) ...[
+                const SizedBox(width: 6),
+                Transform.flip(flipX: true, child: const VIc(VIcon.back, size: 13, color: V.mu, stroke: 2)),
               ],
             ],
           ),
@@ -688,8 +809,9 @@ class _Toggle extends StatelessWidget {
 }
 
 class _SwitchItem extends StatelessWidget {
-  const _SwitchItem({required this.title, required this.value, this.onChanged});
+  const _SwitchItem({required this.title, required this.value, this.onChanged, this.subtitle});
   final String title;
+  final String? subtitle;
   final bool value;
   final ValueChanged<bool>? onChanged;
 
@@ -703,8 +825,18 @@ class _SwitchItem extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: Text(title, style: Fp.body(15, weight: FontWeight.w700)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: V.t(14.5)),
+                      if (subtitle != null) Text(subtitle!, style: V.mu_(12)),
+                    ],
+                  ),
+                ),
               ),
+              const SizedBox(width: 8),
               _Toggle(value: value, onChanged: onChanged),
             ],
           ),

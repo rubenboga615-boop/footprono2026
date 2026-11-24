@@ -312,9 +312,12 @@ async def my_bets_summary(user: CurrentUserDep, session: SessionDep) -> dict[str
 
 
 @router.get("/me/record")
-async def my_record(user: CurrentUserDep, session: SessionDep) -> dict[str, Any]:
-    """Mon bilan : rendement, réussite par marché et championnat, annoncé contre réalisé."""
-    return await player_record(session, user.id)
+async def my_record(
+    user: CurrentUserDep, session: SessionDep, days: int | None = Query(None, ge=1, le=3650)
+) -> dict[str, Any]:
+    """Mon bilan : rendement, réussite par marché et championnat, annoncé contre réalisé ;
+    ``days`` : période (7, 30), vide : tout."""
+    return await player_record(session, user.id, days=days)
 
 
 @router.get("/me/dashboard")
