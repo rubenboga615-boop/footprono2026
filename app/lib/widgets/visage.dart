@@ -164,9 +164,11 @@ class VLink extends StatelessWidget {
           ? Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  text.substring(0, text.length - 2),
-                  style: V.t(13.5, w: FontWeight.w600, color: V.vi2),
+                Flexible(
+                  child: Text(
+                    text.substring(0, text.length - 2),
+                    style: V.t(13.5, w: FontWeight.w600, color: V.vi2),
+                  ),
                 ),
                 const SizedBox(width: 3),
                 Transform.flip(

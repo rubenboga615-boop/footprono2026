@@ -67,6 +67,9 @@ class FakeServer {
 
   /// GET /montantes et GET /bets/{id} (paris des paliers).
   List<Map<String, dynamic>> montantes = [];
+
+  /// Corps du dernier POST /montantes (création).
+  Map<String, dynamic>? createdMontante;
   bool freshPlayer = false; // nouveau joueur : aucun pari réglé (tableau de bord)
   // Tableau de bord « Aujourd'hui » (étape B) : courbe, 30 jours, moteur, mises, au-dessus de la cote.
   Map<String, dynamic> dashboard = {
@@ -389,6 +392,9 @@ class FakeServer {
         body = live;
       case 'GET /montantes':
         body = montantes;
+      case 'POST /montantes':
+        createdMontante = jsonDecode(r.body) as Map<String, dynamic>;
+        body = {'id': 1};
       case 'GET /me/montantes/summary':
         body = montanteSummary;
       case 'GET /reliability/engines':
@@ -3947,5 +3953,29 @@ void main() {
     expect(find.text('POUR COMMENCER'), findsOneWidget);
     expect(find.text('Un premier pari, en argent fictif'), findsOneWidget);
     expect(find.text('OCCASIONS DU JOUR'), findsOneWidget); // dit franchement qu'il n'y en a pas
+  });
+
+  testWidgets('nouvelle montante : cotes fixes de la maquette 17 ou en montée (modèle d\'origine)', (
+    tester,
+  ) async {
+    final (_, server) = await startApp(tester, loggedIn: true, premium: true);
+    await tester.binding.setSurfaceSize(const Size(430, 2400));
+    await tab(tester, HomeTab.montante);
+    await tester.pumpAndSettle();
+    // Modèle d'origine : 1,55 → 1,90, plages qui montent à chaque palier.
+    await tester.tap(find.text('1,55→1,90'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Voir le plan palier par palier'));
+    await tester.pumpAndSettle();
+    expect(find.text('Palier 1 : 1,55 – 1,65'), findsOneWidget);
+    expect(find.text('Palier 6 : 1,80 – 1,90'), findsOneWidget);
+    await tester.ensureVisible(find.text('Créer la montante'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Créer la montante'));
+    await tester.pumpAndSettle();
+    final steps = (server.createdMontante!['steps'] as List).cast<Map<String, dynamic>>();
+    expect(steps, hasLength(6));
+    expect(steps.first, {'odds_min': '1.55', 'odds_max': '1.65'});
+    expect(steps.last, {'odds_min': '1.80', 'odds_max': '1.90'});
   });
 }

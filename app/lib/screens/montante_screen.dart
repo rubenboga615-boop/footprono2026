@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../desktop/layout.dart';
@@ -180,19 +181,32 @@ class _CreateMontanteState extends State<_CreateMontante> {
   bool secureOn = false;
   int secure = 20;
   bool busy = false;
+  bool editRanges = false;
   final ranges = List.generate(8, (_) => const RangeValues(1.55, 1.65));
 
-  /// Maquette 17 : trois choix de cote, la même plage à chaque palier. Null : plages réglées
-  /// palier par palier (sur ordinateur).
+  /// Maquette 17 : trois choix de cote, la même plage à chaque palier.
   static const presets = [(1.30, 1.40), (1.55, 1.65), (1.80, 2.00)];
   int? preset = 1;
 
+  /// Modèle d'origine (maquette N7), remis à la demande du fondateur (24/11/2026) : plages en
+  /// légère montée de la première à la dernière (de, à, largeur d'une plage).
+  static const ramps = [(1.30, 1.45, 0.05), (1.55, 1.90, 0.10), (2.00, 2.50, 0.15)];
+  int? ramp;
+
+  /// Plages de chaque palier selon le choix ; aucun choix : réglées palier par palier.
   void _apply() {
-    final p = preset;
-    if (p == null) return;
-    final (lo, hi) = presets[p];
-    for (var i = 0; i < ranges.length; i++) {
-      ranges[i] = RangeValues(lo, hi);
+    double r2(double v) => (v * 100).round() / 100;
+    if (preset case final p?) {
+      final (lo, hi) = presets[p];
+      for (var i = 0; i < ranges.length; i++) {
+        ranges[i] = RangeValues(lo, hi);
+      }
+    } else if (ramp case final p?) {
+      final (a, b, w) = ramps[p];
+      final step = count > 1 ? (b - a - w) / (count - 1) : 0.0;
+      for (var i = 0; i < count; i++) {
+        ranges[i] = RangeValues(r2(a + step * i), r2(a + step * i + w));
+      }
     }
   }
 
@@ -255,7 +269,7 @@ class _CreateMontanteState extends State<_CreateMontante> {
     final atMiddle = (middle / step).round() * step;
     // Ordinateur : la place ne manque pas, le plan (escalier) et la sécurisation restent affichés.
     final desktop = DesktopScope.of(context);
-    final showPlan = desktop;
+    final showPlan = editRanges || desktop;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -271,17 +285,28 @@ class _CreateMontanteState extends State<_CreateMontante> {
                 bg: V.s1,
                 items: [
                   for (final v in const [2000, 5000, 10000]) thousands(v),
+                  const [2000, 5000, 10000].contains(stake) ? 'Autre' : thousands(stake),
                 ],
-                selected: const [2000, 5000, 10000].indexOf(stake),
-                onSelect: (i) => setState(() => start.text = thousands(const [2000, 5000, 10000][i])),
+                selected: switch (stake) {
+                  2000 => 0,
+                  5000 => 1,
+                  10000 => 2,
+                  _ => 3,
+                },
+                onSelect: (i) => i < 3
+                    ? setState(() => start.text = thousands(const [2000, 5000, 10000][i]))
+                    : _otherStake(context.read<AppState>().me?.currency ?? 'XOF'),
               ),
               const SizedBox(height: 12),
               const VKicker('Nombre de paliers'),
               VSeg(
                 bg: V.s1,
-                items: const ['3', '4', '6'],
-                selected: const [3, 4, 6].indexOf(count),
-                onSelect: (i) => setState(() => count = const [3, 4, 6][i]),
+                items: const ['3', '4', '6', '8'],
+                selected: const [3, 4, 6, 8].indexOf(count),
+                onSelect: (i) => setState(() {
+                  count = const [3, 4, 6, 8][i];
+                  _apply();
+                }),
               ),
               const SizedBox(height: 12),
               const VKicker('Cote par palier'),
@@ -291,6 +316,21 @@ class _CreateMontanteState extends State<_CreateMontante> {
                 selected: preset ?? -1,
                 onSelect: (i) => setState(() {
                   preset = i;
+                  ramp = null;
+                  _apply();
+                }),
+              ),
+              const SizedBox(height: 8),
+              // Modèle d'origine : cotes qui montent un peu à chaque palier.
+              Text('ou en montée, palier après palier', style: V.mu_(12)),
+              const SizedBox(height: 4),
+              VSeg(
+                bg: V.s1,
+                items: [for (final (a, b, _) in ramps) '${odds(a)}→${odds(b)}'],
+                selected: ramp ?? -1,
+                onSelect: (i) => setState(() {
+                  ramp = i;
+                  preset = null;
                   _apply();
                 }),
               ),
@@ -322,6 +362,14 @@ class _CreateMontanteState extends State<_CreateMontante> {
             ],
           ),
         ),
+        if (!desktop)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: VLink(
+              editRanges ? 'Masquer le plan' : 'Voir le plan palier par palier ›',
+              onTap: () => setState(() => editRanges = !editRanges),
+            ),
+          ),
         if (showPlan)
           MCard(
             margin: const EdgeInsets.only(top: 4),
@@ -353,6 +401,7 @@ class _CreateMontanteState extends State<_CreateMontante> {
                     onChanged: (v) => setState(() {
                       ranges[i] = RangeValues((v.start * 20).round() / 20, (v.end * 20).round() / 20);
                       preset = null;
+                      ramp = null;
                     }),
                   ),
                 ],
@@ -364,18 +413,44 @@ class _CreateMontanteState extends State<_CreateMontante> {
               ],
             ),
           ),
-        if (desktop)
-          VCard(
-            child: _SecureCard(
-              on: secureOn,
-              pct: secure,
-              onChanged: (v) => setState(() => secureOn = v),
-              onPct: (v) => setState(() => secure = v),
-            ),
+        VCard(
+          child: _SecureCard(
+            on: secureOn,
+            pct: secure,
+            onChanged: (v) => setState(() => secureOn = v),
+            onPct: (v) => setState(() => secure = v),
           ),
+        ),
         VBtn(busy ? 'Création…' : 'Créer la montante', onTap: busy || stake < 100 ? null : _create),
       ],
     );
+  }
+
+  /// « Autre » : une mise de départ au choix.
+  Future<void> _otherStake(String currency) async {
+    final ctrl = TextEditingController(text: '$stake');
+    final v = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: V.s1,
+        title: Text('Mise de départ', style: V.b(16)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: InputDecoration(suffixText: currencyLabel(currency)),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, int.tryParse(ctrl.text)),
+            child: const Text('Valider'),
+          ),
+        ],
+      ),
+    );
+    if (v != null && v > 0 && mounted) setState(() => start.text = thousands(v));
   }
 }
 
