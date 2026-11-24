@@ -50,7 +50,7 @@ x-backend: &backend
     FP_CUPS_PREDICTIONS: ${FP_CUPS_PREDICTIONS:-false}
     FP_NATIONS_PREDICTIONS: ${FP_NATIONS_PREDICTIONS:-false}
     FP_BETA_SHARING: ${FP_BETA_SHARING:-false}
-    FP_BACKUP_KEEP_DAYS: ${FP_BACKUP_KEEP_DAYS:-14}
+    FP_BACKUP_KEEP_DAYS: ${FP_BACKUP_KEEP_DAYS:-7}
     # APK proposé en mise à jour (footprono-admin publish-apk).
     FP_APP_RELEASE_DIR: /data/app
     # Version web (iPhone, ordinateur) publiée depuis la console : servie sur /app.
@@ -154,7 +154,7 @@ services:
       PGUSER: ${POSTGRES_USER}
       PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: ${POSTGRES_DB}
-      KEEP_DAYS: ${FP_BACKUP_KEEP_DAYS:-14}
+      KEEP_DAYS: ${FP_BACKUP_KEEP_DAYS:-7}
       BACKUP_HOUR: ${FP_BACKUP_HOUR:-3}
     volumes:
       - ./backups:/backups

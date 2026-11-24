@@ -188,7 +188,7 @@ la console (Joueurs → Bêta, « Observatoire bêta »). Coupé par défaut.
 ## Sauvegardes
 
 - Chaque jour à 3 h (UTC) : `deploy/backups/footprono-AAAAMMJJ-HHMM.dump`,
-  gardées 14 jours. Échec : fichier `deploy/backups/DERNIER_ECHEC` et
+  gardées 7 jours (14 jusqu'au 24/11/2026 : 4 Go sur le même disque). Échec : fichier `deploy/backups/DERNIER_ECHEC` et
   `docker compose logs backup`.
 - Copie hors du serveur (une panne de disque n'emporte pas tout), depuis
   Termux, par exemple chaque semaine :

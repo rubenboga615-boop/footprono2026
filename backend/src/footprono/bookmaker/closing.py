@@ -283,6 +283,10 @@ def _summary(items: list[dict[str, Any]]) -> dict[str, Any]:
     profit = sum(STAKE * (_payout(i["result"], i["odds"]) - 1) for i in settled)
     with_close = [i for i in items if i.get("closing") is not None]
     beat = sum(i["odds"] > i["closing"] for i in with_close)
+    # Cote égale à la clôture : ni battue ni perdue. Avant les relevés de 1 h et de 5 à
+    # 20 minutes avant le match, c'était souvent le cas (relevé toutes les 3 h) ;
+    # « battue 25 % » laissait croire que 75 % étaient prises plus bas.
+    equal = sum(i["odds"] == i["closing"] for i in with_close)
     return {
         "selections": len(items),
         "settled": n,
@@ -293,6 +297,7 @@ def _summary(items: list[dict[str, Any]]) -> dict[str, Any]:
         "yield": round(profit / (STAKE * n), 4) if n else None,
         "with_closing": len(with_close),
         "beat_closing": round(beat / len(with_close), 4) if with_close else None,
+        "equal_closing": round(equal / len(with_close), 4) if with_close else None,
         # Écart moyen avec la clôture : cote obtenue / cote de clôture - 1 (+2 % : prise 2 %
         # plus haut que la clôture en moyenne).
         "closing_gap": (

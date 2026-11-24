@@ -115,6 +115,7 @@ async def test_occasions_recorded_silently_then_closing_and_result(
     assert "+5 à +10 pts" in report["occasions"]["by_band"]  # 60 % contre 54 %
     assert report["daily_coupon_selections"]["total"]["beat_closing"] == 1.0
     assert occ["closing_gap"] == round(1.85 / 1.70 - 1, 4)  # prise 8,8 % au-dessus
+    assert occ["equal_closing"] == 0.0
     assert report["player_bets"]["total"]["with_closing"] == 1
 
 
