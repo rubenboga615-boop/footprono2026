@@ -205,7 +205,9 @@ class _BookmakerScreenState extends State<BookmakerScreen> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                const VKicker('Ce mois'),
+                                // Période écrite en clair (séance du testeur du 24/11/2026 : « Ce mois »
+                                // à côté des « 30 j » du tableau de bord faisait croire à une erreur).
+                                VKicker('Depuis le 1er ${longDate(DateTime.now()).split(' ').last}'),
                                 Text(
                                   '${month > 0
                                       ? '+'

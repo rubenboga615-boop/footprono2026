@@ -58,6 +58,7 @@ class GapBadge extends StatelessWidget {
       OddsSide.agree => CustomPaint(size: const Size(12, 10), painter: _ApproxPainter(color)),
     };
     return Tooltip(
+      exitDuration: Duration.zero, // disparaît dès que la souris sort (24/11/2026)
       message:
           'Moteur ${percent(engine)}, selon la cote ${percent(implied)}'
           '${side == OddsSide.above ? ' · la vraie chance est probablement plus proche de celle du bookmaker' : ''}',

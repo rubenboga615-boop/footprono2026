@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:footprono/labels.dart';
 import 'package:footprono/theme.dart';
 import 'package:footprono/widgets/engine_vs_odds.dart';
 
@@ -41,5 +42,11 @@ void main() {
     expect(oddsSide(0.52, 0.50), OddsSide.agree);
     expect(oddsSide(0.48, 0.50), OddsSide.agree);
     expect(oddsSide(0.47, 0.50), OddsSide.below);
+  });
+
+  test('mention des chances non mesurées : coupes d\'Europe et sélections (24/11/2026)', () {
+    expect(unmeasuredNote('EPL'), isNull);
+    expect(unmeasuredNote('UCL'), contains('coupe d\'Europe'));
+    expect(unmeasuredNote('uel'), contains('coupe d\'Europe'));
   });
 }

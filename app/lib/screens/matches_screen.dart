@@ -622,6 +622,11 @@ class _MatchCard extends StatelessWidget {
                 team(m.home, before?[0], 8),
                 team(m.away, before?[2], 6),
                 if (before != null) VBar3(before[0], before[1], before[2]),
+                if (before != null && unmeasuredNote(m.competition) != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(unmeasuredNote(m.competition)!, style: V.t(11.5, color: V.amber)),
+                  ),
               ],
             ),
           ),

@@ -328,6 +328,9 @@ class VGapChip extends StatelessWidget {
     // jouer (ses plus gros écarts sont surtout ses erreurs) ; la pastille prévient, en ambre.
     // Moteur moins confiant que la cote : gris, simple information.
     return Tooltip(
+      // Disparaît dès que la souris sort (séance du testeur du 24/11/2026 : la bulle restait
+      // par-dessus la carte suivante sur ordinateur).
+      exitDuration: Duration.zero,
       message: up
           ? 'Le moteur est plus optimiste que la cote : la vraie chance est probablement plus proche '
                 'de celle du bookmaker.'

@@ -279,6 +279,15 @@ class _MatchViewState extends State<_MatchView> {
                 ],
               ),
               VBar3(h, n, a),
+              if (unmeasuredNote(m.competition) case final note?)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    note,
+                    textAlign: TextAlign.center,
+                    style: V.t(12, color: V.amber),
+                  ),
+                ),
             ],
           if (m.referee != null && (m.started || tab == 0))
             Center(
