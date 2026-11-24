@@ -304,6 +304,39 @@ async def test_download_fetches_only_missing_statistics(
     assert [c.split("?")[0] for c in calls] == ["/status", "/fixtures"]
 
 
+async def test_fixtures_only_links_matches_without_statistics(
+    db_factory: Factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Liste des matchs seulement (étude des absences, 24/11/2026) : les matchs de
+    football-data reçoivent leur numéro API-Football en une requête, sans statistiques."""
+    await _ingest(db_factory, tmp_path, _fd("EPL", 2024))
+    fixtures = [
+        _raw_fixture(1, "Manchester United", "Fulham", "2024-08-16", 1, 0),
+        _raw_fixture(2, "Ipswich", "Liverpool", "2024-08-17", 0, 2),
+    ]
+    calls: list[str] = []
+    monkeypatch.setattr(service, "api_football_transport", _api_transport(fixtures, calls))
+    monkeypatch.setattr(api_football.ApiFootballClient, "__init__", _fast_init)
+    settings = make_settings(raw_data_dir=tmp_path / "raw", api_football_key="k" * 32)
+    request = IngestionRequest(DataSource.API_FOOTBALL, ["EPL"], [2024])
+    token = service.fixtures_only.set(True)
+    try:
+        await run_ingestion(db_factory, settings, [request])
+    finally:
+        service.fixtures_only.reset(token)
+    assert [c.split("?")[0] for c in calls] == ["/status", "/fixtures"]
+    async with db_factory() as session:
+        linked = set(
+            (
+                await session.scalars(
+                    select(Match.api_football_id).where(Match.api_football_id.is_not(None))
+                )
+            ).all()
+        )
+    assert linked == {1, 2}
+    assert await _count(db_factory) == 0
+
+
 async def test_download_updates_upcoming_calendar(
     db_factory: Factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

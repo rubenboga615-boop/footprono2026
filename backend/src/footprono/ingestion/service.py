@@ -156,6 +156,11 @@ async def _understat_file(
 
 # Progression à l'intérieur d'un fichier (téléchargement match par match).
 PROGRESS_EVERY = 25
+# Liste des matchs seulement, sans les statistiques de chaque match (1 requête par saison) :
+# rattacher d'anciennes saisons à API-Football avant « Compléter les matchs passés », qui
+# rapporte compositions et statistiques 20 matchs par requête (étude des absences, 24/11/2026).
+fixtures_only: ContextVar[bool] = ContextVar("api_football_fixtures_only", default=False)
+
 _progress: ContextVar[Callable[[str], None]] = ContextVar(
     "ingestion_progress", default=lambda _message: None
 )
@@ -225,7 +230,9 @@ async def _download_api_football(
         if year >= api_football.HALF_SPLIT_FIRST_SEASON:
             params["half"] = "true"
         statistics: dict[int, Any] = {}
-        pending = [i for i in items if i["fixture"]["id"] not in done]
+        pending = (
+            [] if fixtures_only.get() else [i for i in items if i["fixture"]["id"] not in done]
+        )
         notify = _progress.get()
         notify(f"    {len(items)} matchs terminés, {len(pending)} sans statistiques à demander")
         for n, item in enumerate(pending, start=1):

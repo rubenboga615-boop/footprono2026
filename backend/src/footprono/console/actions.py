@@ -25,6 +25,7 @@ from footprono.console.registry import Action, Param, register
 from footprono.core.errors import AppError
 from footprono.football.models import DataSource
 from footprono.ingestion import cup_odds_check, cups, history, live, nations
+from footprono.ingestion import service as ingestion_service
 from footprono.ingestion.cli import parse_seasons
 from footprono.ingestion.coverage import coverage_report, format_coverage
 from footprono.ingestion.quality import run_quality_checks
@@ -2032,6 +2033,9 @@ register(
 
 async def ingest_full(ctx: JobContext, params: dict[str, Any]) -> str:
     seasons = parse_seasons(params["seasons"])
+    if params.get("fixtures_only"):
+        ingestion_service.fixtures_only.set(True)
+        ctx.log("API-Football : liste des matchs seulement (1 requête par saison)")
     requests = [
         IngestionRequest(DataSource(source), params["competitions"], seasons)
         for source in params["sources"]
@@ -2078,6 +2082,16 @@ register(
                 "choices",
                 default=[v for v, _ in SOURCES],
                 options=SOURCES,
+            ),
+            Param(
+                "fixtures_only",
+                "API-Football : liste des matchs seulement",
+                "bool",
+                default=False,
+                help=(
+                    "1 requête par saison, sans les statistiques de chaque match : pour "
+                    "rattacher d'anciennes saisons avant « Compléter les matchs passés »"
+                ),
             ),
         ),
     )
