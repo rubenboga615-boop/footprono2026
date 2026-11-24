@@ -627,9 +627,7 @@ class _LiveCard extends StatelessWidget {
     };
     final p = ((chances[s.matchId]?['markets'] as Map?)?['${s.market}|${s.line}|${s.selection}'] as num?)
         ?.toDouble();
-    final label = lowerLabel(
-      selectionLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam),
-    );
+    final label = lowerLabel(pickLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam));
     return SizedBox(
       width: 230,
       child: VCard2(
@@ -706,13 +704,7 @@ class _BetLine extends StatelessWidget {
     final title =
         montante ??
         (n == 1
-            ? selectionLabel(
-                first.market,
-                first.line,
-                first.selection,
-                home: first.homeTeam,
-                away: first.awayTeam,
-              )
+            ? pickLabel(first.market, first.line, first.selection, home: first.homeTeam, away: first.awayTeam)
             : 'Combiné · $n sélections');
     // Palier de montante pas encore joué : la date du match (maquette 35 « Lens – Lyon · sam. 20:45 »).
     final k = first.kickoffAt?.toLocal();
@@ -807,7 +799,7 @@ class _OccasionLine extends StatelessWidget {
     final home = a['home'] as String, away = a['away'] as String;
     final engine = (a['engine'] as num).toDouble(), implied = (a['implied'] as num).toDouble();
     final label = lowerLabel(
-      selectionLabel(
+      pickLabel(
         a['market'] as String,
         (a['line'] ?? '') as String,
         a['selection'] as String,

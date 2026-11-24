@@ -275,7 +275,7 @@ class _MatchRow extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(selectionLabel(s.market, s.line, s.selection, home: m.home, away: m.away)),
+                            Text(pickLabel(s.market, s.line, s.selection, home: m.home, away: m.away)),
                             Text(
                               '$profile · moteur ${chancePercent(s.probability)} · cote ${chancePercent(implied(s))}',
                               style: V.mu_(),
@@ -345,7 +345,7 @@ class _ComboSheet extends StatelessWidget {
                               style: Fp.body(12, color: Fp.muted),
                             ),
                             Text(
-                              selectionLabel(s.market, s.line, s.selection, home: m.home, away: m.away),
+                              pickLabel(s.market, s.line, s.selection, home: m.home, away: m.away),
                               style: Fp.body(14.5, weight: FontWeight.w700),
                             ),
                             Text(

@@ -830,7 +830,7 @@ class _MontanteViewState extends State<MontanteView> {
     String betLabel(Bet b) => switch (b.selections) {
       // Maquette 15 : « Brest – Nantes, +1,5 but », « Lens ou nul » (l'équipe suffit).
       [final x] => switch (lowerLabel(
-        selectionLabel(x.market, x.line, x.selection, home: x.homeTeam, away: x.awayTeam),
+        pickLabel(x.market, x.line, x.selection, home: x.homeTeam, away: x.awayTeam),
       ).replaceFirst(RegExp(r'^plus de '), '+').replaceFirst(RegExp(r'^moins de '), '−')) {
         final l when l.contains(x.homeTeam) || l.contains(x.awayTeam) => l,
         final l => '${x.homeTeam} – ${x.awayTeam}, $l',

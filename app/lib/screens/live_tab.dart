@@ -29,8 +29,11 @@ const liveStatLabels = [
 ];
 
 class LiveTab extends StatefulWidget {
-  const LiveTab({super.key, required this.match, this.before, this.section});
+  const LiveTab({super.key, required this.match, this.before, this.section, this.onEvents});
   final MatchInfo match;
+
+  /// Événements du match à chaque relevé (buteurs sous le score, maquette 8).
+  final ValueChanged<List<Json>>? onEvents;
 
   /// Une seule partie, sans les onglets (2 : compositions, onglet « Compos » avant le match).
   final int? section;
@@ -81,6 +84,7 @@ class _LiveTabState extends State<LiveTab> {
           data = j;
           error = null;
         });
+        widget.onEvents?.call([for (final e in j['events'] as List? ?? const []) e as Json]);
       }
     } on ApiException catch (e) {
       if (mounted && data == null) setState(() => error = e);

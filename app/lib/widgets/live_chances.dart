@@ -307,7 +307,7 @@ class _MyBetCard extends StatelessWidget {
       'push' || 'void' => ('remboursé', VChipKind.eq),
       _ => (null, VChipKind.eq),
     };
-    final label = selectionLabel(s.market, s.line, s.selection, home: match.home.name, away: match.away.name);
+    final label = pickLabel(s.market, s.line, s.selection, home: match.home.name, away: match.away.name);
     final left = 90 - minute;
     return VCard(
       top: 0,

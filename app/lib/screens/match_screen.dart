@@ -126,6 +126,14 @@ class _MatchViewState extends State<_MatchView> {
   // d'office pendant le match (maquette D2, plan du 10/11/2026, étape 7).
   late int tab = widget.data.match.isLive ? 0 : (widget.data.match.started ? 1 : 0);
 
+  /// Buteurs sous le score (maquette 8), tirés du relevé lu par l'onglet du direct.
+  String? scorers;
+
+  void _setScorers(List<Json> events) {
+    final line = scorerLine(events);
+    if (mounted && line != scorers) setState(() => scorers = line);
+  }
+
   @override
   void didUpdateWidget(_MatchView old) {
     super.didUpdateWidget(old);
@@ -157,7 +165,7 @@ class _MatchViewState extends State<_MatchView> {
     final live = m.started;
     final index = live ? tab - 1 : tab;
     final content = live && tab == 0
-        ? [LiveTab(match: m, before: _before(d))]
+        ? [LiveTab(match: m, before: _before(d), onEvents: _setScorers)]
         : switch (index) {
             0 => _probabilities(d),
             1 => _odds(context, d),
@@ -242,6 +250,17 @@ class _MatchViewState extends State<_MatchView> {
                 Expanded(child: _bigTeam(m.away, Fp.lossText)),
               ],
             ),
+          if (m.started && scorers != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                scorers!,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: V.mu_(12),
+              ),
+            ),
           if (m.started && !m.isLive)
             Padding(
               padding: const EdgeInsets.only(top: 2),
@@ -289,7 +308,7 @@ class _MatchViewState extends State<_MatchView> {
                   ),
                 ),
             ],
-          if (m.referee != null && (m.started || tab == 0))
+          if (m.referee != null && !m.started && tab == 0)
             Center(
               child: InkWell(
                 borderRadius: BorderRadius.circular(8),
@@ -1448,4 +1467,17 @@ class _EnginePicks extends StatelessWidget {
       ),
     );
   }
+}
+
+/// « ⚽ Calvert-Lewin 23', Gnonto 58' · Ampadu 51' » : buteurs de l'équipe à domicile puis
+/// de l'équipe à l'extérieur ; null sans but. Penalty manqué exclu, contre son camp signalé.
+String? scorerLine(List<Json> events) {
+  String side(String s) => [
+    for (final e in events)
+      if (e['kind'] == 'Goal' && e['detail'] != 'Missed Penalty' && e['side'] == s && e['player'] != null)
+        '${e['player']}${e['detail'] == 'Own Goal' ? ' (csc)' : ''} '
+            '${e['minute']}${e['extra'] != null && e['extra'] != 0 ? '+${e['extra']}' : ''}\'',
+  ].join(', ');
+  final parts = [side('home'), side('away')].where((t) => t.isNotEmpty);
+  return parts.isEmpty ? null : '⚽ ${parts.join(' · ')}';
 }

@@ -144,10 +144,13 @@ String teamCode(String name) {
 
 /// Chance d'un pari en mots : « 1 chance sur 60 » pour un pari improbable, « environ 7 fois
 /// sur 10 » au-delà de 50 % (« 1 chance sur 1 » laissait croire qu'un pari à 72 % était
-/// certain, essai du 07/11/2026).
+/// certain, essai du 07/11/2026). Entre 20 et 50 %, « 1 chance sur N » seulement si c'est
+/// juste à 3,5 points près : 41 % n'est pas « 1 chance sur 2 » mais « environ 4 fois sur 10 »
+/// (revue de la maquette 13, 24/11/2026).
 String chanceInWords(double p) {
   if (p <= 0) return '';
-  if (p < 0.5) return '1 chance sur ${(1 / p).round()}';
+  final n = (1 / p).round();
+  if (p < 0.2 || (p < 0.5 && (1 / n - p).abs() <= 0.035)) return '1 chance sur $n';
   return 'environ ${(p * 10).round()} fois sur 10';
 }
 

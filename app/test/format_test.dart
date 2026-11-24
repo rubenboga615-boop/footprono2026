@@ -43,6 +43,11 @@ void main() {
     expect(selectionLabel('1X2', '', 'draw', home: h, away: a), 'Match nul');
     expect(selectionLabel('DC', '', 'X2', home: h, away: a), 'Nul ou Lyon');
     expect(selectionLabel('OU', '2.5', 'over'), 'Plus de 2,5 buts');
+    expect(pickLabel('OU', '2.5', 'over'), 'Plus de 2,5 buts');
+    expect(
+      pickLabel('TEAM_OU_AWAY', '3.5', 'under', home: 'Somalie', away: 'Ghana'),
+      'Buts de Ghana · Moins de 3,5 buts',
+    );
     expect(selectionLabel('OU', '0.5', 'under'), 'Moins de 0,5 but');
     // Handicap asiatique : ligne côté domicile, l'extérieur a la ligne opposée.
     expect(selectionLabel('AH', '-0.25', 'home', home: h, away: a), 'Lens (−0,25)');
@@ -77,6 +82,8 @@ void main() {
     expect(chanceInWords(0.5), 'environ 5 fois sur 10');
     expect(chanceInWords(1 / 60), '1 chance sur 60');
     expect(chanceInWords(0.3), '1 chance sur 3');
+    expect(chanceInWords(0.23), '1 chance sur 4');
+    expect(chanceInWords(0.41), 'environ 4 fois sur 10'); // pas « 1 chance sur 2 »
   });
 
   test('numéro Wave groupé deux par deux', () {

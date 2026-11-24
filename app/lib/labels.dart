@@ -269,6 +269,19 @@ String fullLabel(
   return '${marketTitle(market, home: home, away: away)} · $s';
 }
 
+/// Libellé d'une sélection hors de la fiche du match (coupon, pari, montante) : un marché
+/// d'une seule équipe garde son titre (« Buts de Ghana · Moins de 3,5 buts »), sinon
+/// « moins de 3,5 buts » ne disait pas de quelle équipe (revue de la maquette 19, 24/11/2026).
+String pickLabel(
+  String market,
+  String line,
+  String sel, {
+  String home = 'Domicile',
+  String away = 'Extérieur',
+}) => market.contains('TEAM_')
+    ? fullLabel(market, line, sel, home: home, away: away)
+    : selectionLabel(market, line, sel, home: home, away: away);
+
 /// Libellés des états d'un pari ou d'une sélection.
 String betStatusLabel(String status, String? outcome) {
   if (status == 'open') return 'En cours';

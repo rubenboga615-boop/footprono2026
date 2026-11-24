@@ -135,7 +135,7 @@ class _BetScreenState extends State<BetScreen> {
                                 ),
                                 Text(
                                   lowerLabel(
-                                    selectionLabel(
+                                    pickLabel(
                                       s.market,
                                       s.line,
                                       s.selection,

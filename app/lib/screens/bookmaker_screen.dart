@@ -318,7 +318,7 @@ class _BetRow extends StatelessWidget {
     final b = bet;
     final n = b.selections.length;
     final first = b.selections.first;
-    final label = selectionLabel(
+    final label = pickLabel(
       first.market,
       first.line,
       first.selection,

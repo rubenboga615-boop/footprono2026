@@ -685,7 +685,7 @@ class _SelectionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = item;
     final model = c.offer.modelProbability;
-    final label = selectionLabel(
+    final label = pickLabel(
       c.offer.market,
       c.offer.line,
       c.offer.selection,

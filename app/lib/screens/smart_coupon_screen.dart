@@ -925,7 +925,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                             Text(
                               [
                                 lowerLabel(
-                                  selectionLabel(
+                                  pickLabel(
                                     s['market'] as String,
                                     (s['line'] ?? '') as String,
                                     s['selection'] as String,
@@ -1776,7 +1776,7 @@ class _Example extends StatelessWidget {
                         children: [
                           Text('${s['home']} – ${s['away']}', style: Fp.body(13.5)),
                           Text(
-                            selectionLabel(
+                            pickLabel(
                               '${s['market']}',
                               '${s['line'] ?? ''}',
                               '${s['selection']}',
