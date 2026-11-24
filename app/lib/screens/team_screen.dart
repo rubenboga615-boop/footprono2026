@@ -40,7 +40,7 @@ class _TeamScreenState extends State<TeamScreen> {
   Widget build(BuildContext context) {
     final api = context.read<AppState>().api;
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: V.bg,
       body: SafeArea(
         child: Loader<Json>(
           key: ValueKey('$competition-$season'),
@@ -61,24 +61,22 @@ class _TeamScreenState extends State<TeamScreen> {
     final locked = data['locked'] as bool;
     final venues = data['venues'] as Json;
     final v = venues[_venues[venue].$1] as Json;
+    final all = venues['all'] as Json;
+    final rank = data['rank'] as Json?;
+    final upcoming = ((data['upcoming'] as List?) ?? const []).cast<Json>();
     return ListView(
-      padding: pagePadding(context, 16, 40),
+      padding: pagePadding(context, 16, 40, maxWidth: 640),
       children: [
-        BackHeader(
-          widget.name,
+        // Maquette 26 : retour, « Suivie » à droite ; le classement mérité en plus (utile).
+        VTopBar(
           '',
-          // Matchs de toute la saison (avant : ceux du lieu choisi, « 6 » au lieu de 11).
-          subtitle:
-              '${competitionName(comp)} ${seasonLabel(year)} · ${(venues['all'] as Json)['matches']} matchs joués'
-              '${_venues[venue].$1 == 'all' ? '' : ' (dont ${v['matches']} ${_venues[venue].$1 == 'home' ? 'à domicile' : 'à l\'extérieur'})'}',
-          // Maquette 26 : « Suivie » (filtre « Suivis » de la liste des matchs).
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               _FollowChip(teamId: widget.teamId),
               const SizedBox(width: 8),
-              SquareButton(
-                icon: Icons.leaderboard_rounded,
+              VIconBtn(
+                VIcon.trophy,
                 tooltip: 'Classement mérité',
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
@@ -89,39 +87,64 @@ class _TeamScreenState extends State<TeamScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 14),
+        Row(
+          children: [
+            VTeamBadge(teamCode(widget.name), size: 56, fontSize: 15),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: V.b(20)),
+                  Text(
+                    [
+                      '${competitionName(comp)} ${seasonLabel(year)}',
+                      if (rank != null) '${rank['rank']}${rank['rank'] == 1 ? 'er' : 'e'}',
+                      if (rank != null) '${rank['points']} pts' else '${all['matches']} matchs',
+                    ].join(' · '),
+                    style: V.mu_(12.5),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         if (seasons.length > 1) ...[
-          ChipRow(
-            labels: [
+          const SizedBox(height: 12),
+          VTabs(
+            items: [
               for (final s in seasons)
                 '${competitionName(s['competition'] as String)} ${seasonLabel(s['season'] as int)}',
             ],
             selected: current < 0 ? 0 : current,
-            onSelected: (i) => setState(() {
+            onSelect: (i) => setState(() {
               competition = seasons[i]['competition'] as String;
               season = seasons[i]['season'] as int;
             }),
           ),
-          const SizedBox(height: 12),
         ],
-        _form((data['form'] as List).cast<Json>()),
+        _form((data['form'] as List).cast<Json>(), all),
+        if (upcoming.isNotEmpty) _upcoming(upcoming),
         const SizedBox(height: 12),
-        SegmentTabs(
-          labels: [for (final x in _venues) x.$2],
+        VSeg(
+          items: [for (final x in _venues) x.$2],
           selected: venue,
-          onSelected: (i) => setState(() => venue = i),
+          onSelect: (i) => setState(() => venue = i),
         ),
-        const SizedBox(height: 12),
         if ((v['matches'] as int) == 0)
-          const EmptyState('Aucun match terminé dans cette configuration.', icon: Icons.sports_soccer_rounded)
+          VCard(
+            child: Text('Aucun match terminé dans cette configuration.', style: V.t(13, color: V.mu)),
+          )
         else ...[
           _basics(v),
-          const SizedBox(height: 12),
           if (locked)
-            const PremiumLock(
-              text:
-                  'xG créés et concédés, pressing (PPDA), passes dangereuses, tirs cadrés, corners, '
-                  'cartons, possession, arrêts et passes réussies sont inclus dans Premium.',
+            const Padding(
+              padding: EdgeInsets.only(top: 12),
+              child: PremiumLock(
+                text:
+                    'xG créés et concédés, pressing (PPDA), passes dangereuses, tirs cadrés, corners, '
+                    'cartons, possession, arrêts et passes réussies sont inclus dans Premium.',
+              ),
             )
           else
             _advanced(v),
@@ -131,42 +154,97 @@ class _TeamScreenState extends State<TeamScreen> {
           'Matchs de championnat terminés. Sources : football-data (buts, tirs, corners, cartons), '
           'Understat (xG, pressing, passes dangereuses), API-Football (possession, arrêts, passes). '
           'La forme compte toutes les compétitions.',
-          style: Fp.body(12, color: Fp.text3, height: 1.4),
+          style: V.mu_(11.5),
         ),
       ],
     );
   }
 
-  Widget _form(List<Json> form) => GlassCard.section(
+  /// FORME de la maquette 26 : 5 pastilles V / N / D (la plus ancienne à gauche) et les buts
+  /// marqués par match ; le détail des 5 matchs dessous (gardé : utile).
+  Widget _form(List<Json> form, Json all) {
+    final goals = (all['goals_for'] as num?)?.toDouble();
+    return VCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const VKicker('Forme'),
+          const SizedBox(height: 10),
+          if (form.isEmpty)
+            Text('Aucun match terminé.', style: V.t(13, color: V.mu))
+          else ...[
+            Row(
+              children: [
+                for (final f in form.reversed) ...[
+                  _ResultBox(f['result'] as String),
+                  const SizedBox(width: 6),
+                ],
+                const Spacer(),
+                if (goals != null)
+                  Text(
+                    '${decimal(goals, max: 1)} but${goals >= 2 ? 's' : ''} marqué${goals >= 2 ? 's' : ''} / match',
+                    style: V.mu_(12),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final f in form)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${f['venue'] == 'home' ? 'contre' : 'chez'} ${f['opponent']}',
+                        style: V.t(12.5, color: V.mu),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text('${f['score']}', style: V.t(12.5, color: V.mu)),
+                    const SizedBox(width: 10),
+                    Text(numericDate(DateTime.parse(f['date'] as String)), style: V.mu_(11.5)),
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// PROCHAINS MATCHS de la maquette 26 : adversaire, lieu, jour, chance de gagner du moteur.
+  Widget _upcoming(List<Json> rows) => VCard(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Forme · 5 derniers matchs', style: Fp.title(15, weight: FontWeight.w600)),
-        Text('Le plus récent en haut.', style: Fp.body(12, color: Fp.text3)),
-        const SizedBox(height: 10),
-        if (form.isEmpty)
-          Text('Aucun match terminé.', style: Fp.body(13, color: Fp.text2))
-        else
-          for (final f in form)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  _ResultBox(f['result'] as String),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      '${f['venue'] == 'home' ? 'contre' : 'chez'} ${f['opponent']}',
-                      style: Fp.body(14, weight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+        const VKicker('Prochains matchs'),
+        for (final (i, u) in rows.indexed) ...[
+          if (i > 0) const Divider(height: 1, thickness: 1, color: V.line),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${u['opponent']} (${u['home'] == true ? 'dom.' : 'ext.'})', style: V.t(14)),
+                      Text(
+                        u['kickoff_at'] == null
+                            ? shortDate(DateTime.parse(u['date'] as String))
+                            : '${shortDate(DateTime.parse(u['kickoff_at'] as String).toLocal())} · '
+                                  '${hourMinute(DateTime.parse(u['kickoff_at'] as String).toLocal())}',
+                        style: V.mu_(12),
+                      ),
+                    ],
                   ),
-                  Text('${f['score']}', style: Fp.body(14, color: Fp.text2)),
-                  const SizedBox(width: 10),
-                  Text(numericDate(DateTime.parse(f['date'] as String)), style: Fp.body(12, color: Fp.text3)),
-                ],
-              ),
+                ),
+                if (u['win'] != null)
+                  Text(percent((u['win'] as num).toDouble()), style: V.t(13, color: V.mu)),
+              ],
             ),
+          ),
+        ],
       ],
     ),
   );
@@ -179,7 +257,7 @@ class _TeamScreenState extends State<TeamScreen> {
 
   Widget _basics(Json v) {
     final n = v['matches'] as int, pts = v['points'] as int;
-    return GlassCard.section(
+    return VCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -233,24 +311,19 @@ class _TeamScreenState extends State<TeamScreen> {
                   'ou malchance.',
       );
     }
-    return GlassCard.section(
+    return VCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text('Statistiques avancées', style: Fp.title(15, weight: FontWeight.w600)),
-              ),
-              Text('— = donnée absente', style: Fp.body(12, color: Fp.text3)),
+              const Expanded(child: VKicker('Statistiques avancées')),
+              Text('— = donnée absente', style: V.mu_(11.5)),
             ],
           ),
           const SizedBox(height: 6),
           ...rows,
-          for (final n in notes) ...[
-            const SizedBox(height: 8),
-            Text(n, style: Fp.body(13, color: Fp.textSoft, height: 1.4)),
-          ],
+          for (final n in notes) ...[const SizedBox(height: 8), Text(n, style: V.t(12.5, color: V.mu))],
         ],
       ),
     );
@@ -265,14 +338,11 @@ class _ResultBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final (bg, fg, letter) = formColors(result);
     return Container(
-      width: 26,
-      height: 26,
+      width: 28,
+      height: 28,
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-      child: Text(
-        letter,
-        style: Fp.body(13, weight: FontWeight.w700, color: fg),
-      ),
+      decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+      child: Text(letter, style: V.b(12, fg)),
     );
   }
 }
@@ -290,13 +360,13 @@ class _Stat extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: Fp.body(14, weight: FontWeight.w600)),
-              Text(hint, style: Fp.body(12, color: Fp.text3)),
+              Text(label, style: V.t(14)),
+              Text(hint, style: V.mu_(11.5)),
             ],
           ),
         ),
         const SizedBox(width: 10),
-        Text(value, style: Fp.title(17, color: Fp.accentLight)),
+        Text(value, style: V.b(16)),
       ],
     ),
   );

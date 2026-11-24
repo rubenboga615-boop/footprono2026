@@ -1,5 +1,7 @@
 """Fiche équipe (stats avancées : Premium) et classement mérité (points réels contre xPts)."""
 
+from datetime import date, timedelta
+
 from httpx import AsyncClient
 from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -20,6 +22,8 @@ async def test_team_profile_free_then_premium(
         match = await session.get(Match, upcoming[0])
         assert match is not None
         team_id = match.home_team_id
+        match.match_date = date.today() + timedelta(days=2)  # prochain match de l'équipe
+        await session.commit()
 
     assert (await client.get("/api/v1/teams/999999/profile")).status_code == 404
 
@@ -37,6 +41,11 @@ async def test_team_profile_free_then_premium(
     assert len(body["form"]) == 5
     assert body["seasons"][0] == {"competition": "EPL", "season": 2024,
                                   "played": total["matches"]}  # fmt: skip
+    # Maquette 26 : place au classement, prochains matchs (avec la chance de gagner si prédits).
+    assert body["rank"]["points"] == total["points"]
+    assert 1 <= body["rank"]["rank"] <= 20
+    assert upcoming[0] in [u["match_id"] for u in body["upcoming"]]
+    assert body["upcoming"][0]["home"] is True
 
     headers = await _signup(client)
     await make_premium(db_factory, "+22997444444")

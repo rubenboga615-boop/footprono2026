@@ -181,9 +181,44 @@ async def get_team_profile(
     competition: str | None = None,
     season: int | None = None,
 ) -> dict[str, Any]:
-    """Fiche équipe : forme, bilan domicile / extérieur (statistiques avancées : Premium)."""
+    """Fiche équipe : forme, bilan domicile / extérieur (statistiques avancées : Premium),
+    place au classement et prochains matchs avec la chance de gagner (maquette 26)."""
+    from footprono.bookmaker.service import models_probabilities
+
     profile = await team_profile(session, team_id, competition, season)
     profile["locked"] = False
+    table = (await merited_table(session, profile["competition"], profile["season"]))["table"]
+    mine = next((r for r in table if r["team"]["id"] == team_id), None)
+    profile["rank"] = None if mine is None else {"rank": mine["rank"], "points": mine["points"]}
+    home, away = aliased(Team), aliased(Team)
+    rows = (
+        await session.execute(
+            select(Match, home.name, away.name)
+            .join(home, home.id == Match.home_team_id)
+            .join(away, away.id == Match.away_team_id)
+            .where(
+                or_(Match.home_team_id == team_id, Match.away_team_id == team_id),
+                Match.status == MatchStatus.SCHEDULED,
+                Match.match_date >= date.today(),
+            )
+            .order_by(Match.match_date, Match.kickoff_at)
+            .limit(3)
+        )
+    ).all()
+    probs = await models_probabilities(session, [m.id for m, _, _ in rows])
+    profile["upcoming"] = [
+        {
+            "match_id": m.id,
+            "home": m.home_team_id == team_id,
+            "opponent": a if m.home_team_id == team_id else h,
+            "date": m.match_date.isoformat(),
+            "kickoff_at": None if m.kickoff_at is None else m.kickoff_at.isoformat(),
+            "win": probs.get(m.id, {}).get(
+                "1X2||home" if m.home_team_id == team_id else "1X2||away"
+            ),
+        }
+        for m, h, a in rows
+    ]
     return profile if is_premium(user) else lock_premium(profile)
 
 

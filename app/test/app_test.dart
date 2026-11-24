@@ -1021,6 +1021,17 @@ class FakeServer {
           ],
           'venues': {'home': venue(17, 37), 'away': venue(17, 22), 'all': venue(34, 59)},
           'locked': !premium,
+          'rank': {'rank': 4, 'points': 59},
+          'upcoming': [
+            {
+              'match_id': 7,
+              'home': true,
+              'opponent': 'Lyon',
+              'date': '2026-10-10',
+              'kickoff_at': '2026-10-10T19:00:00Z',
+              'win': 0.41,
+            },
+          ],
         };
       case 'GET /referees/profile':
         Map<String, dynamic> summary(int n, double y, bool enough) => {
@@ -1552,7 +1563,7 @@ void main() {
     // Aperçu flouté (structure seulement, aucun chiffre) puis le bouton d'abonnement.
     expect(find.text('Inclus dans Premium'), findsOneWidget);
     expect(find.text('Débloquer · 2${nbsp}000 F pour 30 jours'), findsOneWidget);
-    expect(find.text('Forme · 5 derniers matchs'), findsNothing);
+    expect(find.text('FORME'), findsNothing);
   });
 
   testWidgets('fiche équipe gratuite : forme et buts, statistiques avancées verrouillées', (tester) async {
@@ -1561,10 +1572,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Fiche équipe').first);
     await tester.pumpAndSettle();
-    expect(find.text('Forme · 5 derniers matchs'), findsOneWidget);
+    expect(find.text('FORME'), findsOneWidget);
     expect(find.text('chez Monaco'), findsOneWidget);
     expect(find.text('2,41'), findsOneWidget);
-    expect(find.text('Statistiques avancées'), findsNothing);
+    expect(find.text('STATISTIQUES AVANCÉES'), findsNothing);
     expect(find.text('Inclus dans Premium'), findsOneWidget);
 
     await tester.tap(find.text('Extérieur'));
@@ -1579,7 +1590,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Fiche équipe').first);
     await tester.pumpAndSettle();
-    expect(find.text('Statistiques avancées'), findsOneWidget);
+    expect(find.text('STATISTIQUES AVANCÉES'), findsOneWidget);
     expect(find.text('1,95'), findsOneWidget); // xG créés
     expect(find.text('57,8 %'), findsOneWidget);
     expect(find.text('—'), findsOneWidget); // arrêts : donnée absente, pas 0
