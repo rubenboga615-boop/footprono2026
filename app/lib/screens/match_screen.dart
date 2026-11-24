@@ -14,7 +14,6 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/visage.dart';
 import '../widgets/common.dart';
-import '../widgets/engine_compare.dart';
 import '../widgets/live_refresh.dart';
 import '../widgets/maquette.dart';
 import 'premium_screen.dart' show PremiumCard;
@@ -583,10 +582,6 @@ class _MatchViewState extends State<_MatchView> {
           style: Fp.body(12, color: Fp.warning, height: 1.4),
         ),
       ],
-      if (d.offers.map((o) => o.engine2Calibrated).nonNulls.firstOrNull case final cal?) ...[
-        const SizedBox(height: 8),
-        Engine2Status(cal),
-      ],
       const SizedBox(height: 8),
       if (d.offers.isEmpty)
         const EmptyState(
@@ -624,9 +619,7 @@ class _MatchViewState extends State<_MatchView> {
                                   ),
                                   style: Fp.body(14, weight: FontWeight.w700),
                                 ),
-                                if (o.engine2Probability != null)
-                                  engineCompareOf(o)
-                                else if (o.modelProbability != null)
+                                if (o.modelProbability != null)
                                   Text(
                                     'Moteur ${percent(o.modelProbability!)} · cote juste ${decimal(1 / o.modelProbability!)}',
                                     style: Fp.body(12, color: Fp.text2),
@@ -1202,13 +1195,12 @@ class _ProbRow extends StatelessWidget {
                 style: V.mu_(),
               ),
               if (explain != null) Text(explain!, style: V.mu_(11)),
-              engineCompareOf(offer),
             ],
           ),
         ),
         if (o != null && implied != null) ...[
           const SizedBox(width: 8),
-          VGapChip(engine: prob.probability, implied: implied, nation: isNation(match.competition)),
+          VGapChip(engine: prob.probability, implied: implied, nation: unmeasured(match.competition)),
           const SizedBox(width: 8),
           OddsButton(match: match, offer: o),
         ],

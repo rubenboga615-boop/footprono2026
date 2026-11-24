@@ -1,5 +1,7 @@
 # Moteur 3.0 : loi des scores calée sur la cote de référence
 
+> **Retiré le 24/11/2026** (décision du fondateur) : voir docs/CONTROLE_MOTEUR_2026-11-24.md.
+
 > **Dans `footprono2026` : « moteur 2 », en mode comparaison seulement** (maquettes K1-K6
 > validées le 15/11/2026). Il est servi **à côté** du moteur 1, jamais à sa place : le
 > moteur 1, ses chances et ses choix ne changent pas. Code : `engine/market_fit.py`,

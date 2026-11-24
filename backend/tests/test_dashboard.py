@@ -38,6 +38,31 @@ async def test_dashboard_curve_figures_and_engine_above_odds(
     assert all(a["engine"] - a["implied"] >= body["gap_min"] for a in above)
 
 
+async def test_occasions_never_unmeasured_competitions_nor_huge_gaps(
+    world: dict[str, Any],  # noqa: F811
+    client: AsyncClient,
+    db_factory: Factory,
+    monkeypatch: Any,
+) -> None:
+    """Vérification du 24/11/2026 (Bruges à 50 % contre Liverpool) : pas d'occasion au-delà de
+    15 points, ni sur les sélections nationales et les coupes d'Europe."""
+    from footprono.bookmaker import dashboard, service
+    from footprono.ingestion.reference import CUPS_BY_CODE
+
+    assert set(CUPS_BY_CODE) <= set(dashboard.UNMEASURED_CODES)
+    headers = await _login(client)
+    await _predict(db_factory, [world["m1"], world["m2"]])
+    monkeypatch.setattr(dashboard, "GAP_MAX", 0.05)  # écart du monde de test : +6 points
+    service.clear_window_cache()
+    body = (await client.get("/api/v1/me/dashboard", headers=headers)).json()
+    assert body["engine_above_odds"] == []
+    monkeypatch.setattr(dashboard, "GAP_MAX", 0.15)
+    monkeypatch.setattr(dashboard, "UNMEASURED_CODES", [*dashboard.UNMEASURED_CODES, "EPL"])
+    service.clear_window_cache()
+    body = (await client.get("/api/v1/me/dashboard", headers=headers)).json()
+    assert body["engine_above_odds"] == []
+
+
 async def test_bet_history_placed_notifications_then_settled(
     world: dict[str, Any],  # noqa: F811
     client: AsyncClient,

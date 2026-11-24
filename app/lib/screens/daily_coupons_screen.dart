@@ -13,7 +13,6 @@ import 'premium_screen.dart' show PremiumCard, openPremium;
 import '../theme.dart';
 import '../widgets/visage.dart';
 import '../widgets/common.dart';
-import '../widgets/engine_compare.dart';
 import 'bookmaker_screen.dart' as bookmaker;
 import 'share_coupon.dart';
 import 'smart_coupon_screen.dart';
@@ -90,18 +89,7 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
     final state = context.read<AppState>();
     final api = state.api;
     final day = _serverDay(offset);
-    // Mode comparaison (maquette K5) : les coupons du jour du moteur 2, sous ceux du moteur 1.
-    Future<Json> load() async {
-      final params = {'day': _iso(day)};
-      final second = state.compareEngines
-          ? api
-                .get('/smart-coupons/day', {...params, 'engine': '2'})
-                .then<Object?>((v) => v, onError: (Object _) => null)
-          : null;
-      final data = await api.get('/smart-coupons/day', params) as Json;
-      final d2 = await second;
-      return {...data, if (d2 is Json) '_engine2': d2};
-    }
+    Future<Json> load() async => await api.get('/smart-coupons/day', {'day': _iso(day)}) as Json;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -112,7 +100,6 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
           builder: (context, data, reload) {
             _reload = reload;
             final coupons = (data['coupons'] as List).cast<Json>();
-            final engine2 = data['_engine2'] as Json?;
             final summary = (data['summary'] as Map).cast<String, dynamic>();
             final yesterday = (summary['yesterday'] as Map).cast<String, dynamic>();
             final month = (summary['last_30_days'] as Map).cast<String, dynamic>();
@@ -177,10 +164,6 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
                                 'probabilité, vraie cote, cote totale minimale).',
                       icon: Icons.confirmation_number_outlined,
                     ),
-                  if (engine2 != null && coupons.isNotEmpty) ...[
-                    const Align(alignment: Alignment.centerLeft, child: EngineTag(1)),
-                    const SizedBox(height: 8),
-                  ],
                   ...deskColumns(context, [
                     for (final c in coupons)
                       _DailyCouponCard(
@@ -208,7 +191,6 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
                             style: Fp.body(12, color: Fp.text2, height: 1.4),
                           ),
                         ),
-                  if (engine2 != null) ..._engine2(context, engine2),
                   if (coupons.any((c) => c['locked'] == true)) ...[
                     const _UnlockCard(),
                     const SizedBox(height: 8),
@@ -266,42 +248,6 @@ class _DailyCouponsScreenState extends State<DailyCouponsScreen> {
         ),
       ),
     );
-  }
-
-  /// Maquette K5 : les coupons du jour du moteur 2 (mêmes règles, à part), avec leur bilan.
-  List<Widget> _engine2(BuildContext context, Json d2) {
-    final coupons = (d2['coupons'] as List).cast<Json>();
-    final month = ((d2['summary'] as Map)['last_30_days'] as Map).cast<String, dynamic>();
-    return [
-      const SizedBox(height: 8),
-      const Align(alignment: Alignment.centerLeft, child: EngineTag(2)),
-      const SizedBox(height: 8),
-      if (coupons.isEmpty)
-        Text(
-          'Pas de coupon du moteur 2 ${offset == 0 ? 'aujourd\'hui' : 'ce jour-là'}.',
-          style: Fp.body(12.5, color: Fp.text2, height: 1.4),
-        ),
-      ...deskColumns(context, [
-        for (final c in coupons)
-          _DailyCouponCard(
-            c,
-            note: _orderNote(c, coupons),
-            onTap: c['locked'] == true
-                ? () => openPremium(context)
-                : () =>
-                      Navigator.of(context)
-                          .push(MaterialPageRoute(builder: (_) => DailyCouponDetail(coupon: c))),
-          ),
-      ]),
-      Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Text(
-          'Moteur 2, 30 derniers jours : ${_record(month)}. Réglés le soir comme ceux du moteur 1, '
-          'rien n\'est effacé.',
-          style: Fp.body(12, color: Fp.text2, height: 1.4),
-        ),
-      ),
-    ];
   }
 
   static String _record(Map<String, dynamic> r) => r['settled'] == 0
@@ -579,10 +525,7 @@ class DailyCouponDetail extends StatelessWidget {
                       if (coupon['display_status'] == 'upcoming')
                         OutlinedButton.icon(
                           onPressed: () {
-                            final state = context.read<AppState>();
-                            // Mode comparaison : le pari garde le moteur du coupon du jour.
-                            final engine = state.compareEngines ? (coupon['engine'] as int? ?? 1) : null;
-                            addSelectionsToCoupon(state, sels, engine: engine);
+                            addSelectionsToCoupon(context.read<AppState>(), sels);
                           },
                           icon: const Icon(Icons.add_rounded, size: 18),
                           label: const Text('Ajouter à mon coupon'),

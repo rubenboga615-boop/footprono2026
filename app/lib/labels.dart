@@ -346,6 +346,10 @@ const nationCodes = {
 
 bool isNation(String? code) => code != null && nationCodes.contains(code.toUpperCase());
 
+/// Compétitions où l'écart du moteur avec la cote n'est pas mesuré (sélections nationales,
+/// coupes d'Europe : vérification du 24/11/2026) : pastille d'écart ambre, pas verte.
+bool unmeasured(String? code) => isNation(code) || const {'UCL', 'UEL', 'UECL'}.contains(code?.toUpperCase());
+
 /// Rang d'importance d'une compétition (ordre de [competitionNames] : les 5 grands championnats
 /// d'abord), pour ranger les filtres autrement que par code.
 int competitionRank(String code) {

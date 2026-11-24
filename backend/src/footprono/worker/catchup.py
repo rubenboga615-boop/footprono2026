@@ -31,7 +31,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from footprono.bookmaker import engine_compare, live_coupons, settlement, smart_coupon
+from footprono.bookmaker import live_coupons, settlement, smart_coupon
 from footprono.bookmaker.models import Bet
 from footprono.bookmaker.smart_models import SmartCoupon
 from footprono.cache.redis import create_redis
@@ -257,15 +257,12 @@ async def _run(
         coupons = await smart_coupon.settle_pending(session)
     async with factory() as session:
         live_picks = await live_coupons.settle_picks(session)
-    async with factory() as session:
-        proposals = await engine_compare.settle_proposals(session)
     report["settlement"] = {
         "bets": bets["outcomes"],
         "montantes": bets["montantes"],
         "notified": bets.get("notified", 0),
         "daily_coupons": coupons,
         "live_picks": live_picks,
-        "engine_proposals": proposals,
     }
     o = bets["outcomes"]
     log(
@@ -298,8 +295,6 @@ async def _run(
     if due:
         async with factory() as session:
             report["daily_coupons"] = await smart_coupon.create_daily(session)
-        async with factory() as session:
-            report["daily_coupons_engine2"] = await smart_coupon.create_daily(session, engine=2)
         log("Coupons du jour créés (ils sont annoncés aux joueurs quand leurs codes sont saisis).")
     else:
         log("Coupons du jour : rien à faire.")
@@ -307,7 +302,6 @@ async def _run(
     check_stop()
     await step(6)
     report["reliability"] = await tasks._warm_reliability()
-    report["engine_chances"] = await tasks._engine_chances()
 
     await step(7)
     async with factory() as session:

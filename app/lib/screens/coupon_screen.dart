@@ -243,11 +243,7 @@ class _CouponScreenState extends State<CouponScreen> {
           'from_suggestion': false, // composé par le joueur (suivi des montantes, M2)
         });
       } else {
-        await state.api.post('/bets', {
-          'stake': amount,
-          'selections': selections,
-          'engine': ?state.couponEngine, // comparaison des moteurs : le pari garde son moteur
-        });
+        await state.api.post('/bets', {'stake': amount, 'selections': selections});
       }
       state.clearCoupon();
       useStep = null;
@@ -732,7 +728,7 @@ class _SelectionRow extends StatelessWidget {
           ),
           if (model != null && c.offer.odds > 1) ...[
             const SizedBox(width: 8),
-            VGapChip(engine: model, implied: 1 / c.offer.odds, nation: isNation(c.match.competition)),
+            VGapChip(engine: model, implied: 1 / c.offer.odds, nation: unmeasured(c.match.competition)),
           ],
           const SizedBox(width: 10),
           Text(odds(c.offer.odds), style: V.b(15)),

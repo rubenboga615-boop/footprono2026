@@ -1520,96 +1520,6 @@ void main() {
     expect(find.text('Coupon vide : compose un nouveau coupon.'), findsOneWidget);
   });
 
-  testWidgets('Comparer les deux moteurs : réglage du Profil, fiche de match, deux coupons (K1-K3)', (
-    tester,
-  ) async {
-    final (state, server) = await startApp(tester, loggedIn: true, premium: true);
-    await tester.binding.setSurfaceSize(const Size(430, 2600));
-    // Éteint : ni moteur 2 sur la fiche, ni deuxième coupon.
-    expect(server.compareEngines, isFalse);
-    await tab(tester, HomeTab.moi);
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Comparer les deux moteurs'), 200);
-    await tester.tap(find.text('Comparer les deux moteurs'));
-    await tester.pumpAndSettle();
-    expect(server.compareEngines, isTrue);
-    expect(state.compareEngines, isTrue);
-
-    // K2 : la fiche de match, moteur 1 et moteur 2 côte à côte.
-    await tab(tester, HomeTab.matchs);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Lens').first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Cotes'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('moteur 2 calé', findRichText: true), findsOneWidget);
-    expect(find.textContaining('moteur 2 45', findRichText: true), findsWidgets);
-    await tester.tap(find.byTooltip('Retour'));
-    await tester.pumpAndSettle();
-
-    // K3 : deux coupons, chacun avec son bouton.
-    await tab(tester, HomeTab.coupon);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Coupon intelligent'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Composer le coupon'));
-    await tester.tap(find.text('Composer le coupon'));
-    await tester.pumpAndSettle();
-    expect(find.text('MOTEUR 1'), findsOneWidget);
-    expect(find.text('MOTEUR 2'), findsOneWidget);
-    expect(server.smartQueries.where((q) => q['engine'] == '2'), hasLength(1));
-    await tester.ensureVisible(find.byKey(const ValueKey('add-engine-2')));
-    await tester.tap(find.byKey(const ValueKey('add-engine-2')));
-    await tester.pumpAndSettle();
-    expect(state.coupon.single.offer.market, 'OU');
-    // Le pari placé garde le moteur qui l'a proposé (demande du 18/11/2026).
-    expect(state.coupon.single.engine, 2);
-    expect(state.couponEngine, 2);
-    await tester.tap(find.byTooltip('Retour'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Placer · 1${nbsp}000 F'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Placer · 1${nbsp}000 F'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Confirmer · 1${nbsp}000 F'));
-    await tester.pumpAndSettle();
-    expect(server.placedBets.single['engine'], 2);
-
-    // Constat du 18/11 : en revenant, les deux coupons sont toujours là…
-    await tester.tap(find.text('Coupon intelligent'));
-    await tester.pumpAndSettle();
-    expect(find.text('MOTEUR 1'), findsOneWidget);
-    expect(find.text('MOTEUR 2'), findsOneWidget);
-    expect(find.textContaining('Composé à'), findsOneWidget);
-    // … et un nouveau coupon écarte les matchs déjà joués (chip pour les remettre).
-    server.bets = [
-      {
-        'id': 90,
-        'kind': 'single',
-        'stake': 1000,
-        'currency': 'XOF',
-        'total_odds': '1.95',
-        'potential_payout': 1950,
-        'status': 'open',
-        'selections': [
-          {'match_id': 7, 'market': 'OU', 'line': '2.5', 'selection': 'over', 'odds': '1.95'},
-        ],
-      },
-    ];
-    server.smartQueries.clear();
-    await tester.ensureVisible(find.text('Composer le coupon'));
-    await tester.tap(find.text('Composer le coupon'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Réglages')); // les exclusions sont dans les réglages
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('1 match déjà dans tes paris'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('1 match déjà dans tes paris'), findsOneWidget);
-  });
-
   testWidgets('Premium : handicap asiatique visible, pas de verrou', (tester) async {
     await startApp(tester, loggedIn: true, premium: true);
     await tester.tap(find.text('Lens').first);
@@ -1716,29 +1626,6 @@ void main() {
     expect(find.text('MOINS DE 15 MATCHS (NON CLASSÉS)'), findsOneWidget);
     expect(find.text('Tim Kirk'), findsOneWidget);
     expect(find.textContaining('4 matchs de cette saison sans arbitre connu'), findsOneWidget);
-  });
-
-  testWidgets('Mes paris : le pari proposé par un moteur garde son nom (18/11)', (tester) async {
-    final (_, server) = await startApp(tester, loggedIn: true);
-    Map<String, dynamic> bet(int id, int? engine) => {
-      'id': id,
-      'kind': 'single',
-      'stake': 1000,
-      'currency': 'XOF',
-      'total_odds': '1.92',
-      'potential_payout': 1920,
-      'status': 'open',
-      'engine': engine,
-      'selections': [
-        {'match_id': 7, 'market': '1X2', 'selection': 'home', 'odds': '1.92'},
-      ],
-    };
-    server.bets = [bet(58, 2), bet(57, null)];
-    await tester.binding.setSurfaceSize(const Size(430, 2400));
-    await tab(tester, HomeTab.paris);
-    await tester.pumpAndSettle();
-    expect(find.text('MOTEUR 2'), findsOneWidget); // le pari composé à la main : rien
-    expect(find.text('MOTEUR 1'), findsNothing);
   });
 
   testWidgets('Mon bilan : rendement, annoncé contre réalisé, rappel de jeu responsable', (tester) async {
@@ -1972,12 +1859,8 @@ void main() {
     expect(find.text('PALIER'), findsNothing); // en-tête du tableau du téléphone
   });
 
-  testWidgets('comparaison des moteurs : suggestions du palier des deux moteurs, moteur gardé (K4)', (
-    tester,
-  ) async {
-    final (state, server) = await startApp(tester, loggedIn: true, premium: true);
-    server.compareEngines = true;
-    await state.refreshMe();
+  testWidgets('montante : suggestions du palier, pari joué, montante terminée entre-temps', (tester) async {
+    final (_, server) = await startApp(tester, loggedIn: true, premium: true);
     server.montantes = [
       {
         'id': 4,
@@ -2010,13 +1893,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Voir les paris proposés'));
     await tester.pumpAndSettle();
-    expect(find.text('MOTEUR 1'), findsOneWidget);
-    expect(find.text('MOTEUR 2'), findsOneWidget);
-    await tester.tap(find.text('1,95').last);
+    expect(find.text('MOTEUR 2'), findsNothing); // moteur 2 retiré le 24/11/2026
+    await tester.tap(find.text('1,85').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Jouer'));
     await tester.pumpAndSettle();
-    expect(server.stepBets.single['engine'], 2);
+    expect(server.stepBets.single.containsKey('engine'), isFalse);
     expect(server.stepBets.single['from_suggestion'], isTrue);
 
     // Montante terminée entre-temps (retour du 17/11) : message clair, pas de suggestions.
@@ -2025,7 +1907,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Cette montante est terminée'), findsOneWidget);
     expect(find.text('Créer une nouvelle montante'), findsOneWidget);
-    expect(find.text('MOTEUR 1'), findsNothing);
   });
 
   testWidgets('montante : match, date et état du pari de chaque palier, comme dans Mes paris', (
@@ -2152,35 +2033,6 @@ void main() {
     expect(find.text('86\u00A0%'), findsOneWidget); // 12 sur 14
     expect(find.textContaining('de moins à'), findsOneWidget);
     await tester.binding.setSurfaceSize(null);
-  });
-
-  testWidgets('comparaison des moteurs : moteur 1 contre 2 dans la Fiabilité (K6)', (tester) async {
-    final (state, server) = await startApp(tester, loggedIn: true);
-    final context = tester.element(find.byType(Scaffold).first);
-    Navigator.of(
-      context,
-      rootNavigator: true,
-    ).push(MaterialPageRoute(builder: (_) => const ReliabilityScreen()));
-    await tester.pumpAndSettle();
-    expect(find.text('Moteur 1 contre moteur 2'), findsNothing); // seulement en mode comparaison
-    Navigator.of(tester.element(find.byType(ReliabilityScreen))).pop();
-    await tester.pumpAndSettle();
-    server.compareEngines = true;
-    await state.refreshMe();
-    Navigator.of(
-      tester.element(find.byType(Scaffold).first),
-      rootNavigator: true,
-    ).push(MaterialPageRoute(builder: (_) => const ReliabilityScreen()));
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Moteur 1 contre moteur 2'), 200);
-    await tester.tap(find.text('Moteur 1 contre moteur 2'));
-    await tester.pumpAndSettle();
-    expect(find.text('412'), findsOneWidget);
-    expect(find.text('0,983'), findsOneWidget);
-    expect(find.text('0,961'), findsOneWidget);
-    expect(find.text('−4,0\u00A0%'), findsOneWidget);
-    expect(find.text('−1,0\u00A0%'), findsOneWidget);
-    expect(find.textContaining('Trop peu de données pour conclure'), findsOneWidget);
   });
 
   testWidgets('fiabilité : sélections nationales, moteur contre cote (retour du 17/11)', (tester) async {
@@ -2623,21 +2475,6 @@ void main() {
     expect(find.text('Premium · 30 jours'), findsOneWidget); // « Passer Premium » directement
   });
 
-  testWidgets('comparaison des moteurs : coupons du jour des deux moteurs (K5)', (tester) async {
-    final (state, server) = await startApp(tester, loggedIn: true, premium: true);
-    server.compareEngines = true;
-    await state.refreshMe();
-    await tester.binding.setSurfaceSize(const Size(430, 3000));
-    await tab(tester, HomeTab.coupon);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Coupons du jour'));
-    await tester.pumpAndSettle();
-    expect(find.text('MOTEUR 1'), findsOneWidget);
-    expect(find.text('MOTEUR 2'), findsOneWidget);
-    expect(find.textContaining('1,92', findRichText: true), findsWidgets);
-    expect(find.textContaining('Moteur 2, 30 derniers jours : 3 gagnés sur 4'), findsOneWidget);
-  });
-
   testWidgets('coupons du jour : chance, état en direct, code copié, détail', (tester) async {
     await startApp(tester, loggedIn: true, premium: true);
     final copied = <String>[];
@@ -2758,8 +2595,8 @@ void main() {
     await tester.pumpAndSettle();
     final toggle = find.text('Coupons du jour, chaque matin');
     await tester.ensureVisible(toggle);
-    // Interrupteurs : mode Montante, comparaison des moteurs (15/11/2026), puis coupons du jour.
-    expect(tester.widget<Switch>(find.byType(Switch).at(2)).value, isTrue);
+    // Interrupteurs : mode Montante, puis coupons du jour.
+    expect(tester.widget<Switch>(find.byType(Switch).at(1)).value, isTrue);
     await tester.tap(toggle);
     await tester.pumpAndSettle();
     expect(server.dailyNotifications, isFalse);

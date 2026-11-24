@@ -30,7 +30,6 @@ from footprono.engine.markets import WITHDRAWN_MARKETS, Selection
 from footprono.football.models import BookmakerOdds, Match, MatchStatus
 from footprono.ingestion.sources.api_football import UNPLAYED_STATUSES
 from footprono.ingestion.sources.api_football_odds import map_bet
-from footprono.predictions import calibration
 from footprono.predictions.models import MatchPrediction
 
 PLAYABLE_BOOKMAKERS = ("1xBet", "Bet365")  # par ordre de préférence
@@ -176,38 +175,6 @@ async def models_probabilities(
     }
 
 
-# ------------------------------------------------ moteur 2 (comparaison, maquettes K1-K6)
-# Moteur 2 (« moteur 3.0 », docs/MOTEUR_V3.md) : la loi des scores du moteur 1 calée sur la
-# cote de référence (Pinnacle). Servi À CÔTÉ du moteur 1, jamais à sa place : le moteur 1 et
-# ses choix ne changent pas (décision du fondateur du 15/11/2026, mode comparaison).
-
-# Marque, parmi les probabilités du moteur 2 d'un match, qu'elles sont calées sur la cote de
-# référence. Ce n'est pas une clé de marché : aucune offre ne la porte.
-CALIBRATED_KEY = "_calibrated"
-# Marchés comptés (corners, cartons, tirs) : leur probabilité reste celle du moteur 1.
-COUNT_MARKET_PREFIXES = ("CORNERS", "CARDS", "SHOTS", "SOT", "BOOKING")
-
-
-def is_priced(probs: dict[str, float], market: str) -> bool:
-    """Le prix (probabilité fois cote) a-t-il un sens pour ce marché de ce match ? Oui si le
-    match est calé sur la référence et si le marché sort de la loi des scores (buts)."""
-    return CALIBRATED_KEY in probs and market.split("_")[0] not in COUNT_MARKET_PREFIXES
-
-
-async def engine2_probabilities(
-    session: AsyncSession, match_ids: Sequence[int], now: datetime | None = None
-) -> dict[int, dict[str, float]]:
-    """Probabilités du moteur 2 : {match: {clé: proba}}, avec ``CALIBRATED_KEY`` si le
-    match est calé ; sinon celles du moteur 1 (jamais de donnée inventée)."""
-    out: dict[int, dict[str, float]] = {}
-    for match_id, cal in (await calibration.match_probabilities(session, match_ids, now)).items():
-        probs = dict(cal.probabilities)
-        if cal.calibrated:
-            probs[CALIBRATED_KEY] = 1.0
-        out[match_id] = probs
-    return out
-
-
 # Cotes et pronostics d'une période, gardés quelques minutes pour le Coupon intelligent,
 # les coupons du jour et les suggestions de montante. Avant : 16 à 19 secondes par demande
 # en production (06/11/2026), recalculées à chaque joueur et à chaque profil. Les cotes sont
@@ -222,7 +189,6 @@ _window_locks: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock
 
 def clear_window_cache() -> None:
     _window_cache.clear()
-    calibration.clear_cache()
 
 
 async def cached_offers_and_probabilities(
@@ -275,7 +241,6 @@ async def place_bet(
     now: datetime | None = None,
     montante_step_id: int | None = None,
     redis: Redis | None = None,
-    engine: int | None = None,
 ) -> Bet:
     """Pari sur des cotes réelles récentes. Pendant une fenêtre du coupon en direct (publié),
     une sélection d'un match commencé se place sur sa cote en direct, relue ici (``redis``)."""
@@ -341,7 +306,6 @@ async def place_bet(
         status="open",
         settlements=0,
         montante_step_id=montante_step_id,
-        engine=engine,
     )
     session.add(bet)
     await session.flush()

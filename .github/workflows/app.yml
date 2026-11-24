@@ -124,7 +124,7 @@ jobs:
   # Parcours de bout en bout : vraie API (PostgreSQL, Redis) + application web
   # dans Chromium (inscription → matchs → pari → bookmaker → montante…).
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # Playwright 1.56 ne gère pas encore Ubuntu 26.04 (24/11/2026)
     services:
       postgres:
         image: postgres:16-alpine

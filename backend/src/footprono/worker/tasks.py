@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from footprono import __version__, alerts
 from footprono.accounts.reminders import send_premium_reminders
 from footprono.bookmaker import (
-    engine_compare,
     live_coupons,
     odds_alerts,
     playable,
@@ -59,8 +58,6 @@ async def _settle(engine: AsyncEngine, settings: Settings) -> dict[str, Any]:
             report["smart_coupons"] = await smart_coupon.settle_pending(session)
         async with create_session_factory(engine)() as session:
             report["live_picks"] = await live_coupons.settle_picks(session)
-        async with create_session_factory(engine)() as session:
-            report["engine_proposals"] = await engine_compare.settle_proposals(session)
         # Tous les codes 1xBet du jour saisis : « coupons du jour disponibles » (une fois).
         async with create_session_factory(engine)() as session:
             report["daily_coupons_notified"] = await smart_coupon.notify_ready(session)
@@ -186,16 +183,7 @@ async def _daily_smart_coupons() -> dict[str, Any]:
     engine = create_engine(get_settings())
     try:
         async with create_session_factory(engine)() as session:
-            out = await smart_coupon.create_daily(session)
-        # Comparaison des moteurs (K5) : les coupons du jour du moteur 2, à part ; une erreur
-        # ici ne touche jamais ceux du moteur 1, déjà enregistrés.
-        try:
-            async with create_session_factory(engine)() as session:
-                out["moteur 2"] = await smart_coupon.create_daily(session, engine=2)
-        except Exception as exc:
-            logger.warning("daily_smart_coupons_engine2_failed", extra={"error": str(exc)})
-            out["moteur 2"] = f"erreur : {exc}"
-        return out
+            return await smart_coupon.create_daily(session)
     finally:
         await engine.dispose()
 
@@ -446,22 +434,6 @@ def _catch_up_on_start(sender: Any = None, **_: Any) -> None:
     refresh_playable.apply_async(countdown=20)
     # Page Fiabilité calculée d'avance : le premier visiteur n'attend plus 6 à 7 s.
     warm_reliability.apply_async(countdown=25)
-
-
-@celery_app.task(name="footprono.engine_chances")
-@tracked("engine_chances")
-def engine_chances() -> dict[str, Any]:
-    """Comparaison des moteurs (K6) : chances des deux moteurs avant les prochains matchs."""
-    return asyncio.run(_engine_chances())
-
-
-async def _engine_chances() -> dict[str, Any]:
-    engine = create_engine(get_settings())
-    try:
-        async with create_session_factory(engine)() as session:
-            return {"matches": await engine_compare.record_chances(session)}
-    finally:
-        await engine.dispose()
 
 
 @celery_app.task(name="footprono.warm_reliability")

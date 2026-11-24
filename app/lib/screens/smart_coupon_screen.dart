@@ -13,7 +13,6 @@ import '../theme.dart';
 import '../widgets/visage.dart';
 import 'create_screen.dart' show HomeTab;
 import '../widgets/common.dart';
-import '../widgets/engine_compare.dart';
 import '../widgets/engine_vs_odds.dart';
 import '../widgets/maquette.dart';
 import 'bookmaker_screen.dart' as bookmaker;
@@ -107,7 +106,7 @@ class _SmartMemory {
   Set<String> competitions = {}, excludedCompetitions = {};
   Set<int> excludedMatches = {};
   bool skipPlayed = true;
-  Json? result, result2;
+  Json? result;
   DateTime? composedAt;
 }
 
@@ -142,10 +141,6 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
   Json? result;
   Object? error;
 
-  /// Mode comparaison (maquette K3) : le coupon du moteur 2, mêmes réglages ; null sinon.
-  Json? result2;
-  Object? error2;
-
   /// « Un autre coupon » : tirage suivant parmi les sélections presque à égalité (0 : le tien).
   int variant = 0;
 
@@ -178,13 +173,12 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
       excludedMatches.addAll(m.excludedMatches);
       skipPlayed = m.skipPlayed;
       result = m.result;
-      result2 = m.result2;
       composedAt = m.composedAt;
     }
     final wanted = SmartCouponScreen.profiles.indexWhere((p) => p.$1 == widget.initialProfile);
     if (wanted >= 0 && wanted != profile) {
       profile = wanted;
-      result = result2 = null;
+      result = null;
     }
     _loadPlayed();
   }
@@ -212,7 +206,6 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
       ..excludedMatches = {...excludedMatches}
       ..skipPlayed = skipPlayed
       ..result = result
-      ..result2 = result2
       ..composedAt = composedAt;
     _memory = m;
   }
@@ -284,23 +277,12 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
         if (SmartCouponScreen.hours[hour].$1 != null) 'after_hour': '${SmartCouponScreen.hours[hour].$1}',
         if (variant > 0) 'variant': '$variant',
       };
-      // Mode comparaison (K3) : le moteur 2 compose aussi le sien, avec les mêmes réglages
-      // (pas la Grosse cote). Son échec n'empêche jamais le coupon du moteur 1.
-      final compare = state.compareEngines && !_big;
-      final second = compare
-          ? state.api
-                .get('${_withLists(query)}&engine=2', null, ApiClient.slowTimeout)
-                .then<Object?>((v) => v, onError: (Object e) => e)
-          : null;
       final r = await state.api.get(_withLists(query), null, ApiClient.slowTimeout) as Json;
-      final r2 = await second;
       state.beta.action('coupon_compose');
       if (mounted) {
         setState(() {
           result = r;
           if (r['coupon'] != null) settings = false;
-          result2 = r2 is Json ? r2 : null;
-          error2 = r2 is Json ? null : r2;
           composedAt = DateTime.now();
         });
         _remember();
@@ -494,7 +476,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
     );
   }
 
-  Future<void> _addToCoupon(List<Json> selections, {bool big = false, int engine = 1}) async {
+  Future<void> _addToCoupon(List<Json> selections, {bool big = false}) async {
     setState(() => adding = 'Ajout…');
     final state = context.read<AppState>();
     try {
@@ -502,8 +484,6 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
         state,
         selections,
         stake: big ? 500 : null,
-        // Mode comparaison : le pari gardera le nom du moteur qui l'a proposé (Mes paris).
-        engine: state.compareEngines ? engine : null,
         onProgress: (done, total) {
           if (mounted) setState(() => adding = 'Ajout $done / $total…');
         },
@@ -714,10 +694,6 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                         style: Fp.body(12, color: Fp.muted, height: 1.4),
                       ),
                     ),
-                  if (coupon != null && (result2 != null || error2 != null)) ...[
-                    const Align(alignment: Alignment.centerLeft, child: EngineTag(1)),
-                    const SizedBox(height: 8),
-                  ],
                   if (coupon != null) ...[
                     _CouponCard(
                       coupon: coupon,
@@ -773,17 +749,6 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                         label: const Text('Un autre coupon'),
                       ),
                     ),
-                    if (result2 != null || error2 != null) ...[
-                      const SizedBox(height: 8),
-                      _Engine2Coupon(
-                        result: result2,
-                        error: error2,
-                        label: '${result?['profile_label'] ?? ''}',
-                        adding: adding,
-                        onAdd: busy ? null : (sels) => _addToCoupon(sels, engine: 2),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
                     if (alternatives.isNotEmpty) ...[
                       const SectionTitle('Autres choix (moins sûrs)'),
                       for (final s in alternatives)
@@ -862,11 +827,6 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                   _generate();
                 },
         ),
-        if (result2 != null || error2 != null)
-          const Padding(
-            padding: EdgeInsets.only(top: 12),
-            child: Align(alignment: Alignment.centerLeft, child: EngineTag(1)),
-          ),
         VCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -985,7 +945,7 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                       VGapChip(
                         engine: (s['model_probability'] as num).toDouble(),
                         implied: 1 / double.parse('${s['odds']}'),
-                        nation: isNation(s['competition'] as String?),
+                        nation: unmeasured(s['competition'] as String?),
                       ),
                       const SizedBox(width: 10),
                       VOdd(odds(s['odds'])),
@@ -1038,14 +998,6 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
             ),
           ),
         ],
-        if (result2 != null || error2 != null)
-          _Engine2Coupon(
-            result: result2,
-            error: error2,
-            label: label,
-            adding: adding,
-            onAdd: busy ? null : (s) => _addToCoupon(s, engine: 2),
-          ),
         if (alternatives.isNotEmpty) ...[
           const SizedBox(height: 10),
           const VKicker('Autres choix (moins sûrs)'),
@@ -1209,51 +1161,6 @@ class _CouponCard extends StatelessWidget {
   }
 }
 
-/// Maquette K3 : le coupon du moteur 2, mêmes réglages que celui du moteur 1, qui s'ajoute à
-/// part. Même règle de profil ; le moteur 2 prend d'abord les sélections les mieux payées.
-class _Engine2Coupon extends StatelessWidget {
-  const _Engine2Coupon({required this.result, this.error, required this.label, this.adding, this.onAdd});
-  final Json? result;
-  final Object? error;
-  final String label;
-  final String? adding;
-  final void Function(List<Json>)? onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    final coupon = result?['coupon'] as Json?;
-    final message = result?['message'] as String?;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Align(alignment: Alignment.centerLeft, child: EngineTag(2)),
-        const SizedBox(height: 8),
-        if (error != null) ErrorPanel(error: error!),
-        if (message != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(message, style: Fp.body(13, color: Fp.warning, height: 1.4)),
-          ),
-        if (coupon != null) ...[
-          _CouponCard(coupon: coupon, label: label),
-          const SizedBox(height: 10),
-          FilledButton(
-            key: const ValueKey('add-engine-2'),
-            onPressed: onAdd == null ? null : () => onAdd!((coupon['selections'] as List).cast<Json>()),
-            child: Text(adding ?? 'Ajouter le coupon du moteur 2'),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Même règle de profil pour les deux ; le moteur 2 prend d\'abord les sélections les mieux '
-            'payées (prix proche de la cote juste selon la cote de référence).',
-            style: Fp.body(12, color: Fp.text2, height: 1.4),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
 /// Petit titre de rubrique (maquette v2).
 class _Label extends StatelessWidget {
   const _Label(this.text);
@@ -1382,7 +1289,7 @@ class _SelectionRow extends StatelessWidget {
                 child: OddsPill(
                   engine: (s['model_probability'] as num).toDouble(),
                   implied: 1 / double.parse('${s['odds']}'),
-                  nation: isNation(s['competition'] as String?),
+                  nation: unmeasured(s['competition'] as String?),
                 ),
               ),
               // Score de la sélection réglée (rapport du 09/11/2026 : seulement « Gagné »).
@@ -1673,7 +1580,6 @@ Future<void> addSelectionsToCoupon(
   AppState state,
   List<Json> selections, {
   int? stake,
-  int? engine,
   void Function(int done, int total)? onProgress,
 }) async {
   // Match et cotes du moment de chaque sélection, tous demandés en même temps : l'un après
@@ -1701,7 +1607,7 @@ Future<void> addSelectionsToCoupon(
       if (offer == null) {
         missing++;
       } else if (!state.inCoupon(match.id, offer.key)) {
-        state.toggleCoupon(match, offer, engine: engine);
+        state.toggleCoupon(match, offer);
         added++;
       }
     }

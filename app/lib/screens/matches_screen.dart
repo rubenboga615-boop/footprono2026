@@ -616,7 +616,7 @@ class _MatchCard extends StatelessWidget {
                       ),
                     ),
                     if (gap != null)
-                      VGapChip(engine: gap.$1, implied: gap.$2, nation: isNation(m.competition)),
+                      VGapChip(engine: gap.$1, implied: gap.$2, nation: unmeasured(m.competition)),
                   ],
                 ),
                 team(m.home, before?[0], 8),

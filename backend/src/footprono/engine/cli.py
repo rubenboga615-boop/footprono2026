@@ -97,6 +97,8 @@ def _fmt(value: float | None) -> str:
 
 
 def _line(label: str, r: dict[str, Any]) -> str:
+    if "1x2" not in r:  # championnat sans match prédit (données absentes) : pas de plantage
+        return f"{label:<11} {r.get('n', 0):>5}  aucun match prédit"
     m, nv = r["1x2"]["model"], r["1x2"]["naive"]
     vm = r["1x2_vs_market"]
     market = vm["market_close"]["log_loss"] if vm["market_close"] else None

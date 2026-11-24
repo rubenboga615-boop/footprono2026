@@ -112,12 +112,6 @@ def create_celery(settings: Settings | None = None) -> Celery:
                 "schedule": crontab(hour=0, minute=10),
                 "options": {"expires": 3000},
             },
-            # Comparaison des moteurs (K6) : chances des deux moteurs avant chaque match.
-            "engine-chances": {
-                "task": "footprono.engine_chances",
-                "schedule": crontab(minute="*/10"),
-                "options": {"expires": 500},
-            },
             # Alertes de cote des joueurs (aussi lancées après chaque relevé des cotes).
             "odds-alerts": {
                 "task": "footprono.odds_alerts",

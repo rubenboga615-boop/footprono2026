@@ -125,13 +125,6 @@ async def _offers_out(
         _offer_out(o, probs.get(k), history.get(o.quote_id, [None])[0])
         for k, o in sorted(allowed.items())
     ]
-    if user is not None and user.compare_engines:
-        # Mode comparaison (K2) : la chance du moteur 2 à côté, sans rien changer au reste.
-        probs2 = (await service.engine2_probabilities(session, [match_id])).get(match_id, {})
-        calibrated = service.CALIBRATED_KEY in probs2
-        for item, k in zip(out, sorted(allowed), strict=True):
-            item.engine2_probability = probs2.get(k)
-            item.engine2_calibrated = calibrated
     return out
 
 
@@ -222,7 +215,6 @@ async def _bet_out(session: SessionDep, bet: Bet) -> BetOut:
         placed_at=bet.placed_at,
         settled_at=bet.settled_at,
         montante_step_id=bet.montante_step_id,
-        engine=bet.engine,
         selections=out,
     )
 
@@ -265,7 +257,6 @@ async def place_bet(
         ],
         body.stake,
         redis=redis,  # cotes en direct du coupon en direct
-        engine=body.engine,
     )
     await session.commit()
     await session.refresh(bet)

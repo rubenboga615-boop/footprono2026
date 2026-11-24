@@ -13,7 +13,6 @@ import '../theme.dart';
 import '../widgets/visage.dart';
 import 'bet_screen.dart';
 import '../widgets/common.dart';
-import '../widgets/engine_compare.dart';
 import '../widgets/live_chances.dart';
 import '../widgets/maquette.dart';
 import 'match_screen.dart';
@@ -368,7 +367,6 @@ class _BetRow extends StatelessWidget {
                   ],
                 ),
               ),
-              if (b.engine != null) ...[EngineTag(b.engine!), const SizedBox(width: 6)],
               trailing,
             ],
           ),
@@ -693,7 +691,6 @@ class BetCard extends StatelessWidget {
           children: [
             Expanded(child: Text('Pari n° ${b.id} · ${betKind(b)}', style: Fp.title(17))),
             const SizedBox(width: 8),
-            if (b.engine != null) ...[EngineTag(b.engine!), const SizedBox(width: 6)],
             betTag(b),
           ],
         ),

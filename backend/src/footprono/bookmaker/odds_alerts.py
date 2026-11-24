@@ -26,10 +26,11 @@ from footprono.bookmaker.live_alerts import quiet, selection_label
 from footprono.bookmaker.play_models import OddsAlert, OddsAlertHit
 from footprono.core.errors import AppError, NotFoundError
 from footprono.football.models import Competition, Match, MatchStatus, Season, Team
-from footprono.ingestion.reference import NATIONS_BY_CODE
+from footprono.ingestion.reference import CUPS_BY_CODE, NATIONS_BY_CODE
 from footprono.notifications import service as notifications
 
 MAX_ALERTS = 30
+GAP_MAX = 0.15  # au-delà : jamais d'alerte d'écart (comme les occasions du tableau de bord)
 GAPS = (0.05, 0.08, 0.10)
 AHEAD = timedelta(hours=36)
 KIND = "odds_alert"
@@ -289,7 +290,8 @@ async def check(session: AsyncSession, now: datetime | None = None) -> int:
                         Match.status == MatchStatus.SCHEDULED,
                         Match.kickoff_at > now,
                         Match.kickoff_at <= now + AHEAD,
-                        Competition.code.not_in(list(NATIONS_BY_CODE)),
+                        # Ni sélections ni coupes d'Europe : écarts non mesurés (24/11/2026).
+                        Competition.code.not_in([*NATIONS_BY_CODE, *CUPS_BY_CODE]),
                     )
                 )
             ).all()
@@ -354,7 +356,8 @@ async def check(session: AsyncSession, now: datetime | None = None) -> int:
                 if p is None or offer.odds <= 1 or not market_allowed(user, offer.market, now):
                     continue
                 gap = p - 1 / float(offer.odds)
-                if gap >= (a.min_gap or 1) and (best is None or gap > best[0]):
+                # Plus de 15 points : bien plus probablement une erreur du moteur (24/11/2026).
+                if (a.min_gap or 1) <= gap <= GAP_MAX and (best is None or gap > best[0]):
                     best = (gap, offer, p)
             if best is not None:
                 found.append((mid, *best))

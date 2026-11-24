@@ -41,7 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from footprono.accounts.models import User
-from footprono.bookmaker import playable, price, service, settlement
+from footprono.bookmaker import playable, service, settlement
 from footprono.bookmaker.models import BetSelection
 from footprono.bookmaker.odds_math import combined_odds, shown_odds
 from footprono.bookmaker.rules import automatic
@@ -144,10 +144,6 @@ class Pick:
     competition: str
     offer: service.Offer
     probability: float
-    # Moteur 2 seulement (comparaison K1-K6) : tranche de prix (bookmaker/price.py) ; 0 bien
-    # payé, 1 neutre, 2 cher, 3 cote suspecte. Moteur 1 : toujours neutre, rien ne change.
-    price_tier: int = price.NEUTRAL
-    priced: bool = False  # le prix a un sens : match calé sur la référence, marché de buts
 
 
 async def _matches(
@@ -220,12 +216,7 @@ def french_day(d: datetime) -> str:
 
 
 def choose(profile: Profile, inside: list[Pick]) -> Pick:
-    """L'angle du match : le plus probable, ou le plus proche de la cible du profil.
-
-    Moteur 2 : parmi les sélections de la meilleure tranche de prix seulement. Moteur 1 :
-    toutes ses sélections sont neutres, le filtre ne retire rien (choix inchangés)."""
-    best = min(pk.price_tier for pk in inside)
-    inside = [pk for pk in inside if pk.price_tier == best]
+    """L'angle du match : le plus probable, ou le plus proche de la cible du profil."""
     if profile.target is None:
         return max(inside, key=lambda pk: pk.probability)
     target = profile.target
@@ -258,19 +249,11 @@ class Filters:
 def _picks(
     match: Match, home: str, away: str, comp: str,
     offers: dict[str, service.Offer], probs: dict[str, float], now: datetime,
-    engine: int = 1,
 ) -> list[Pick]:  # fmt: skip
     """Sélections jouables d'un match : marché retenu, vraie cote récente, probabilité du
-    moteur (moteur 2 : avec la tranche de prix)."""
-
-    def pick(offer: service.Offer, p: float) -> Pick:
-        if engine != 2:
-            return Pick(match, home, away, comp, offer, p)
-        priced = service.is_priced(probs, offer.market)
-        return Pick(match, home, away, comp, offer, p, price.tier(p, offer.odds, priced), priced)
-
+    moteur."""
     return [
-        pick(offer, p)
+        Pick(match, home, away, comp, offer, p)
         for k, offer in offers.items()
         if (p := probs.get(k)) is not None
         and automatic(offer.market)
@@ -294,10 +277,9 @@ async def window_candidates(
     now: datetime,
     filters: Filters,
     redis: Redis | None = None,
-    engine: int = 1,
 ) -> list[list[Pick]]:
     """Sélections jouables de chaque match de la période (préparées à l'avance si possible,
-    bookmaker/playable.py). Moteur 2 : mêmes cotes, probabilités calées sur la référence."""
+    bookmaker/playable.py)."""
     rows = [
         r
         for r in await _matches(session, start, end, filters.competitions)
@@ -305,10 +287,8 @@ async def window_candidates(
     ]
     ids = [m.id for m, *_ in rows]
     offers, probs = await playable.load(session, ids, now, redis)
-    if engine == 2:
-        probs = await service.engine2_probabilities(session, ids, now)
     return [
-        _picks(m, home, away, comp, offers.get(m.id, {}), probs.get(m.id, {}), now, engine)
+        _picks(m, home, away, comp, offers.get(m.id, {}), probs.get(m.id, {}), now)
         for m, home, away, comp in rows
     ]
 
@@ -316,8 +296,7 @@ async def window_candidates(
 def ranked_angles(profile: Profile, per_match: list[list[Pick]]) -> list[Pick]:
     """L'angle de chaque match (voir ``choose``), du plus sûr au moins sûr."""
     picks = [pk for c in per_match if (pk := angle(profile, c)) is not None]
-    # Moteur 2 : les angles bien payés d'abord ; moteur 1 : tranche toujours neutre.
-    picks.sort(key=lambda pk: (pk.price_tier, -pk.probability, pk.match.kickoff_at, pk.match.id))
+    picks.sort(key=lambda pk: (-pk.probability, pk.match.kickoff_at, pk.match.id))
     return picks
 
 
@@ -358,13 +337,10 @@ async def best_angles(
     competitions: list[str] | None = None,
     filters: Filters | None = None,
     redis: Redis | None = None,
-    engine: int = 1,
 ) -> list[Pick]:
     """L'angle de chaque match (voir ``choose``), du plus sûr au moins sûr."""
     filters = filters or Filters(competitions=competitions)
-    return ranked_angles(
-        profile, await window_candidates(session, start, end, now, filters, redis, engine)
-    )
+    return ranked_angles(profile, await window_candidates(session, start, end, now, filters, redis))
 
 
 # Dernière sélection : choisie parmi les quelques suivantes les plus probables.
@@ -560,9 +536,6 @@ def _selection_out(pick: Pick, analysis: dict[str, Any] | None) -> dict[str, Any
         "bookmaker": pick.offer.bookmaker,
         "label": pick.offer.label,
         "model_probability": round(pick.probability, 4),
-        # Moteur 2 seulement : prix (probabilité fois cote) et tranche ; rien sinon.
-        "price_tier": price.LABELS[pick.price_tier] if pick.priced else None,
-        "price": round(price.price(pick.probability, pick.offer.odds), 3) if pick.priced else None,
         "reasons": reasons(analysis, pick) if analysis else [],
     }
 
@@ -599,7 +572,6 @@ async def generate(
     redis: Redis | None = None,
     player: int | None = None,
     variant: int = 0,
-    engine: int = 1,
 ) -> dict[str, Any]:
     """Coupon d'un profil (``size`` sélections) ou Grosse cote (``target_odds``).
 
@@ -616,10 +588,6 @@ async def generate(
         raise AppError(f"cote visée : de {TARGET_MIN} à {TARGET_MAX}")
     if after_hour is not None and not 0 <= after_hour <= 23:
         raise AppError("heure de début : de 0 à 23")
-    if engine not in (1, 2):
-        raise AppError("moteur : 1 ou 2")
-    if grosse and engine != 1:
-        raise AppError("Grosse cote : moteur 1 seulement")
     now = now or datetime.now(UTC)
     start, end = period_window(period, now, day, date_from, date_to)
     filters = Filters(
@@ -640,7 +608,6 @@ async def generate(
     out: dict[str, Any] = {
         "profile": profile,
         "profile_label": label,
-        "engine": engine,
         "range": None if grosse else [PROFILES[profile].low, PROFILES[profile].high],
         "target_odds": target_odds,
         "period": period,
@@ -691,9 +658,7 @@ async def generate(
             return out
     else:
         prof = PROFILES[profile]
-        picks = await best_angles(
-            session, prof, start, end, now, filters=filters, redis=redis, engine=engine
-        )
+        picks = await best_angles(session, prof, start, end, now, filters=filters, redis=redis)
         best = picks[:size]
         chosen, others = vary(picks, size, player_rng(player, now.date(), profile, variant))
         if len(chosen) < size:
@@ -774,12 +739,10 @@ def balanced_angles(profile: Profile, per_match: list[list[Pick]], quota: int) -
     return out
 
 
-async def create_daily(
-    session: AsyncSession, now: datetime | None = None, engine: int = 1
-) -> dict[str, Any]:
+async def create_daily(session: AsyncSession, now: datetime | None = None) -> dict[str, Any]:
     """Enregistre le coupon du jour de chaque profil, **avant** les matchs (une fois par jour).
-
-    ``engine`` 2 : coupons du jour du moteur 2 (comparaison K5), mêmes règles, à part."""
+    Moteur 1 seulement (le moteur 2 est retiré le 24/11/2026 ; ses anciens coupons restent en
+    base avec ``engine`` = 2, jamais montrés)."""
     now = now or datetime.now(UTC)
     day = now.date()
     out: dict[str, Any] = {}
@@ -787,7 +750,7 @@ async def create_daily(
     # le même pari) dans Sûr et Audacieux a fait perdre les deux coupons sur un seul but.
     existing = (
         await session.scalars(
-            select(SmartCoupon).where(SmartCoupon.day == day, SmartCoupon.engine == engine)
+            select(SmartCoupon).where(SmartCoupon.day == day, SmartCoupon.engine == 1)
         )
     ).all()
     used = {sel["match_id"] for c in existing for sel in c.selections}
@@ -796,7 +759,7 @@ async def create_daily(
     # (3 matchs, sans cote minimale) trouve presque toujours ses matchs parmi les autres.
     order = sorted(DAILY_RULES.items(), key=lambda item: item[1][1] is None)
     start, end = period_window("today", now)
-    per_match = await window_candidates(session, start, end, now, Filters(), engine=engine)
+    per_match = await window_candidates(session, start, end, now, Filters())
     for profile, (size, min_odds) in order:
         if profile in done:
             out[profile] = "déjà créé"
@@ -814,7 +777,7 @@ async def create_daily(
             SmartCoupon(
                 day=day,
                 profile=profile,
-                engine=engine,
+                engine=1,
                 size=len(picks),
                 selections=[_stored(pk) for pk in picks],
                 total_odds=total,
@@ -1081,7 +1044,6 @@ def _coupon_out(
         "day": coupon.day,
         "profile": coupon.profile,
         "profile_label": PROFILES[coupon.profile].label,
-        "engine": coupon.engine,
         # Sans Premium : profil, cote, chance et avancement ; ni sélections ni code.
         "locked": locked,
         "selection_count": len(selections),
@@ -1113,17 +1075,15 @@ async def day_coupons(
     now: datetime | None = None,
     *,
     premium: bool = True,
-    engine: int = 1,
 ) -> dict[str, Any]:
     """Coupons du jour d'une date (aujourd'hui par défaut), avec l'état en direct de chaque
-    sélection, les codes de réservation, et le bilan de la veille et des 30 derniers jours.
-    ``engine`` 2 : ceux du moteur 2 (comparaison K5), avec leur propre bilan."""
+    sélection, les codes de réservation, et le bilan de la veille et des 30 derniers jours."""
     today = (now or datetime.now(UTC)).date()
     day = day or today
     coupons = (
         await session.scalars(
             select(SmartCoupon)
-            .where(SmartCoupon.day == day, SmartCoupon.engine == engine)
+            .where(SmartCoupon.day == day, SmartCoupon.engine == 1)
             .order_by(SmartCoupon.id)
         )
     ).all()
@@ -1141,7 +1101,7 @@ async def day_coupons(
                 # 5 sur 7 là-bas pour la même période).
                 SmartCoupon.day >= today - timedelta(days=30),
                 SmartCoupon.day <= today,
-                SmartCoupon.engine == engine,
+                SmartCoupon.engine == 1,
             )
         )
     ).all()
@@ -1154,7 +1114,6 @@ async def day_coupons(
     )  # fmt: skip
     return {
         "day": day,
-        "engine": engine,
         "coupons": sorted(
             (_coupon_out(c, matches, premium=premium, counts=counts) for c in coupons),
             key=lambda c: order.index(c["profile"]),

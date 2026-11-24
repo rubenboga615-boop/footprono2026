@@ -3,7 +3,7 @@
 Seulement ce qui n'existe pas déjà ailleurs : la courbe du solde (mouvements du
 portefeuille), le bilan des 30 derniers jours, le moteur annoncé contre réalisé, les mises
 de la semaine, et les sélections du jour où le moteur dépasse la cote d'au moins 3 points
-(hors sélections nationales : leurs écarts n'ont pas tenu en vrai, audit du 18/11/2026).
+(hors sélections nationales et coupes d'Europe, et jamais plus de 15 points : voir GAP_MAX).
 Les paris en cours, la montante et les coupons du jour viennent de leurs propres routes.
 On informe, on ne pousse jamais à parier.
 """
@@ -20,9 +20,16 @@ from footprono.bookmaker import play_plan, service
 from footprono.bookmaker.models import Bet, BetSelection
 from footprono.bookmaker.record import _group
 from footprono.football.models import Competition, Match, MatchStatus, Season, Team
-from footprono.ingestion.reference import NATIONS_BY_CODE
+from footprono.ingestion.reference import CUPS_BY_CODE, NATIONS_BY_CODE
 
 GAP_MIN = 0.03  # 3 points, comme la pastille « moteur contre cote »
+# Au-delà, l'écart est bien plus probablement une erreur du moteur qu'une occasion (vérification
+# du 24/11/2026 : Bruges à 50 % contre Liverpool, cote 4,72) : jamais montré comme occasion.
+GAP_MAX = 0.15
+# Compétitions où l'« annoncé contre réalisé » face à la cote n'est pas mesuré ou est mauvais :
+# sélections nationales (audit du 18/11) et coupes d'Europe (clubs de championnats différents,
+# vérification du 24/11/2026). Jamais d'occasion ni d'alerte d'écart sur leurs matchs.
+UNMEASURED_CODES = [*NATIONS_BY_CODE, *CUPS_BY_CODE]
 ABOVE_LIMIT = 6
 ABOVE_AHEAD = timedelta(hours=36)
 
@@ -94,8 +101,10 @@ async def _engine(session: AsyncSession, user_id: int) -> dict[str, Any]:
     }
 
 
-async def _stakes(session: AsyncSession, user_id: int, now: datetime) -> dict[str, int]:
-    week = now - timedelta(days=7)
+async def _stakes(session: AsyncSession, user: User, now: datetime) -> dict[str, int]:
+    # Même semaine que le plan de jeu : depuis lundi 0 h dans le pays du joueur (vérification
+    # du 24/11/2026 : 7 jours glissants ici, semaine civile là, deux montants différents).
+    week = play_plan.week_start(user.country, now)
     row = (
         await session.execute(
             select(
@@ -106,7 +115,7 @@ async def _stakes(session: AsyncSession, user_id: int, now: datetime) -> dict[st
                     ),
                     0,
                 ),
-            ).where(Bet.user_id == user_id)
+            ).where(Bet.user_id == user.id)
         )
     ).one()
     return {"week": int(row[0]), "previous_week": int(row[1])}
@@ -148,7 +157,7 @@ async def engine_above_odds(
                 Match.status == MatchStatus.SCHEDULED,
                 Match.kickoff_at > now,
                 Match.kickoff_at <= now + ABOVE_AHEAD,
-                Competition.code.not_in(list(NATIONS_BY_CODE)),
+                Competition.code.not_in(UNMEASURED_CODES),
             )
             .order_by(Match.kickoff_at)
             .limit(80)
@@ -165,7 +174,7 @@ async def engine_above_odds(
             if p is None or offer.odds <= 1 or not market_allowed(user, offer.market, now):
                 continue
             implied = 1 / float(offer.odds)
-            if p - implied < GAP_MIN:
+            if not GAP_MIN <= p - implied <= GAP_MAX:
                 continue
             _, kickoff, code, h, a = info[mid]
             found.append(
@@ -210,7 +219,7 @@ async def dashboard(
         "last_30_days": await _last_30(session, user.id, now),
         "engine": await _engine(session, user.id),
         "markets_30": await _markets_30(session, user.id, now),
-        "stakes": await _stakes(session, user.id, now),
+        "stakes": await _stakes(session, user, now),
         "engine_above_odds": await engine_above_odds(session, user, now),
         # Mon plan de jeu (maquette 30) : budget et mises de la semaine (lundi 0 h).
         "play_plan": await play_plan.summary(session, user, now),

@@ -117,7 +117,6 @@ async def place_step_bet(
     *,
     accept_out_of_range: bool = False,
     suggested: bool | None = None,
-    engine: int | None = None,
 ) -> Bet:
     """Pari du palier en cours (1 à 3 sélections), à la mise fixée par la montante."""
     montante = await _load(session, user, montante_id, lock=True)
@@ -134,7 +133,6 @@ async def place_step_bet(
         selections,
         montante.next_stake,
         montante_step_id=step.id,
-        engine=engine if suggested else None,
     )
     in_range = step.odds_min <= bet.total_odds <= step.odds_max
     if not in_range and not accept_out_of_range:
@@ -147,8 +145,6 @@ async def place_step_bet(
     step.bet_id = bet.id
     step.out_of_range = not in_range
     step.suggested = suggested
-    # Le pari joué garde le nom du moteur qui l'a proposé (comparaison, K4).
-    step.engine = engine if suggested else None
     return bet
 
 
@@ -248,7 +244,6 @@ async def plan(session: AsyncSession, montante: Montante) -> dict[str, Any]:
             "result": step.result,
             "bet_id": step.bet_id,
             "out_of_range": step.out_of_range,
-            "engine": step.engine,
         }
         if step.number < montante.current_step or (bet is not None and bet.status == "settled"):
             assert bet is not None
@@ -321,7 +316,6 @@ async def step_suggestions(
     *,
     redis: Any = None,
     now: datetime | None = None,
-    engine: int = 1,
 ) -> list[dict[str, Any]]:
     """Suggestions du palier en cours, différentes d'une montante à l'autre du même joueur.
 
@@ -358,12 +352,11 @@ async def step_suggestions(
             now=now,
             redis=redis,
             exclude_matches=frozenset(taken),
-            engine=engine,
         ):
             taken |= {sel["match_id"] for sel in s["selections"]}
     low, high = await _current_range(session, montante)
     return await suggestions.suggest(
-        session, low, high, now=now, redis=redis, exclude_matches=frozenset(taken), engine=engine
+        session, low, high, now=now, redis=redis, exclude_matches=frozenset(taken)
     )
 
 

@@ -89,7 +89,7 @@ async def test_quota_out_then_back_settles_with_one_summary_and_is_idempotent(
             )
         await session.commit()
     monkeypatch.setattr(api_football.ApiFootballClient, "__init__", _fast_init)
-    for name in ("_collect_odds", "_predict_upcoming", "_warm_reliability", "_engine_chances"):
+    for name in ("_collect_odds", "_predict_upcoming", "_warm_reliability"):
         monkeypatch.setattr(tasks, name, _stub)
     settings = make_settings(raw_data_dir=tmp_path / "raw", api_football_key="k" * 32)
 

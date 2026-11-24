@@ -26,7 +26,7 @@ from redis.asyncio import Redis
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from footprono.bookmaker import playable, price, service, smart_coupon
+from footprono.bookmaker import playable, service, smart_coupon
 from footprono.bookmaker.odds_math import combined_odds
 from footprono.bookmaker.rules import automatic
 from footprono.bookmaker.smart_coupon import MIN_ODDS
@@ -43,10 +43,6 @@ class Candidate:
     kickoff_at: datetime
     offer: service.Offer
     probability: float
-    # Moteur 2 seulement (comparaison K4) : tranche de prix (bookmaker/price.py). Moteur 1 :
-    # toujours neutre, son classement ne change pas.
-    price_tier: int = price.NEUTRAL
-    priced: bool = False
 
 
 async def _candidates(
@@ -54,7 +50,6 @@ async def _candidates(
     high: Decimal,
     now: datetime,
     redis: Redis | None = None,
-    engine: int = 1,
 ) -> list[Candidate]:
     start, end = now + CLOSE_BEFORE_KICKOFF, now + HORIZON
     first = await smart_coupon.next_kickoff(session, start)
@@ -73,8 +68,6 @@ async def _candidates(
     ).all()
     out = []
     all_offers, all_probs = await playable.load(session, [m.id for m in matches], now, redis)
-    if engine == 2:
-        all_probs = await service.engine2_probabilities(session, [m.id for m in matches], now)
     for match in matches:
         if match.kickoff_at is None:  # jamais : la période est choisie sur l'heure du match
             continue
@@ -87,12 +80,7 @@ async def _candidates(
                 continue
             if not service.fresh(offer, now):
                 continue
-            if engine == 2:
-                priced = service.is_priced(probs, offer.market)
-                tier = price.tier(p, offer.odds, priced)
-                out.append(Candidate(match.id, match.kickoff_at, offer, p, tier, priced))
-            else:
-                out.append(Candidate(match.id, match.kickoff_at, offer, p))
+            out.append(Candidate(match.id, match.kickoff_at, offer, p))
     return out
 
 
@@ -113,7 +101,6 @@ def _describe(combo: tuple[Candidate, ...]) -> dict[str, Any]:
                 "bookmaker": c.offer.bookmaker,
                 "label": c.offer.label,
                 "model_probability": round(c.probability, 4),
-                **price.describe(c.probability, c.offer.odds, c.priced),
             }
             for c in combo
         ],
@@ -137,14 +124,11 @@ async def suggest(
     limit: int = 3,
     redis: Redis | None = None,
     exclude_matches: frozenset[int] = frozenset(),
-    engine: int = 1,
 ) -> list[dict[str, Any]]:
     """``exclude_matches`` : matchs déjà pris par les autres montantes du joueur."""
     now = now or datetime.now(UTC)
     pool = [
-        c
-        for c in await _candidates(session, high, now, redis, engine)
-        if c.match_id not in exclude_matches
+        c for c in await _candidates(session, high, now, redis) if c.match_id not in exclude_matches
     ]
     return rank(pool, low, high, limit)
 
@@ -152,13 +136,10 @@ async def suggest(
 def rank(
     candidates: list[Candidate], low: Decimal, high: Decimal, limit: int = 3
 ) -> list[dict[str, Any]]:
-    """Les ``limit`` paris de la plage : cote la plus basse, moins de sélections, plus proche.
-
-    Moteur 2 : les combinés les mieux payés face à la référence d'abord (la moins bonne
-    tranche du combiné). Moteur 1 : tranche toujours neutre, classement inchangé."""
+    """Les ``limit`` paris de la plage : cote la plus basse, moins de sélections, plus proche."""
     # Ordre neutre (le plus proche d'abord) : jamais l'avis du moteur pour choisir.
     pool = sorted(candidates, key=lambda c: (c.kickoff_at, c.match_id))
-    found: list[tuple[tuple[int, Decimal, int, datetime], tuple[Candidate, ...]]] = []
+    found: list[tuple[tuple[Decimal, int, datetime], tuple[Candidate, ...]]] = []
 
     def consider(combo: tuple[Candidate, ...]) -> None:
         if len({c.match_id for c in combo}) != len(combo):
@@ -166,8 +147,7 @@ def rank(
         total = combined_odds(c.offer.odds for c in combo)
         if low <= total <= high:
             # Cote la plus basse, moins de sélections, match le plus proche.
-            worst = max(c.price_tier for c in combo)
-            found.append(((worst, total, len(combo), min(c.kickoff_at for c in combo)), combo))
+            found.append(((total, len(combo), min(c.kickoff_at for c in combo)), combo))
 
     def legs(n: int) -> list[Candidate]:
         """Sélections dont la cote permet d'atteindre la plage à ``n`` (racine n-ième)."""
