@@ -1444,3 +1444,9 @@ prendre la cote seule. Lecture pour le choix des sélections : sur le 1X2 et le 
 76 %) et un coupon de 3 gagné 50 fois sur 100 contre 44. Ce serait un changement de méthode
 des coupons (le moteur ne choisirait plus ces marchés) : décision du fondateur, à mesurer
 d'abord avec les cotes de clôture relevées depuis l'étape 2. Coupes d'Europe : inchangées.
+
+**Décision du fondateur (24/11/2026)** : rien ne change pour l'instant ; vérification en
+conditions réelles pendant 3 à 4 semaines (jusqu'au 18/12/2026 environ) avec les cotes
+d'ouverture, d'environ 1 h avant et de clôture relevées par le serveur : mêmes coupons
+simulés, choisis selon le moteur puis selon la cote, réussite et rendement à la clôture.
+Changement seulement si l'écart se confirme.
