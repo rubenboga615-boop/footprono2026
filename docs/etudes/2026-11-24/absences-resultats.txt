@@ -1,0 +1,28 @@
+880752 lignes de composition, indicateurs pour 42274 équipes-matchs
+
+15097 matchs prédits avec les deux compositions
+
+## Indicateurs (moyenne, part des matchs non nuls)
+
+- manque : moyenne 0.149, non nul 90%
+- manque_attaque : moyenne 0.145, non nul 74%
+- manque_defense : moyenne 0.148, non nul 65%
+- nouvel_entraineur : moyenne 0.114, non nul 11%
+
+## Réglages appris sur 2019-2022 (effet sur les buts attendus)
+
+- manque : sur les buts de l'équipe x 0.994 pour +0,1 ; sur ceux de l'adversaire x 0.995
+- manque_attaque : sur les buts de l'équipe x 0.981 pour +0,1 ; sur ceux de l'adversaire x 1.001
+- manque_defense : sur les buts de l'équipe x 1.000 pour +0,1 ; sur ceux de l'adversaire x 1.022
+- nouvel_entraineur : sur les buts de l'équipe x 1.000 pour +0,1 ; sur ceux de l'adversaire x 0.998
+
+## Saisons de test (8194 matchs)
+
+| Marché | Moteur | Moteur + compositions | Écart |
+|---|---|---|---|
+| 1X2 | 0.9722 | 0.9712 | -0.0010 ± 0.0010 |
+| +/-2,5 | 0.6747 | 0.6748 | +0.0001 ± 0.0009 |
+
+Cote de clôture sur les mêmes 8194 matchs : 0.9567 (moteur 0.9722, avec compositions 0.9712) ; écart moteur - clôture +0.0155 ± 0.0030, avec compositions - clôture +0.0145 ± 0.0029
+
+Matchs avec au moins ~2 titulaires habituels absents d'un côté (5200) : 1X2 -0.0014 ± 0.0014

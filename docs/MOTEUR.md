@@ -1450,3 +1450,33 @@ conditions réelles pendant 3 à 4 semaines (jusqu'au 18/12/2026 environ) avec l
 d'ouverture, d'environ 1 h avant et de clôture relevées par le serveur : mêmes coupons
 simulés, choisis selon le moteur puis selon la cote, réussite et rendement à la clôture.
 Changement seulement si l'écart se confirme.
+
+## Compositions et absences, version 1 (étude du 24/11/2026) : **non retenue**
+
+`footprono-engine absences` (console : Évaluer le moteur → Compositions et absences).
+Sortie : [`docs/etudes/2026-11-24/absences-resultats.txt`](etudes/2026-11-24/absences-resultats.txt).
+
+**Données** : compositions et fiches de joueurs d'API-Football (« Compléter les matchs
+passés », 8 133 matchs ajoutés le 24/11), 7 championnats, 15 097 matchs prédits avec les deux
+compositions. Indicateurs calculés avec les seuls matchs d'avant : titulaires habituels (60 %
+des minutes sur les 10 derniers matchs) absents, part des buts + passes décisives des
+absents, défenseurs et gardien absents, nouvel entraîneur (5 premiers matchs). Buts
+attendus du moteur corrigés, réglages appris sur 2019-2022, mesurés sur 2022-2026 (8 194
+matchs).
+
+| Log loss (test) | Moteur | Moteur + compositions | Écart |
+|---|---|---|---|
+| 1X2 | 0,9722 | 0,9712 | −0,0010 ± 0,0010 |
+| Plus/moins 2,5 | 0,6747 | 0,6748 | +0,0001 ± 0,0009 |
+| Cote de clôture (repère) | 0,9567 | | moteur − clôture +0,0155 ± 0,0030 |
+
+- Gain à peine au seuil (2 erreurs types) sur le 1X2, nul sur les buts ; il ne comble que
+  6 % de l'écart avec la cote de clôture (+0,0155 → +0,0145).
+- Effets appris très faibles : un titulaire habituel absent (+0,1) ne change les buts de
+  l'équipe que de −0,6 % ; 10 % des buts et passes décisives absents, −1,9 %.
+- Limite : la mesure « titulaire habituel » compte surtout la rotation (90 % des matchs ont
+  au moins une « absence ») et ne dit rien de la valeur du joueur.
+
+**Décision** : non retenue en l'état (principe n° 4). Piste d'une version 2 : valeur de
+chaque joueur (note et contribution par 90 minutes sur la saison, gardien à part) et absence
+des seuls joueurs clés.
