@@ -68,3 +68,10 @@ Afrique mise de côté pour l'instant. Liste finale des informations qui manquen
 Non prioritaire (preuve faible ou déjà testé) : actualité en texte, météo, transferts, face-à-face, repos/fatigue (rejeté dans MOTEUR.md), nouveaux fournisseurs de xG.
 
 Règle : chaque point est mesuré sur les saisons de test avant d'entrer dans les coupons (principe n° 4).
+
+## Mise à jour après lecture des rapports du développeur (24/11, après-midi)
+- **Point 2 déjà fait** (a060f37, 93e998c) : cote de clôture gardée pour chaque sélection ; trois relevés (ouverture, environ 1 h avant, juste avant) pour tous les matchs européens suivis, chez 1xBet et Pinnacle ; environ 4 requêtes par match ; bilan « Mesure en silence » dans la console.
+- **Point 1 déjà étudié : mélange rejeté** (MOTEUR.md, docs/etudes/2026-11-24/) : poids appris du moteur = 0, le mélange revient à la cote seule. Choisir les sélections par la cote donnerait 79 % de réussite contre 76 % (coupon de 3 : 50 % contre 44 %). **Décision du fondateur : rien ne change, vérification en conditions réelles jusqu'au 18/12/2026 environ.**
+- **Points 3, 4, 5 et 7** : script prêt (docs/etudes/2026-11-24/absences.py), en attente de l'export de la console après « Compléter les matchs passés ».
+- Mon message du 24/11 pour les points 1 et 2 est donc **dépassé** : ne pas l'envoyer.
+- Je vérifierai en conditions réelles : relevés de cotes présents, bilan de la console, coût réel en requêtes.
