@@ -50,3 +50,21 @@ Open-Meteo est gratuit, sans clé, jusqu'à 10 000 appels par jour, mais **uniqu
 5. Actualité et météo : plus tard, pour l'affichage seulement.
 
 Sources : football-data.org (docs.football-data.org/general/v4/policies.html), the-odds-api.com (page tarifs, historical-odds-data, africa-cup-of-nations-odds), odds-api.io (pricing/free, blog free-odds-api), open-meteo.com/en/terms, liste github.com/public-apis/public-apis.
+
+## Mise à jour : priorité aux compétitions européennes (décision du fondateur)
+Afrique mise de côté pour l'instant. Liste finale des informations qui manquent vraiment et qu'on peut obtenir :
+
+| # | Information | Où la trouver | Coût | Ce que ça doit corriger |
+|---|---|---|---|---|
+| 1 | Cote du marché comme **donnée d'entrée** (mélange moteur + cote) | Cotes de clôture déjà en base pour les championnats (football-data) ; `/odds` en direct | 0 | MOTEUR.md : la clôture bat le moteur (log loss 0,9665 contre 0,9827) |
+| 2 | Cote d'ouverture, cote 1 h avant, cote de clôture **gardées** pour chaque match | `/odds` API-Football, déjà payé | quelques requêtes | Mesurer si nos choix battent la clôture ; base du point 1 en direct |
+| 3 | Compositions officielles | `/fixtures/lineups`, environ 1 h avant | déjà payé | Le moteur ignore les compositions (MOTEUR.md, ligne 278) |
+| 4 | Absences **utilisées par le moteur** (blessés déjà collectés mais seulement stockés ; suspendus) | `/injuries` (déjà collecté), `/sidelined` | déjà payé | Idem |
+| 5 | Poids de chaque joueur (minutes, buts, xG, passes) pour savoir si l'absent compte | `/players` API-Football ; xG joueurs Understat (déjà source des xG équipes) | déjà payé / gratuit | Sans ce poids, une absence ne veut rien dire |
+| 6 | Niveau des clubs entre championnats (coupes d'Europe) | ClubElo (gratuit), coefficients UEFA | 0 | Clubs de petits championnats mal jugés en coupe |
+| 7 | Changement d'entraîneur | `/coachs` | déjà payé | Effet « nouvel entraîneur » à mesurer |
+| 8 | Nos propres résultats par type de marché et par championnat | Base FootProba | 0 | Retirer des coupons les marchés qui perdent réellement |
+
+Non prioritaire (preuve faible ou déjà testé) : actualité en texte, météo, transferts, face-à-face, repos/fatigue (rejeté dans MOTEUR.md), nouveaux fournisseurs de xG.
+
+Règle : chaque point est mesuré sur les saisons de test avant d'entrer dans les coupons (principe n° 4).
