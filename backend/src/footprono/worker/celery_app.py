@@ -118,7 +118,7 @@ def create_celery(settings: Settings | None = None) -> Celery:
                 "schedule": crontab(minute="7,37"),
                 "options": {"expires": 1500},
             },
-            # Cotes des matchs proposés relues juste avant le coup d'envoi (cote de clôture).
+            # Cotes des matchs européens relues environ 1 h avant et juste avant (clôture).
             "closing-odds": {
                 "task": "footprono.closing_odds",
                 "schedule": crontab(minute="*/15"),

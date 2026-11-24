@@ -625,6 +625,8 @@ async def silent_measure(ctx: JobContext, params: dict[str, Any]) -> str:
     ):
         t = report[key]["total"]
         beat = "—" if t["beat_closing"] is None else f"{round(t['beat_closing'] * 100)} %"
+        if t["closing_gap"] is not None:
+            beat += f", écart moyen {t['closing_gap'] * 100:+.1f} %"
         observed = "—" if t["observed"] is None else f"{round(t['observed'] * 100)} %"
         announced = "—" if t["announced"] is None else f"{round(t['announced'] * 100)} %"
         line = (

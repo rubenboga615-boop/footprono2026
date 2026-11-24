@@ -195,58 +195,52 @@ async def collect_odds(
     return report
 
 
-# Relevé des matchs proposés juste avant le coup d'envoi (plan qualité du 24/11/2026) : la cote
-# de clôture mesurée est alors la cote d'au plus ~20 minutes avant le match, pas celle du
-# relevé général de 3 heures. Lancé toutes les 15 minutes : chaque match est relu une fois.
-CLOSING_FROM, CLOSING_TO = timedelta(minutes=5), timedelta(minutes=20)
+# Cotes relues avant le coup d'envoi (plan qualité du 24/11/2026, point 2 du testeur) : pour
+# tous les matchs des championnats européens suivis et des coupes d'Europe, une photo **environ
+# 1 h avant** et une **juste avant** (clôture) ; la première photo est le premier relevé
+# général (ouverture). Seules les cotes qui ont changé sont écrites (une ligne par changement),
+# comme le relevé général. Lancé toutes les 15 minutes : chaque match passe une fois dans
+# chaque fenêtre. Deux bookmakers seulement : 1xBet (celui des joueurs) et Pinnacle (référence
+# du marché), pour ménager le quota.
+CLOSING_WINDOWS = (
+    (timedelta(minutes=50), timedelta(minutes=65)),  # environ 1 h avant
+    (timedelta(minutes=5), timedelta(minutes=20)),  # clôture
+)
+CLOSING_BOOKMAKERS = ("1xBet", "Pinnacle")
 
 
 async def closing_targets(session: AsyncSession, now: datetime) -> list[tuple[int, int]]:
-    """(match, identifiant API-Football) des matchs proposés ou joués qui commencent dans
-    5 à 20 minutes : coupons du jour, paris en cours, alertes et occasions enregistrées."""
-    from footprono.bookmaker.models import Bet, BetSelection
-    from footprono.bookmaker.play_models import OddsAlertHit, SilentPick
-    from footprono.bookmaker.smart_models import SmartCoupon
-
-    soon = (
+    """(match, identifiant API-Football) des matchs des championnats européens suivis et des
+    coupes d'Europe qui commencent dans une des fenêtres (environ 1 h, ou 5 à 20 minutes)."""
+    codes = [c.code for c in COMPETITIONS] + [c.code for c in CUPS]
+    window = or_(
+        *(
+            (Match.kickoff_at >= now + lo) & (Match.kickoff_at < now + hi)
+            for lo, hi in CLOSING_WINDOWS
+        )
+    )
+    rows = (
         await session.execute(
-            select(Match.id, Match.api_football_id).where(
+            select(Match.id, Match.api_football_id)
+            .join(Season, Season.id == Match.season_id)
+            .join(Competition, Competition.id == Season.competition_id)
+            .where(
                 Match.status == MatchStatus.SCHEDULED,
-                Match.kickoff_at >= now + CLOSING_FROM,
-                Match.kickoff_at < now + CLOSING_TO,
                 Match.api_football_id.is_not(None),
+                Competition.code.in_(codes),
+                window,
             )
+            .order_by(Match.kickoff_at, Match.id)
         )
     ).all()
-    if not soon:
-        return []
-    ids = [m for m, _ in soon]
-    wanted: set[int] = set()
-    wanted |= set(
-        (
-            await session.scalars(
-                select(BetSelection.match_id)
-                .join(Bet, Bet.id == BetSelection.bet_id)
-                .where(BetSelection.match_id.in_(ids), Bet.status == "open")
-            )
-        ).all()
-    )
-    wanted |= set(
-        await session.scalars(select(OddsAlertHit.match_id).where(OddsAlertHit.match_id.in_(ids)))
-    )
-    wanted |= set(
-        await session.scalars(select(SilentPick.match_id).where(SilentPick.match_id.in_(ids)))
-    )
-    for coupon in await session.scalars(select(SmartCoupon).where(SmartCoupon.day == now.date())):
-        wanted |= {s["match_id"] for s in coupon.selections if s["match_id"] in ids}
-    return [(m, int(f)) for m, f in soon if m in wanted]
+    return [(m, int(f)) for m, f in rows]
 
 
 async def collect_closing_odds(
     session: AsyncSession, settings: Settings, now: datetime | None = None
 ) -> dict[str, Any]:
-    """Relit les cotes des matchs proposés qui commencent bientôt (une requête par match et
-    par bookmaker), enregistrées comme celles du relevé général."""
+    """Relit les cotes des matchs qui commencent bientôt (une requête par match et par
+    bookmaker), enregistrées comme celles du relevé général."""
     now = now or datetime.now(UTC)
     if settings.api_football_key is None:
         return {"status": "unavailable", "error": "FP_API_FOOTBALL_KEY absente"}
@@ -267,7 +261,8 @@ async def collect_closing_odds(
         min_remaining=settings.api_football_min_remaining,
         transport=service.api_football_transport,
     ) as client:
-        books, _ = await _bookmaker_ids(client, settings.odds_bookmakers)
+        wanted = [b for b in settings.odds_bookmakers if b in CLOSING_BOOKMAKERS]
+        books, _ = await _bookmaker_ids(client, wanted)
         for _, fixture in targets:
             for book_id in books.values():
                 if not client.can_spend():
@@ -279,7 +274,10 @@ async def collect_closing_odds(
                 found, _, _ = parse_odds_page(body)
                 quotes.extend(found)
         report["requests"] = client.used
-    await _store_quotes(session, settings, quotes, pages, now, report)
+    # Place disque : pas d'archive brute de ces relectures (le relevé général garde la
+    # sienne). Tous les marchés sont lus : une cote absente d'un relevé passerait pour retirée
+    # (``service.match_offers``) ; seules les cotes qui ont changé sont écrites.
+    await _store_quotes(session, settings, quotes, [], now, report)
     return report
 
 

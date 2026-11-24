@@ -13,9 +13,9 @@ Ce module :
   c'est justement ce qu'il faut mesurer) ;
 - fait le bilan par tranche d'écart, compétition et marché, à 1 000 F par sélection.
 
-Limite connue : les cotes sont relevées toutes les 3 heures, plus un relevé des matchs proposés
-peu avant le coup d'envoi (``closing_targets``). La « clôture » est donc la dernière cote vue
-avant le match, à quelques dizaines de minutes près.
+Les cotes sont relevées toutes les 3 heures (ouverture : premier relevé), plus deux relevés des
+matchs européens environ 1 h avant et 5 à 20 minutes avant le coup d'envoi
+(``ingestion.live.closing_targets``). La « clôture » est la dernière cote vue avant le match.
 """
 
 from collections import defaultdict
@@ -293,6 +293,13 @@ def _summary(items: list[dict[str, Any]]) -> dict[str, Any]:
         "yield": round(profit / (STAKE * n), 4) if n else None,
         "with_closing": len(with_close),
         "beat_closing": round(beat / len(with_close), 4) if with_close else None,
+        # Écart moyen avec la clôture : cote obtenue / cote de clôture - 1 (+2 % : prise 2 %
+        # plus haut que la clôture en moyenne).
+        "closing_gap": (
+            round(sum(i["odds"] / i["closing"] - 1 for i in with_close) / len(with_close), 4)
+            if with_close
+            else None
+        ),
     }
 
 

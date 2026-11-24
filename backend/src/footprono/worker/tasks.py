@@ -555,8 +555,8 @@ async def _check_odds_alerts() -> dict[str, Any]:
 @celery_app.task(name="footprono.closing_odds")
 @tracked("closing_odds")
 def closing_odds() -> dict[str, Any]:
-    """Cotes des matchs proposés relues 5 à 20 minutes avant le coup d'envoi (cote de
-    clôture, plan qualité du 24/11/2026)."""
+    """Cotes des matchs européens relues environ 1 h avant et 5 à 20 minutes avant le coup
+    d'envoi (cote de clôture, plan qualité du 24/11/2026)."""
     return asyncio.run(_closing_odds())
 
 

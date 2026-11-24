@@ -87,14 +87,21 @@ et occasions en silence dans la console, Équilibré manquant.
 
 - **Cote de clôture** (`bookmaker/closing.py`, migration 0047) : dernière cote relevée chez le
   même bookmaker avant le coup d'envoi, gardée pour chaque sélection des coupons du jour, des
-  paris des joueurs, des alertes déclenchées et des occasions. Les matchs proposés sont relus
-  5 à 20 minutes avant le coup d'envoi (tâche `closing_odds`, toutes les 15 minutes, une
-  requête par match et par bookmaker), sinon la « clôture » serait le relevé de 3 heures.
+  paris des joueurs, des alertes déclenchées et des occasions.
+- **Trois relevés par match** (complément du 24/11/2026) : ouverture (premier relevé), **environ
+  1 h avant** (50 à 65 minutes) et **juste avant** (5 à 20 minutes), pour **tous les matchs**
+  des championnats et coupes d'Europe suivis, pas seulement les matchs proposés. Tâche
+  `closing_odds` toutes les 15 minutes, une requête par match et par bookmaker (1xBet et
+  Pinnacle, la référence). Tous les marchés sont gardés (sinon les autres paraîtraient
+  retirés), sans archive brute : seules les cotes qui ont changé ajoutent une ligne.
+- **Coût** : 2 relevés × 2 bookmakers = 4 requêtes par match, soit environ 400 à 800 requêtes
+  les gros jours de week-end (100 à 200 matchs) et 100 à 250 en semaine, sur 7 500 par jour.
+  Disque : quelques centaines de lignes par match au plus, seulement quand une cote bouge.
 - **Occasions en silence** (table `silent_picks`) : la meilleure de chaque match des 36
   prochaines heures (au moins 3 points d'écart), **toutes compétitions comprises**, coupes
   d'Europe et sélections aussi, pour les mesurer. Clôture et résultat remplis après le match.
 - **Bilan dans la console** : action « Mesure en silence : occasions, alertes, clôture » :
-  réglées, annoncé, réalisé, gain à 1 000 F par sélection, part qui bat la clôture ; par
+  réglées, annoncé, réalisé, gain à 1 000 F par sélection, part qui bat la clôture, écart moyen avec la clôture ; par
   tranche d'écart (+3 à +5, +5 à +10, +10 à +15, +15 et plus), compétition et marché.
 - **Historique public des coupons du jour** : `closing` = part des sélections réglées prises
   à une cote plus haute que la clôture.

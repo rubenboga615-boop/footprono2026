@@ -114,32 +114,35 @@ async def test_occasions_recorded_silently_then_closing_and_result(
     assert (occ["settled"], occ["won"], occ["profit"], occ["beat_closing"]) == (1, 1, 850, 1.0)
     assert "+5 à +10 pts" in report["occasions"]["by_band"]  # 60 % contre 54 %
     assert report["daily_coupon_selections"]["total"]["beat_closing"] == 1.0
+    assert occ["closing_gap"] == round(1.85 / 1.70 - 1, 4)  # prise 8,8 % au-dessus
     assert report["player_bets"]["total"]["with_closing"] == 1
 
 
-async def test_closing_targets_only_proposed_matches_starting_soon(
+async def test_closing_targets_one_hour_before_and_just_before(
     world: dict[str, Any],  # noqa: F811
     db_factory: Factory,
 ) -> None:
+    """Tous les matchs des championnats suivis (ici EPL) : relus environ 1 h avant et 5 à
+    20 minutes avant ; entre les deux fenêtres, rien."""
     now = datetime.now(UTC)
     async with db_factory() as session:
-        for mid, fixture in ((world["m1"], 9001), (world["m2"], 9002)):
+        for mid, fixture, minutes in ((world["m1"], 9001, 12), (world["m2"], 9002, 57)):
             await session.execute(
                 update(Match)
                 .where(Match.id == mid)
-                .values(kickoff_at=now + timedelta(minutes=12), api_football_id=fixture)
+                .values(kickoff_at=now + timedelta(minutes=minutes), api_football_id=fixture)
             )
-        session.add(
-            SilentPick(
-                source="occasion", day=now.date(), match_id=world["m1"], competition="EPL",
-                market="1X2", line="", selection="home", bookmaker="1xBet",
-                odds=Decimal("1.85"), engine=0.6,
-            )
-        )  # fmt: skip
         await session.commit()
-        # Seul le match proposé (m1) est relu ; m2 commence aussi, mais rien n'y est proposé.
-        assert await live.closing_targets(session, now) == [(world["m1"], 9001)]
-        assert await live.closing_targets(session, now + timedelta(hours=1)) == []
+        assert await live.closing_targets(session, now) == [
+            (world["m1"], 9001),
+            (world["m2"], 9002),
+        ]
+        # 25 minutes plus tard : m1 a commencé, m2 est à 32 minutes (entre les deux fenêtres).
+        assert await live.closing_targets(session, now + timedelta(minutes=25)) == []
+        # 40 minutes plus tard : m2 entre dans la fenêtre de clôture.
+        assert await live.closing_targets(session, now + timedelta(minutes=40)) == [
+            (world["m2"], 9002)
+        ]
 
 
 def test_gap_bands() -> None:

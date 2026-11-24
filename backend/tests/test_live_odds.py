@@ -264,3 +264,73 @@ async def test_collect_odds_includes_european_cups(
     assert report["matches"] == 1
     assert Decimal("2.10") in prices
     assert seen[0]["season"] == str(cup_season(datetime.now(UTC).date()))
+
+
+async def test_closing_refresh_one_request_per_match_and_bookmaker(
+    db_factory: Factory, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Relecture avant le coup d'envoi (24/11/2026) : /odds?fixture=…, 1xBet et Pinnacle
+    seulement, pas d'archive brute, seules les cotes changées écrites."""
+    from datetime import timedelta
+
+    from footprono.football.models import RawFile
+    from footprono.ingestion.live import collect_closing_odds
+
+    await run_ingestion(
+        db_factory,
+        make_settings(raw_data_dir=tmp_path / "raw"),
+        [IngestionRequest(DataSource.FOOTBALL_DATA, ["EPL"], [2024], FIXTURES / "football-data")],
+    )
+    now = datetime.now(UTC)
+    async with db_factory() as session:
+        match_id = await session.scalar(select(Match.id).order_by(Match.id.desc()).limit(1))
+        await session.execute(
+            update(Match)
+            .where(Match.id == match_id)
+            .values(
+                api_football_id=7000, kickoff_at=now + timedelta(minutes=10),
+                status="scheduled", home_goals=None, away_goals=None,
+            )
+        )  # fmt: skip
+        raw_before = await session.scalar(select(func.count()).select_from(RawFile))
+        await session.commit()
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(f"{request.url.path}?{request.url.query.decode()}")
+        headers = {"x-ratelimit-requests-remaining": "7000", "x-ratelimit-remaining": "290"}
+        if request.url.path == "/odds/bookmakers":
+            body: Any = {
+                "response": [
+                    {"id": 11, "name": "1xBet"},
+                    {"id": 8, "name": "Bet365"},
+                    {"id": 4, "name": "Pinnacle"},
+                ]
+            }
+        elif request.url.params.get("fixture") == "7000":
+            book = {"11": "1xBet", "4": "Pinnacle"}[request.url.params["bookmaker"]]
+            body = {
+                "response": [_odds_item(7000, book, "1.95")],
+                "paging": {"current": 1, "total": 1},
+            }
+        else:
+            body = {"response": []}
+        return httpx.Response(200, json={**body, "errors": []}, headers=headers)
+
+    monkeypatch.setattr(service, "api_football_transport", httpx.MockTransport(handler))
+    monkeypatch.setattr(api_football.ApiFootballClient, "__init__", _fast_init)
+    settings = make_settings(raw_data_dir=tmp_path / "raw", api_football_key="k" * 32)
+    async with db_factory() as session:
+        report = await collect_closing_odds(session, settings, now)
+        rows = (
+            await session.scalars(select(BookmakerOdds).where(BookmakerOdds.match_id == match_id))
+        ).all()
+        raw_after = await session.scalar(select(func.count()).select_from(RawFile))
+    odds_calls = [c for c in calls if c.startswith("/odds?")]
+    assert sorted(odds_calls) == [
+        "/odds?fixture=7000&bookmaker=11",
+        "/odds?fixture=7000&bookmaker=4",
+    ]
+    assert report["targets"] == 1
+    assert {r.bookmaker for r in rows} >= {"1xBet", "Pinnacle"}
+    assert raw_after == raw_before  # pas d'archive brute
