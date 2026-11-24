@@ -2049,7 +2049,7 @@ void main() {
       rootNavigator: true,
     ).push(MaterialPageRoute(builder: (_) => const ReliabilityScreen()));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Sélections nationales : moteur contre cote'), 200);
+    await tester.scrollUntilVisible(find.text('SÉLECTIONS NATIONALES'), 200);
     expect(find.text('+10 à +15 pts'), findsOneWidget);
     expect(find.text('+15 pts et plus'), findsOneWidget);
     expect(find.textContaining('Seulement 18 sélections'), findsOneWidget);

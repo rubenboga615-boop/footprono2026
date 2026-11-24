@@ -10,6 +10,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/visage.dart';
 import 'live_reliability_screen.dart';
 import 'montante_stats_screen.dart';
 
@@ -93,8 +94,9 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
   @override
   Widget build(BuildContext context) {
     final api = context.read<AppState>().api;
+    // Maquette 22 du nouveau visage : barre du haut, phrase simple en tête, puis le détail.
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: V.bg,
       body: SafeArea(
         child: Loader<Json>(
           key: ValueKey(competition),
@@ -112,17 +114,16 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
               child: ListView(
                 padding: pagePadding(context, 16, 32, maxWidth: 640),
                 children: [
-                  const BackHeader('Fiabilité', 'du moteur'),
-                  const SizedBox(height: 12),
+                  const VTopBar('Fiabilité'),
+                  _Headline(view),
                   if (view.canLive) ...[
-                    SegmentTabs(
-                      labels: ['Depuis le lancement (${thousands(view.liveMatches)})', 'Simulation'],
-                      selected: showLive ? 0 : 1,
-                      onSelected: (i) => setState(() => live = i == 0),
-                    ),
                     const SizedBox(height: 12),
+                    VSeg(
+                      items: ['Depuis le lancement (${thousands(view.liveMatches)})', 'Simulation'],
+                      selected: showLive ? 0 : 1,
+                      onSelect: (i) => setState(() => live = i == 0),
+                    ),
                   ],
-                  _Verdict(view.verdict, ok: view.verdictOk),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -146,49 +147,39 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  GlassCard.section(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  VCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
-                          children: [
-                            _legend(_announced, 'annoncé'),
-                            const SizedBox(width: 12),
-                            _legend(Fp.accent2, 'arrivé'),
-                            const Spacer(),
-                            if (view.status != null)
-                              Flexible(
-                                child: Text(
-                                  view.status!,
-                                  textAlign: TextAlign.right,
-                                  style: Fp.body(
-                                    12,
-                                    weight: FontWeight.w700,
-                                    color: view.statusOk ? Fp.win : Fp.warning,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
+                        const VKicker('Annoncé contre réalisé'),
+                        if (view.status != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            view.status!,
+                            style: V.t(12, w: FontWeight.w600, color: view.statusOk ? V.mint : V.amber),
+                          ),
+                        ],
+                        const SizedBox(height: 10),
                         if (view.calibration.isEmpty)
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 20),
                             child: Text(
                               view.emptyText,
                               textAlign: TextAlign.center,
-                              style: Fp.body(13, color: Fp.text2, height: 1.4),
+                              style: V.t(13, color: V.mu),
                             ),
                           )
                         else
                           _CalibrationChart(view.calibration, view.minBin),
+                        const SizedBox(height: 8),
+                        Text('Barre : réalisé · trait ambre : annoncé.', style: V.mu_(11)),
                       ],
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Text(view.source, style: Fp.body(12, color: Fp.muted, height: 1.4)),
+                  Text(view.verdict, style: V.t(12, color: view.verdictOk ? V.mu : V.amber)),
+                  const SizedBox(height: 6),
+                  Text(view.source, style: V.mu_(12)),
                   const SizedBox(height: 10),
                   IntrinsicHeight(
                     child: Row(
@@ -237,19 +228,6 @@ class _ReliabilityScreenState extends State<ReliabilityScreen> {
       ),
     );
   }
-
-  Widget _legend(Color color, String label) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Container(
-        width: 11,
-        height: 11,
-        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
-      ),
-      const SizedBox(width: 5),
-      Text(label, style: Fp.body(12, color: Fp.text2)),
-    ],
-  );
 
   Future<T?> _sheet<T>(BuildContext context, Widget Function(BuildContext) child) => showModalBottomSheet<T>(
     context: context,
@@ -751,25 +729,42 @@ class _View {
   }
 }
 
-class _Verdict extends StatelessWidget {
-  const _Verdict(this.text, {required this.ok});
-  final String text;
-  final bool ok;
+/// Phrase de tête de la maquette 22 : « Quand le moteur annonce 70 %, ça passe environ
+/// 70 fois sur 100 », sur la tranche la plus fournie ; le verdict de la règle dessous.
+class _Headline extends StatelessWidget {
+  const _Headline(this.view);
+  final _View view;
 
   @override
   Widget build(BuildContext context) {
-    // Maquette C5 : encadré ambre (pas encore juste) ou vert (règle respectée).
-    final (bg, border, color) = ok
-        ? (Fp.winBg, Fp.winLine, Fp.winSoft)
-        : (Fp.warningBg, Fp.warningLine, Fp.warning);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: border),
+    final bins = view.calibration.where((b) => (b['count'] as int? ?? 0) >= view.minBin).toList()
+      ..sort((a, b) => (b['count'] as int).compareTo(a['count'] as int));
+    final top = bins.firstOrNull;
+    return VCard(
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF1E1A45), V.s1],
       ),
-      child: Text(text, style: Fp.body(13.5, color: color, height: 1.45)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (top != null)
+            Text(
+              'Quand le moteur annonce ${percent((top['announced'] as num).toDouble())}, ça passe '
+              'environ ${((top['observed'] as num) * 100).round()} fois sur 100.',
+              style: V.b(17),
+            ),
+          if (top != null) const SizedBox(height: 6),
+          Text(
+            top == null
+                ? 'Pas encore assez de cas réglés pour le dire.'
+                : 'Vérifié sur ${thousands(view.calibration.fold<int>(0, (n, b) => n + (b['count'] as int? ?? 0)))} '
+                      'cas réglés.',
+            style: V.t(12.5, color: V.mu),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -784,34 +779,21 @@ class _Drop extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Maquette C5 : carte, petit libellé gris, choix en gras.
-    return Material(
-      color: Fp.card,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label, style: Fp.body(12, color: Fp.muted)),
-                    Text(
-                      value,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Fp.body(15, weight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.expand_more_rounded, size: 18, color: Fp.muted),
-            ],
+    return VCard2(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: V.mu_(11.5)),
+                Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: V.b(14)),
+              ],
+            ),
           ),
-        ),
+          Transform.rotate(angle: -1.5708, child: const VIc(VIcon.back, size: 13, color: V.mu, stroke: 2)),
+        ],
       ),
     );
   }
@@ -826,39 +808,20 @@ class _Tile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Fp.fill,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Fp.line10),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onHelp,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 10, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return VCard2(
+      onTap: onHelp,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      value,
-                      style: Fp.title(
-                        19,
-                        weight: FontWeight.w700,
-                      ).copyWith(color: value == '—' ? Fp.text2 : (good ? Fp.win : Fp.lossText)),
-                    ),
-                  ),
-                  const Icon(Icons.help_outline_rounded, size: 17, color: Fp.text3),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text(text, style: Fp.body(12, color: Fp.text2, height: 1.35)),
+              Expanded(child: Text(value, style: V.b(19, value == '—' ? V.mu : (good ? V.mint : V.coral)))),
+              Text('?', style: V.b(13, V.mu2)),
             ],
           ),
-        ),
+          const SizedBox(height: 2),
+          Text(text, style: V.mu_(12)),
+        ],
       ),
     );
   }
@@ -877,7 +840,7 @@ class _Link extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Text(
           text,
-          style: Fp.body(13.5, weight: FontWeight.w700, color: Fp.accentLight),
+          style: V.t(13.5, w: FontWeight.w600, color: V.vi2),
         ),
       ),
     );
@@ -899,45 +862,30 @@ class _CalibrationChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Maquette 22 : annoncé à gauche, barre du réalisé avec un trait ambre à l'annoncé,
+    // réalisé en gras à droite ; tranche grisée sous [minBin] cas.
     return Column(
       children: [
         for (final b in bins)
           Opacity(
             opacity: (b['count'] as int? ?? 0) < minBin ? 0.4 : 1,
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.symmetric(vertical: 5),
               child: Row(
                 children: [
                   SizedBox(
                     width: 74,
-                    child: Text(_label(b['range']), style: Fp.body(12, color: Fp.muted)),
+                    child: Text(_label(b['range']), style: V.t(12, color: V.mu)),
                   ),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _bar((b['announced'] as num).toDouble(), _announced),
-                        const SizedBox(height: 3),
-                        _bar((b['observed'] as num).toDouble(), Fp.accent2),
-                      ],
-                    ),
+                    child: _bar((b['announced'] as num).toDouble(), (b['observed'] as num).toDouble()),
                   ),
                   SizedBox(
                     width: 82,
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '${((b['announced'] as num) * 100).round()} → ',
-                            style: Fp.body(12.5, weight: FontWeight.w700),
-                          ),
-                          TextSpan(
-                            text: percent((b['observed'] as num).toDouble()),
-                            style: Fp.body(12.5, weight: FontWeight.w700),
-                          ),
-                        ],
-                      ),
+                    child: Text(
+                      '${((b['announced'] as num) * 100).round()} → ${percent((b['observed'] as num).toDouble())}',
                       textAlign: TextAlign.right,
+                      style: V.b(12.5),
                     ),
                   ),
                 ],
@@ -948,18 +896,36 @@ class _CalibrationChart extends StatelessWidget {
     );
   }
 
-  // Maquette C5 : barres fines de 5, sans fond.
-  Widget _bar(double value, Color color) => ClipRRect(
-    borderRadius: BorderRadius.circular(3),
-    child: SizedBox(
-      height: 5,
-      child: Stack(
+  Widget _bar(double announced, double observed) => SizedBox(
+    height: 12,
+    child: LayoutBuilder(
+      builder: (context, c) => Stack(
+        clipBehavior: Clip.none,
         children: [
-          FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            heightFactor: 1,
-            widthFactor: value.clamp(0.0, 1.0),
-            child: ColoredBox(color: color),
+          Positioned.fill(
+            top: 2,
+            bottom: 2,
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: V.s3, borderRadius: BorderRadius.circular(4)),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            top: 2,
+            bottom: 2,
+            width: c.maxWidth * observed.clamp(0.0, 1.0),
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: V.vi, borderRadius: BorderRadius.circular(4)),
+            ),
+          ),
+          Positioned(
+            left: (c.maxWidth * announced.clamp(0.0, 1.0) - 1.5).clamp(0.0, c.maxWidth - 3),
+            top: 0,
+            bottom: 0,
+            width: 3,
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: V.amber, borderRadius: BorderRadius.circular(2)),
+            ),
           ),
         ],
       ),
@@ -1004,9 +970,6 @@ class _RecentRow extends StatelessWidget {
   }
 }
 
-/// Barre « annoncé » des maquettes (#6B6490).
-const _announced = Color(0xFF5D6888);
-
 /// Sélections nationales (retour du testeur du 17/11/2026) : quand le moteur est plus
 /// confiant que la cote, la part réellement gagnée tient-elle ? Par écart annoncé, avec le
 /// bilan d'une mise fixe sur chaque sélection.
@@ -1033,13 +996,23 @@ class _NationsVsOdds extends StatelessWidget {
           : Fp.body(13, weight: FontWeight.w600, color: color ?? Fp.text),
     );
     return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: GlassCard.section(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.only(top: 0),
+      child: VCard(
+        border: V.amber.withValues(alpha: 0.45),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Sélections nationales : moteur contre cote', style: Fp.body(14, weight: FontWeight.w700)),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'SÉLECTIONS NATIONALES',
+                    style: V.t(10.5, w: FontWeight.w700, color: V.amber, ls: 0.8),
+                  ),
+                ),
+                const VChip('à surveiller', kind: VChipKind.am),
+              ],
+            ),
             const SizedBox(height: 4),
             Text(
               'Résultats des matchs où le moteur était plus confiant que la cote d\'avant le match. '
