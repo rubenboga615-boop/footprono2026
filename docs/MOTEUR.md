@@ -1506,3 +1506,7 @@ moyenne de l'équipe, gardien habituel absent, rotation en contrôle.
 dixièmes de point de réussite, pour un recalcul juste avant chaque match). Le marché
 garde l'essentiel de son avance par d'autres informations. À reconsidérer si les blessés
 connus la veille (`/injuries`, déjà collectés) donnent le même gain avant 8 h.
+
+**Décision du fondateur (24/11/2026)** : compositions et absences non intégrées ; études du
+moteur en pause jusqu'à la vérification du 18/12/2026 (moteur contre cote, cotes de clôture
+réelles).
