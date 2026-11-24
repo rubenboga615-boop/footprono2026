@@ -1,9 +1,7 @@
-"""Étude « compositions et absences » (testeur, 24/11/2026).
+"""Étude « compositions et absences » (testeur, 24/11/2026) : ``footprono-engine absences``.
 
-À lancer sur une base restaurée depuis l'export de la console (« Exporter les données pour
-l'étude », après « Compléter les matchs passés ») :
-
-    FP_DATABASE_URL=… python absences.py > sortie.md
+Lancée depuis la console (Évaluer le moteur → Compositions et absences), sur les
+compositions et fiches de joueurs gardées par « Compléter les matchs passés ».
 
 Pour chaque équipe et chaque match, avec les seuls matchs d'avant (causalité stricte) :
 
@@ -18,12 +16,11 @@ Pour chaque équipe et chaque match, avec les seuls matchs d'avant (causalité s
   premiers matchs.
 
 Puis les buts attendus du moteur (λ, prévisions hors échantillon) sont corrigés :
-λ' = λ · exp(β · indicateurs de l'équipe + γ · indicateurs de l'adversaire), β et γ appris
+λ' = λ · exp(b · indicateurs de l'équipe + g · indicateurs de l'adversaire), b et g appris
 sur 2019-20 → 2021-22, mesurés sur 2022-23 → 2025-26 : log loss 1X2 et plus/moins 2,5,
 contre le moteur seul et contre la cote de clôture (Pinnacle, marge retirée).
 """
 
-import asyncio
 from collections import defaultdict, deque
 from typing import Any
 
@@ -33,15 +30,9 @@ from sqlalchemy import text
 
 from footprono.core.config import get_settings
 from footprono.db.session import create_engine, create_session_factory
-from footprono.engine.backtest import match_probabilities
-from footprono.engine.cli import _load, predict
-from footprono.engine.correction import DEFAULT_FEATURES
-from footprono.engine.goals import GoalsConfig
+from footprono.engine.backtest import Predictions, match_probabilities
+from footprono.engine.history import History
 
-COMPETITIONS = ["EPL", "LA_LIGA", "SERIE_A", "BUNDESLIGA", "LIGUE_1", "POR", "NED"]
-SEASONS = list(range(2019, 2026))
-VALIDATION = (2019, 2020, 2021)
-TEST = (2022, 2023, 2024, 2025)
 WINDOW = 10
 REGULAR = 0.6
 FEATURES = ("manque", "manque_attaque", "manque_defense", "nouvel_entraineur")
@@ -65,11 +56,11 @@ _ROWS = text(
 )
 
 
-async def _rows() -> list[Any]:
+async def load_rows(codes: list[str]) -> list[Any]:
     engine = create_engine(get_settings())
     try:
         async with create_session_factory(engine)() as session:
-            return list((await session.execute(_ROWS, {"codes": COMPETITIONS})).all())
+            return list((await session.execute(_ROWS, {"codes": codes})).all())
     finally:
         await engine.dispose()
 
@@ -83,7 +74,9 @@ def features(rows: list[Any]) -> dict[tuple[int, str], dict[str, float]]:
         if k not in by_match:
             order.append(k)
         by_match[k].append(r)
-    history: dict[int, deque[dict[str, Any]]] = defaultdict(lambda: deque(maxlen=WINDOW))
+    history: dict[int, deque[dict[int, tuple[float, float, str | None]]]] = defaultdict(
+        lambda: deque(maxlen=WINDOW)
+    )
     coach: dict[int, tuple[int | None, int]] = {}
     out: dict[tuple[int, str], dict[str, float]] = {}
     for k in order:
@@ -114,7 +107,9 @@ def features(rows: list[Any]) -> dict[tuple[int, str], dict[str, float]]:
             }
         game = {
             p.player_api_id: (
-                float(p.minutes or 0), float((p.goals or 0) + (p.assists or 0)), p.position
+                float(p.minutes or 0),
+                float((p.goals or 0) + (p.assists or 0)),
+                p.position,
             )
             for p in players
         }
@@ -131,19 +126,24 @@ def _probs(lh: float, la: float, rho: float, sh: float, sa: float) -> tuple[np.n
 
 
 def _losses(p: np.ndarray, y: np.ndarray) -> np.ndarray:
-    return -np.log(np.clip(p[np.arange(len(y)), y], EPS, 1))
+    return np.asarray(-np.log(np.clip(p[np.arange(len(y)), y], EPS, 1)), dtype=np.float64)
 
 
 def _se(d: np.ndarray) -> str:
     return f"{d.mean():+.4f} ± {2 * d.std(ddof=1) / np.sqrt(len(d)):.4f}"
 
 
-def main() -> None:
-    rows = asyncio.run(_rows())
+def report(
+    hist: History,
+    pred: Predictions,
+    rows: list[Any],
+    validation: list[int],
+    test_seasons: list[int],
+) -> None:
+    """Imprime l'étude ; ``pred`` : prévisions hors échantillon sur validation + test."""
+    VALIDATION, TEST = tuple(validation), tuple(test_seasons)
     feats = features(rows)
     print(f"{len(rows)} lignes de composition, indicateurs pour {len(feats)} équipes-matchs\n")
-    hist = asyncio.run(_load())
-    pred = predict(hist, COMPETITIONS, SEASONS, GoalsConfig(), DEFAULT_FEATURES)
     keep = [
         i for i, mid in enumerate(pred.match_id)
         if (mid, "home") in feats and (mid, "away") in feats
@@ -170,7 +170,7 @@ def main() -> None:
         v = np.concatenate([fh[:, j], fa[:, j]])
         print(f"- {f} : moyenne {v.mean():.3f}, non nul {np.mean(v > 0):.0%}")
 
-    # Poisson sur les buts : log λ' = log λ + β·(indicateurs de l'équipe) + γ·(adversaire).
+    # Poisson sur les buts : log λ' = log λ + b·(indicateurs de l'équipe) + g·(adversaire).
     def nll(theta: np.ndarray, m: np.ndarray) -> float:
         b, g = theta[: len(FEATURES)], theta[len(FEATURES) :]
         lh = lam_h[m] * np.exp(fh[m] @ b + fa[m] @ g)
@@ -179,11 +179,14 @@ def main() -> None:
 
     val, test = np.isin(season, VALIDATION), np.isin(season, TEST)
     theta = minimize(nll, np.zeros(2 * len(FEATURES)), args=(val,), method="BFGS").x
-    print("\n## Coefficients appris sur 2019-2022 (effet sur les buts attendus)\n")
+    print(
+        f"\n## Réglages appris sur {VALIDATION[0]}-{VALIDATION[-1] + 1} "
+        "(effet sur les buts attendus)\n"
+    )
     for j, f in enumerate(FEATURES):
         print(
-            f"- {f} : sur les buts de l'équipe × {np.exp(theta[j] * 0.1):.3f} pour +0,1 ; "
-            f"sur ceux de l'adversaire × {np.exp(theta[len(FEATURES) + j] * 0.1):.3f}"
+            f"- {f} : sur les buts de l'équipe x {np.exp(theta[j] * 0.1):.3f} pour +0,1 ; "
+            f"sur ceux de l'adversaire x {np.exp(theta[len(FEATURES) + j] * 0.1):.3f}"
         )
     b, g = theta[: len(FEATURES)], theta[len(FEATURES) :]
     idx = np.where(test)[0]
@@ -208,16 +211,16 @@ def main() -> None:
     print("|---|---|---|---|")
     print(f"| 1X2 | {l_base.mean():.4f} | {l_adj.mean():.4f} | {_se(l_adj - l_base)} |")
     print(f"| +/-2,5 | {o_base.mean():.4f} | {o_adj.mean():.4f} | {_se(o_adj - o_base)} |")
-    ok = np.all(np.isfinite(close[idx]), axis=1) & np.all(close[idx] > 1, axis=1)
+    # Probabilités de la clôture, marge déjà retirée (backtest._implied).
+    ok = np.all(np.isfinite(close[idx]), axis=1)
     if ok.sum() > 100:
-        inv = 1 / close[idx][ok]
-        pm = inv / inv.sum(axis=1, keepdims=True)
+        pm = close[idx][ok]
         l_m = _losses(pm, y1t[ok])
         print(
             f"\nCote de clôture sur les mêmes {ok.sum()} matchs : {l_m.mean():.4f} "
             f"(moteur {l_base[ok].mean():.4f}, avec compositions {l_adj[ok].mean():.4f}) ; "
-            f"écart moteur − clôture {_se(l_base[ok] - l_m)}, "
-            f"avec compositions − clôture {_se(l_adj[ok] - l_m)}"
+            f"écart moteur - clôture {_se(l_base[ok] - l_m)}, "
+            f"avec compositions - clôture {_se(l_adj[ok] - l_m)}"
         )
     big = np.maximum(fh[idx, 0], fa[idx, 0]) >= 0.15
     if big.sum() > 50:
@@ -225,7 +228,3 @@ def main() -> None:
             f"\nMatchs avec au moins ~2 titulaires habituels absents d'un côté ({big.sum()}) : "
             f"1X2 {_se(l_adj[big] - l_base[big])}"
         )
-
-
-if __name__ == "__main__":
-    main()

@@ -1931,6 +1931,7 @@ ENGINE_STUDIES = [
     ("ah", "Handicap asiatique contre les cotes"),
     ("features", "Gain de chaque indicateur de contexte"),
     ("angles", "« Angle du match » et coupons"),
+    ("absences", "Compositions et absences (titulaires absents, nouvel entraîneur)"),
 ]
 
 
