@@ -110,6 +110,15 @@ async def test_main_offers_for_match_table(world: dict[str, Any], client: AsyncC
     assert too_many.status_code == 422
 
 
+async def test_offer_counts_for_match_cards(world: dict[str, Any], client: AsyncClient) -> None:
+    """« +N » des cartes de matchs : cotes jouables en plus de 1, N, 2 (comme la fiche)."""
+    r = await client.get("/api/v1/offers/counts", params={"match_ids": [world["m1"], 999999]})
+    assert r.status_code == 200, r.text
+    full = (await client.get(f"/api/v1/matches/{world['m1']}/offer")).json()
+    extra = [o for o in full if o["market"] != "1X2"]
+    assert r.json() == {str(world["m1"]): len(extra)}
+
+
 async def test_place_single_and_combo(
     world: dict[str, Any], client: AsyncClient, db_factory: Factory
 ) -> None:

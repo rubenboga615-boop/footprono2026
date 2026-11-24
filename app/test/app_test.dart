@@ -522,6 +522,8 @@ class FakeServer {
           ],
           'season': {'home': avg(), 'away': avg()},
         };
+      case 'GET /offers/counts':
+        body = {'7': 86};
       case 'GET /offers/main':
         expect(r.url.queryParametersAll['match_ids'], ['7']);
         body = {
@@ -1413,6 +1415,8 @@ void main() {
 
   testWidgets('match : marchés Premium signalés, cote ajoutée au coupon, pari placé', (tester) async {
     final (state, server) = await startApp(tester, loggedIn: true);
+    // Maquette 6 : nombre de cotes en plus de 1, N, 2 sur la carte du match.
+    expect(find.text('+86'), findsOneWidget);
     await tester.tap(find.text('Lens').first);
     await tester.pumpAndSettle();
     expect(find.text('RÉSULTAT DU MATCH'), findsOneWidget);
@@ -1736,7 +1740,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(430, 2400));
     await tab(tester, HomeTab.paris);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Mon bilan ›'));
+    await tester.tap(find.text('Mon bilan'));
     await tester.pumpAndSettle();
     expect(find.text(signedMoney(3000)), findsOneWidget);
     expect(
@@ -2558,7 +2562,8 @@ void main() {
     expect(server.smartQueries.single, {'profile': 'equilibre', 'period': 'weekend', 'size': '3'});
     expect(find.textContaining('victoire Lens'), findsOneWidget); // maquette 11
     expect(find.text('1 SÉLECTION · COTE'), findsOneWidget);
-    expect(find.text('• Forme (5 derniers) : Lens VNDVV, Lyon DNVVN'), findsOneWidget);
+    // Maquette 11 : pas de raisons sous les sélections.
+    expect(find.text('• Forme (5 derniers) : Lens VNDVV, Lyon DNVVN'), findsNothing);
     // Maquette P1 : moteur et cote côte à côte (62 % contre 54 %), sans promesse.
     expect(find.textContaining('trait jaune : selon la cote'), findsOneWidget);
     expect(find.textContaining('Le moteur est un peu plus confiant que la cote'), findsOneWidget);
@@ -2573,13 +2578,11 @@ void main() {
     messengerKey.currentState!.removeCurrentSnackBar();
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(
-      find.byTooltip('Coupons du jour'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Coupons du jour'));
+    // Les coupons du jour s'ouvrent depuis « Créer » (maquette 10).
+    Navigator.of(
+      tester.element(find.byType(Scaffold).last),
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen()));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.byTooltip('Historique complet'),

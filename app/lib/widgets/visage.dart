@@ -159,10 +159,26 @@ class VLink extends StatelessWidget {
     onTap: onTap,
     child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Text(
-        text,
-        style: V.t(13.5, w: FontWeight.w600, color: V.vi2),
-      ),
+      // « › » final dessiné : la police de l'application n'a pas ce signe (« +86 › », maquette 6).
+      child: text.endsWith(' ›')
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  text.substring(0, text.length - 2),
+                  style: V.t(13.5, w: FontWeight.w600, color: V.vi2),
+                ),
+                const SizedBox(width: 3),
+                Transform.flip(
+                  flipX: true,
+                  child: const VIc(VIcon.back, size: 13, color: V.vi2, stroke: 2.2),
+                ),
+              ],
+            )
+          : Text(
+              text,
+              style: V.t(13.5, w: FontWeight.w600, color: V.vi2),
+            ),
     ),
   );
 }

@@ -928,7 +928,9 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                     style: V.t(12, color: const Color(0xFFFFE0A8)).copyWith(height: 1.45),
                   ),
                 ),
-              if (_rule(result!) case final r?) ...[const SizedBox(height: 8), Text(r, style: V.mu_())],
+              // Grosse cote (hors maquette 11) : la règle du coupon reste dite.
+              if (_big)
+                if (_rule(result!) case final r?) ...[const SizedBox(height: 8), Text(r, style: V.mu_())],
               // Grosse cote : la vérité sur la chance, et le risque des marges multipliées.
               if (_big && p > 0) ...[
                 const SizedBox(height: 8),
@@ -976,9 +978,6 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
                               ].join(' · '),
                               style: V.mu_(),
                             ),
-                            // Pourquoi ce choix, en une ligne par raison (forme, absences…).
-                            for (final r in ((s['reasons'] as List?) ?? const []).cast<String>())
-                              Text('• $r', style: V.mu_(11)),
                           ],
                         ),
                       ),
@@ -1020,25 +1019,25 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
           ),
         ),
         if (composing) const SlowWait(),
-        const SizedBox(height: 6),
-        Text('Touche une sélection pour la changer.', textAlign: TextAlign.center, style: V.mu_()),
-        const SizedBox(height: 8),
-        // Proposition du 07/11/2026 : pas le même coupon pour tous ; le joueur le sait.
-        Text(
-          [
-            'Composé pour toi parmi les meilleurs de la période : les autres joueurs reçoivent des '
-                'coupons proches, pas forcément les mêmes.',
-            if (coupon['best_probability'] case final num b when b - p >= 0.0005)
-              'Chance de ce coupon : ${percent(p, decimals: 1)} (le meilleur : ${percent(b.toDouble(), decimals: 1)}).',
-          ].join(' '),
-          style: V.mu_(),
-        ),
-        Center(
-          child: TextButton(
-            onPressed: () => shareCoupon(context, sels, coupon, label, big: _big),
-            child: const Text('Partager en image'),
+        // Grosse cote (hors maquette 11) : coupon tiré pour ce joueur, dit ; partage en image.
+        if (_big) ...[
+          const SizedBox(height: 8),
+          Text(
+            [
+              'Composé pour toi parmi les meilleurs de la période : les autres joueurs reçoivent des '
+                  'coupons proches, pas forcément les mêmes.',
+              if (coupon['best_probability'] case final num b when b - p >= 0.0005)
+                'Chance de ce coupon : ${percent(p, decimals: 1)} (le meilleur : ${percent(b.toDouble(), decimals: 1)}).',
+            ].join(' '),
+            style: V.mu_(),
           ),
-        ),
+          Center(
+            child: TextButton(
+              onPressed: () => shareCoupon(context, sels, coupon, label, big: _big),
+              child: const Text('Partager en image'),
+            ),
+          ),
+        ],
         if (result2 != null || error2 != null)
           _Engine2Coupon(
             result: result2,
@@ -1047,16 +1046,6 @@ class _SmartCouponScreenState extends State<SmartCouponScreen> {
             adding: adding,
             onAdd: busy ? null : (s) => _addToCoupon(s, engine: 2),
           ),
-        Center(
-          child: Tooltip(
-            message: 'Coupons du jour',
-            child: TextButton(
-              onPressed: () =>
-                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen())),
-              child: const Text('Voir les coupons du jour et leur bilan'),
-            ),
-          ),
-        ),
         if (alternatives.isNotEmpty) ...[
           const SizedBox(height: 10),
           const VKicker('Autres choix (moins sûrs)'),

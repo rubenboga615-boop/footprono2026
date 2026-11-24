@@ -292,6 +292,9 @@ class _CompactList extends StatefulWidget {
 
 class _CompactListState extends State<_CompactList> {
   Map<int, Map<String, Offer>> offers = {};
+
+  /// Cotes en plus de 1, N, 2 par match (« +86 › », maquette 6).
+  Map<int, int> counts = {};
   String _loaded = '';
   bool loading = true;
 
@@ -374,14 +377,19 @@ class _CompactListState extends State<_CompactList> {
     }
     setState(() => loading = true);
     try {
-      final j = await context.read<AppState>().api.get('/offers/main', {'match_ids': ids}) as Json;
+      final api = context.read<AppState>().api;
+      final (j, c) = await (
+        api.get('/offers/main', {'match_ids': ids}),
+        api.get('/offers/counts', {'match_ids': ids}).catchError((Object _) => <String, dynamic>{}),
+      ).wait;
       if (!mounted || sig != _loaded) return;
-      setState(
-        () => offers = {
-          for (final e in j.entries)
+      setState(() {
+        offers = {
+          for (final e in (j as Json).entries)
             int.parse(e.key): {for (final o in (e.value as List).cast<Json>()) Offer(o).key: Offer(o)},
-        },
-      );
+        };
+        counts = {for (final e in (c as Json).entries) int.parse(e.key): (e.value as num).toInt()};
+      });
     } on Object {
       // Cotes indisponibles : seules les chances sont affichées.
     } finally {
@@ -403,6 +411,7 @@ class _CompactListState extends State<_CompactList> {
         _MatchCard(
           u,
           offers[u.match.id] ?? const {},
+          more: counts[u.match.id],
           loading: loading,
           summary: _summary(u.match.id),
           chances: _chances(u.match.id),
@@ -448,19 +457,11 @@ String liveFacts(Json? summary, MatchInfo m) {
   return items.map((i) => i.$2).join(' · ');
 }
 
-/// « Aujourd'hui », « Demain », « Lun. 9 ».
-String _dayLabel(DateTime d) {
-  final now = DateTime.now();
-  final day = DateTime(d.year, d.month, d.day);
-  final today = DateTime(now.year, now.month, now.day);
-  final diff = day.difference(today).inDays;
-  return diff == 0 ? 'Aujourd\'hui' : (diff == 1 ? 'Demain' : dayChip(day));
-}
-
 class _MatchCard extends StatelessWidget {
   const _MatchCard(
     this.u,
     this.offers, {
+    this.more,
     this.loading = false,
     this.summary,
     this.chances,
@@ -468,6 +469,9 @@ class _MatchCard extends StatelessWidget {
   });
   final Upcoming u;
   final Map<String, Offer> offers;
+
+  /// Nombre de cotes en plus de 1, N, 2 (null : inconnu).
+  final int? more;
   final bool loading;
 
   /// En direct : buts et cartons rouges (`/live/summary`), chances du moment (si publiées).
@@ -570,7 +574,7 @@ class _MatchCard extends StatelessWidget {
         ? 'COUP D\'ENVOI IMMINENT'
         : m.kickoffDelayed
         ? 'RETARDÉ'
-        : '${_dayLabel((m.kickoffAt ?? m.date).toLocal()) == 'Aujourd\'hui' ? '' : '${_dayLabel((m.kickoffAt ?? m.date).toLocal()).toUpperCase()} '}${m.when}';
+        : m.when; // le jour est dans la pastille choisie (maquette 6 : « LIGA · 20:00 »)
     Widget team(Team t, double? p, double top) => Padding(
       padding: EdgeInsets.only(top: top),
       child: Row(
@@ -648,7 +652,7 @@ class _MatchCard extends StatelessWidget {
                       ),
                   ],
                   const Spacer(),
-                  VLink('Toutes les cotes ›', onTap: open),
+                  VLink(more == null ? 'Toutes les cotes ›' : '+$more ›', onTap: open),
                 ],
               ),
             )

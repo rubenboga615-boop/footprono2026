@@ -70,6 +70,28 @@ async def main_offers(
     return out
 
 
+@router.get("/offers/counts", response_model=dict[int, int])
+async def offer_counts(
+    session: SessionDep,
+    user: OptionalUserDep,
+    match_ids: Annotated[list[int], Query(max_length=MAX_MAIN_MATCHES)],
+) -> dict[int, int]:
+    """Nombre de cotes jouables de chaque match en plus des trois du résultat (1, N, 2) :
+    le « +86 » des cartes de la liste des matchs (maquette 6). Un match sans cote est absent."""
+    ids = list(dict.fromkeys(match_ids))
+    offers, _ = await service.cached_offers_and_probabilities(session, ids)
+    out: dict[int, int] = {}
+    for match_id in ids:
+        n = sum(
+            1
+            for k, o in offers.get(match_id, {}).items()
+            if k not in MAIN_KEYS[:3] and market_allowed(user, o.market)
+        )
+        if n:
+            out[match_id] = n
+    return out
+
+
 def _offer_out(o: service.Offer, p: float | None, first: Any = None) -> OfferOut:
     return OfferOut(
         market=o.market,
