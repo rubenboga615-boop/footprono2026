@@ -1384,3 +1384,63 @@ la marge du hasard) ; double chance, buts du match, buts de la 1re mi-temps, ré
 mi-temps : justes. **Sans chiffre** : « les deux marquent » (tout le match) et « buts d'une
 équipe » (mi-temps et 2e période). Chances en direct publiées le 12/11/2026 à 00:28.
 À suivre : comparer les chances affichées aux résultats réels des matchs suivis en direct.
+
+## Mélange moteur + marché (point 1 du testeur, étude du 24/11/2026) : **rejeté**
+
+Scripts et sortie complète : [`docs/etudes/2026-11-24/`](etudes/2026-11-24/) (`blend_predict.py`,
+`blend_analyse.py`, `resultats.md`).
+
+**Données** : football-data, 7 championnats (5 grands, Portugal, Pays-Bas), 16 667 matchs
+prédits strictement hors échantillon par le moteur 1 (réestimation chaque semaine, couche de
+correction comme en production). Cote d'avant-match = ouverture de Pinnacle (relevée la
+veille ou le vendredi : ce que l'application connaît quand elle compose un coupon) ; clôture
+de Pinnacle en repère et pour le rendement. Poids appris sur 2019-20 → 2021-22
+(7 137 matchs), mesurés sur 2022-23 → 2025-26 (9 529 matchs). Sans xG (absents de ces
+données) : l'étude du 15/11 sur l'export du serveur, avec xG, donnait la même conclusion
+(poids du moteur 0,00 à 0,06).
+
+**Méthode** : marge retirée par la méthode proportionnelle et par celle de Shin ;
+p = w·p_marché + (1 − w)·p_moteur, w de 0 à 1 par pas de 0,01 ; variante logit
+p ∝ p_marché^a · p_moteur^b ; log loss par match, écarts appariés ± 2 erreurs types.
+
+| 1X2, test (9 529 matchs) | Log loss | Écart avec le marché |
+|---|---|---|
+| Moteur seul | 0,9766 | +0,0199 ± 0,0031 |
+| Marché, ouverture (proportionnelle) | 0,9567 | — |
+| Mélange, w appris = **1,00** | 0,9567 | 0 |
+| Logit (a = 1,10, b = **−0,09**) | 0,9560 | −0,0008 ± 0,0003 |
+| Clôture (repère) | 0,9527 | −0,0040 ± 0,0016 |
+
+- **Le poids appris pour le moteur est 0** sur le 1X2 et sur le plus/moins 2,5, avec les deux
+  méthodes de marge. Par championnat, w vaut 1,00 partout sauf l'Angleterre (0,87) et le
+  Portugal en plus/moins (0,67) ; sur le test ces deux exceptions font un peu moins bien que
+  le marché seul (+0,0006 et +0,0020, dans le hasard).
+- La variante logit gagne un peu (−0,0008), mais avec un poids **négatif** pour le moteur :
+  elle « durcit » la cote (a > 1, les favoris un peu sous-cotés) et s'écarte du moteur. Ce
+  n'est pas un apport du moteur.
+- Le moteur seul est moins bon que la cote dans **chacun** des 7 championnats, sur les deux
+  marchés (1X2 +0,013 à +0,027 ; plus/moins +0,006 à +0,014).
+- Shin contre proportionnelle : écart minime (1X2 0,9561 contre 0,9567). Les deux étaient
+  demandées ; la méthode puissance (étude du 15/11) reste la meilleure des trois.
+- « Les deux équipes marquent » et double chance : pas de cote BTTS chez football-data ;
+  double chance tirée du 1X2, même conclusion par construction.
+
+**Coupons** (chaque jour de test, 3 sélections de 1,20 à 1,70 parmi 1X2, double chance,
+plus/moins 2,5, une par match, rangées par probabilité ; gains aux cotes de clôture de
+Pinnacle, double chance estimée à partir du 1X2) :
+
+| Choisies selon | Sélections | Réussite | Rendement | Coupons de 3 | Réussite | Rendement |
+|---|---|---|---|---|---|---|
+| Moteur | 2 100 | 76,0 % | +0,0 % ± 2,5 | 646 | 43,7 % | −1,3 % ± 9,0 |
+| Marché | 2 100 | 79,0 % | +1,5 % ± 2,3 | 646 | 49,7 % | +3,9 % ± 8,4 |
+| Mélange (w = 1) | identique au marché | | | | | |
+
+Les rendements sont mesurés chez Pinnacle (marge ≈ 2-3 %) : chez Bet365 ou 1xBet, compter
+3 à 5 points de moins. Aucun n'est significativement positif.
+
+**Décision : mélange rejeté** — le poids optimal du moteur est nul, un mélange revient à
+prendre la cote seule. Lecture pour le choix des sélections : sur le 1X2 et le plus/moins
+2,5, choisir par la probabilité du marché donne **3 points de réussite de plus** (79 % contre
+76 %) et un coupon de 3 gagné 50 fois sur 100 contre 44. Ce serait un changement de méthode
+des coupons (le moteur ne choisirait plus ces marchés) : décision du fondateur, à mesurer
+d'abord avec les cotes de clôture relevées depuis l'étape 2. Coupes d'Europe : inchangées.
