@@ -595,3 +595,17 @@ async def test_broadcast_and_wallet_credit(
         f"{users}/{free_id}/wallet", json={"amount": 2_000_000}, headers=admin_headers
     )
     assert too_much.status_code == 422
+
+
+async def test_console_build_sent_with_api_answers(
+    client: AsyncClient, admin_headers: dict[str, str]
+) -> None:
+    """La console ouverte compare cette empreinte et se recharge après une mise à jour du
+    serveur, sans déconnexion (retour du fondateur du 24/11/2026)."""
+    r = await client.get(f"{API}/dashboard", headers=admin_headers)
+    build = r.headers.get("x-console-build")
+    assert build is not None
+    assert len(build) == 12
+    js = await client.get("/admin/admin.js")
+    assert "X-Console-Build" in js.text
+    assert "location.reload()" in js.text

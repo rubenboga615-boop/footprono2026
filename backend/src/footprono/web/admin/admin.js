@@ -50,6 +50,21 @@ class ApiError extends Error {
   constructor(message, status, code) { super(message); this.status = status; this.code = code; }
 }
 
+// Serveur mis à jour pendant que la console est ouverte : la page se recharge d'elle-même
+// (nouveau code, nouvelles actions), sans déconnexion (le jeton est gardé pour l'onglet).
+// Avant, il fallait se déconnecter puis se reconnecter (retour du fondateur du 24/11/2026).
+let build = null;
+function checkBuild(value) {
+  if (!value) return;
+  if (build === null) { build = value; return; }
+  if (value === build) return;
+  try {
+    if (sessionStorage.getItem("fp-console-reloaded") === value) return; // une seule fois
+    sessionStorage.setItem("fp-console-reloaded", value);
+  } catch { /* stockage bloqué : on recharge quand même */ }
+  location.reload();
+}
+
 async function api(method, path, body, extra) {
   const headers = {};
   if (token) headers.Authorization = "Bearer " + token;
@@ -57,6 +72,7 @@ async function api(method, path, body, extra) {
   if (body instanceof Blob) { payload = body; headers["Content-Type"] = "application/octet-stream"; }
   else if (body !== undefined) { payload = JSON.stringify(body); headers["Content-Type"] = "application/json"; }
   const response = await fetch(API + path, { method, headers, body: payload, ...(extra || {}) });
+  checkBuild(response.headers.get("X-Console-Build"));
   let data = null;
   try { data = await response.json(); } catch { /* réponse vide */ }
   if (response.status === 401 && path !== "/auth/console-login") { logout(); throw new ApiError("Session expirée : reconnecte-toi.", 401); }
@@ -199,8 +215,14 @@ function bar(fraction) {
   return b;
 }
 
+// Relu à chaque ouverture (une requête légère) : une action ajoutée côté serveur
+// apparaît sans se reconnecter.
+let catalogAt = 0;
 async function getCatalog() {
-  if (!catalog) catalog = await api("GET", CONSOLE + "/actions");
+  if (!catalog || Date.now() - catalogAt > 30000) {
+    catalog = await api("GET", CONSOLE + "/actions");
+    catalogAt = Date.now();
+  }
   return catalog;
 }
 

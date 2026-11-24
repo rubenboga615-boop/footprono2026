@@ -241,11 +241,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def admin_home() -> RedirectResponse:
         return RedirectResponse("/admin/")
 
+    # Empreinte du code de la console : change à chaque mise à jour qui la modifie ; la
+    # console ouverte la compare et se recharge d'elle-même (sans déconnexion).
+    console_build = hashlib.sha256(
+        b"".join(
+            (admin_dir / name).read_bytes() for name in ("admin.js", "admin.css", "index.html")
+        )
+    ).hexdigest()[:12]
+
     @app.middleware("http")
     async def admin_headers(request: Request, call_next: Any) -> Response:
         response: Response = await call_next(request)
         if request.url.path.startswith("/admin"):
             response.headers.update(ADMIN_HEADERS)
+        elif request.url.path.startswith(("/api/v1/console", "/api/v1/admin")):
+            response.headers["X-Console-Build"] = console_build
         return response
 
     @app.get("/metrics", include_in_schema=False)
