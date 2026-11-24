@@ -772,7 +772,21 @@ async def create_daily(session: AsyncSession, now: datetime | None = None) -> di
         # Sélections les plus probables, ajoutées jusqu'à la cote minimale (sinon pas de coupon).
         picks = ranked[:size] if min_odds is None else target_coupon(ranked, min_odds, size)
         if not picks:
-            out[profile] = "aucune sélection"
+            # Pourquoi (vérification du 24/11/2026 : Équilibré absent 9 jours sur 14) : nombre
+            # de matchs dont un pari tombe dans la tranche du profil, et cote la plus haute
+            # atteignable avec ses ``size`` sélections les plus probables.
+            prof = PROFILES[profile]
+            if not ranked:
+                out[profile] = (
+                    "aucune sélection : aucun match libre avec un pari entre "
+                    f"{round(prof.low * 100)} et {round(prof.high * 100)} %"
+                )
+            else:
+                best, _ = summarize(sorted(ranked, key=lambda pk: -pk.offer.odds)[:size])
+                out[profile] = (
+                    f"aucune sélection : {len(ranked)} match(s) dans la tranche, cote {best} "
+                    f"au plus avec {size} sélections, {min_odds} demandée"
+                )
             continue
         used.update(pk.match.id for pk in picks)
         total, probability = summarize(picks)
@@ -861,6 +875,25 @@ async def settle_pending(session: AsyncSession, now: datetime | None = None) -> 
     return settled
 
 
+def closing_record(coupons: Sequence[SmartCoupon]) -> dict[str, Any]:
+    """Cote de clôture (plan qualité du 24/11/2026) : part des sélections prises à une cote
+    plus haute que la dernière cote avant le match. Au-dessus de 50 % en moyenne sur des
+    centaines de sélections, la méthode bat le bookmaker ; en dessous, elle ne le bat pas,
+    quels que soient les gains du moment."""
+    pairs = [
+        (Decimal(str(s["odds"])), Decimal(str(s["closing_odds"])))
+        for c in coupons
+        for s in c.selections
+        if s.get("closing_odds") is not None
+    ]
+    beat = sum(odds > close for odds, close in pairs)
+    return {
+        "selections": len(pairs),
+        "beat": beat,
+        "share": round(beat / len(pairs), 4) if pairs else None,
+    }
+
+
 def _profile_record(coupons: Sequence[SmartCoupon]) -> dict[str, Any]:
     """Bilan par profil : un coupon Sûr et un Audacieux n'ont pas la même chance, ils ne
     s'additionnent pas. Annoncé (moyenne des probabilités) contre observé (taux réel)."""
@@ -928,6 +961,7 @@ async def history(
     )
     return {
         "stats": _profile_record(done),
+        "closing": closing_record(done),
         "has_more": len(rows) > limit,
         "first_day": first_day,
         "days": _days_without(shown, first_day if len(rows) <= limit else None),

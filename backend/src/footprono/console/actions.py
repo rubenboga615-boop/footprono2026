@@ -607,6 +607,57 @@ register(
 )
 
 
+async def silent_measure(ctx: JobContext, params: dict[str, Any]) -> str:
+    """Bilan des 30 derniers jours : occasions et alertes (cachées aux joueurs), sélections
+    des coupons du jour et paris des joueurs. Réussite, gain à 1 000 F, cote de clôture."""
+    from footprono.bookmaker import closing
+
+    async with ctx.factory() as session:
+        await closing.fill(session)
+        report = await closing.report(session)
+    ctx.result = report
+    lines = []
+    for key, label in (
+        ("occasions", "Occasions"),
+        ("alerts", "Alertes de cote"),
+        ("daily_coupon_selections", "Coupons du jour (sélections)"),
+        ("player_bets", "Paris des joueurs (sélections)"),
+    ):
+        t = report[key]["total"]
+        beat = "—" if t["beat_closing"] is None else f"{round(t['beat_closing'] * 100)} %"
+        observed = "—" if t["observed"] is None else f"{round(t['observed'] * 100)} %"
+        announced = "—" if t["announced"] is None else f"{round(t['announced'] * 100)} %"
+        line = (
+            f"{label} : {t['settled']} réglées sur {t['selections']}, annoncé {announced}, "
+            f"réalisé {observed}, {t['profit']:+} F à 1 000 F, clôture battue {beat} "
+            f"(sur {t['with_closing']})"
+        )
+        ctx.log(line)
+        lines.append(line)
+        for band, b in report[key]["by_band"].items():
+            ctx.log(f"  {band} : {b['settled']} réglées, {b['profit']:+} F")
+    return " · ".join(lines)
+
+
+register(
+    Action(
+        id="silent_measure",
+        title="Mesure en silence : occasions, alertes, clôture",
+        family="Moteur",
+        description=(
+            "Bilan des 30 derniers jours des occasions et alertes de cote (cachées aux joueurs), "
+            "des sélections des coupons du jour et des paris : réussite annoncée et réalisée, "
+            "gain à 1 000 F par sélection, part qui bat la cote de clôture ; par tranche "
+            "d'écart, compétition et marché. Rien n'est montré aux joueurs."
+        ),
+        risk="lecture",
+        run=silent_measure,
+        cost="aucune requête",
+        duration="moins d'une minute",
+    )
+)
+
+
 async def push_test(ctx: JobContext, params: dict[str, Any]) -> str:
     async with ctx.factory() as session:
         return await _push_test(session, params["phone"])

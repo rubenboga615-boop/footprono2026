@@ -82,3 +82,24 @@ de clôture) avant d'entrer dans le moteur 1, sans deuxième moteur dans l'appli
 
 Suite (étape 2) : enregistrer la cote de clôture de chaque sélection proposée, bilan des alertes
 et occasions en silence dans la console, Équilibré manquant.
+
+## 5. Étape 2 : mesurer (24/11/2026)
+
+- **Cote de clôture** (`bookmaker/closing.py`, migration 0047) : dernière cote relevée chez le
+  même bookmaker avant le coup d'envoi, gardée pour chaque sélection des coupons du jour, des
+  paris des joueurs, des alertes déclenchées et des occasions. Les matchs proposés sont relus
+  5 à 20 minutes avant le coup d'envoi (tâche `closing_odds`, toutes les 15 minutes, une
+  requête par match et par bookmaker), sinon la « clôture » serait le relevé de 3 heures.
+- **Occasions en silence** (table `silent_picks`) : la meilleure de chaque match des 36
+  prochaines heures (au moins 3 points d'écart), **toutes compétitions comprises**, coupes
+  d'Europe et sélections aussi, pour les mesurer. Clôture et résultat remplis après le match.
+- **Bilan dans la console** : action « Mesure en silence : occasions, alertes, clôture » :
+  réglées, annoncé, réalisé, gain à 1 000 F par sélection, part qui bat la clôture ; par
+  tranche d'écart (+3 à +5, +5 à +10, +10 à +15, +15 et plus), compétition et marché.
+- **Historique public des coupons du jour** : `closing` = part des sélections réglées prises
+  à une cote plus haute que la clôture.
+- **Coupon manquant** : la création du matin dit maintenant pourquoi (aucun match dans la
+  tranche, ou cote la plus haute atteignable inférieure à 2,00), visible dans la console.
+
+Critère du testeur pour rouvrir alertes et occasions : au moins 300 réglées, rendement positif
+avec intervalle de confiance, clôture battue en moyenne.

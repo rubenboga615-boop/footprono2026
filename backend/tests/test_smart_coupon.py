@@ -178,10 +178,10 @@ async def test_daily_coupons_settled_and_public(
     await _evening(db_factory, [m1, m2])
     async with db_factory() as session:
         created = await smart_coupon.create_daily(session, MORNING)
-        assert created["sur"] == "aucune sélection"
+        assert created["sur"].startswith("aucune sélection")
         assert created["equilibre"].startswith("2 sélection(s)")
         # Un match ne sert qu'à un seul profil par jour : Équilibré a pris m1 et m2.
-        assert created["audacieux"] == "aucune sélection"
+        assert created["audacieux"].startswith("aucune sélection")
         again = await smart_coupon.create_daily(session, MORNING)
         assert again["equilibre"] == "déjà créé"
         # Équilibré et Audacieux : cote totale d'au moins 2,00 (Sûr : pas de minimum).

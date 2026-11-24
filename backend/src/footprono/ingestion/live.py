@@ -173,6 +173,126 @@ async def collect_odds(
         report["requests"] = client.used
 
     report["calendar"] = await _sync_calendars(session, settings, seasons, calendars, fetched_at)
+    await _store_quotes(session, settings, quotes, pages, fetched_at, report)
+    # Paris dont au moins une sélection n'est pas traduite, avec quelques libellés
+    # réels (pour compléter la traduction) et s'ils sont traduits en partie.
+    values: dict[str, set[str]] = {}
+    mapped: set[str] = set()
+    for q in quotes:
+        if map_bet(q.bet, q.value) is None:
+            values.setdefault(q.bet, set()).add(q.value)
+        else:
+            mapped.add(q.bet)
+    unmapped = {
+        bet: {"partial": bet in mapped, "values": sorted(v)[:12]}
+        for bet, v in sorted(values.items())
+    }
+    report["handicap_check"] = handicap_diagnostics(quotes)
+    report.update(
+        quotes=len(quotes),
+        unmapped_bets=unmapped,
+    )
+    return report
+
+
+# Relevé des matchs proposés juste avant le coup d'envoi (plan qualité du 24/11/2026) : la cote
+# de clôture mesurée est alors la cote d'au plus ~20 minutes avant le match, pas celle du
+# relevé général de 3 heures. Lancé toutes les 15 minutes : chaque match est relu une fois.
+CLOSING_FROM, CLOSING_TO = timedelta(minutes=5), timedelta(minutes=20)
+
+
+async def closing_targets(session: AsyncSession, now: datetime) -> list[tuple[int, int]]:
+    """(match, identifiant API-Football) des matchs proposés ou joués qui commencent dans
+    5 à 20 minutes : coupons du jour, paris en cours, alertes et occasions enregistrées."""
+    from footprono.bookmaker.models import Bet, BetSelection
+    from footprono.bookmaker.play_models import OddsAlertHit, SilentPick
+    from footprono.bookmaker.smart_models import SmartCoupon
+
+    soon = (
+        await session.execute(
+            select(Match.id, Match.api_football_id).where(
+                Match.status == MatchStatus.SCHEDULED,
+                Match.kickoff_at >= now + CLOSING_FROM,
+                Match.kickoff_at < now + CLOSING_TO,
+                Match.api_football_id.is_not(None),
+            )
+        )
+    ).all()
+    if not soon:
+        return []
+    ids = [m for m, _ in soon]
+    wanted: set[int] = set()
+    wanted |= set(
+        (
+            await session.scalars(
+                select(BetSelection.match_id)
+                .join(Bet, Bet.id == BetSelection.bet_id)
+                .where(BetSelection.match_id.in_(ids), Bet.status == "open")
+            )
+        ).all()
+    )
+    wanted |= set(
+        await session.scalars(select(OddsAlertHit.match_id).where(OddsAlertHit.match_id.in_(ids)))
+    )
+    wanted |= set(
+        await session.scalars(select(SilentPick.match_id).where(SilentPick.match_id.in_(ids)))
+    )
+    for coupon in await session.scalars(select(SmartCoupon).where(SmartCoupon.day == now.date())):
+        wanted |= {s["match_id"] for s in coupon.selections if s["match_id"] in ids}
+    return [(m, int(f)) for m, f in soon if m in wanted]
+
+
+async def collect_closing_odds(
+    session: AsyncSession, settings: Settings, now: datetime | None = None
+) -> dict[str, Any]:
+    """Relit les cotes des matchs proposés qui commencent bientôt (une requête par match et
+    par bookmaker), enregistrées comme celles du relevé général."""
+    now = now or datetime.now(UTC)
+    if settings.api_football_key is None:
+        return {"status": "unavailable", "error": "FP_API_FOOTBALL_KEY absente"}
+    targets = await closing_targets(session, now)
+    report: dict[str, Any] = {
+        "status": "ok",
+        "issues": [],
+        "bookmakers": {},
+        "targets": len(targets),
+    }
+    if not targets:
+        return report
+    quotes: list[OddsQuote] = []
+    pages: list[dict[str, Any]] = []
+    async with api_football.ApiFootballClient(
+        settings.api_football_key.get_secret_value(),
+        budget=settings.api_football_budget,
+        min_remaining=settings.api_football_min_remaining,
+        transport=service.api_football_transport,
+    ) as client:
+        books, _ = await _bookmaker_ids(client, settings.odds_bookmakers)
+        for _, fixture in targets:
+            for book_id in books.values():
+                if not client.can_spend():
+                    report["status"] = "partial"
+                    report["issues"].append("quota API-Football atteint : relevé incomplet")
+                    break
+                body = await client.get("/odds", {"fixture": fixture, "bookmaker": book_id})
+                pages.append(body)
+                found, _, _ = parse_odds_page(body)
+                quotes.extend(found)
+        report["requests"] = client.used
+    await _store_quotes(session, settings, quotes, pages, now, report)
+    return report
+
+
+async def _store_quotes(
+    session: AsyncSession,
+    settings: Settings,
+    quotes: list[OddsQuote],
+    pages: list[dict[str, Any]],
+    fetched_at: datetime,
+    report: dict[str, Any],
+) -> None:
+    """Enregistre les cotes qui ont changé (une ligne par changement) ; une cote inchangée
+    est seulement marquée « vue à nouveau ». Remplit ``matches`` et ``changed`` du rapport."""
     by_fixture = {q.fixture_id for q in quotes}
     rows = await session.execute(
         select(Match.api_football_id, Match.id).where(Match.api_football_id.in_(by_fixture))
@@ -242,27 +362,7 @@ async def collect_odds(
                 .values(source_updated_at=updated)
             )
     await session.commit()
-    # Paris dont au moins une sélection n'est pas traduite, avec quelques libellés
-    # réels (pour compléter la traduction) et s'ils sont traduits en partie.
-    values: dict[str, set[str]] = {}
-    mapped: set[str] = set()
-    for q in quotes:
-        if map_bet(q.bet, q.value) is None:
-            values.setdefault(q.bet, set()).add(q.value)
-        else:
-            mapped.add(q.bet)
-    unmapped = {
-        bet: {"partial": bet in mapped, "values": sorted(v)[:12]}
-        for bet, v in sorted(values.items())
-    }
-    report["handicap_check"] = handicap_diagnostics(quotes)
-    report.update(
-        matches=len(matches),
-        quotes=len(quotes),
-        changed=added,
-        unmapped_bets=unmapped,
-    )
-    return report
+    report.update(matches=len(matches), changed=added)
 
 
 async def _sync_calendars(

@@ -9,12 +9,13 @@
 - ``odds_alert_hits`` : une alerte au plus par match et par alerte.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -92,6 +93,35 @@ class OddsAlertHit(Base):
     odds: Mapped[Decimal] = mapped_column(Numeric(8, 2))
     bookmaker: Mapped[str] = mapped_column(String(40))
     engine: Mapped[float] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Mesure en silence (24/11/2026) : cote de clôture et résultat de la sélection.
+    closing_odds: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
+    closing_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result: Mapped[str | None] = mapped_column(String(10))
+
+
+class SilentPick(Base):
+    """Sélection calculée mais cachée aux joueurs (« occasions » : moteur au-dessus de la cote),
+    enregistrée pour mesurer sa réussite et si elle bat la cote de clôture (24/11/2026). Une
+    par match et par sélection : la cote retenue est celle du premier relevé."""
+
+    __tablename__ = "silent_picks"
+    __table_args__ = (UniqueConstraint("source", "match_id", "market", "line", "selection"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str] = mapped_column(String(16))  # « occasion »
+    day: Mapped[date] = mapped_column(Date)
+    match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), index=True)
+    competition: Mapped[str] = mapped_column(String(16))
+    market: Mapped[str] = mapped_column(String(40))
+    line: Mapped[str] = mapped_column(String(10), default="", server_default="")
+    selection: Mapped[str] = mapped_column(String(40))
+    bookmaker: Mapped[str] = mapped_column(String(40))
+    odds: Mapped[Decimal] = mapped_column(Numeric(8, 3))
+    engine: Mapped[float] = mapped_column(Float)
+    closing_odds: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
+    closing_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result: Mapped[str | None] = mapped_column(String(10))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

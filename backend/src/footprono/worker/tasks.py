@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from footprono import __version__, alerts
 from footprono.accounts.reminders import send_premium_reminders
 from footprono.bookmaker import (
+    closing,
     live_coupons,
     odds_alerts,
     playable,
@@ -537,12 +538,36 @@ async def _check_odds_alerts() -> dict[str, Any]:
         async with create_session_factory(engine)() as session:
             sent = await odds_alerts.check(session)
             await notifications.publish_pending(session, redis, push)
+        # Mesure en silence (24/11/2026) : occasions enregistrées, puis clôture et résultat de
+        # tout ce qui a été proposé ou joué.
+        async with create_session_factory(engine)() as session:
+            occasions = await closing.record_occasions(session)
+        async with create_session_factory(engine)() as session:
+            filled = await closing.fill(session)
     finally:
         await redis.aclose()
         if push is not None:
             await push.aclose()
         await engine.dispose()
-    return {"status": "ok", "sent": sent}
+    return {"status": "ok", "triggered": sent, "occasions": occasions, "closing": filled}
+
+
+@celery_app.task(name="footprono.closing_odds")
+@tracked("closing_odds")
+def closing_odds() -> dict[str, Any]:
+    """Cotes des matchs proposés relues 5 à 20 minutes avant le coup d'envoi (cote de
+    clôture, plan qualité du 24/11/2026)."""
+    return asyncio.run(_closing_odds())
+
+
+async def _closing_odds() -> dict[str, Any]:
+    settings = get_settings()
+    engine = create_engine(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            return await live.collect_closing_odds(session, settings)
+    finally:
+        await engine.dispose()
 
 
 @celery_app.task(name="footprono.alerts_watchdog")

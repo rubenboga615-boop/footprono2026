@@ -34,7 +34,8 @@ TRACKED = {
     "check_payments": "Paiements (10 min)",
     "premium_reminders": "Rappels Premium",
     "kickoff_reminders": "Coups d'envoi (5 min)",
-    "odds_alerts": "Alertes de cote (30 min)",
+    "odds_alerts": "Alertes, occasions et clôtures (30 min)",
+    "closing_odds": "Cotes de clôture (15 min)",
     "catch_up": "Tout rattraper (nuit)",
 }
 

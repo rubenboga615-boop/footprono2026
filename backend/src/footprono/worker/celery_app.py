@@ -118,6 +118,12 @@ def create_celery(settings: Settings | None = None) -> Celery:
                 "schedule": crontab(minute="7,37"),
                 "options": {"expires": 1500},
             },
+            # Cotes des matchs proposés relues juste avant le coup d'envoi (cote de clôture).
+            "closing-odds": {
+                "task": "footprono.closing_odds",
+                "schedule": crontab(minute="*/15"),
+                "options": {"expires": 600},
+            },
             # Paiements dont la notification CinetPay n'est pas arrivée.
             "check-payments": {
                 "task": "footprono.check_payments",

@@ -71,3 +71,7 @@ class BetSelection(Base):
     # Résultat si le match s'arrêtait sur le score actuel (« gagnante pour l'instant ») au
     # dernier règlement : un but qui le change est notifié (bookmaker/live_alerts.py).
     live_state: Mapped[str | None] = mapped_column(String(10))
+    # Cote de clôture : dernière cote relevée chez ce bookmaker avant le coup d'envoi (plan
+    # qualité du 24/11/2026). ``closing_checked_at`` : cherchée (même sans résultat).
+    closing_odds: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
+    closing_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
