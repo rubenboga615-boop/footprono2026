@@ -303,7 +303,7 @@ def absences_command(hist: History, args: argparse.Namespace) -> None:
     validation = list(range(min(test) - 3, min(test)))
     rows = asyncio.run(absences.load_rows(list(args.competitions)))
     pred = predict(hist, args.competitions, validation + test, GoalsConfig(), DEFAULT_FEATURES)
-    absences.report(hist, pred, rows, validation, test)
+    absences.report(hist, pred, rows, validation, test, args.version)
 
 
 def live_command(hist: History, args: argparse.Namespace) -> None:
@@ -391,6 +391,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--competitions",
         type=parse_competitions,
         default=["EPL", "LA_LIGA", "SERIE_A", "BUNDESLIGA", "LIGUE_1", "POR", "NED"],
+    )
+    ab.add_argument(
+        "--version", type=int, choices=(1, 2), default=2, help="version des indicateurs"
     )
     pr = sub.add_parser("predict", help="prédit et enregistre les matchs à venir")
     pr.add_argument("--days", type=int, default=10, help="horizon en jours (défaut 10)")

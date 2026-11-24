@@ -5,10 +5,18 @@ from types import SimpleNamespace
 from footprono.engine import absences
 
 
-def _row(match: int, player: int, *, position: str, goals: int = 0, coach: int = 1) -> object:
+def _row(
+    match: int,
+    player: int,
+    *,
+    position: str,
+    goals: int = 0,
+    coach: int = 1,
+    rating: float | None = 7.0,
+) -> object:
     return SimpleNamespace(
         id=match, side="home", player_api_id=player, starter=True, position=position,
-        minutes=90, goals=goals, assists=0, coach_api_id=coach, team=100,
+        minutes=90, goals=goals, assists=0, coach_api_id=coach, team=100, rating=rating,
     )  # fmt: skip
 
 
@@ -35,3 +43,25 @@ def test_two_regular_starters_missing_and_new_coach() -> None:
     assert eighth["manque_defense"] == 0.0
     assert eighth["nouvel_entraineur"] == 1.0
     assert (4, "home") not in feats  # moins de 5 matchs d'historique
+
+
+def test_v2_key_scorer_and_goalkeeper_missing() -> None:
+    """Version 2 : le meilleur buteur (bien noté) et le gardien absents ; la rotation
+    d'un joueur moyen ne compte que dans ``rotation``."""
+    rows = []
+    for m in range(11):
+        for pid in range(1, 12):
+            if m == 10 and pid in (1, 9):  # gardien et meilleur buteur absents
+                continue
+            pos = "G" if pid == 1 else ("F" if pid > 8 else "D")
+            rows.append(
+                _row(m, pid, position=pos, goals=int(pid == 9), rating=8.0 if pid == 9 else 6.8)
+            )
+        if m == 10:
+            rows += [_row(m, 30, position="G"), _row(m, 31, position="F")]
+    last = absences.features_v2(rows)[(10, "home")]
+    assert last["cles_attaque"] == 1.0  # seul buteur de l'équipe
+    assert last["gardien"] == 1.0
+    assert last["rotation"] == 2 / 11
+    assert last["qualite_absente"] > 0.9  # 8,0 contre une moyenne d'environ 6,9
+    assert (7, "home") not in absences.features_v2(rows)  # moins de 8 matchs d'avant

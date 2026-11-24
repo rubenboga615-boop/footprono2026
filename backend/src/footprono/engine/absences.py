@@ -36,12 +36,17 @@ from footprono.engine.history import History
 WINDOW = 10
 REGULAR = 0.6
 FEATURES = ("manque", "manque_attaque", "manque_defense", "nouvel_entraineur")
+# Version 2 (24/11/2026, après une version 1 trop grossière) : qui manque, pas combien.
+FEATURES_V2 = ("cles_attaque", "qualite_absente", "gardien", "rotation")
+WINDOW_V2 = 20
+KEY_SHARE = 0.5  # joueur clé : au moins la moitié des minutes de l'équipe
+KEYS = 3  # les 3 plus gros apports en buts + passes décisives
 EPS = 1e-12
 
 _ROWS = text(
     """
     SELECT m.id, m.kickoff_at, m.match_date, lp.side, lp.player_api_id, lp.starter, lp.position,
-           ps.minutes, ps.goals, ps.assists, l.coach_api_id,
+           ps.minutes, ps.goals, ps.assists, ps.rating, l.coach_api_id,
            CASE WHEN lp.side = 'home' THEN m.home_team_id ELSE m.away_team_id END AS team
     FROM match_lineup_players lp
     JOIN matches m ON m.id = lp.match_id
@@ -120,6 +125,85 @@ def features(rows: list[Any]) -> dict[tuple[int, str], dict[str, float]]:
     return out
 
 
+def features_v2(rows: list[Any]) -> dict[tuple[int, str], dict[str, float]]:
+    """Version 2 : valeur de chaque joueur sur les 20 derniers matchs de l'équipe.
+
+    - ``cles_attaque`` : part des buts + passes décisives de l'équipe apportée par ses
+      3 plus gros contributeurs (au moins la moitié des minutes) absents du onze ;
+    - ``qualite_absente`` : pour chaque habituel absent, écart de sa note moyenne avec la
+      note moyenne de l'équipe (seulement s'il est meilleur), pondéré par ses minutes ;
+    - ``gardien`` : gardien habituel (70 % des minutes) absent du onze ;
+    - ``rotation`` : nombre d'habituels absents / 11 (contrôle : la rotation seule).
+    """
+    by_match: dict[tuple[int, str], list[Any]] = defaultdict(list)
+    order: list[tuple[int, str]] = []
+    for r in rows:
+        k = (r.id, r.side)
+        if k not in by_match:
+            order.append(k)
+        by_match[k].append(r)
+    Game = dict[int, tuple[float, float, str | None, float | None]]
+    history: dict[int, deque[Game]] = defaultdict(lambda: deque(maxlen=WINDOW_V2))
+    out: dict[tuple[int, str], dict[str, float]] = {}
+    for k in order:
+        players = by_match[k]
+        team = players[0].team
+        past = history[team]
+        starters = {p.player_api_id for p in players if p.starter}
+        if len(past) >= 8 and len(starters) >= 10:
+            minutes: dict[int, float] = defaultdict(float)
+            contrib: dict[int, float] = defaultdict(float)
+            rated: dict[int, float] = defaultdict(float)
+            rated_minutes: dict[int, float] = defaultdict(float)
+            position: dict[int, str | None] = {}
+            for game in past:
+                for pid, (mins, ga, pos, rating) in game.items():
+                    minutes[pid] += mins
+                    contrib[pid] += ga
+                    position[pid] = pos or position.get(pid)
+                    if rating is not None and mins > 0:
+                        rated[pid] += rating * mins
+                        rated_minutes[pid] += mins
+            share = {pid: m / (90 * len(past)) for pid, m in minutes.items()}
+            regular = {pid for pid, sh in share.items() if sh >= REGULAR}
+            absent = regular - starters
+            total_ga = sum(contrib.values())
+            keys = sorted(
+                (pid for pid, sh in share.items() if sh >= KEY_SHARE and position.get(pid) != "G"),
+                key=lambda pid: -contrib[pid],
+            )[:KEYS]
+            note = {pid: rated[pid] / rated_minutes[pid] for pid in rated_minutes}
+            team_note = sum(rated.values()) / sum(rated_minutes.values()) if rated_minutes else None
+            quality = 0.0
+            if team_note is not None:
+                for pid in absent:
+                    if pid in note:
+                        quality += max(note[pid] - team_note, 0.0) * share[pid]
+            keepers = [pid for pid in regular if position.get(pid) == "G" and share[pid] >= 0.7]
+            out[k] = {
+                "cles_attaque": (
+                    sum(contrib[p] for p in keys if p not in starters) / total_ga
+                    if total_ga
+                    else 0.0
+                ),
+                "qualite_absente": quality,
+                "gardien": float(any(pid not in starters for pid in keepers)),
+                "rotation": len(absent) / 11,
+            }
+        past.append(
+            {
+                p.player_api_id: (
+                    float(p.minutes or 0),
+                    float((p.goals or 0) + (p.assists or 0)),
+                    p.position,
+                    float(p.rating) if p.rating is not None else None,
+                )
+                for p in players
+            }
+        )
+    return out
+
+
 def _probs(lh: float, la: float, rho: float, sh: float, sa: float) -> tuple[np.ndarray, float]:
     mp = match_probabilities(lh, la, rho, sh, sa)
     return mp.p1x2, mp.ou25
@@ -139,10 +223,13 @@ def report(
     rows: list[Any],
     validation: list[int],
     test_seasons: list[int],
+    version: int = 2,
 ) -> None:
     """Imprime l'étude ; ``pred`` : prévisions hors échantillon sur validation + test."""
     VALIDATION, TEST = tuple(validation), tuple(test_seasons)
-    feats = features(rows)
+    FEATURES = FEATURES_V2 if version == 2 else globals()["FEATURES"]
+    feats = features_v2(rows) if version == 2 else features(rows)
+    print(f"Version {version} : {', '.join(FEATURES)}\n")
     print(f"{len(rows)} lignes de composition, indicateurs pour {len(feats)} équipes-matchs\n")
     keep = [
         i for i, mid in enumerate(pred.match_id)
@@ -222,9 +309,15 @@ def report(
             f"écart moteur - clôture {_se(l_base[ok] - l_m)}, "
             f"avec compositions - clôture {_se(l_adj[ok] - l_m)}"
         )
-    big = np.maximum(fh[idx, 0], fa[idx, 0]) >= 0.15
+    if version == 2:
+        big = (np.maximum(fh[idx, 0], fa[idx, 0]) >= 0.2) | (np.maximum(fh[idx, 2], fa[idx, 2]) > 0)
+        label = "un joueur clé (20 % des buts et passes) ou le gardien absent d'un côté"
+    else:
+        big = np.maximum(fh[idx, 0], fa[idx, 0]) >= 0.15
+        label = "au moins ~2 titulaires habituels absents d'un côté"
     if big.sum() > 50:
         print(
-            f"\nMatchs avec au moins ~2 titulaires habituels absents d'un côté ({big.sum()}) : "
-            f"1X2 {_se(l_adj[big] - l_base[big])}"
+            f"\nMatchs avec {label} ({big.sum()}, {big.mean():.0%}) : "
+            f"1X2 {_se(l_adj[big] - l_base[big])}, "
+            f"+/-2,5 {_se(o_adj[big] - o_base[big])}"
         )
