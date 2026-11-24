@@ -24,7 +24,7 @@ from footprono.console.jobs import JobContext
 from footprono.console.registry import Action, Param, register
 from footprono.core.errors import AppError
 from footprono.football.models import DataSource
-from footprono.ingestion import cup_odds_check, cups, history, live, nations
+from footprono.ingestion import cup_odds_check, cups, history, live, nations, raw_store
 from footprono.ingestion import service as ingestion_service
 from footprono.ingestion.cli import parse_seasons
 from footprono.ingestion.coverage import coverage_report, format_coverage
@@ -813,6 +813,40 @@ register(
         risk="lecture",
         run=disk_usage,
         duration="quelques secondes à 1 min",
+    )
+)
+
+
+async def compress_raw(ctx: JobContext, params: dict[str, Any]) -> str:
+    ctx.log("Compression des réponses d'API-Football gardées sur le disque…")
+    count, before, after = await asyncio.to_thread(
+        raw_store.compress_existing, ctx.settings.raw_data_dir, DataSource.API_FOOTBALL
+    )
+    ctx.result = {"files": count, "before": before, "after": after}
+    if not count:
+        return "rien à compresser : tout l'est déjà"
+    return (
+        f"{count} fichiers compressés : {before / 1e9:.2f} Go → {after / 1e9:.2f} Go "
+        f"({(before - after) / 1e9:.2f} Go libérés)"
+    )
+
+
+register(
+    Action(
+        id="compress_raw",
+        title="Compresser les fichiers bruts",
+        family="Données",
+        description=(
+            "Compresse les réponses d'API-Football gardées sur le disque (cotes, direct, "
+            "calendriers) : environ 10 fois moins de place, rien n'est supprimé. Les "
+            "nouvelles sont déjà écrites compressées ; « Relire les relevés gardés » lit "
+            "les deux formats."
+        ),
+        risk="modifie",
+        run=compress_raw,
+        exclusive=True,
+        cost="aucune requête",
+        duration="5 à 30 min",
     )
 )
 

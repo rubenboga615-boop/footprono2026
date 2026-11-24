@@ -44,3 +44,35 @@ async def test_disk_report_sizes_and_growth(
     lines = disk.format_report(report)
     assert any(line.startswith("Base de données") for line in lines)
     assert any("cotes" in line for line in lines)
+
+
+def test_raw_files_compressed_and_read_back(tmp_path: Path) -> None:
+    from footprono.ingestion import raw_store
+
+    folder = tmp_path / "api_football" / "odds"
+    folder.mkdir(parents=True)
+    old = folder / "20261120.abc.json"
+    old.write_bytes(b'{"cotes": "' + b"x" * 5000 + b'"}')
+    count, before, after = raw_store.compress_existing(tmp_path, DataSource.API_FOOTBALL)
+    assert (count, before) == (1, 5013)
+    assert after < before / 10
+    assert not old.exists()
+    # Le chemin enregistré avant la compression se lit toujours.
+    assert raw_store.read(old) == b'{"cotes": "' + b"x" * 5000 + b'"}'
+    assert raw_store.compress_existing(tmp_path, DataSource.API_FOOTBALL)[0] == 0
+
+
+async def test_new_api_football_files_written_compressed(
+    db_factory: async_sessionmaker[AsyncSession], tmp_path: Path
+) -> None:
+    from footprono.ingestion import raw_store
+
+    async with db_factory() as session:
+        raw_id = await raw_store.archive(
+            session, tmp_path, DataSource.API_FOOTBALL, "https://x/odds", "odds/a.json", b"{}" * 900
+        )
+        row = await session.get(RawFile, raw_id)
+    assert row is not None
+    assert row.path.endswith(".json.gz")
+    assert row.size_bytes == 1800  # taille du contenu d'origine
+    assert raw_store.read(row.path) == b"{}" * 900

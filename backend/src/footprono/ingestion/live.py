@@ -15,7 +15,6 @@ import json
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func, or_, select, update
@@ -855,7 +854,7 @@ async def replay_live_files(
     missing = read = 0
     for raw in files:
         try:
-            data = json.loads(await asyncio.to_thread(Path(raw.path).read_bytes))
+            data = json.loads(await asyncio.to_thread(raw_store.read, raw.path))
         except (OSError, ValueError):
             missing += 1
             continue

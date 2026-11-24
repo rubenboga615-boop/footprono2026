@@ -6,6 +6,7 @@ peut être rattachée au fichier exact dont elle provient.
 """
 
 import asyncio
+import gzip
 import hashlib
 import logging
 from pathlib import Path
@@ -51,11 +52,16 @@ async def archive(
     digest = hashlib.sha256(content).hexdigest()
     stem, dot, suffix = relative_name.rpartition(".")
     name = f"{stem}.{digest[:12]}{dot}{suffix}" if dot else f"{relative_name}.{digest[:12]}"
+    # Réponses d'API-Football compressées (environ 10 fois moins de place) : le disque se
+    # remplissait de 0,4 Go par jour (Espace disque, 24/11/2026). L'empreinte reste celle
+    # du contenu d'origine ; ``read`` lit les deux formats.
+    if source == DataSource.API_FOOTBALL:
+        name += ".gz"
     path = raw_dir / source.value / name
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(path.suffix + ".part")
-        tmp.write_bytes(content)
+        tmp.write_bytes(gzip.compress(content, 6) if name.endswith(".gz") else content)
         tmp.replace(path)
 
     await session.execute(
@@ -74,6 +80,36 @@ async def archive(
     )
     assert raw_id is not None
     return raw_id
+
+
+def read(path: str | Path) -> bytes:
+    """Contenu d'un fichier brut, compressé ou non (ancien fichier compressé depuis)."""
+    p = Path(path)
+    if p.suffix != ".gz" and not p.exists() and p.with_name(p.name + ".gz").exists():
+        p = p.with_name(p.name + ".gz")
+    data = p.read_bytes()
+    return gzip.decompress(data) if p.suffix == ".gz" else data
+
+
+def compress_existing(raw_dir: Path, source: DataSource) -> tuple[int, int, int]:
+    """Compresse les fichiers bruts d'une source qui ne le sont pas encore.
+
+    Renvoie (fichiers, octets avant, octets après). Le fichier compressé est écrit
+    avant que l'original soit supprimé : rien n'est perdu en cas d'arrêt."""
+    count = before = after = 0
+    for path in (raw_dir / source.value).rglob("*"):
+        if not path.is_file() or path.suffix in (".gz", ".part"):
+            continue
+        content = path.read_bytes()
+        target = path.with_name(path.name + ".gz")
+        tmp = target.with_suffix(".gz.part")
+        tmp.write_bytes(gzip.compress(content, 6))
+        tmp.replace(target)
+        before += len(content)
+        after += target.stat().st_size
+        path.unlink()
+        count += 1
+    return count, before, after
 
 
 async def download(
