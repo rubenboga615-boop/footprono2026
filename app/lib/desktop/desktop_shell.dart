@@ -27,10 +27,11 @@ import '../screens/smart_coupon_screen.dart';
 import '../screens/team_screen.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../widgets/visage.dart';
 import 'layout.dart';
 
 enum DeskSection {
-  aujourdhui('Aujourd\'hui', Icons.space_dashboard_outlined, 'Jouer'),
+  aujourdhui('Tableau de bord', Icons.space_dashboard_outlined, 'Jouer'),
   matchs('Matchs', Icons.sports_soccer_rounded, 'Jouer'),
   creer('Créer', Icons.add_circle_outline_rounded, 'Jouer'),
   coupon('Mon coupon', Icons.confirmation_number_outlined, 'Jouer'),
@@ -48,6 +49,23 @@ enum DeskSection {
   final String label;
   final IconData icon;
   final String group;
+
+  /// Icône au trait du nouveau visage (maquette 36).
+  VIcon get line => switch (this) {
+    aujourdhui => VIcon.home,
+    matchs => VIcon.matchs,
+    creer => VIcon.plus,
+    coupon => VIcon.ticket,
+    jour => VIcon.sun,
+    intelligent => VIcon.spark,
+    montante => VIcon.stairs,
+    bookmaker => VIcon.wallet,
+    championnats => VIcon.trophy,
+    bilan => VIcon.bars,
+    fiabilite => VIcon.target,
+    notifications => VIcon.bell,
+    profil => VIcon.user,
+  };
 
   Widget get root => switch (this) {
     aujourdhui => const TodayScreen(),
@@ -141,7 +159,11 @@ class DesktopShellState extends State<DesktopShell> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _TopBar(onSearch: search, onProfile: () => open(DeskSection.profil)),
+                    _TopBar(
+                      onSearch: search,
+                      onProfile: () => open(DeskSection.profil),
+                      onNotifications: () => open(DeskSection.notifications),
+                    ),
                     Expanded(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -193,19 +215,20 @@ class _Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final plan = state.me?.plan;
     String? group;
     return Container(
-      width: 232,
+      width: 248,
       decoration: const BoxDecoration(
-        color: Color(0xC00A090E),
-        border: Border(right: BorderSide(color: Fp.divider)),
+        color: V.bg,
+        border: Border(right: BorderSide(color: V.line)),
       ),
-      padding: const EdgeInsets.fromLTRB(12, 20, 12, 16),
+      padding: const EdgeInsets.fromLTRB(14, 22, 14, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(10, 0, 10, 14),
+            padding: EdgeInsets.fromLTRB(8, 0, 8, 14),
             child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: FpLogo()),
           ),
           Expanded(
@@ -217,11 +240,8 @@ class _Sidebar extends StatelessWidget {
                 )) ...[
                   if (s.group != group) ...[
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 14, 10, 6),
-                      child: Text(
-                        (group = s.group).toUpperCase(),
-                        style: Fp.body(10.5, color: Fp.text4, weight: FontWeight.w700),
-                      ),
+                      padding: const EdgeInsets.fromLTRB(12, 14, 12, 6),
+                      child: VKicker(group = s.group),
                     ),
                   ],
                   _SideItem(
@@ -238,13 +258,37 @@ class _Sidebar extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
-            child: Text(
-              'Argent fictif. Le moteur ne regarde jamais les cotes.',
-              style: Fp.body(11.5, color: Fp.text4, height: 1.4),
+          // Maquette 36 : la formule en bas du menu.
+          if (plan != null)
+            Material(
+              color: V.s1,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => onOpen(DeskSection.profil),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      VKicker(plan.premium ? 'Premium' : 'Formule gratuite'),
+                      const SizedBox(height: 4),
+                      Text(
+                        plan.premium
+                            ? (plan.premiumUntil == null
+                                  ? '${plan.daysLeft} jour${plan.daysLeft > 1 ? 's' : ''} restant${plan.daysLeft > 1 ? 's' : ''}'
+                                  : 'jusqu\'au ${numericDate(plan.premiumUntil!.toLocal())}')
+                            : 'Passer à Premium',
+                        style: V.t(13, color: plan.premium ? V.mu : V.vi2),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 10, 8, 0),
+            child: Text('Argent fictif. Le moteur ne regarde jamais les cotes.', style: V.mu_(11.5)),
           ),
         ],
       ),
@@ -262,41 +306,38 @@ class _SideItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 3),
+      padding: const EdgeInsets.only(bottom: 2),
       child: Semantics(
         button: true,
         selected: selected,
         label: section.label,
         excludeSemantics: true,
         child: Material(
-          color: selected ? Fp.accentSoft : Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(11),
-            side: BorderSide(color: selected ? Fp.accentLine : Colors.transparent),
-          ),
+          color: selected ? V.s2 : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
           child: InkWell(
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(14),
             onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
               child: Row(
                 children: [
-                  Icon(section.icon, size: 19, color: Fp.accentLight),
-                  const SizedBox(width: 11),
+                  VIc(section.line, size: 19, color: selected ? V.tx : V.mu),
+                  const SizedBox(width: 13),
                   Expanded(
                     child: Text(
                       section.label,
-                      style: Fp.body(13.5, weight: FontWeight.w600, color: selected ? Fp.text : Fp.textSoft),
+                      style: V.t(14, w: FontWeight.w600, color: selected ? V.tx : V.mu),
                     ),
                   ),
                   if (badge > 0)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
                       decoration: BoxDecoration(
-                        color: section == DeskSection.notifications ? Fp.loss : Fp.accent,
+                        color: section == DeskSection.notifications ? V.coral : V.vi,
                         borderRadius: BorderRadius.circular(99),
                       ),
-                      child: Text('$badge', style: Fp.body(11, weight: FontWeight.w700)),
+                      child: Text('$badge', style: V.t(11, w: FontWeight.w700)),
                     ),
                 ],
               ),
@@ -311,106 +352,75 @@ class _SideItem extends StatelessWidget {
 // --- Barre du haut -----------------------------------------------------------
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.onSearch, required this.onProfile});
+  const _TopBar({required this.onSearch, required this.onProfile, required this.onNotifications});
   final VoidCallback onSearch;
   final VoidCallback onProfile;
+  final VoidCallback onNotifications;
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final me = state.me;
-    return Container(
-      height: 62,
-      padding: const EdgeInsets.symmetric(horizontal: 22),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Fp.divider)),
-      ),
+    // Maquette 36 : recherche, cloche et avatar en haut à droite ; le solde reste lisible
+    // dans toutes les rubriques (utile pendant qu'on compose un coupon).
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 16, 28, 0),
       child: Row(
         children: [
+          if (me != null)
+            Text.rich(
+              TextSpan(
+                text: 'Solde ',
+                style: V.mu_(13),
+                children: [TextSpan(text: money(me.balance, me.currency), style: V.b(13))],
+              ),
+            ),
+          const Spacer(),
           SizedBox(
-            width: 380,
+            width: 440,
             child: Material(
-              color: Fp.fill,
+              color: V.s1,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(11),
-                side: const BorderSide(color: Fp.divider),
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: V.line),
               ),
               child: InkWell(
-                borderRadius: BorderRadius.circular(11),
+                borderRadius: BorderRadius.circular(16),
                 onTap: onSearch,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   child: Row(
                     children: [
-                      const Icon(Icons.search_rounded, size: 18, color: Fp.text3),
-                      const SizedBox(width: 8),
+                      const VIc(VIcon.search, size: 17, color: V.mu),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'Rechercher un match, une équipe, une rubrique',
+                          'Équipe, championnat, match…',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Fp.body(13, color: Fp.text3),
+                          style: V.t(14, color: V.mu),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Fp.line),
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                        child: Text('Ctrl K', style: Fp.body(11, color: Fp.text3)),
-                      ),
+                      Text('Ctrl K', style: V.mu_(11.5)),
                     ],
                   ),
                 ),
               ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 12),
+          VIconBtn(VIcon.bell, tooltip: 'Notifications', badge: state.unread, onTap: onNotifications),
           if (me != null) ...[
-            InkWell(
-              borderRadius: BorderRadius.circular(99),
-              onTap: onProfile,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(99),
-                  border: Border.all(color: state.premium ? const Color(0x73FBBF24) : Fp.line),
-                ),
-                child: Text(
-                  state.premium
-                      ? '★ Premium · ${me.plan.daysLeft} jour${me.plan.daysLeft > 1 ? 's' : ''}'
-                      : 'Formule gratuite',
-                  style: Fp.body(12, weight: FontWeight.w700, color: state.premium ? Fp.warning : Fp.text2),
-                ),
-              ),
-            ),
-            const SizedBox(width: 18),
-            Text.rich(
-              TextSpan(
-                text: 'Solde ',
-                style: Fp.body(13, color: Fp.text2),
-                children: [
-                  TextSpan(
-                    text: money(me.balance, me.currency),
-                    style: Fp.body(13, weight: FontWeight.w700),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Tooltip(
               message: 'Profil',
               child: InkWell(
                 customBorder: const CircleBorder(),
                 onTap: onProfile,
                 child: CircleAvatar(
-                  radius: 17,
-                  backgroundColor: Fp.accent,
-                  child: Text(
-                    me.displayName.isEmpty ? '?' : me.displayName[0].toUpperCase(),
-                    style: Fp.title(14, color: Colors.white),
-                  ),
+                  radius: 21,
+                  backgroundColor: const Color(0xFF2A2760),
+                  child: Text(initials(me.displayName), style: V.b(13, V.vi2)),
                 ),
               ),
             ),
@@ -418,6 +428,14 @@ class _TopBar extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// « T3 », « KO » : deux premiers caractères du pseudo, en majuscules.
+  static String initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.characters.take(2).toString().toUpperCase();
+    return '${parts[0].characters.first}${parts[1].characters.first}'.toUpperCase();
   }
 }
 

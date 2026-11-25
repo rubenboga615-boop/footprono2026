@@ -1831,7 +1831,14 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpAndSettle();
     expect(find.byType(DesktopShell), findsOneWidget);
-    expect(find.text('Aujourd\'hui'), findsWidgets); // rubrique d'ouverture (étape B)
+    // Maquette 36 : rubrique d'ouverture « Tableau de bord » ; indicateurs, courbe, direct et agenda.
+    expect(find.text('Tableau de bord'), findsWidgets);
+    expect(find.text('Rendement 30 j'), findsOneWidget);
+    expect(find.text('ÉVOLUTION DU SOLDE'), findsOneWidget);
+    expect(find.text('Aucun de tes matchs n\'est en cours.'), findsOneWidget);
+    expect(find.text('MON AGENDA'), findsOneWidget);
+    expect(find.text('PREMIUM'), findsNothing); // formule gratuite en bas du menu
+    expect(find.text('Passer à Premium'), findsOneWidget);
     await tab(tester, HomeTab.matchs);
     expect(find.text('Fiabilité du moteur'), findsOneWidget); // menu
     expect(find.text('Les deux\nmarquent'), findsOneWidget); // en-tête du tableau

@@ -102,6 +102,19 @@ class TodayScreen extends StatelessWidget {
             final montante = d.montantes.where((m) => m['status'] == 'active').firstOrNull;
             final markets = _markets(d);
             final agenda = _agenda(d);
+            // Version ordinateur (maquette 36) : indicateurs en haut, courbe large, colonnes.
+            if (DesktopScope.of(context) && MediaQuery.sizeOf(context).width >= 900) {
+              return _DeskToday(
+                d: d,
+                currency: cur,
+                live: live,
+                coupons: coupons,
+                montante: montante,
+                markets: markets,
+                agenda: agenda,
+                starter: d.newPlayer ? _starter(context) : null,
+              );
+            }
             return RefreshIndicator(
               onRefresh: reload,
               child: DefaultTextStyle(
@@ -378,6 +391,22 @@ class _Header extends StatelessWidget {
 }
 
 /// Carte du solde : dégradé, montant, variation de la période, courbe violette, périodes.
+/// Points de la courbe du solde sur [days] jours (0 : tout), jusqu'au solde actuel.
+List<(DateTime, double)> balancePoints(Json dash, int days) {
+  final curve = [
+    for (final p in (dash['curve'] as List).cast<Json>())
+      (DateTime.parse(p['day'] as String), (p['balance'] as num).toDouble()),
+  ];
+  final from = DateTime.now().subtract(Duration(days: days));
+  var points = days == 0 ? curve : curve.where((p) => !p.$1.isBefore(from)).toList();
+  // Solde de départ de la période : le dernier connu avant elle.
+  final before = curve.where((p) => p.$1.isBefore(from)).lastOrNull;
+  if (days != 0 && before != null) points = [(from, before.$2), ...points];
+  // La courbe va jusqu'à aujourd'hui (solde actuel), même sans mouvement récent.
+  if (curve.isNotEmpty) points = [...points, (DateTime.now(), (dash['balance'] as num).toDouble())];
+  return points;
+}
+
 class _BalanceCard extends StatefulWidget {
   const _BalanceCard({required this.dash, required this.currency});
   final Json dash;
@@ -393,19 +422,8 @@ class _BalanceCardState extends State<_BalanceCard> {
 
   @override
   Widget build(BuildContext context) {
-    final curve = [
-      for (final p in (widget.dash['curve'] as List).cast<Json>())
-        (DateTime.parse(p['day'] as String), (p['balance'] as num).toDouble()),
-    ];
-    final days = ranges[range].$2;
-    final from = DateTime.now().subtract(Duration(days: days));
-    var points = days == 0 ? curve : curve.where((p) => !p.$1.isBefore(from)).toList();
-    // Solde de départ de la période : le dernier connu avant elle.
-    final before = curve.where((p) => p.$1.isBefore(from)).lastOrNull;
-    if (days != 0 && before != null) points = [(from, before.$2), ...points];
-    // La courbe va jusqu'à aujourd'hui (solde actuel), même sans mouvement récent.
+    final points = balancePoints(widget.dash, ranges[range].$2);
     final balanceNow = (widget.dash['balance'] as num).toDouble();
-    if (curve.isNotEmpty) points = [...points, (DateTime.now(), balanceNow)];
     final change = points.length >= 2 ? (points.last.$2 - points.first.$2).round() : 0;
     final up = change >= 0;
     return VCard(
@@ -1013,4 +1031,468 @@ class _Markets extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// Tableau de bord sur ordinateur (maquette 36) : 4 indicateurs, évolution du solde à gauche et
+/// « En direct pour moi » à droite, puis mes paris en cours (tableau), coupons du jour et agenda ;
+/// la montante et la justesse du moteur dessous. Les occasions restent cachées (étape 1 du plan).
+class _DeskToday extends StatefulWidget {
+  const _DeskToday({
+    required this.d,
+    required this.currency,
+    required this.live,
+    required this.coupons,
+    required this.montante,
+    required this.markets,
+    required this.agenda,
+    required this.starter,
+  });
+  final TodayData d;
+  final String currency;
+  final List<BetSel> live;
+  final List<Json> coupons;
+  final Json? montante;
+  final List<Json> markets;
+  final List<(String, VDotKind)> agenda;
+  final List<Widget>? starter;
+
+  @override
+  State<_DeskToday> createState() => _DeskTodayState();
+}
+
+class _DeskTodayState extends State<_DeskToday> {
+  static const ranges = _BalanceCardState.ranges;
+  int range = 1;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = widget.d, cur = widget.currency;
+    const gap = 14.0;
+    Widget row(List<(int, Widget)> cells) => IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (i, (flex, w)) in cells.indexed) ...[
+            if (i > 0) const SizedBox(width: gap),
+            Expanded(flex: flex, child: w),
+          ],
+        ],
+      ),
+    );
+    final side = <Widget>[
+      if (widget.montante != null) _Montante(m: widget.montante!, currency: cur),
+      if (widget.markets.isNotEmpty) _Markets(rows: widget.markets),
+    ];
+    return DefaultTextStyle(
+      style: V.t(13.5),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(28, 22, 28, 40),
+        children: [
+          Text(longDate(DateTime.now()), style: V.mu_(13)),
+          Text('Tableau de bord', style: V.b(28)),
+          const SizedBox(height: 16),
+          _kpis(d.dash, cur),
+          const SizedBox(height: gap),
+          SizedBox(
+            height: 400,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(flex: 2, child: _chart(d.dash, cur)),
+                const SizedBox(width: gap),
+                Expanded(child: _liveColumn(context)),
+              ],
+            ),
+          ),
+          if (widget.starter case final s?)
+            ...s
+          else if (d.openBets.isNotEmpty || widget.coupons.isNotEmpty) ...[
+            const SizedBox(height: gap),
+            row([(3, _bets(context)), (2, _coupons(context))]),
+          ],
+          if (side.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            // VGauge (barres du moteur) ne se mesure pas : colonnes alignées en haut.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final (i, w) in side.indexed) ...[
+                  if (i > 0) const SizedBox(width: gap),
+                  Expanded(child: w),
+                ],
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Carte de la maquette 36 : coins 20, fond s1, marge 20.
+  static Widget _box({required Widget child, VoidCallback? onTap}) => VCard(
+    top: 0,
+    onTap: onTap,
+    child: Padding(padding: const EdgeInsets.all(6), child: child),
+  );
+
+  Widget _kpis(Json dash, String cur) {
+    final m = dash['last_30_days'] as Json;
+    final plan = dash['play_plan'] as Json?;
+    final yield_ = (m['yield'] as num?)?.toDouble();
+    final settled = m['settled'] as int;
+    final won = m['won'] as int;
+    final budget = plan?['weekly_budget'] as int?;
+    final weekStaked = ((plan?['week'] as Json?)?['staked'] as int?) ?? 0;
+    final month = balancePoints(dash, 30);
+    final change = month.length >= 2 ? (month.last.$2 - month.first.$2).round() : null;
+    Widget tile(VIcon icon, String label, String value, String sub, {Color? color, VoidCallback? onTap}) =>
+        VCard(
+          top: 0,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 2, 4, 2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    VIc(icon, size: 15, color: V.mu),
+                    const SizedBox(width: 7),
+                    Expanded(child: Text(label, style: V.mu_(13))),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(value, style: V.b(24, color ?? V.tx)),
+                ),
+                Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: V.mu_(12.5)),
+              ],
+            ),
+          ),
+        );
+    return row4([
+      tile(
+        VIcon.wallet,
+        'Solde fictif',
+        fcfa((dash['balance'] as num).round(), cur),
+        change == null ? 'argent fictif' : '${change >= 0 ? '+' : '−'}${fcfa(change.abs(), cur)} sur 30 j',
+      ),
+      tile(
+        VIcon.bars,
+        'Rendement 30 j',
+        yield_ == null ? '—' : '${yield_ >= 0 ? '+' : '−'}${percent(yield_.abs(), decimals: 1)}',
+        settled == 0 ? 'aucun pari réglé' : '${fcfa(m['staked'] as int, cur)} misés',
+        color: yield_ == null ? null : (yield_ >= 0 ? V.mint : V.coral),
+      ),
+      tile(
+        VIcon.trophy,
+        'Paris gagnés',
+        settled == 0 ? '—' : '$won / $settled',
+        settled == 0 ? '30 j' : _pct(won / settled),
+      ),
+      tile(
+        VIcon.shield,
+        'Plan de jeu',
+        fcfa(weekStaked, cur),
+        budget == null ? 'misés · fixer un budget' : 'sur ${fcfa(budget, cur)} cette semaine',
+        color: budget != null && weekStaked >= budget ? V.amber : null,
+        onTap: () => _push(context, const PlayPlanScreen()),
+      ),
+    ]);
+  }
+
+  static Widget row4(List<Widget> tiles) => IntrinsicHeight(
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (i, t) in tiles.indexed) ...[if (i > 0) const SizedBox(width: 14), Expanded(child: t)],
+      ],
+    ),
+  );
+
+  Widget _chart(Json dash, String cur) {
+    final points = balancePoints(dash, ranges[range].$2);
+    return _box(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Expanded(child: VKicker('Évolution du solde')),
+              SizedBox(
+                width: 330,
+                child: VSeg(
+                  items: [for (final r in ranges) r.$1],
+                  selected: range,
+                  onSelect: (i) => setState(() => range = i),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Expanded(
+            child: points.length >= 2
+                ? CustomPaint(painter: _CurvePainter([for (final p in points) p.$2]))
+                : Center(child: Text('La courbe apparaîtra après tes premiers paris.', style: V.mu_(13))),
+          ),
+          if (points.length >= 2) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: Text(dayMonth(points.first.$1), style: V.mu_(12.5))),
+                Text(dayMonth(points.last.$1), style: V.mu_(12.5)),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// « 21 oct. » comme la maquette.
+  static String dayMonth(DateTime d) {
+    final parts = shortDate(d.toLocal()).split(' ');
+    return parts.skip(1).join(' ');
+  }
+
+  /// Colonne de droite : mes matchs en direct ; rien en cours, la phrase le dit.
+  Widget _liveColumn(BuildContext context) {
+    final live = widget.live;
+    return _box(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Expanded(child: VKicker('En direct pour moi')),
+              if (live.isNotEmpty) const VDot(),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                if (live.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text('Aucun de tes matchs n\'est en cours.', style: V.mu_(13)),
+                  )
+                else
+                  VList(
+                    children: [for (final s in live) _DeskLiveLine(sel: s, chances: widget.d.chances)],
+                  ),
+                // Sous le direct, la place des occasions (cachées) : mon agenda.
+                const SizedBox(height: 22),
+                const VKicker('Mon agenda'),
+                const SizedBox(height: 8),
+                if (widget.agenda.isEmpty)
+                  Text('Aucun match à venir dans tes paris.', style: V.mu_(13))
+                else
+                  VTimeline(items: widget.agenda),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bets(BuildContext context) {
+    final state = context.read<AppState>();
+    final bets = widget.d.openBets;
+    final head = V.mu_(12.5);
+    TableRow line(Bet b) {
+      final first = b.selections.first;
+      final n = b.selections.length;
+      String? montante;
+      for (final m in widget.d.montantes) {
+        for (final s in (m['steps'] as List).cast<Json>()) {
+          if (s['bet_id'] == b.id) montante = 'Montante n° ${m['id']}';
+        }
+      }
+      final title =
+          montante ??
+          (n == 1
+              ? pickLabel(
+                  first.market,
+                  first.line,
+                  first.selection,
+                  home: first.homeTeam,
+                  away: first.awayTeam,
+                )
+              : 'Combiné · $n sél.');
+      final validated = b.selections.where((s) => s.result == 'win' || s.result == 'half_win').length;
+      final playing = b.selections.any((s) => s.state == 'live');
+      final next = b.selections
+          .where((s) => s.state == 'upcoming' && s.kickoffAt != null)
+          .map((s) => s.kickoffAt!.toLocal())
+          .fold<DateTime?>(null, (a, k) => a == null || k.isBefore(a) ? k : a);
+      final (progress, kind) = n > 1 && validated > 0
+          ? ('$validated sur $n', VChipKind.up)
+          : playing
+          ? ('en jeu', VChipKind.up)
+          : next != null
+          ? (TodayScreen._day(next, MatchInfo.now().toLocal()).toLowerCase(), VChipKind.eq)
+          : ('en attente', VChipKind.eq);
+      final chance = couponChances(b, widget.d.chances)?.$2;
+      Widget cell(Widget w, {bool right = false}) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        child: Align(alignment: right ? Alignment.centerRight : Alignment.centerLeft, child: w),
+      );
+      return TableRow(
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: V.line)),
+        ),
+        children: [
+          cell(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: V.b()),
+                Text(
+                  '${fcfa(b.stake, b.currency)} · ${odds(b.totalOdds)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: V.mu_(12.5),
+                ),
+              ],
+            ),
+          ),
+          cell(VChip(progress, kind: kind)),
+          cell(Text(chance == null ? '—' : _pct(chance), style: V.t(13.5)), right: true),
+          cell(Text(fcfa(b.potentialPayout, b.currency), style: V.b()), right: true),
+        ],
+      );
+    }
+
+    return _box(
+      onTap: () => state.openTab(HomeTab.paris),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const VKicker('Mes paris en cours'),
+          const SizedBox(height: 10),
+          if (bets.isEmpty)
+            Text('Aucun pari en cours.', style: V.mu_(13))
+          else
+            Table(
+              columnWidths: const {
+                0: FlexColumnWidth(2.2),
+                1: FlexColumnWidth(1.3),
+                2: FlexColumnWidth(0.8),
+                3: FlexColumnWidth(1.2),
+              },
+              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+              children: [
+                TableRow(
+                  children: [
+                    for (final (i, h) in const ['Pari', 'Avancement', 'Chance', 'Gain possible'].indexed)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(h, textAlign: i >= 2 ? TextAlign.right : TextAlign.left, style: head),
+                      ),
+                  ],
+                ),
+                for (final b in bets.take(5)) line(b),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _coupons(BuildContext context) => _box(
+    onTap: () => _push(context, const DailyCouponsScreen()),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const VKicker('Coupons du jour'),
+        const SizedBox(height: 4),
+        if (widget.coupons.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text('Pas encore de coupon aujourd\'hui.', style: V.mu_(13)),
+          )
+        else
+          VList(
+            children: [
+              for (final c in widget.coupons.take(3))
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${c['profile_label'] ?? c['profile']} · ${odds(c['total_odds'])}',
+                        style: V.t(15),
+                      ),
+                    ),
+                    if (c['probability'] is num && c['total_odds'] != null)
+                      VGapChip(
+                        engine: (c['probability'] as num).toDouble(),
+                        implied: 1 / double.parse('${c['total_odds']}'),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+      ],
+    ),
+  );
+}
+
+/// Ligne « en direct » de la maquette 36 : score, minute et pari, chance actuelle en pastille.
+class _DeskLiveLine extends StatelessWidget {
+  const _DeskLiveLine({required this.sel, required this.chances});
+  final BetSel sel;
+  final Map<int, Json> chances;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = sel;
+    final p = ((chances[s.matchId]?['markets'] as Map?)?['${s.market}|${s.line}|${s.selection}'] as num?)
+        ?.toDouble();
+    final kind = switch (s.now) {
+      'win' || 'half_win' => VChipKind.up,
+      'loss' || 'half_loss' => VChipKind.dn,
+      _ => VChipKind.eq,
+    };
+    final label = lowerLabel(pickLabel(s.market, s.line, s.selection, home: s.homeTeam, away: s.awayTeam));
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _push(context, MatchScreen(matchId: s.matchId)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${s.homeTeam} ${s.score?[0] ?? '-'} – ${s.score?[1] ?? '-'} ${s.awayTeam}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: V.b(15),
+                ),
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '${s.minute ?? ''}${s.extra != null ? '+${s.extra}' : ''}\'',
+                        style: V.t(12.5, w: FontWeight.w800, color: V.mint),
+                      ),
+                      TextSpan(text: ' · $label', style: V.mu_(12.5)),
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (p != null) ...[const SizedBox(width: 10), VChip(_pct(p), kind: kind)],
+        ],
+      ),
+    );
+  }
 }
