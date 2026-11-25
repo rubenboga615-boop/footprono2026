@@ -8,7 +8,7 @@ import '../labels.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
-import '../widgets/maquette.dart';
+import '../widgets/visage.dart';
 
 /// Mouvement de la cote d'une sélection (maquette N10) : la cote actuelle, sa courbe depuis
 /// le premier relevé, chaque changement avec son heure ; la chance du moteur à côté.
@@ -29,7 +29,7 @@ class OddsHistoryScreen extends StatelessWidget {
     final m = match, o = offer;
     final label = fullLabel(o.market, o.line, o.selection, home: m.home.name, away: m.away.name);
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: V.bg,
       body: SafeArea(
         child: Loader<Json>(
           load: () async => await api.get('/matches/${m.id}/odds-history', {
@@ -47,20 +47,17 @@ class OddsHistoryScreen extends StatelessWidget {
             return ListView(
               padding: pagePadding(context, 16, 32, maxWidth: 640),
               children: [
-                BackHeader('${m.home.name} –', m.away.name),
-                MCard(
+                // Maquette 27 : le pari et le match dans la barre du haut.
+                VTopBar('$label · ${m.home.name} – ${m.away.name}'),
+                VCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        'Historique de la cote ${data['bookmaker']}',
-                        style: Fp.body(12.5, color: Fp.muted),
-                      ),
-                      Text(label, style: Fp.title(18)),
+                      VKicker('Cote ${data['bookmaker']}'),
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          Text(odds(last), style: Fp.title(30, weight: FontWeight.w800)),
+                          Text(odds(last), style: V.big()),
                           const SizedBox(width: 10),
                           if (values.length > 1)
                             Tag(
@@ -83,7 +80,17 @@ class OddsHistoryScreen extends StatelessWidget {
                         ExcludeSemantics(
                           child: SizedBox(
                             height: 130,
-                            child: CustomPaint(painter: _OddsLine(values, odds(first), odds(last))),
+                            child: CustomPaint(
+                              painter: _OddsLine(
+                                values,
+                                odds(first),
+                                odds(last),
+                                fair: p == null || p <= 0 ? null : 1 / p,
+                                fairLabel: p == null || p <= 0
+                                    ? null
+                                    : 'moteur ${percent(p)} (cote juste ${decimal(1 / p)})',
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -103,7 +110,7 @@ class OddsHistoryScreen extends StatelessWidget {
                   ),
                 ),
                 if (p != null)
-                  MCard(
+                  VCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -123,8 +130,7 @@ class OddsHistoryScreen extends StatelessWidget {
                     ),
                   ),
                 if (values.length > 1)
-                  MCard(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                  VCard(
                     child: Column(
                       children: [
                         for (var i = values.length - 1; i >= 0; i--) ...[
@@ -184,14 +190,22 @@ class OddsHistoryScreen extends StatelessWidget {
 /// Courbe de la cote, relevé après relevé (espacement régulier), trois lignes de repère,
 /// première et dernière valeur écrites.
 class _OddsLine extends CustomPainter {
-  _OddsLine(this.values, this.firstLabel, this.lastLabel);
+  _OddsLine(this.values, this.firstLabel, this.lastLabel, {this.fair, this.fairLabel});
   final List<double> values;
   final String firstLabel;
   final String lastLabel;
 
+  /// Cote juste du moteur (maquette 27 : ligne pointillée « moteur 59 % (cote juste 1,69) »).
+  final double? fair;
+  final String? fairLabel;
+
   @override
   void paint(Canvas canvas, Size size) {
-    final lo = values.reduce((a, b) => a < b ? a : b), hi = values.reduce((a, b) => a > b ? a : b);
+    var lo = values.reduce((a, b) => a < b ? a : b), hi = values.reduce((a, b) => a > b ? a : b);
+    if (fair case final f?) {
+      lo = lo < f ? lo : f;
+      hi = hi > f ? hi : f;
+    }
     final span = hi - lo == 0 ? 1.0 : hi - lo;
     const top = 18.0, bottom = 18.0;
     final h = size.height - top - bottom;
@@ -233,6 +247,28 @@ class _OddsLine extends CustomPainter {
 
     label(firstLabel, at(0));
     label(lastLabel, at(values.length - 1), right: true);
+    if (fair case final f?) {
+      final y = top + h * (1 - (f - lo) / span);
+      final dash = Paint()
+        ..color = V.mint
+        ..strokeWidth = 1.4;
+      for (var x = 0.0; x < size.width; x += 9) {
+        canvas.drawLine(Offset(x, y), Offset((x + 5).clamp(0, size.width), y), dash);
+      }
+      if (fairLabel != null) {
+        final tp = TextPainter(
+          text: TextSpan(
+            text: fairLabel,
+            style: V.t(11, color: V.mint),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: size.width);
+        tp.paint(
+          canvas,
+          Offset(size.width / 2 - tp.width / 2, (y - tp.height - 3).clamp(0, size.height - tp.height)),
+        );
+      }
+    }
   }
 
   @override
