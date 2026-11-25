@@ -167,6 +167,8 @@ class PremiumScreen extends StatefulWidget {
 }
 
 class _PremiumScreenState extends State<PremiumScreen> {
+  /// Pastille choisie (maquette 25 : Wave, Orange, MTN, Carte).
+  String? chosen;
   @override
   Widget build(BuildContext context) {
     final offer = widget.offer, plan = widget.plan;
@@ -213,6 +215,30 @@ class _PremiumScreenState extends State<PremiumScreen> {
         ),
     ];
 
+    // Une pastille par moyen (« Orange Money, MTN, Wave ou carte » → Orange, MTN, Wave,
+    // Carte), chacune servie par le premier prestataire qui le propose ; le Wave manuel
+    // seulement si aucun paiement en ligne ne prend Wave (demande du fondateur du 25/11/2026 :
+    // des noms courts, comme la maquette).
+    String short(String w) => switch (w.trim().toLowerCase()) {
+      'orange money' => 'Orange',
+      'carte' => 'Carte',
+      'mobile money' => 'Mobile Money',
+      _ => w.trim(),
+    };
+    final chipMap = <String, (String, String, String, VoidCallback)>{};
+    for (final o in options) {
+      final parts = o.$1.split(RegExp(r',\s*|\s+ou\s+')).map(short).where((w) => w.isNotEmpty);
+      for (final w in parts) {
+        chipMap.putIfAbsent(w, () => (w, o.$2, o.$3, o.$4));
+      }
+    }
+    const order = ['Wave', 'Orange', 'MTN', 'Moov', 'Mobile Money', 'Carte'];
+    final chips = chipMap.values.toList()
+      ..sort((a, b) {
+        int rank(String x) => order.contains(x) ? order.indexOf(x) : order.length;
+        return rank(a.$1).compareTo(rank(b.$1));
+      });
+    final pick = chips.firstWhere((c) => c.$1 == chosen, orElse: () => chips.first);
     // Maquette 25 : titre, l'offre en ligne avec son prix, PAYER AVEC en pastilles, un seul
     // bouton ; gardés : « paiement réel », ce qui se passe après, le tableau des avantages.
     return Scaffold(
@@ -269,12 +295,36 @@ class _PremiumScreenState extends State<PremiumScreen> {
             const SizedBox(height: 16),
             const VKicker('Payer avec'),
             const SizedBox(height: 8),
-            for (final (i, (_, label, note, onTap)) in options.indexed) ...[
-              if (i > 0) const SizedBox(height: 12),
-              MButton(label, secondary: i > 0, onPressed: onTap),
-              const SizedBox(height: 6),
-              Text(note, textAlign: TextAlign.center, style: V.mu_(12)),
-            ],
+            Row(
+              children: [
+                for (final (i, c) in chips.indexed) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => chosen = c.$1),
+                      child: Container(
+                        height: 46,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: c.$1 == pick.$1 ? V.vi : V.s2,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(c.$1, style: V.b(13.5)),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 12),
+            MButton(
+              pick.$1 == 'WhatsApp'
+                  ? 'Écrire sur WhatsApp'
+                  : 'Payer ${currency == 'XOF' ? '${thousands(price)} F' : amount} avec ${pick.$1}',
+              onPressed: pick.$4,
+            ),
+            const SizedBox(height: 6),
+            Text(pick.$3, textAlign: TextAlign.center, style: V.mu_(12)),
             const SizedBox(height: 18),
             const VKicker('Ce qui est inclus'),
             const VCard(child: PremiumTable()),

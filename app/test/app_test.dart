@@ -170,6 +170,12 @@ class FakeServer {
   Map<String, dynamic>? montanteReliability;
   final notifications = <Map<String, dynamic>>[];
   bool paymentsConfigured = true;
+
+  /// Paiements en ligne proposés (vide : seulement le Wave manuel).
+  List<Map<String, dynamic>> onlineMethods = [
+    {'id': 'wave', 'label': 'Wave'},
+    {'id': 'paystack', 'label': 'Orange Money, MTN, Wave ou carte'},
+  ];
   bool betaSharing = false;
   final betaEvents = <Map<String, dynamic>>[];
   int latestBuild = 50;
@@ -343,12 +349,7 @@ class FakeServer {
           'price': 2000,
           'currency': 'XOF',
           'days': 30,
-          'methods': [
-            if (paymentsConfigured) ...[
-              {'id': 'wave', 'label': 'Wave'},
-              {'id': 'paystack', 'label': 'Orange Money, MTN, Wave ou carte'},
-            ],
-          ],
+          'methods': [if (paymentsConfigured) ...onlineMethods],
           'manual': paymentsConfigured
               ? {'wave_number': '+2250700000000', 'whatsapp': '+2250500649904'}
               : null,
@@ -2235,7 +2236,10 @@ void main() {
     await tester.tap(find.textContaining('Passer Premium'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Ce paiement est réel'), findsOneWidget);
-    await tester.tap(find.text('Payer avec Orange Money, MTN, Wave ou carte'));
+    // Maquette 25 : pastilles courtes, puis un seul bouton.
+    await tester.tap(find.text('Orange'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Payer 2${nbsp}000 F avec Orange'));
     await tester.pumpAndSettle();
     expect(server.boughtWith, 'paystack');
     expect(opened.single.toString(), 'https://checkout.cinetpay.com/payment/abc');
@@ -2277,7 +2281,7 @@ void main() {
     await tester.tap(find.textContaining('Passer Premium'));
     await tester.pumpAndSettle();
     expect(find.text('Requête invalide'), findsNothing);
-    await tester.tap(find.text('Payer avec Mobile Money ou carte'));
+    await tester.tap(find.text('Payer 2${nbsp}000 F avec Mobile Money'));
     await tester.pumpAndSettle();
     expect(server.boughtWith, isNull);
     expect(opened.single.toString(), 'https://checkout.cinetpay.com/payment/abc');
@@ -2334,7 +2338,8 @@ void main() {
 
   testWidgets('Premium : Wave manuel, numéro affiché et capture envoyée sur WhatsApp', (tester) async {
     SharedPreferences.setMockInitialValues({'token': 'jeton'});
-    final server = FakeServer();
+    // Wave manuel seulement quand aucun paiement en ligne ne prend Wave.
+    final server = FakeServer()..onlineMethods = [];
     final opened = <Uri>[];
     final state = AppState(
       api: ApiClient(baseUrl: 'http://serveur', httpClient: MockClient(server.handle)),
@@ -2353,7 +2358,7 @@ void main() {
     await tester.scrollUntilVisible(find.textContaining('Passer Premium'), 200);
     await tester.tap(find.textContaining('Passer Premium'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Payer avec Wave (envoi au numéro FootProba)'));
+    await tester.tap(find.text('Payer 2${nbsp}000 F avec Wave'));
     await tester.pumpAndSettle();
     expect(find.text('+225 07 00 00 00 00'), findsOneWidget); // groupé pour le recopier
     expect(server.boughtWith, isNull);
