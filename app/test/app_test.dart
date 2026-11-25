@@ -1754,13 +1754,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Partager en image'));
     await tester.pumpAndSettle();
-    expect(find.text('Chances du moteur'), findsOneWidget);
+    expect(find.text('chance du moteur'), findsOneWidget);
     expect(truth, findsNWidgets(2)); // résultat et image partagée
-    expect(
-      find.text('Probabilités calculées par FootProba. Argent fictif : aucun gain réel.'),
-      findsOneWidget,
-    );
-    Navigator.of(tester.element(find.text('Chances du moteur'))).pop();
+    expect(find.textContaining('Analyse, pas une promesse · argent fictif'), findsOneWidget);
+    Navigator.of(tester.element(find.text('chance du moteur'))).pop();
     await tester.pumpAndSettle();
 
     // Ajouté au coupon : mise proposée de 500 F et phrase de vérité dans Mon coupon.

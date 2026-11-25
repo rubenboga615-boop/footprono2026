@@ -1207,19 +1207,23 @@ class _SuggestionsScreenState extends State<SuggestionsScreen> {
                 // Rapport du 09/11/2026 (trêve internationale) : quand le moteur juge chaque
                 // suggestion moins probable que la cote ne le dit, le dire avant tout.
                 if (allBelow) ...[
-                  Container(
-                    margin: const EdgeInsets.only(top: 12),
-                    padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
-                    decoration: BoxDecoration(
-                      color: Fp.warningBg,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Fp.warningLine),
-                    ),
-                    child: Text(
-                      'Rien de bon pour ce palier aujourd\'hui : pour chaque pari de la plage, le moteur '
-                      'est moins confiant que la cote. Un joueur prudent attend d\'autres matchs ; ta '
-                      'montante ne bouge pas tant que tu ne joues pas.',
-                      style: Fp.body(13.5, color: Fp.warning, height: 1.4),
+                  // Maquette 16 : une carte calme (pause), pourquoi, et la mise qui reste de côté.
+                  VCard(
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 6),
+                        const VIc(VIcon.pause, size: 46, color: V.mu, stroke: 1.6),
+                        const SizedBox(height: 10),
+                        Text('Rien à jouer pour l\'instant', textAlign: TextAlign.center, style: V.b(18)),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Dans ta plage (${odds(lo)}–${odds(hi)}), le moteur est moins confiant que la cote '
+                          'sur chaque pari. Ta mise reste de côté : attendre fait partie du jeu.',
+                          textAlign: TextAlign.center,
+                          style: V.t(13.5, color: V.mu),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
                     ),
                   ),
                   if (!showAnyway)
