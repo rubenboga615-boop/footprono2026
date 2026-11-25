@@ -5,9 +5,9 @@ import '../desktop/layout.dart';
 import '../api/models.dart';
 import '../format.dart';
 import '../state/app_state.dart';
-import '../theme.dart';
 import 'create_screen.dart' show HomeTab;
 import '../widgets/common.dart';
+import '../widgets/visage.dart';
 import 'daily_coupons_screen.dart';
 import 'odds_alerts_screen.dart';
 
@@ -48,18 +48,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     setState(() => _key = UniqueKey());
   }
 
-  static IconData _icon(String kind) {
-    if (kind == 'daily_coupons') return Icons.today_rounded;
-    if (kind == 'odds_alert') return Icons.notifications_active_outlined;
-    if (kind.startsWith('montante')) return Icons.stairs_rounded;
-    if (kind.startsWith('premium')) return Icons.workspace_premium_outlined;
-    if (kind == 'bet_corrected') return Icons.edit_note_rounded;
-    if (kind == 'announcement') return Icons.campaign_outlined;
-    if (kind == 'wallet_credit') return Icons.account_balance_wallet_outlined;
-    if (kind.startsWith('bet')) return Icons.confirmation_number_outlined;
-    return Icons.notifications_none_rounded;
-  }
-
   /// « il y a 5 min », « il y a 3 h », « hier, 22:51 », « 12/10/2026 ».
   static String _ago(DateTime d) {
     final now = DateTime.now();
@@ -82,152 +70,195 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return longDate(day);
   }
 
+  Future<void> _open(Json n) async {
+    final state = context.read<AppState>();
+    if (n['read_at'] == null) {
+      await guard(context, () => state.api.post('/me/notifications/${n['id']}/read'));
+      await state.refreshUnread();
+      setState(() => _key = UniqueKey());
+    }
+    if (!mounted) return;
+    // Coupons du jour : l'écran où copier les codes ; alerte : mes alertes ; matchs d'un
+    // coupon : le suivi dans Mes paris.
+    if (n['kind'] == 'daily_coupons') {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen()));
+    } else if (n['kind'] == 'odds_alert') {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OddsAlertsScreen()));
+    } else if (_betKinds.contains(n['kind'])) {
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      state.openTab(HomeTab.paris);
+    }
+  }
+
+  Future<void> _delete(List<Json> list, List<Json> items) async {
+    final state = context.read<AppState>();
+    setState(() => list.removeWhere(items.contains));
+    for (final n in items) {
+      await guard(context, () => state.api.delete('/me/notifications/${n['id']}'));
+    }
+    await state.refreshUnread();
+  }
+
+  /// Maquette 24 : un pari = une carte, ses notifications en frise (la plus récente en bas).
+  static List<List<Json>> _cards(List<Json> day) {
+    final out = <List<Json>>[];
+    final byBet = <Object, List<Json>>{};
+    for (final n in day) {
+      final bet = (n['data'] as Map?)?['bet_id'];
+      if (bet != null && _betKinds.contains(n['kind'])) {
+        final group = byBet[bet];
+        if (group != null) {
+          group.add(n);
+          continue;
+        }
+        byBet[bet] = [n];
+        out.add(byBet[bet]!);
+      } else {
+        out.add([n]);
+      }
+    }
+    return out;
+  }
+
+  static VDotKind _dot(Json n) {
+    final data = (n['data'] as Map?) ?? const {};
+    return switch (n['kind']) {
+      'bet_settled' when const {'won', 'partial'}.contains(data['outcome']) => VDotKind.green,
+      'bet_settled' when data['outcome'] == 'lost' => VDotKind.red,
+      _ => VDotKind.plain,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.read<AppState>();
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: V.bg,
       body: SafeArea(
         child: Loader<List<Json>>(
           key: _key,
           load: () async => (await state.api.get('/me/notifications', {'limit': 100}) as List).cast<Json>(),
           builder: (context, list, reload) {
-            final children = <Widget>[];
-            String? last;
+            final days = <String, List<Json>>{};
             for (final n in list) {
-              final when = parseDate(n['created_at']) ?? DateTime.now();
-              final g = _group(when);
-              if (g != last) {
-                children.add(SectionTitle(g));
-                last = g;
-              }
-              final unread = n['read_at'] == null;
-              children.add(
-                // Glisser vers la gauche : effacée.
-                Dismissible(
-                  key: ValueKey('notification-${n['id']}'),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.only(right: 20),
-                    alignment: Alignment.centerRight,
-                    decoration: BoxDecoration(
-                      color: Fp.loss.withValues(alpha: 0.35),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Text('Effacer', style: Fp.body(14, weight: FontWeight.w700)),
-                  ),
-                  onDismissed: (_) async {
-                    setState(() => list.remove(n));
-                    await guard(context, () => state.api.delete('/me/notifications/${n['id']}'));
-                    await state.refreshUnread();
-                  },
-                  child: GlassCard(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    onTap:
-                        !unread &&
-                            !const {'daily_coupons', 'odds_alert'}.contains(n['kind']) &&
-                            !_betKinds.contains(n['kind'])
-                        ? null
-                        : () async {
-                            if (unread) {
-                              await guard(context, () => state.api.post('/me/notifications/${n['id']}/read'));
-                              await state.refreshUnread();
-                              setState(() => _key = UniqueKey());
-                            }
-                            // Coupons du jour : ouvrir l'écran où copier les codes.
-                            if (n['kind'] == 'daily_coupons' && context.mounted) {
-                              await Navigator.of(context)
-                                  .push(MaterialPageRoute(builder: (_) => const DailyCouponsScreen()));
-                            }
-                            // Alerte de cote : mes alertes et leurs déclenchements.
-                            if (n['kind'] == 'odds_alert' && context.mounted) {
-                              await Navigator.of(context)
-                                  .push(MaterialPageRoute(builder: (_) => const OddsAlertsScreen()));
-                            }
-                            // Matchs d'un coupon : le suivi dans Mes paris.
-                            if (_betKinds.contains(n['kind']) && context.mounted) {
-                              Navigator.of(context).popUntil((r) => r.isFirst);
-                              state.openTab(HomeTab.paris);
-                            }
-                          },
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        IconSquare(_icon('${n['kind']}'), size: 40, iconSize: 20, radius: 12),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      withoutEmoji('${n['title']}'),
-                                      style: Fp.body(16, weight: FontWeight.w700),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(_ago(when), style: Fp.body(12, color: Fp.text2)),
-                                  if (unread) ...[
-                                    const SizedBox(width: 8),
-                                    const Padding(
-                                      padding: EdgeInsets.only(top: 4),
-                                      child: CircleAvatar(radius: 4, backgroundColor: Fp.accent),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                withoutEmoji('${n['body']}'),
-                                style: Fp.body(14, color: Fp.textStrong, height: 1.4),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
+              days.putIfAbsent(_group(parseDate(n['created_at']) ?? DateTime.now()), () => []).add(n);
             }
             return RefreshIndicator(
               onRefresh: reload,
               child: ListView(
-                padding: pagePadding(context, 16, 32),
+                padding: pagePadding(context, 16, 32, maxWidth: 640),
                 children: [
-                  const BackHeader('Notifications', '', joined: true),
-                  const SizedBox(height: 10),
-                  // Sous le titre (maquette U : à côté, les boutons chevauchaient le titre).
-                  if (list.isNotEmpty) ...[
+                  const VTopBar('Notifications'),
+                  if (list.isNotEmpty)
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        OutlinedButton(onPressed: _readAll, child: const Text('Tout lire')),
-                        const SizedBox(width: 8),
-                        OutlinedButton(onPressed: _deleteAll, child: const Text('Tout effacer')),
+                        VLink('Tout lire', onTap: _readAll),
+                        const SizedBox(width: 16),
+                        GestureDetector(
+                          onTap: _deleteAll,
+                          child: Text('Tout effacer', style: V.t(13.5, color: V.mu)),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                  ],
                   if (list.isEmpty)
-                    const EmptyState('Aucune notification.', icon: Icons.notifications_none_rounded)
-                  else
+                    VCard(
+                      child: Text('Aucune notification.', style: V.t(13.5, color: V.mu)),
+                    ),
+                  for (final MapEntry(key: day, value: items) in days.entries) ...[
+                    Padding(padding: const EdgeInsets.only(top: 16, left: 2), child: VKicker(day)),
+                    for (final card in _cards(items))
+                      Dismissible(
+                        key: ValueKey('notification-${card.first['id']}'),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          margin: const EdgeInsets.only(top: 12),
+                          padding: const EdgeInsets.only(right: 20),
+                          alignment: Alignment.centerRight,
+                          decoration: BoxDecoration(
+                            color: V.coralbg,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text('Effacer', style: V.b(14, V.coral)),
+                        ),
+                        onDismissed: (_) => _delete(list, card),
+                        child: card.length > 1 ? _betCard(card) : _single(card.first),
+                      ),
+                  ],
+                  if (list.isNotEmpty)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.only(top: 14),
                       child: Text(
                         'Glisse une notification vers la gauche pour l\'effacer.',
-                        style: Fp.body(12.5, color: Fp.muted),
+                        textAlign: TextAlign.center,
+                        style: V.mu_(11.5),
                       ),
                     ),
-                  ...children,
                 ],
               ),
             );
           },
         ),
+      ),
+    );
+  }
+
+  Widget _time(DateTime when, bool unread) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(_ago(when), style: V.mu_(11.5)),
+      if (unread) ...[const SizedBox(width: 6), const VDot(color: V.vi)],
+    ],
+  );
+
+  Widget _single(Json n) {
+    final when = parseDate(n['created_at']) ?? DateTime.now();
+    final data = (n['data'] as Map?) ?? const {};
+    final won = n['kind'] == 'bet_settled' && const {'won', 'partial'}.contains(data['outcome']);
+    return VCard(
+      onTap: () => _open(n),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(withoutEmoji('${n['title']}'), style: V.b(14.5)),
+                const SizedBox(height: 2),
+                Text(withoutEmoji('${n['body']}'), style: V.t(12.5, color: V.mu)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          if (won && data['payout'] is num)
+            VChip('+${thousands(data['payout'] as num)}', kind: VChipKind.up)
+          else
+            _time(when, n['read_at'] == null),
+        ],
+      ),
+    );
+  }
+
+  Widget _betCard(List<Json> items) {
+    final first = items.first;
+    final latest = parseDate(first['created_at']) ?? DateTime.now();
+    final unread = items.any((n) => n['read_at'] == null);
+    final bet = (first['data'] as Map?)?['bet_id'];
+    return VCard(
+      onTap: () => _open(first),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text('Pari n° $bet', style: V.b(14.5))),
+              _time(latest, unread),
+            ],
+          ),
+          const SizedBox(height: 8),
+          VTimeline(items: [for (final n in items.reversed) (withoutEmoji('${n['body']}'), _dot(n))]),
+        ],
       ),
     );
   }
