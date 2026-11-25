@@ -1396,7 +1396,7 @@ void main() {
   testWidgets('connexion : erreur du serveur affichée, puis accès aux matchs', (tester) async {
     final (state, _) = await startApp(tester);
     // Accueil de la maquette du 07/11/2026, puis « J'ai déjà un compte » (sans Google : formulaire).
-    expect(find.text('Créer mon compte gratuit'), findsOneWidget);
+    expect(find.text('Commencer gratuitement'), findsOneWidget);
     await tester.tap(find.text('J\'ai déjà un compte'));
     await tester.pumpAndSettle();
     expect(find.text('Se connecter'), findsOneWidget);
@@ -1421,7 +1421,7 @@ void main() {
 
   testWidgets('inscription : case 18 ans obligatoire', (tester) async {
     await startApp(tester);
-    await tester.tap(find.text('Créer mon compte gratuit'));
+    await tester.tap(find.text('Commencer gratuitement'));
     await tester.pumpAndSettle();
     expect(find.text("J'ai 18 ans ou plus"), findsOneWidget);
     expect(find.text("conditions d'utilisation"), findsOneWidget);
@@ -2489,7 +2489,7 @@ void main() {
     expect(find.text('Débloquer les coupons du jour'), findsOneWidget);
     await tester.tap(find.text('Passer Premium · 2${nbsp}000 F pour 30 jours'));
     await tester.pumpAndSettle();
-    expect(find.text('Premium · 30 jours'), findsOneWidget); // « Passer Premium » directement
+    expect(find.text('30 jours'), findsOneWidget); // « Passer Premium » directement
   });
 
   testWidgets('coupons du jour : chance, état en direct, code copié, détail', (tester) async {
@@ -3050,7 +3050,7 @@ void main() {
     await tester.ensureVisible(find.text('Débloquer · 2${nbsp}000 F pour 30 jours'));
     await tester.tap(find.text('Débloquer · 2${nbsp}000 F pour 30 jours'));
     await tester.pumpAndSettle();
-    expect(find.text('Premium · 30 jours'), findsOneWidget); // « Passer Premium » directement
+    expect(find.text('30 jours'), findsOneWidget); // « Passer Premium » directement
   });
 
   testWidgets('nouvelle version : téléchargée dans l\'application, installateur ouvert', (tester) async {
@@ -3152,7 +3152,7 @@ void main() {
     final (state, server) = await startApp(tester, google: google);
     // Google sur l'écran suivant l'accueil (demandé le 07/11/2026).
     expect(find.text('Continuer avec Google'), findsNothing);
-    await tester.tap(find.text('Créer mon compte gratuit'));
+    await tester.tap(find.text('Commencer gratuitement'));
     await tester.pumpAndSettle();
     expect(find.text('Continuer avec Google'), findsOneWidget);
 

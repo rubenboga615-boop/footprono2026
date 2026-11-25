@@ -12,6 +12,7 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import 'create_screen.dart' show HomeTab;
 import '../widgets/common.dart';
+import '../widgets/visage.dart';
 import '../widgets/maquette.dart';
 
 /// Ce que Premium ajoute, sans ambiguïté (les ✓ seuls laissaient croire que la version
@@ -156,13 +157,19 @@ Future<void> openPremiumPurchase(BuildContext context, Plan plan) async {
   );
 }
 
-class PremiumScreen extends StatelessWidget {
+class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key, required this.offer, required this.plan});
   final Json offer;
   final Plan plan;
 
   @override
+  State<PremiumScreen> createState() => _PremiumScreenState();
+}
+
+class _PremiumScreenState extends State<PremiumScreen> {
+  @override
   Widget build(BuildContext context) {
+    final offer = widget.offer, plan = widget.plan;
     final state = context.read<AppState>();
     final price = offer['price'] as int;
     final currency = offer['currency'] as String;
@@ -173,15 +180,17 @@ class PremiumScreen extends StatelessWidget {
     final account = 'n° ${me.id}${me.phone != null ? ' (${me.phone})' : ''}';
 
     // Une option de paiement : bouton, puis ce qui se passe après, en petit.
-    final options = <(String, String, VoidCallback)>[
+    final options = <(String, String, String, VoidCallback)>[
       for (final m in methods)
         (
+          '${m['label']}',
           'Payer avec ${m['label']}',
           'Premium activé dès la confirmation du paiement',
           () => guard(context, () => state.buyPremium(m['id'] as String)),
         ),
       if (manual != null)
         (
+          'Wave',
           methods.isEmpty ? 'Payer avec Wave' : 'Payer avec Wave (envoi au numéro FootProba)',
           'Premium activé après vérification de l\'envoi',
           () => Navigator.of(context).push(
@@ -194,6 +203,7 @@ class PremiumScreen extends StatelessWidget {
       // l'abonnement passe par WhatsApp et Premium est activé depuis la console.
       if (methods.isEmpty && manual == null)
         (
+          'WhatsApp',
           'Écrire sur WhatsApp',
           'Le paiement dans l\'application arrive bientôt : on t\'indique comment payer par Mobile '
               'Money et on active Premium dès la réception.',
@@ -203,59 +213,71 @@ class PremiumScreen extends StatelessWidget {
         ),
     ];
 
+    // Maquette 25 : titre, l'offre en ligne avec son prix, PAYER AVEC en pastilles, un seul
+    // bouton ; gardés : « paiement réel », ce qui se passe après, le tableau des avantages.
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: V.bg,
       body: SafeArea(
         child: ListView(
           padding: pagePadding(context, 16, 32, maxWidth: 640),
           children: [
-            const BackHeader('Passer', 'Premium'),
-            const SizedBox(height: 12),
-            MCard(
-              highlight: true,
-              color: Fp.cardHigh,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            const VTopBar(''),
+            Text.rich(
+              const TextSpan(
                 children: [
-                  Text('Premium · 30 jours', style: Fp.title(18)),
-                  const SizedBox(height: 2),
-                  Text.rich(
-                    TextSpan(
-                      children: [
-                        TextSpan(
-                          text: currency == 'XOF' ? '${thousands(price)} F ' : '$amount ',
-                          style: Fp.title(30, weight: FontWeight.w800),
-                        ),
-                        if (currency == 'XOF')
-                          TextSpan(
-                            text: 'CFA',
-                            style: Fp.body(12, color: Fp.muted),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Payé une fois, sans renouvellement automatique'
-                    '${plan.premium ? ', à la suite de ta période en cours' : ''}. Ce paiement est réel, '
-                    'contrairement aux paris, en argent fictif.',
-                    style: Fp.body(12.5, color: Fp.muted, height: 1.4),
+                  TextSpan(text: 'FootProba '),
+                  TextSpan(
+                    text: 'Premium',
+                    style: TextStyle(color: V.vi2),
                   ),
                 ],
               ),
+              style: V.t(26, w: FontWeight.w800, ls: -0.5),
             ),
-            const SizedBox(height: 12),
-            const MCard(child: PremiumTable()),
-            for (final (i, (label, note, onTap)) in options.indexed) ...[
-              SizedBox(height: i == 0 ? 16 : 12),
+            const SizedBox(height: 4),
+            Text(
+              'Tous les marchés, l\'analyse, le Coupon intelligent et la montante.',
+              style: V.t(13.5, color: V.mu),
+            ),
+            VCard(
+              border: V.vi.withValues(alpha: 0.6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('30 jours', style: V.b(15)),
+                        Text(
+                          plan.premium
+                              ? 'paiement unique, à la suite de ta période en cours'
+                              : 'paiement unique, sans renouvellement',
+                          style: V.mu_(12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(currency == 'XOF' ? '${thousands(price)} F' : amount, style: V.b(20)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Ce paiement est réel, contrairement aux paris de l\'application, en argent fictif.',
+              style: V.mu_(12),
+            ),
+            const SizedBox(height: 16),
+            const VKicker('Payer avec'),
+            const SizedBox(height: 8),
+            for (final (i, (_, label, note, onTap)) in options.indexed) ...[
+              if (i > 0) const SizedBox(height: 12),
               MButton(label, secondary: i > 0, onPressed: onTap),
               const SizedBox(height: 6),
-              Text(
-                note,
-                textAlign: TextAlign.center,
-                style: Fp.body(12.5, color: Fp.muted, height: 1.4),
-              ),
+              Text(note, textAlign: TextAlign.center, style: V.mu_(12)),
             ],
+            const SizedBox(height: 18),
+            const VKicker('Ce qui est inclus'),
+            const VCard(child: PremiumTable()),
           ],
         ),
       ),

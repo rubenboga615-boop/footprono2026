@@ -8,6 +8,7 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/install_tip.dart';
 import '../widgets/maquette.dart';
+import '../widgets/visage.dart';
 import 'server_dialog.dart';
 
 const countries = {
@@ -222,39 +223,19 @@ class _AuthScreenState extends State<AuthScreen> {
                       if (showBack)
                         BackChevron(onTap: busy ? null : _back)
                       else if (welcome)
-                        // Maquette P3 (14/11/2026) : le logo Ballon-jauge B3 devant le nom.
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const FpMark(size: 36),
-                            const SizedBox(width: 10),
-                            Text.rich(
-                              const TextSpan(
-                                children: [
-                                  TextSpan(text: 'Foot'),
-                                  TextSpan(
-                                    text: 'Proba',
-                                    style: TextStyle(color: Fp.accentLight),
-                                  ),
-                                ],
-                              ),
-                              style: Fp.title(23),
-                            ),
-                          ],
-                        )
+                        const SizedBox.shrink()
                       else
                         const FpLogo(size: 20),
                     ],
                   ),
-                  SizedBox(height: welcome ? 22 : 34),
+                  SizedBox(height: welcome ? 0 : 34),
                   // Absent de la maquette de l'accueil : proposé à l'écran suivant.
                   if (!welcome) const InstallTip(margin: EdgeInsets.only(bottom: 16)),
                   card,
                   SizedBox(height: welcome ? 12 : 22),
                   Text(
                     welcome
-                        ? 'On ne promet pas de gains : personne ne bat le bookmaker à coup sûr.\n'
-                              'Paris de l\'application en argent fictif · 18 ans et plus.'
+                        ? '18 ans et plus · argent fictif · aucun gain promis'
                         : '18 ans et plus · argent fictif, aucun pari réel',
                     textAlign: TextAlign.center,
                     style: welcome
@@ -307,85 +288,77 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  /// Ce que FootProba apporte vraiment (maquette validée le 07/11/2026), sans promettre de gain.
+  /// Trois promesses honnêtes (maquette 1 du nouveau visage), sans promettre de gain.
   static const _benefits = [
-    (
-      'Les vraies chances de chaque pari',
-      'Un combiné de 8 matchs passe environ 1 fois sur 60. Tu le sais avant de miser.',
-    ),
-    ('3 coupons prêts chaque matin', 'Sûr, Équilibré, Audacieux, à reproduire dans 1xBet en un geste.'),
-    ('Un bilan public, sans tri', 'Tous les coupons publiés, gagnés et perdus.'),
-    ('Des outils pour garder le contrôle', 'Montante planifiée, bilan de tes paris, alertes.'),
+    ('La chance réelle', 'Un combiné de 8 matchs passe environ 1 fois sur 60.'),
+    ('Moteur contre cote', 'On te dit quand le bookmaker est plus sûr que nous.'),
+    ('Bilan public', 'Tous nos coupons, gagnés et perdus.'),
   ];
 
   /// Accueil, valeurs de la maquette : titre 30, texte 13,5, carte arrondie, deux boutons.
   Widget _welcome() {
-    final head = Fp.title(30).copyWith(height: 1.15);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const SizedBox(height: 40),
+        // Maquette 1 : le logo en grand dès la première seconde, le nom, une phrase.
+        const Center(child: FpMark(size: 92)),
+        const SizedBox(height: 18),
         Text.rich(
           const TextSpan(
             children: [
-              TextSpan(text: 'Parie mieux informé.\n'),
+              TextSpan(text: 'Foot'),
               TextSpan(
-                text: 'Perds moins bêtement.',
-                style: TextStyle(color: Fp.accentLight),
+                text: 'Proba',
+                style: TextStyle(color: V.vi2),
               ),
             ],
           ),
-          style: head,
+          textAlign: TextAlign.center,
+          style: V.t(32, w: FontWeight.w800, ls: -0.6),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         Text(
-          'Avant de miser, sache quelles sont les vraies chances de ton pari.',
-          style: Fp.body(13.5, color: M.muted, height: 1.45),
+          'Les vraies chances de chaque pari,\navant de miser.',
+          textAlign: TextAlign.center,
+          style: V.t(14, color: V.mu),
         ),
-        MCard(
+        const SizedBox(height: 36),
+        VCard(
           child: Column(
             children: [
-              for (final (i, (title, text)) in _benefits.indexed)
-                Container(
+              for (final (i, (title, text)) in _benefits.indexed) ...[
+                if (i > 0) const Divider(height: 1, thickness: 1, color: V.line),
+                Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    border: i < _benefits.length - 1
-                        ? const Border(bottom: BorderSide(color: M.line10))
-                        : null,
-                  ),
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        width: 26,
-                        height: 26,
+                        width: 24,
+                        height: 24,
                         alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: const Color(0x447C3AED),
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        child: Text(
-                          '${i + 1}',
-                          style: Fp.body(13, weight: FontWeight.w700, color: const Color(0xFFE4D8FD)),
-                        ),
+                        decoration: const BoxDecoration(color: V.vi3, shape: BoxShape.circle),
+                        child: Text('${i + 1}', style: V.b(11.5, V.vi2)),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(title, style: Fp.body(14.5, weight: FontWeight.w700)),
-                            Text(text, style: Fp.body(12.8, color: const Color(0xC0F4F2F8), height: 1.4)),
+                            Text(title, style: V.b(14)),
+                            Text(text, style: V.mu_(12)),
                           ],
                         ),
                       ),
                     ],
                   ),
                 ),
+              ],
             ],
           ),
         ),
-        const SizedBox(height: 12),
-        MButton('Créer mon compte gratuit', onPressed: () => _choose(true)),
+        const SizedBox(height: 14),
+        MButton('Commencer gratuitement', onPressed: () => _choose(true)),
         const SizedBox(height: 8),
         MButton('J\'ai déjà un compte', secondary: true, onPressed: () => _choose(false)),
       ],
