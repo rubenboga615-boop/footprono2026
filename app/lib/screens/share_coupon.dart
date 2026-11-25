@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 
 import '../api/models.dart';
 import '../format.dart';
@@ -27,7 +28,7 @@ Future<void> shareCoupon(
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Fp.background,
+    backgroundColor: V.bg,
     builder: (context) => SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
@@ -35,29 +36,61 @@ Future<void> shareCoupon(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Partager le coupon', style: Fp.title(17)),
-            const SizedBox(height: 12),
+            Text('Partager', textAlign: TextAlign.center, style: V.b(16)),
+            const SizedBox(height: 14),
             RepaintBoundary(
               key: key,
               child: CouponImage(sels: sels, coupon: coupon, profile: profile, big: big),
             ),
             const SizedBox(height: 14),
-            FilledButton.icon(
-              onPressed: () async {
-                try {
-                  final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-                  final image = await boundary.toImage(pixelRatio: 3);
-                  final data = await image.toByteData(format: ui.ImageByteFormat.png);
-                  await ShareBridge.shareImage(
-                    data!.buffer.asUint8List(),
-                    'Mon coupon FootProba (argent fictif)',
-                  );
-                } catch (_) {
-                  showMessage('Partage impossible sur cet appareil.', error: true);
-                }
-              },
-              icon: const Icon(Icons.ios_share_rounded, size: 18),
-              label: const Text('Partager l\'image'),
+            // Maquette 28 : partager en vert, « Copier le code » à côté s'il y a un code 1xBet.
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: V.mint,
+                      foregroundColor: V.bg,
+                      minimumSize: const Size(0, 50),
+                      textStyle: V.b(15),
+                    ),
+                    onPressed: () async {
+                      try {
+                        final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+                        final image = await boundary.toImage(pixelRatio: 3);
+                        final data = await image.toByteData(format: ui.ImageByteFormat.png);
+                        await ShareBridge.shareImage(
+                          data!.buffer.asUint8List(),
+                          'Mon coupon FootProba (argent fictif)',
+                        );
+                      } catch (_) {
+                        showMessage('Partage impossible sur cet appareil.', error: true);
+                      }
+                    },
+                    icon: const VIc(VIcon.send, size: 17, color: V.bg),
+                    label: const Text('Partager'),
+                  ),
+                ),
+                if (((coupon['booking_codes'] as List?) ?? const []).cast<Json>().firstOrNull
+                    case final b?) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: V.tx,
+                        minimumSize: const Size(0, 50),
+                        side: const BorderSide(color: V.line),
+                        textStyle: V.b(14.5),
+                      ),
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: '${b['code']}'));
+                        showMessage('Code copié : colle-le dans ${b['label'] ?? b['bookmaker']}.');
+                      },
+                      child: const Text('Copier le code'),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ],
         ),
@@ -101,6 +134,7 @@ class CouponImage extends StatelessWidget {
       child: DefaultTextStyle(
         style: V.t(13.5),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
